@@ -75,10 +75,13 @@ struct MCXNState {
     Clock      *sysclk;
     Clock      *refclk;
 
-    MemoryRegion flash;
-    MemoryRegion sram;                  /* SRAM, system-bus view @0x20000000 */
-    MemoryRegion sram_codebus;          /* code-bus alias of SRAM @0x30000000 */
-    MemoryRegion sramx;                 /* SRAMX @0x14000000 */
+    /* On-chip memories — each reachable via a non-secure and a secure
+     * aperture (TZ-M); per RM Table 16. The real region is added at the NS
+     * base, an alias at the secure base. */
+    MemoryRegion flash;   MemoryRegion flash_alias;  /* 0x0 / 0x10000000  2 MB  */
+    MemoryRegion rom;     MemoryRegion rom_alias;    /* 0x03000000 / 0x13000000 */
+    MemoryRegion sramx;   MemoryRegion sramx_alias;  /* 0x04000000 / 0x14000000 */
+    MemoryRegion sram;    MemoryRegion sram_alias;   /* 0x20000000 / 0x30000000 */
     MemoryRegion flexcomm4_s_alias; /* TrustZone secure alias of the console */
     MemoryRegion scg0_s_alias;      /* TrustZone secure alias of SCG0 */
     MemoryRegion syscon_s_alias;    /* TrustZone secure alias of SYSCON */

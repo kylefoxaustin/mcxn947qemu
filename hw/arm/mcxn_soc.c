@@ -30,10 +30,18 @@
 #define MCXN_SYSCON_BASE     0x40000000  /* SYSCON (NS alias); CPU1 boot ctrl */
 #define MCXN_SPC0_BASE       0x40045000  /* system power controller (NS alias) */
 
-/* SRAM is reachable on two buses; SRAMX is a separate code-bus RAM. */
-#define MCXN_SRAM_CODEBUS    0x30000000  /* code-bus alias of the system SRAM */
-#define MCXN_SRAMX_BASE      0x14000000
-#define MCXN_SRAMX_SIZE      (96 * KiB)
+/* On-chip memory apertures (RM Table 16): each memory has a non-secure base
+ * and a secure-alias base (TZ-M). */
+#define MCXN_FLASH_NS   0x00000000        /* program flash, 2 MB             */
+#define MCXN_FLASH_S    0x10000000
+#define MCXN_ROM_NS     0x03000000        /* boot ROM, 256 KB               */
+#define MCXN_ROM_S      0x13000000
+#define MCXN_ROM_SIZE   (256 * KiB)
+#define MCXN_SRAMX_NS   0x04000000        /* SRAMX (RAMX), 96 KB            */
+#define MCXN_SRAMX_S    0x14000000
+#define MCXN_SRAMX_SIZE (96 * KiB)
+#define MCXN_SRAM_NS    0x20000000        /* main SRAM RAMA..H, 416 KB     */
+#define MCXN_SRAM_S     0x30000000
 
 /* TrustZone-M: secure peripheral alias = non-secure base + 0x1000_0000. */
 #define MCXN_SECURE_ALIAS    0x10000000
@@ -59,10 +67,10 @@ static const MCXNConfig mcxn_configs[] = {
         .num_cpus      = 2,            /* dual Cortex-M33 (cpu0 + cpu1)        */
         .num_irq       = 156,          /* CMSIS: CTI0_IRQn=155, +1             */
         .num_prio_bits = 3,            /* CMSIS: __NVIC_PRIO_BITS              */
-        .flash_base    = 0x10000000,   /* code-bus flash (Zephyr boots here)  */
+        .flash_base    = 0x10000000,   /* secure flash aperture (boot/svtor)  */
         .flash_size    = 2 * MiB,
-        .sram_base     = 0x20000000,   /* SRAM system-bus view                */
-        .sram_size     = 512 * KiB,
+        .sram_base     = 0x20000000,   /* main SRAM (RAMA..H) system-bus view */
+        .sram_size     = 416 * KiB,    /* RAMA..H total (RM Table 16)         */
     },
     /* Add MCX N54x / N23x / A-series / W-series entries here. */
 };
@@ -164,29 +172,39 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     }
     s->cfg = cfg;
 
-    /* --- Memories -------------------------------------------------------- *
-     * Code flash is modelled as RAM during bring-up so the loader can write
-     * it directly.  Swap to memory_region_init_rom() + a flash controller
-     * model once the boot/flash path is being exercised for real.
+    /* --- On-chip memories (RM Table 16) ---------------------------------- *
+     * Flash, boot ROM, SRAM and SRAMX, each reachable via a non-secure base
+     * and a secure-alias base (TZ-M).  Flash and ROM are RAM-backed during
+     * bring-up (the -kernel loader and, later, the FMU write them); swap flash
+     * to ROM + FMU program/erase once that path is exercised.
      */
     memory_region_init_ram(&s->flash, OBJECT(dev), "mcxn.flash",
                            cfg->flash_size, &error_fatal);
-    memory_region_add_subregion(system_memory, cfg->flash_base, &s->flash);
+    memory_region_add_subregion(system_memory, MCXN_FLASH_NS, &s->flash);
+    memory_region_init_alias(&s->flash_alias, OBJECT(dev), "mcxn.flash.s",
+                             &s->flash, 0, cfg->flash_size);
+    memory_region_add_subregion(system_memory, MCXN_FLASH_S, &s->flash_alias);
+
+    memory_region_init_ram(&s->rom, OBJECT(dev), "mcxn.rom-boot",
+                           MCXN_ROM_SIZE, &error_fatal);
+    memory_region_add_subregion(system_memory, MCXN_ROM_NS, &s->rom);
+    memory_region_init_alias(&s->rom_alias, OBJECT(dev), "mcxn.rom-boot.s",
+                             &s->rom, 0, MCXN_ROM_SIZE);
+    memory_region_add_subregion(system_memory, MCXN_ROM_S, &s->rom_alias);
+
+    memory_region_init_ram(&s->sramx, OBJECT(dev), "mcxn.sramx",
+                           MCXN_SRAMX_SIZE, &error_fatal);
+    memory_region_add_subregion(system_memory, MCXN_SRAMX_NS, &s->sramx);
+    memory_region_init_alias(&s->sramx_alias, OBJECT(dev), "mcxn.sramx.s",
+                             &s->sramx, 0, MCXN_SRAMX_SIZE);
+    memory_region_add_subregion(system_memory, MCXN_SRAMX_S, &s->sramx_alias);
 
     memory_region_init_ram(&s->sram, OBJECT(dev), "mcxn.sram",
                            cfg->sram_size, &error_fatal);
-    memory_region_add_subregion(system_memory, cfg->sram_base, &s->sram);
-
-    /* Same SRAM, code-bus view at 0x3000_0000 (Zephyr links its RAM here). */
-    memory_region_init_alias(&s->sram_codebus, OBJECT(dev), "mcxn.sram.codebus",
+    memory_region_add_subregion(system_memory, MCXN_SRAM_NS, &s->sram);
+    memory_region_init_alias(&s->sram_alias, OBJECT(dev), "mcxn.sram.s",
                              &s->sram, 0, cfg->sram_size);
-    memory_region_add_subregion(system_memory, MCXN_SRAM_CODEBUS,
-                                &s->sram_codebus);
-
-    /* SRAMX: separate code-bus RAM. */
-    memory_region_init_ram(&s->sramx, OBJECT(dev), "mcxn.sramx",
-                           MCXN_SRAMX_SIZE, &error_fatal);
-    memory_region_add_subregion(system_memory, MCXN_SRAMX_BASE, &s->sramx);
+    memory_region_add_subregion(system_memory, MCXN_SRAM_S, &s->sram_alias);
 
     /* --- Cortex-M33 cores + NVIC + SysTick ------------------------------- *
      * The MCXN947 is a dual-M33 part.  Each ARMV7M wraps its "memory" link in
