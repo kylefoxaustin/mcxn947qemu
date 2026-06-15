@@ -35,3 +35,6 @@ GTAGS
 # Built test firmware (rebuilt by tests/*/run.sh).
 tests/mcxn-dualcore/*.elf
 tests/mcxn-gpio/*.elf
+# NXP MCX reference docs dropped under docs/ (large PDFs, NOT for the repo).
+docs/mcx-*/
+docs/mcx-*.zip
