@@ -18,6 +18,7 @@
 #include "hw/core/qdev-properties.h"
 #include "hw/core/qdev-properties-system.h" /* qdev_prop_set_chr */
 #include "hw/misc/unimp.h"
+#include "hw/misc/mcxn_stub.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -73,6 +74,18 @@ static const hwaddr mcxn_gpio_base[MCXN_NUM_GPIO] = {
 };
 static const hwaddr mcxn_port_base[MCXN_NUM_PORT] = {
     0x40116000, 0x40117000, 0x40118000, 0x40119000, 0x4011A000, 0x40042000,
+};
+
+/* Every other peripheral present on the SoC, covered by the generic permissive
+ * stub until it gets a real model (see mcxn_peripherals.inc). */
+typedef struct MCXNStubDesc {
+    hwaddr      base;
+    uint64_t    size;
+    const char *name;
+} MCXNStubDesc;
+
+static const MCXNStubDesc mcxn_stub_table[] = {
+#include "mcxn_peripherals.inc"
 };
 
 static const MCXNConfig *mcxn_lookup(const char *part)
@@ -290,6 +303,27 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      mcxn_port_base[i] + MCXN_SECURE_ALIAS,
                                      &s->port_s_alias[i]);
+    }
+
+    /* Generic permissive stubs for every other peripheral present on the SoC
+     * (present + register read-back + non-blocking), each NS + secure alias.
+     * Replace entries with real device models over time. */
+    for (i = 0; i < (int)ARRAY_SIZE(mcxn_stub_table); i++) {
+        const MCXNStubDesc *d = &mcxn_stub_table[i];
+        DeviceState *stub = qdev_new(TYPE_MCXN_STUB);
+        MemoryRegion *salias = g_new(MemoryRegion, 1);
+        g_autofree char *sname = g_strdup_printf("mcxn.%s.s", d->name);
+
+        object_property_add_child(OBJECT(dev), d->name, OBJECT(stub));
+        qdev_prop_set_string(stub, "blkname", d->name);
+        qdev_prop_set_uint64(stub, "size", d->size);
+        sysbus_realize_and_unref(SYS_BUS_DEVICE(stub), &error_abort);
+        sysbus_mmio_map(SYS_BUS_DEVICE(stub), 0, d->base);
+        memory_region_init_alias(salias, OBJECT(dev), sname,
+                                 sysbus_mmio_get_region(SYS_BUS_DEVICE(stub), 0),
+                                 0, d->size);
+        memory_region_add_subregion(system_memory,
+                                     d->base + MCXN_SECURE_ALIAS, salias);
     }
 }
 

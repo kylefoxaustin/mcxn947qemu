@@ -270,3 +270,6 @@ config MCXN_PORT
 
 config MCXN_SPC
     bool
+
+config MCXN_STUB
+    bool
