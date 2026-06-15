@@ -76,6 +76,12 @@ static const hwaddr mcxn_port_base[MCXN_NUM_PORT] = {
     0x40116000, 0x40117000, 0x40118000, 0x40119000, 0x4011A000, 0x40042000,
 };
 
+/* CTIMER0..4: NS base + NVIC IRQ (CMSIS). */
+static const struct { hwaddr base; int irq; } mcxn_ctimer_cfg[MCXN_NUM_CTIMER] = {
+    { 0x4000C000, 31 }, { 0x4000D000, 32 }, { 0x4000E000, 34 },
+    { 0x4000F000, 55 }, { 0x40010000, 56 },
+};
+
 /* Every other peripheral present on the SoC, covered by the generic permissive
  * stub until it gets a real model (see mcxn_peripherals.inc). */
 typedef struct MCXNStubDesc {
@@ -119,6 +125,10 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_PORT; i++) {
         g_autofree char *name = g_strdup_printf("port%d", i);
         object_initialize_child(obj, name, &s->port[i], TYPE_MCXN_PORT);
+    }
+    for (i = 0; i < MCXN_NUM_CTIMER; i++) {
+        g_autofree char *name = g_strdup_printf("ctimer%d", i);
+        object_initialize_child(obj, name, &s->ctimer[i], TYPE_MCXN_CTIMER);
     }
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
@@ -303,6 +313,27 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      mcxn_port_base[i] + MCXN_SECURE_ALIAS,
                                      &s->port_s_alias[i]);
+    }
+
+    /* CTIMER0..4: functional counter/timers, IRQ to cpu0 NVIC, clocked by the
+     * SoC main clock (real divider lives in the stubbed clock tree). */
+    for (i = 0; i < MCXN_NUM_CTIMER; i++) {
+        DeviceState *t = DEVICE(&s->ctimer[i]);
+        g_autofree char *aname = g_strdup_printf("mcxn.ctimer%d.s", i);
+
+        qdev_connect_clock_in(t, "clk", s->sysclk);
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->ctimer[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->ctimer[i]), 0, mcxn_ctimer_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->ctimer[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            mcxn_ctimer_cfg[i].irq));
+        memory_region_init_alias(&s->ctimer_s_alias[i], OBJECT(dev), aname,
+                                 &s->ctimer[i].iomem, 0, 0x1000);
+        memory_region_add_subregion(system_memory,
+                                     mcxn_ctimer_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->ctimer_s_alias[i]);
     }
 
     /* Generic permissive stubs for every other peripheral present on the SoC

@@ -17,6 +17,7 @@
 #include "hw/misc/mcxn_spc.h"
 #include "hw/misc/mcxn_port.h"
 #include "hw/gpio/mcxn_gpio.h"
+#include "hw/timer/mcxn_ctimer.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -29,6 +30,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNState, MCXN_SOC)
 /* MCXN947 GPIO/PORT instance counts (GPIO0..5, PORT0..5). */
 #define MCXN_NUM_GPIO 6
 #define MCXN_NUM_PORT 6
+#define MCXN_NUM_CTIMER 5   /* CTIMER0..4 */
 
 /*
  * Per-SKU configuration.
@@ -64,6 +66,7 @@ struct MCXNState {
     MCXNSPCState    spc0;          /* system power controller */
     MCXNGPIOState   gpio[MCXN_NUM_GPIO];  /* GPIO0..5 controllers */
     MCXNPortState   port[MCXN_NUM_PORT];  /* PORT0..5 pin-mux stubs */
+    MCXNCTimerState ctimer[MCXN_NUM_CTIMER]; /* CTIMER0..4 */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -77,6 +80,7 @@ struct MCXNState {
     MemoryRegion spc0_s_alias;      /* TrustZone secure alias of SPC */
     MemoryRegion gpio_s_alias[MCXN_NUM_GPIO]; /* secure aliases of GPIO0..5 */
     MemoryRegion port_s_alias[MCXN_NUM_PORT]; /* secure aliases of PORT0..5 */
+    MemoryRegion ctimer_s_alias[MCXN_NUM_CTIMER]; /* secure aliases of CTIMER */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */

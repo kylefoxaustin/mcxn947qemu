@@ -31,7 +31,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `CMP` | 3 | ○ stub (present, readback, non-blocking) |
 | `CMX_PERFMON` | 2 | ○ stub (present, readback, non-blocking) |
 | `CRC` | 1 | ○ stub (present, readback, non-blocking) |
-| `CTIMER` | 5 | ○ stub (present, readback, non-blocking) |
+| `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
 | `DAC` | 3 | ○ stub (present, readback, non-blocking) |
 | `DM` | 1 | ○ stub (present, readback, non-blocking) |
 | `DMA` | 2 | ○ stub (present, readback, non-blocking) |

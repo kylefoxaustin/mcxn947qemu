@@ -38,3 +38,4 @@ tests/mcxn-gpio/*.elf
 # NXP MCX reference docs dropped under docs/ (large PDFs, NOT for the repo).
 docs/mcx-*/
 docs/mcx-*.zip
+tests/mcxn-ctimer/*.elf
