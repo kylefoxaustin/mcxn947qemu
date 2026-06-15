@@ -34,3 +34,4 @@ GTAGS
 .DS_Store
 # Built test firmware (rebuilt by tests/*/run.sh).
 tests/mcxn-dualcore/*.elf
+tests/mcxn-gpio/*.elf

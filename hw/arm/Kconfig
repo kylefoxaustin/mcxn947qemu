@@ -726,6 +726,8 @@ config MCXN_SOC
     select MCXN_LPUART
     select MCXN_SCG
     select MCXN_SYSCON
+    select MCXN_GPIO
+    select MCXN_PORT
 
 config FRDM_MCXN947
     bool

@@ -264,3 +264,6 @@ config MCXN_SCG
 
 config MCXN_SYSCON
     bool
+
+config MCXN_PORT
+    bool

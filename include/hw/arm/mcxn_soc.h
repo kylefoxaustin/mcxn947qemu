@@ -14,6 +14,8 @@
 #include "hw/char/mcxn_lpuart.h"
 #include "hw/misc/mcxn_scg.h"
 #include "hw/misc/mcxn_syscon.h"
+#include "hw/misc/mcxn_port.h"
+#include "hw/gpio/mcxn_gpio.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -22,6 +24,10 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNState, MCXN_SOC)
 
 /* Max Cortex-M33 cores across the MCX N family (MCXN947 = 2). */
 #define MCXN_MAX_CPUS 2
+
+/* MCXN947 GPIO/PORT instance counts (GPIO0..5, PORT0..5). */
+#define MCXN_NUM_GPIO 6
+#define MCXN_NUM_PORT 6
 
 /*
  * Per-SKU configuration.
@@ -54,6 +60,8 @@ struct MCXNState {
     MCXNLPUARTState flexcomm4;     /* FRDM debug console (LPUART4) */
     MCXNSCGState    scg0;          /* system clock generator (stub) */
     MCXNSysconState syscon;        /* CPU1 boot control (CPUCTRL/CPBOOT) */
+    MCXNGPIOState   gpio[MCXN_NUM_GPIO];  /* GPIO0..5 controllers */
+    MCXNPortState   port[MCXN_NUM_PORT];  /* PORT0..5 pin-mux stubs */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -62,6 +70,8 @@ struct MCXNState {
     MemoryRegion flexcomm4_s_alias; /* TrustZone secure alias of the console */
     MemoryRegion scg0_s_alias;      /* TrustZone secure alias of SCG0 */
     MemoryRegion syscon_s_alias;    /* TrustZone secure alias of SYSCON */
+    MemoryRegion gpio_s_alias[MCXN_NUM_GPIO]; /* secure aliases of GPIO0..5 */
+    MemoryRegion port_s_alias[MCXN_NUM_PORT]; /* secure aliases of PORT0..5 */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */

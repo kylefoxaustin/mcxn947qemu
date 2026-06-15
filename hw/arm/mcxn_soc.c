@@ -58,6 +58,15 @@ static const MCXNConfig mcxn_configs[] = {
     /* Add MCX N54x / N23x / A-series / W-series entries here. */
 };
 
+/* GPIO0..5 / PORT0..5 NS base addresses (CMSIS).  GPIO0..4 and PORT0..4 are on
+ * a regular stride; GPIO5/PORT5 sit in a separate aliased block. */
+static const hwaddr mcxn_gpio_base[MCXN_NUM_GPIO] = {
+    0x40096000, 0x40098000, 0x4009A000, 0x4009C000, 0x4009E000, 0x40040000,
+};
+static const hwaddr mcxn_port_base[MCXN_NUM_PORT] = {
+    0x40116000, 0x40117000, 0x40118000, 0x40119000, 0x4011A000, 0x40042000,
+};
+
 static const MCXNConfig *mcxn_lookup(const char *part)
 {
     int i;
@@ -81,6 +90,14 @@ static void mcxn_soc_instance_init(Object *obj)
     object_initialize_child(obj, "flexcomm4", &s->flexcomm4, TYPE_MCXN_LPUART);
     object_initialize_child(obj, "scg0", &s->scg0, TYPE_MCXN_SCG);
     object_initialize_child(obj, "syscon", &s->syscon, TYPE_MCXN_SYSCON);
+    for (i = 0; i < MCXN_NUM_GPIO; i++) {
+        g_autofree char *name = g_strdup_printf("gpio%d", i);
+        object_initialize_child(obj, name, &s->gpio[i], TYPE_MCXN_GPIO);
+    }
+    for (i = 0; i < MCXN_NUM_PORT; i++) {
+        g_autofree char *name = g_strdup_printf("port%d", i);
+        object_initialize_child(obj, name, &s->port[i], TYPE_MCXN_PORT);
+    }
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -216,6 +233,32 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory,
                                 MCXN_SYSCON_BASE + MCXN_SECURE_ALIAS,
                                 &s->syscon_s_alias);
+
+    /* GPIO0..5 controllers and PORT0..5 pin-mux, each NS + secure alias. */
+    for (i = 0; i < MCXN_NUM_GPIO; i++) {
+        g_autofree char *aname = g_strdup_printf("mcxn.gpio%d.s", i);
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->gpio[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->gpio[i]), 0, mcxn_gpio_base[i]);
+        memory_region_init_alias(&s->gpio_s_alias[i], OBJECT(dev), aname,
+                                 &s->gpio[i].iomem, 0, MCXN_GPIO_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     mcxn_gpio_base[i] + MCXN_SECURE_ALIAS,
+                                     &s->gpio_s_alias[i]);
+    }
+    for (i = 0; i < MCXN_NUM_PORT; i++) {
+        g_autofree char *aname = g_strdup_printf("mcxn.port%d.s", i);
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->port[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->port[i]), 0, mcxn_port_base[i]);
+        memory_region_init_alias(&s->port_s_alias[i], OBJECT(dev), aname,
+                                 &s->port[i].iomem, 0, MCXN_PORT_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     mcxn_port_base[i] + MCXN_SECURE_ALIAS,
+                                     &s->port_s_alias[i]);
+    }
 }
 
 static const Property mcxn_soc_properties[] = {
