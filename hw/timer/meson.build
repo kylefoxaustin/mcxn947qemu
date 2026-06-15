@@ -35,3 +35,5 @@ system_ss.add(when: 'CONFIG_SIFIVE_PWM', if_true: files('sifive_pwm.c'))
 
 system_ss.add(when: 'CONFIG_AVR_TIMER16', if_true: files('avr_timer16.c'))
 system_ss.add(when: 'CONFIG_MCXN_CTIMER', if_true: files('mcxn_ctimer.c'))
+system_ss.add(when: 'CONFIG_MCXN_MRT', if_true: files('mcxn_mrt.c'))
+system_ss.add(when: 'CONFIG_MCXN_LPTMR', if_true: files('mcxn_lptmr.c'))

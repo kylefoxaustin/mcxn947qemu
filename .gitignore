@@ -39,3 +39,4 @@ tests/mcxn-gpio/*.elf
 docs/mcx-*/
 docs/mcx-*.zip
 tests/mcxn-ctimer/*.elf
+tests/mcxn-timers/*.elf

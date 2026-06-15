@@ -729,6 +729,8 @@ config MCXN_SOC
     select MCXN_SPC
     select MCXN_STUB
     select MCXN_CTIMER
+    select MCXN_MRT
+    select MCXN_LPTMR
     select MCXN_GPIO
     select MCXN_PORT
 

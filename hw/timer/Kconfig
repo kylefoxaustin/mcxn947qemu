@@ -68,3 +68,9 @@ config AVR_TIMER16
 
 config MCXN_CTIMER
     bool
+
+config MCXN_MRT
+    bool
+
+config MCXN_LPTMR
+    bool

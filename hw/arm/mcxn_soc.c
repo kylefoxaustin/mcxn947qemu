@@ -82,6 +82,14 @@ static const struct { hwaddr base; int irq; } mcxn_ctimer_cfg[MCXN_NUM_CTIMER] =
     { 0x4000F000, 55 }, { 0x40010000, 56 },
 };
 
+#define MCXN_MRT0_BASE  0x40013000   /* Multi-Rate Timer */
+#define MCXN_MRT0_IRQ   30
+
+/* LPTMR0..1: NS base + NVIC IRQ (CMSIS). */
+static const struct { hwaddr base; int irq; } mcxn_lptmr_cfg[MCXN_NUM_LPTMR] = {
+    { 0x4004A000, 143 }, { 0x4004B000, 144 },
+};
+
 /* Every other peripheral present on the SoC, covered by the generic permissive
  * stub until it gets a real model (see mcxn_peripherals.inc). */
 typedef struct MCXNStubDesc {
@@ -129,6 +137,11 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_CTIMER; i++) {
         g_autofree char *name = g_strdup_printf("ctimer%d", i);
         object_initialize_child(obj, name, &s->ctimer[i], TYPE_MCXN_CTIMER);
+    }
+    object_initialize_child(obj, "mrt0", &s->mrt0, TYPE_MCXN_MRT);
+    for (i = 0; i < MCXN_NUM_LPTMR; i++) {
+        g_autofree char *name = g_strdup_printf("lptmr%d", i);
+        object_initialize_child(obj, name, &s->lptmr[i], TYPE_MCXN_LPTMR);
     }
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
@@ -334,6 +347,39 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      mcxn_ctimer_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->ctimer_s_alias[i]);
+    }
+
+    /* MRT (Multi-Rate Timer): functional, IRQ to cpu0 NVIC. */
+    qdev_connect_clock_in(DEVICE(&s->mrt0), "clk", s->sysclk);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->mrt0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->mrt0), 0, MCXN_MRT0_BASE);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->mrt0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), MCXN_MRT0_IRQ));
+    memory_region_init_alias(&s->mrt0_s_alias, OBJECT(dev), "mcxn.mrt0.s",
+                             &s->mrt0.iomem, 0, 0x1000);
+    memory_region_add_subregion(system_memory, MCXN_MRT0_BASE + MCXN_SECURE_ALIAS,
+                                &s->mrt0_s_alias);
+
+    /* LPTMR0..1: functional, IRQ to cpu0 NVIC. */
+    for (i = 0; i < MCXN_NUM_LPTMR; i++) {
+        DeviceState *t = DEVICE(&s->lptmr[i]);
+        g_autofree char *aname = g_strdup_printf("mcxn.lptmr%d.s", i);
+
+        qdev_connect_clock_in(t, "clk", s->sysclk);
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->lptmr[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->lptmr[i]), 0, mcxn_lptmr_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->lptmr[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            mcxn_lptmr_cfg[i].irq));
+        memory_region_init_alias(&s->lptmr_s_alias[i], OBJECT(dev), aname,
+                                 &s->lptmr[i].iomem, 0, 0x1000);
+        memory_region_add_subregion(system_memory,
+                                     mcxn_lptmr_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->lptmr_s_alias[i]);
     }
 
     /* Generic permissive stubs for every other peripheral present on the SoC
