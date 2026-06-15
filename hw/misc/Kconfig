@@ -267,3 +267,6 @@ config MCXN_SYSCON
 
 config MCXN_PORT
     bool
+
+config MCXN_SPC
+    bool

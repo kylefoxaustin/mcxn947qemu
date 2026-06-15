@@ -47,7 +47,7 @@ static void frdm_mcxn947_init(MachineState *machine)
     /* Load firmware into the code-flash region. cfg is valid post-realize. */
     armv7m_load_kernel(ARM_CPU(first_cpu),
                        machine->kernel_filename,
-                       0,                          /* mem_base */
+                       soc->cfg->flash_base,       /* mem_base (code flash) */
                        soc->cfg->flash_size);
 }
 

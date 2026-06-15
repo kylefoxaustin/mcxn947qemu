@@ -26,6 +26,26 @@
 #define SYSCON_CPBOOT   0x804   /* Coprocessor (CPU1) Boot Address     */
 #define SYSCON_CPSTAT   0x808   /* CPU Status                          */
 
+/*
+ * Peripheral-reset and AHB-clock control each expose a value register plus
+ * write-1-to-set and write-1-to-clear alias registers (4 instances, step 4).
+ * Firmware writes the SET alias then polls the value register for the bit, so
+ * the model must reflect SET/CLR into the value register.
+ */
+#define SYSCON_PRESETCTRL0    0x100
+#define SYSCON_PRESETCTRLSET  0x120
+#define SYSCON_PRESETCTRLCLR  0x140
+#define SYSCON_AHBCLKCTRL0    0x200
+#define SYSCON_AHBCLKCTRLSET  0x220
+#define SYSCON_AHBCLKCTRLCLR  0x240
+#define SYSCON_CTRL_COUNT     4      /* instances of each control group */
+
+/* True if [base, base + 4*count) contains offset (word-aligned). */
+static inline bool in_range(hwaddr off, uint32_t base, uint32_t count)
+{
+    return off >= base && off < base + 4 * count;
+}
+
 /* --- CPUCTRL fields (CMSIS) ------------------------------------------------ */
 #define CPUCTRL_CPU1CLKEN  (1u << 3)   /* SYSCON_CPUCTRL_CPU1CLKEN_MASK 0x8  */
 #define CPUCTRL_CPU1RSTEN  (1u << 5)   /* SYSCON_CPUCTRL_CPU1RSTEN_MASK 0x20 */
@@ -110,6 +130,26 @@ static void mcxn_syscon_write(void *opaque, hwaddr offset, uint64_t value,
 {
     MCXNSysconState *s = MCXN_SYSCON(opaque);
 
+    uint32_t v = value;
+
+    /* SET/CLR alias registers reflect into their value register. */
+    if (in_range(offset, SYSCON_PRESETCTRLSET, SYSCON_CTRL_COUNT)) {
+        s->regs[(SYSCON_PRESETCTRL0 / 4) + (offset - SYSCON_PRESETCTRLSET) / 4] |= v;
+        return;
+    }
+    if (in_range(offset, SYSCON_PRESETCTRLCLR, SYSCON_CTRL_COUNT)) {
+        s->regs[(SYSCON_PRESETCTRL0 / 4) + (offset - SYSCON_PRESETCTRLCLR) / 4] &= ~v;
+        return;
+    }
+    if (in_range(offset, SYSCON_AHBCLKCTRLSET, SYSCON_CTRL_COUNT)) {
+        s->regs[(SYSCON_AHBCLKCTRL0 / 4) + (offset - SYSCON_AHBCLKCTRLSET) / 4] |= v;
+        return;
+    }
+    if (in_range(offset, SYSCON_AHBCLKCTRLCLR, SYSCON_CTRL_COUNT)) {
+        s->regs[(SYSCON_AHBCLKCTRL0 / 4) + (offset - SYSCON_AHBCLKCTRLCLR) / 4] &= ~v;
+        return;
+    }
+
     switch (offset) {
     case SYSCON_CPUCTRL:
         /* The PROT key in [31:16] gates writes on HW; modelled permissively. */
@@ -121,8 +161,6 @@ static void mcxn_syscon_write(void *opaque, hwaddr offset, uint64_t value,
         break;
     default:
         s->regs[offset / 4] = value;
-        qemu_log_mask(LOG_UNIMP, "%s: unmodelled SYSCON write @0x%03" HWADDR_PRIx
-                      " = 0x%08x\n", __func__, offset, (uint32_t)value);
         break;
     }
 }

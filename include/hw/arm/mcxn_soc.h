@@ -14,6 +14,7 @@
 #include "hw/char/mcxn_lpuart.h"
 #include "hw/misc/mcxn_scg.h"
 #include "hw/misc/mcxn_syscon.h"
+#include "hw/misc/mcxn_spc.h"
 #include "hw/misc/mcxn_port.h"
 #include "hw/gpio/mcxn_gpio.h"
 #include "hw/core/clock.h"
@@ -60,16 +61,20 @@ struct MCXNState {
     MCXNLPUARTState flexcomm4;     /* FRDM debug console (LPUART4) */
     MCXNSCGState    scg0;          /* system clock generator (stub) */
     MCXNSysconState syscon;        /* CPU1 boot control (CPUCTRL/CPBOOT) */
+    MCXNSPCState    spc0;          /* system power controller */
     MCXNGPIOState   gpio[MCXN_NUM_GPIO];  /* GPIO0..5 controllers */
     MCXNPortState   port[MCXN_NUM_PORT];  /* PORT0..5 pin-mux stubs */
     Clock      *sysclk;
     Clock      *refclk;
 
     MemoryRegion flash;
-    MemoryRegion sram;
+    MemoryRegion sram;                  /* SRAM, system-bus view @0x20000000 */
+    MemoryRegion sram_codebus;          /* code-bus alias of SRAM @0x30000000 */
+    MemoryRegion sramx;                 /* SRAMX @0x14000000 */
     MemoryRegion flexcomm4_s_alias; /* TrustZone secure alias of the console */
     MemoryRegion scg0_s_alias;      /* TrustZone secure alias of SCG0 */
     MemoryRegion syscon_s_alias;    /* TrustZone secure alias of SYSCON */
+    MemoryRegion spc0_s_alias;      /* TrustZone secure alias of SPC */
     MemoryRegion gpio_s_alias[MCXN_NUM_GPIO]; /* secure aliases of GPIO0..5 */
     MemoryRegion port_s_alias[MCXN_NUM_PORT]; /* secure aliases of PORT0..5 */
 

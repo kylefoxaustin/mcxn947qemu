@@ -27,6 +27,12 @@
 #define MCXN_FLEXCOMM4_IRQ   39          /* CMSIS: LP_FLEXCOMM4_IRQn */
 #define MCXN_SCG0_BASE       0x40044000  /* system clock generator (NS alias) */
 #define MCXN_SYSCON_BASE     0x40000000  /* SYSCON (NS alias); CPU1 boot ctrl */
+#define MCXN_SPC0_BASE       0x40045000  /* system power controller (NS alias) */
+
+/* SRAM is reachable on two buses; SRAMX is a separate code-bus RAM. */
+#define MCXN_SRAM_CODEBUS    0x30000000  /* code-bus alias of the system SRAM */
+#define MCXN_SRAMX_BASE      0x14000000
+#define MCXN_SRAMX_SIZE      (96 * KiB)
 
 /* TrustZone-M: secure peripheral alias = non-secure base + 0x1000_0000. */
 #define MCXN_SECURE_ALIAS    0x10000000
@@ -39,9 +45,11 @@
  *    - highest IRQ = CTI0_IRQn (155)  -> num_irq = 156
  *    - __NVIC_PRIO_BITS = 3
  *    - M33 with FPU + DSP + MPU + SAU/TrustZone-M
- *  Flash/SRAM bases are the Cortex-M33 architectural defaults; 2 MiB / 512 KiB
- *  match the MCXN947 part. SRAM is internally banked (RAMA..RAMH) but maps
- *  contiguously at 0x2000_0000.
+ *  Memory bases verified against the NXP frdm_mcxn947 Zephyr linker: code
+ *  flash is on the code bus at 0x1000_0000 (NOT the generic M-profile 0x0),
+ *  the 512 KiB SRAM has a system-bus view at 0x2000_0000 and a code-bus alias
+ *  at 0x3000_0000 (the view Zephyr links its RAM to), and SRAMX (96 KiB) sits
+ *  at 0x1400_0000.  cpu reset reads its vector table from flash (init-svtor).
  * ------------------------------------------------------------------------- */
 static const MCXNConfig mcxn_configs[] = {
     {
@@ -50,9 +58,9 @@ static const MCXNConfig mcxn_configs[] = {
         .num_cpus      = 2,            /* dual Cortex-M33 (cpu0 + cpu1)        */
         .num_irq       = 156,          /* CMSIS: CTI0_IRQn=155, +1             */
         .num_prio_bits = 3,            /* CMSIS: __NVIC_PRIO_BITS              */
-        .flash_base    = 0x00000000,
+        .flash_base    = 0x10000000,   /* code-bus flash (Zephyr boots here)  */
         .flash_size    = 2 * MiB,
-        .sram_base     = 0x20000000,
+        .sram_base     = 0x20000000,   /* SRAM system-bus view                */
         .sram_size     = 512 * KiB,
     },
     /* Add MCX N54x / N23x / A-series / W-series entries here. */
@@ -90,6 +98,7 @@ static void mcxn_soc_instance_init(Object *obj)
     object_initialize_child(obj, "flexcomm4", &s->flexcomm4, TYPE_MCXN_LPUART);
     object_initialize_child(obj, "scg0", &s->scg0, TYPE_MCXN_SCG);
     object_initialize_child(obj, "syscon", &s->syscon, TYPE_MCXN_SYSCON);
+    object_initialize_child(obj, "spc0", &s->spc0, TYPE_MCXN_SPC);
     for (i = 0; i < MCXN_NUM_GPIO; i++) {
         g_autofree char *name = g_strdup_printf("gpio%d", i);
         object_initialize_child(obj, name, &s->gpio[i], TYPE_MCXN_GPIO);
@@ -132,6 +141,17 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                            cfg->sram_size, &error_fatal);
     memory_region_add_subregion(system_memory, cfg->sram_base, &s->sram);
 
+    /* Same SRAM, code-bus view at 0x3000_0000 (Zephyr links its RAM here). */
+    memory_region_init_alias(&s->sram_codebus, OBJECT(dev), "mcxn.sram.codebus",
+                             &s->sram, 0, cfg->sram_size);
+    memory_region_add_subregion(system_memory, MCXN_SRAM_CODEBUS,
+                                &s->sram_codebus);
+
+    /* SRAMX: separate code-bus RAM. */
+    memory_region_init_ram(&s->sramx, OBJECT(dev), "mcxn.sramx",
+                           MCXN_SRAMX_SIZE, &error_fatal);
+    memory_region_add_subregion(system_memory, MCXN_SRAMX_BASE, &s->sramx);
+
     /* --- Cortex-M33 cores + NVIC + SysTick ------------------------------- *
      * The MCXN947 is a dual-M33 part.  Each ARMV7M wraps its "memory" link in
      * its own private per-core container (with that core's NVIC/SysTick/PPB),
@@ -156,6 +176,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         qdev_prop_set_uint8 (cpudev, "num-prio-bits", cfg->num_prio_bits);
         qdev_prop_set_string(cpudev, "cpu-type",      cfg->cpu_type);
         qdev_prop_set_bit   (cpudev, "enable-bitband", false); /* M33: none */
+        /* Reset reads the vector table (initial SP + reset PC) from flash. */
+        qdev_prop_set_uint32(cpudev, "init-svtor",    cfg->flash_base);
         if (i > 0) {
             /* Secondary core(s) wait for an explicit SYSCON release. */
             qdev_prop_set_bit(cpudev, "start-powered-off", true);
@@ -233,6 +255,16 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory,
                                 MCXN_SYSCON_BASE + MCXN_SECURE_ALIAS,
                                 &s->syscon_s_alias);
+
+    /* SPC system power controller (SRAMCTL REQ/ACK handshake for boot). */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->spc0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->spc0), 0, MCXN_SPC0_BASE);
+    memory_region_init_alias(&s->spc0_s_alias, OBJECT(dev), "mcxn.spc0.s",
+                             &s->spc0.iomem, 0, MCXN_SPC_SIZE);
+    memory_region_add_subregion(system_memory, MCXN_SPC0_BASE + MCXN_SECURE_ALIAS,
+                                &s->spc0_s_alias);
 
     /* GPIO0..5 controllers and PORT0..5 pin-mux, each NS + secure alias. */
     for (i = 0; i < MCXN_NUM_GPIO; i++) {
