@@ -20,3 +20,17 @@ GTAGS
 *.swp
 *.patch
 *.gcov
+
+# --- MCXN947 model: keep transport/scratch out of the online repo ----------
+# Bundles used to hand the scaffold between sessions (contents live in-tree).
+/files*.zip
+/mcxn-qemu.tar.gz
+*.zip
+*.tar.gz
+*.tgz
+*.tar
+# Local scratch / working notes not meant for repo users.
+/scratch/
+.DS_Store
+# Built test firmware (rebuilt by tests/*/run.sh).
+tests/mcxn-dualcore/*.elf

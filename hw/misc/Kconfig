@@ -258,3 +258,9 @@ config XLNX_ZYNQ_DDRC
     bool
 
 source macio/Kconfig
+
+config MCXN_SCG
+    bool
+
+config MCXN_SYSCON
+    bool
