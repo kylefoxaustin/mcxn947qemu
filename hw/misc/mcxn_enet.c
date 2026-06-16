@@ -45,12 +45,39 @@
 #define R_DMA_INTERRUPT_STATUS 0x1008  /* RO */
 #define R_DMA_DEBUG_STATUS0    0x100C  /* RO */
 
-/* MAC_MDIO_ADDRESS.GB: PHY management operation busy (self-clears when done). */
-#define MDIO_GB          (1u << 0)
-/* MAC_INTERRUPT_STATUS.PHYIS: PHY interrupt / MDIO-complete event. */
+/* MAC_MDIO_ADDRESS fields (DWC ENET QoS, Clause 22). */
+#define MDIO_GB          (1u << 0)   /* operation busy (self-clears when done) */
+#define MDIO_GOC_SHIFT   2           /* GOC[1:0]: 0b01 write, 0b11 read */
+#define MDIO_GOC_MASK    0x3u
+#define MDIO_GOC_WRITE   0x1u
+#define MDIO_GOC_READ    0x3u
+#define MDIO_RDA_SHIFT   16          /* register/device address */
+#define MDIO_RDA_MASK    0x1Fu
+#define MDIO_PA_SHIFT    21          /* physical (PHY) address */
+#define MDIO_PA_MASK     0x1Fu
+
+/* MAC_INTERRUPT_STATUS/ENABLE.PHYIS/PHYIE: PHY-event interrupt (bit 3). */
 #define MAC_IS_PHYIS     (1u << 3)
+#define MAC_IE_PHYIE     (1u << 3)
 /* DMA_MODE.SWR: software reset (self-clears when reset completes). */
 #define DMA_MODE_SWR     (1u << 0)
+
+/*
+ * Model PHY: a single Clause-22 PHY answering at MDIO address 2 (a common
+ * default for the FRDM-MCXN947 RMII PHY).  It reports link-up with
+ * auto-negotiation complete so a driver's "wait for link" loop terminates.
+ * The PHY identity is a plausible Microchip LAN8741-class value (model data,
+ * not silicon-verified).
+ */
+#define ENET_PHY_ADDR    2
+#define PHY_BMCR         0x00
+#define PHY_BMSR         0x01
+#define PHY_ID1          0x02
+#define PHY_ID2          0x03
+#define PHY_BMCR_RESET   0x1140u  /* AN enable, 100M, full-duplex */
+#define PHY_BMSR_VALUE   0x782Du  /* 10/100 capable, AN able+complete, link up */
+#define PHY_ID1_VALUE    0x0007u
+#define PHY_ID2_VALUE    0xC110u
 
 /*
  * Read-only identification constants.  The RM does not document an explicit
@@ -60,10 +87,25 @@
  */
 #define MAC_VERSION_VALUE  0x00000051u
 
+static void mcxn_enet_update_irq(MCXNEnetState *s)
+{
+    bool active = (s->regs[R_MAC_INTERRUPT_STATUS >> 2] &
+                   s->regs[R_MAC_INTERRUPT_ENABLE >> 2] & MAC_IS_PHYIS) != 0;
+    qemu_set_irq(s->irq, active);
+}
+
+/* Read a Clause-22 PHY register; BMSR always reports live link-up status. */
+static uint16_t mcxn_enet_phy_read(MCXNEnetState *s, unsigned reg)
+{
+    if (reg == PHY_BMSR) {
+        return PHY_BMSR_VALUE;
+    }
+    return s->phy[reg & 0x1F];
+}
+
 static bool enet_reg_ro(hwaddr off)
 {
     switch (off) {
-    case R_MAC_INTERRUPT_STATUS:
     case R_MAC_RX_TX_STATUS:
     case R_MAC_VERSION:
     case R_MAC_DEBUG:
@@ -141,20 +183,41 @@ static void enet_write(void *opaque, hwaddr off, uint64_t value, unsigned size)
         return;
     case R_MAC_MDIO_ADDRESS:
         /*
-         * Kicking a PHY management op (GB=1) completes immediately: GB clears
-         * and the PHYIS event is raised in MAC_INTERRUPT_STATUS.  With no PHY
-         * modelled, a read returns all-ones data (link down).
+         * Kicking a PHY management op (GB=1) completes immediately: GB clears,
+         * the access hits the model PHY at ENET_PHY_ADDR (other addresses read
+         * all-ones = no device), and the PHYIS event is raised.
          */
         if (val & MDIO_GB) {
+            uint32_t pa = (val >> MDIO_PA_SHIFT) & MDIO_PA_MASK;
+            uint32_t rda = (val >> MDIO_RDA_SHIFT) & MDIO_RDA_MASK;
+            uint32_t goc = (val >> MDIO_GOC_SHIFT) & MDIO_GOC_MASK;
+
             val &= ~MDIO_GB;
+            if (pa == ENET_PHY_ADDR) {
+                if (goc == MDIO_GOC_WRITE) {
+                    s->phy[rda] = s->regs[R_MAC_MDIO_DATA >> 2] & 0xFFFFu;
+                } else {
+                    s->regs[R_MAC_MDIO_DATA >> 2] =
+                        (s->regs[R_MAC_MDIO_DATA >> 2] & 0xFFFF0000u) |
+                        mcxn_enet_phy_read(s, rda);
+                }
+            } else {
+                s->regs[R_MAC_MDIO_DATA >> 2] =
+                    (s->regs[R_MAC_MDIO_DATA >> 2] & 0xFFFF0000u) | 0xFFFFu;
+            }
             s->regs[R_MAC_INTERRUPT_STATUS >> 2] |= MAC_IS_PHYIS;
-            s->regs[R_MAC_MDIO_DATA >> 2] =
-                (s->regs[R_MAC_MDIO_DATA >> 2] & 0xFFFF0000u) | 0x0000FFFFu;
+            mcxn_enet_update_irq(s);
         }
         s->regs[idx] = val;
         return;
     case R_MAC_INTERRUPT_STATUS:
-        /* Defensive: handled by enet_reg_ro above, but keep status read-only. */
+        /* Event bits are write-1-to-clear in the model so an ISR can ack. */
+        s->regs[idx] &= ~((uint32_t)(value << shift) & mask);
+        mcxn_enet_update_irq(s);
+        return;
+    case R_MAC_INTERRUPT_ENABLE:
+        s->regs[idx] = val;
+        mcxn_enet_update_irq(s);
         return;
     default:
         s->regs[idx] = val;
@@ -177,6 +240,12 @@ static void mcxn_enet_reset(DeviceState *dev)
     MCXNEnetState *s = MCXN_ENET(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+    memset(s->phy, 0, sizeof(s->phy));
+    s->phy[PHY_BMCR] = PHY_BMCR_RESET;
+    s->phy[PHY_BMSR] = PHY_BMSR_VALUE;
+    s->phy[PHY_ID1]  = PHY_ID1_VALUE;
+    s->phy[PHY_ID2]  = PHY_ID2_VALUE;
+    qemu_set_irq(s->irq, 0);
 }
 
 static void mcxn_enet_realize(DeviceState *dev, Error **errp)
@@ -195,6 +264,7 @@ static const VMStateDescription vmstate_mcxn_enet = {
     .minimum_version_id = 1,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNEnetState, MCXN_ENET_SIZE / 4),
+        VMSTATE_UINT16_ARRAY(phy, MCXNEnetState, 32),
         VMSTATE_END_OF_LIST()
     },
 };

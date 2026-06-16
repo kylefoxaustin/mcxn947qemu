@@ -33,6 +33,7 @@ struct MCXNEnetState {
     MemoryRegion iomem;
     qemu_irq irq;
     uint32_t regs[MCXN_ENET_SIZE / 4];
+    uint16_t phy[32];   /* model Clause-22 PHY register file (one PHY) */
 };
 
 #endif /* HW_MISC_MCXN_ENET_H */

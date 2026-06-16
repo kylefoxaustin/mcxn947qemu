@@ -25,6 +25,7 @@
 #include "hw/misc/mcxn_fmu.h"
 #include "hw/misc/mcxn_adc.h"
 #include "hw/misc/mcxn_flexcan.h"
+#include "hw/misc/mcxn_enet.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -86,6 +87,7 @@ struct MCXNState {
     MCXNEDMAState   edma[MCXN_NUM_EDMA];        /* DMA0..1 (eDMA) */
     MCXNADCState    adc[MCXN_NUM_ADC];           /* ADC0..1 (LPADC) */
     MCXNFlexCanState flexcan[MCXN_NUM_FLEXCAN];   /* CAN0..1 (FlexCAN) */
+    MCXNEnetState   enet0;                        /* ENET (Ethernet QoS) */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -110,6 +112,7 @@ struct MCXNState {
     MemoryRegion edma_s_alias[MCXN_NUM_EDMA];     /* secure aliases of eDMA */
     MemoryRegion adc_s_alias[MCXN_NUM_ADC];       /* secure aliases of ADC0..1 */
     MemoryRegion flexcan_s_alias[MCXN_NUM_FLEXCAN]; /* secure aliases of CAN0..1 */
+    MemoryRegion enet0_s_alias;                   /* secure alias of ENET */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */

@@ -41,7 +41,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `EIM` | 1 | ✅ functional (register-accurate) |
 | `ELS` | 1 | ✅ functional (register-accurate) |
 | `EMVSIM` | 2 | ✅ functional (register-accurate) |
-| `ENET` | 1 | ✅ functional (register-accurate; DWC ENET-QoS, soft-reset + MDIO complete) |
+| `ENET` | 1 | ✅ functional + active (MDIO + model PHY link-up/ID, DMA SWR, PHYIS IRQ 139 to NVIC; tests/mcxn-enet) |
 | `ERM` | 1 | ✅ functional (register-accurate) |
 | `EVTG` | 1 | ✅ functional (register-accurate) |
 | `EWM` | 1 | ✅ functional (register-accurate) |
@@ -109,13 +109,14 @@ model already keeps polled firmware unblocked; the next step adds the data path
 Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **ADC** — SW-trigger conversion -> RESFIFO valid result + EOC IRQ (45/46). `tests/mcxn-adc`.
 - [x] **FlexCAN** — loopback TX MB -> RX MB + IFLAG IRQ (62/63). `tests/mcxn-flexcan`.
+- [x] **ENET** — MDIO PHY read (link-up/ID) + DMA soft-reset + PHYIS IRQ (139). `tests/mcxn-enet`.
 
 Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.
 - **Analog results**: DAC output, CMP edge IRQ.
-- **Connectivity**: ENET MAC frames + MDIO PHY, USBFS/USBHS endpoints
-  (OBMF-ICP transport), SAI audio stream, FlexSPI external-flash reads,
-  uSDHC block transfers.
+- **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport), SAI audio
+  stream, FlexSPI external-flash reads, uSDHC block transfers. (ENET MDIO +
+  PHY done; MAC frame DMA-ring transfer still pending.)
 - **Accelerators**: SmartDMA program execution, PowerQuad compute, NPU.
 - **IRQ wiring**: connect the per-device IRQ lines (init'd in wave 6) to the
   cpu0 NVIC as each block starts generating interrupts.
