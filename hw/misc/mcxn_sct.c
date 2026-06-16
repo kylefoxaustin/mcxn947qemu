@@ -10,6 +10,7 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+#include "qemu/timer.h"
 #include "hw/misc/mcxn_sct.h"
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
@@ -18,12 +19,23 @@
 #define SCT_CONFIG   0x00
 #define SCT_CTRL     0x04
 #define SCT_COUNT    0x40
+#define SCT_EVEN     0xF0    /* Event Interrupt Enable */
 #define SCT_EVFLAG   0xF4    /* Event Flag (W1C) */
 #define SCT_CONFLAG  0xFC    /* Conflict Flag (W1C) */
+#define SCT_MATCHREL0 0x180  /* Match Reload value 0 (the limit) */
 
 /* CTRL self-clearing counter-clear bits (low and high 16-bit counter halves). */
 #define SCT_CTRL_CLRCTR_L_MASK   0x00000008u
 #define SCT_CTRL_CLRCTR_H_MASK   0x00080000u
+/* CTRL run-gating bits for the low counter. */
+#define SCT_CTRL_STOP_L_MASK     0x00000002u
+#define SCT_CTRL_HALT_L_MASK     0x00000004u
+
+/* Event 0 (the modelled match/limit event) in EVFLAG/EVEN. */
+#define SCT_EV0   (1u << 0)
+
+/* Nominal SCT counter clock: 10 ns/tick (~100 MHz) for the modelled period. */
+#define SCT_TICK_NS  10
 
 static inline uint32_t sct_ld32(MCXNSCTState *s, hwaddr off)
 {
@@ -39,6 +51,31 @@ static inline void sct_st32(MCXNSCTState *s, hwaddr off, uint32_t v)
     s->regs[off + 1] = (v >> 8) & 0xff;
     s->regs[off + 2] = (v >> 16) & 0xff;
     s->regs[off + 3] = (v >> 24) & 0xff;
+}
+
+static void mcxn_sct_update_irq(MCXNSCTState *s)
+{
+    bool active = (sct_ld32(s, SCT_EVFLAG) & sct_ld32(s, SCT_EVEN)) != 0;
+    qemu_set_irq(s->irq, active);
+}
+
+static int64_t mcxn_sct_period_ns(MCXNSCTState *s)
+{
+    int64_t limit = (int64_t)sct_ld32(s, SCT_MATCHREL0) + 1;
+    int64_t ns = limit * SCT_TICK_NS;
+
+    return ns < 1000 ? 1000 : ns;
+}
+
+/* One match/limit event: set event-0 flag and re-arm. */
+static void mcxn_sct_event_tick(void *opaque)
+{
+    MCXNSCTState *s = opaque;
+
+    sct_st32(s, SCT_EVFLAG, sct_ld32(s, SCT_EVFLAG) | SCT_EV0);
+    mcxn_sct_update_irq(s);
+    timer_mod(&s->event_timer,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + mcxn_sct_period_ns(s));
 }
 
 static uint64_t mcxn_sct_read(void *opaque, hwaddr offset, unsigned size)
@@ -77,6 +114,13 @@ static void mcxn_sct_write(void *opaque, hwaddr offset, uint64_t value,
         sct_st32(s, SCT_COUNT, count);
         v &= ~(SCT_CTRL_CLRCTR_L_MASK | SCT_CTRL_CLRCTR_H_MASK);
         sct_st32(s, SCT_CTRL, v);
+        /* The low counter runs when neither halted nor stopped. */
+        if (!(v & (SCT_CTRL_HALT_L_MASK | SCT_CTRL_STOP_L_MASK))) {
+            timer_mod(&s->event_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                                       mcxn_sct_period_ns(s));
+        } else {
+            timer_del(&s->event_timer);
+        }
         return;
     }
 
@@ -85,6 +129,9 @@ static void mcxn_sct_write(void *opaque, hwaddr offset, uint64_t value,
         uint32_t cur = sct_ld32(s, offset);
         cur &= ~(uint32_t)value;
         sct_st32(s, offset, cur);
+        if (offset == SCT_EVFLAG) {
+            mcxn_sct_update_irq(s);
+        }
         return;
     }
 
@@ -92,6 +139,11 @@ static void mcxn_sct_write(void *opaque, hwaddr offset, uint64_t value,
         if (offset + i < MCXN_SCT_SIZE) {
             s->regs[offset + i] = (value >> (8 * i)) & 0xff;
         }
+    }
+
+    /* A write touching EVEN (the interrupt-enable mask) re-evaluates the IRQ. */
+    if (offset < SCT_EVEN + 4 && offset + size > SCT_EVEN) {
+        mcxn_sct_update_irq(s);
     }
 }
 
@@ -110,6 +162,8 @@ static void mcxn_sct_reset(DeviceState *dev)
     MCXNSCTState *s = MCXN_SCT(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+    timer_del(&s->event_timer);
+    qemu_set_irq(s->irq, 0);
 }
 
 static void mcxn_sct_realize(DeviceState *dev, Error **errp)
@@ -120,6 +174,7 @@ static void mcxn_sct_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_SCT, MCXN_SCT_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    timer_init_ns(&s->event_timer, QEMU_CLOCK_VIRTUAL, mcxn_sct_event_tick, s);
 }
 
 static const VMStateDescription vmstate_mcxn_sct = {
@@ -128,6 +183,7 @@ static const VMStateDescription vmstate_mcxn_sct = {
     .minimum_version_id = 1,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNSCTState, MCXN_SCT_SIZE),
+        VMSTATE_TIMER(event_timer, MCXNSCTState),
         VMSTATE_END_OF_LIST()
     },
 };

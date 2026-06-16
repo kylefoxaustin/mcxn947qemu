@@ -79,7 +79,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `RTC` | 1 | ✅ functional + active (live 1 Hz calendar tick + alarm match -> IRQ 52 to NVIC; tests/mcxn-rtc) |
 | `SAI` | 2 | ✅ functional + active (TX FIFO-request interrupt FRF&FRIE -> IRQ 59/60 to NVIC; tests/mcxn-sai) |
 | `SCG` | 1 | ✅ functional |
-| `SCT` | 1 | ✅ functional (register-accurate; SCTimer/PWM) |
+| `SCT` | 1 | ✅ functional + active (running counter -> periodic match/limit event IRQ 33 to NVIC; tests/mcxn-sct) |
 | `SEMA42` | 1 | ✅ functional (register-accurate) |
 | `SINC` | 1 | ✅ functional (register-accurate) |
 | `SMARTDMA` | 1 | ✅ functional (register-accurate; busy reads idle) |
@@ -117,6 +117,7 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **DAC** — FIFO watermark interrupt (FSR.WM & IER.WM_IE) IRQ (106/107/108). `tests/mcxn-dac`.
 - [x] **PowerQuad** — compute-launch -> completion IRQ (76). `tests/mcxn-powerquad`.
 - [x] **PWM** — submodule-0 running counter -> periodic reload IRQ (114/120, QEMUTimer). `tests/mcxn-pwm`.
+- [x] **SCT** — running counter -> periodic match/limit event-0 IRQ (33, QEMUTimer). `tests/mcxn-sct`.
 
 Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.

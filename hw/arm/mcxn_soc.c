@@ -237,10 +237,9 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     /* Analog: TSI.  (ADC0/1 + RTC instantiated explicitly below — IRQ wired.) */
     { TYPE_MCXN_TSI,      0x40050000 },
     /* (SAI0/1 + uSDHC + FlexSPI instantiated below — IRQs wired.) */
-    /* Motor/timer: QDC0/1, SCT.  (eFlexPWM0/1 below — IRQs wired.) */
+    /* Motor/timer: QDC0/1.  (eFlexPWM0/1 + SCT below — IRQs wired.) */
     { TYPE_MCXN_QDC,      0x400CF000 },   /* QDC0 */
     { TYPE_MCXN_QDC,      0x400D1000 },   /* QDC1 */
-    { TYPE_MCXN_SCT,      0x40091000 },
     /* USB: FS-OTG, charger detect, HS PHY + HS core/non-core (OBMF-ICP path). */
     { TYPE_MCXN_USBFS,        0x400DD000 },
     { TYPE_MCXN_USBDCD,       0x400DC000 },
@@ -329,6 +328,7 @@ static void mcxn_soc_instance_init(Object *obj)
         g_autofree char *name = g_strdup_printf("pwm%d", i);
         object_initialize_child(obj, name, &s->pwm[i], TYPE_MCXN_PWM);
     }
+    object_initialize_child(obj, "sct0", &s->sct0, TYPE_MCXN_SCT);
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -774,6 +774,18 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      pwm_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->pwm_s_alias[i]);
     }
+
+    /* SCT (SCTimer/PWM): match/limit event interrupt to cpu0 NVIC. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->sct0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->sct0), 0, 0x40091000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->sct0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 33));
+    memory_region_init_alias(&s->sct0_s_alias, OBJECT(dev), "mcxn.sct0.s",
+                             &s->sct0.iomem, 0, MCXN_SCT_SIZE);
+    memory_region_add_subregion(system_memory, 0x40091000 + MCXN_SECURE_ALIAS,
+                                &s->sct0_s_alias);
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->ostimer0), errp)) {

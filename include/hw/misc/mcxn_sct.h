@@ -15,6 +15,7 @@
 #define HW_MISC_MCXN_SCT_H
 
 #include "hw/core/sysbus.h"
+#include "qemu/timer.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_SCT "mcxn-sct"
@@ -29,6 +30,7 @@ struct MCXNSCTState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq     irq;           /* SCT0_IRQn */
+    QEMUTimer    event_timer;   /* periodic match/limit event 0 */
 
     uint8_t regs[MCXN_SCT_SIZE];
 };

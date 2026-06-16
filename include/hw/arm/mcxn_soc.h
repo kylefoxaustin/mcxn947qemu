@@ -33,6 +33,7 @@
 #include "hw/misc/mcxn_dac.h"
 #include "hw/misc/mcxn_powerquad.h"
 #include "hw/misc/mcxn_pwm.h"
+#include "hw/misc/mcxn_sct.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -105,6 +106,7 @@ struct MCXNState {
     MCXNDACState    dac[MCXN_NUM_DAC];             /* DAC0..2 */
     MCXNPowerQuadState powerquad0;                 /* PowerQuad DSP coproc */
     MCXNPWMState    pwm[MCXN_NUM_PWM];             /* eFlexPWM0..1 */
+    MCXNSCTState    sct0;                          /* SCTimer/PWM */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -137,6 +139,7 @@ struct MCXNState {
     MemoryRegion dac_s_alias[MCXN_NUM_DAC];        /* secure aliases of DAC0..2 */
     MemoryRegion powerquad0_s_alias;               /* secure alias of PowerQuad */
     MemoryRegion pwm_s_alias[MCXN_NUM_PWM];        /* secure aliases of PWM0..1 */
+    MemoryRegion sct0_s_alias;                     /* secure alias of SCT */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */
