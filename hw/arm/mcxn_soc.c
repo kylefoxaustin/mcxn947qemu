@@ -224,10 +224,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_PUF,      0x4002C000 },
     { TYPE_MCXN_PKC,      0x4002B000 },
     { TYPE_MCXN_TRDC,     0x400C7000 },
-    /* Analog/audio: DAC0/1 (LPDAC) + DAC2 (HPDAC), SINC, PDM, EMVSIM0/1. */
-    { TYPE_MCXN_DAC,      0x4010F000 },   /* DAC0 (LPDAC) */
-    { TYPE_MCXN_DAC,      0x40112000 },   /* DAC1 (LPDAC) */
-    { TYPE_MCXN_DAC,      0x40114000 },   /* DAC2 (HPDAC) */
+    /* Analog/audio: SINC, PDM, EMVSIM0/1.  (DAC0..2 below — IRQs wired.) */
     { TYPE_MCXN_SINC,     0x40108000 },
     { TYPE_MCXN_PDM,      0x4010C000 },
     { TYPE_MCXN_EMVSIM,   0x40103000 },   /* EMVSIM0 */
@@ -324,6 +321,10 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_SAI; i++) {
         g_autofree char *name = g_strdup_printf("sai%d", i);
         object_initialize_child(obj, name, &s->sai[i], TYPE_MCXN_SAI);
+    }
+    for (i = 0; i < MCXN_NUM_DAC; i++) {
+        g_autofree char *name = g_strdup_printf("dac%d", i);
+        object_initialize_child(obj, name, &s->dac[i], TYPE_MCXN_DAC);
     }
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
@@ -715,6 +716,27 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      sai_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->sai_s_alias[i]);
+    }
+
+    /* DAC0..2: FIFO watermark/empty/error interrupt to cpu0 NVIC. */
+    for (i = 0; i < MCXN_NUM_DAC; i++) {
+        static const struct { hwaddr base; int irq; }
+        dac_cfg[MCXN_NUM_DAC] = { { 0x4010F000, 106 }, { 0x40112000, 107 },
+                                  { 0x40114000, 108 } };
+        g_autofree char *aname = g_strdup_printf("mcxn.dac%d.s", i);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->dac[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->dac[i]), 0, dac_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->dac[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            dac_cfg[i].irq));
+        memory_region_init_alias(&s->dac_s_alias[i], OBJECT(dev), aname,
+                                 &s->dac[i].iomem, 0, MCXN_DAC_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     dac_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->dac_s_alias[i]);
     }
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */

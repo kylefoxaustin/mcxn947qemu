@@ -35,7 +35,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `CMX_PERFMON` | 2 | ✅ functional (register-accurate) |
 | `CRC` | 1 | ✅ functional (register-accurate) |
 | `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
-| `DAC` | 3 | ✅ functional (register-accurate) |
+| `DAC` | 3 | ✅ functional + active (FIFO watermark/empty/error interrupt -> IRQ 106/107/108 to NVIC; tests/mcxn-dac) |
 | `DM` | 1 | ✅ functional (register-accurate) |
 | `DMA` | 2 | ✅ functional (16-channel TCD engine, software-triggered transfers -> NVIC IRQ) |
 | `EIM` | 1 | ✅ functional (register-accurate) |
@@ -114,10 +114,12 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **uSDHC** — SD command/response handshake (CMD8/CMD3/ACMD41) + CC IRQ (61). `tests/mcxn-usdhc`.
 - [x] **FlexSPI** — IP-command-done IRQ (58). `tests/mcxn-flexspi`.
 - [x] **SAI** — TX FIFO-request interrupt (FRF & FRIE) IRQ (59/60). `tests/mcxn-sai`.
+- [x] **DAC** — FIFO watermark interrupt (FSR.WM & IER.WM_IE) IRQ (106/107/108). `tests/mcxn-dac`.
 
 Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.
-- **Analog results**: DAC output, CMP edge IRQ. (RTC alarm/tick done.)
+- **Analog results**: (RTC alarm/tick + DAC FIFO-watermark done; CMP is
+  pure-analog, correctly register-only.)
 - **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport; register-only
   today, no usb-bus backend - confirmed to holobench, gated until unparked).
   (ENET MDIO+PHY, uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request

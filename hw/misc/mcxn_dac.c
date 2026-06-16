@@ -12,6 +12,7 @@
  */
 #include "qemu/osdep.h"
 #include "hw/misc/mcxn_dac.h"
+#include "hw/core/irq.h"
 #include "migration/vmstate.h"
 
 /* --- Register offsets ------------------------------------------------------ */
@@ -44,6 +45,21 @@
  */
 #define DAC_VERID_VALUE  0x01000000u
 #define DAC_PARAM_VALUE  0x00000004u  /* FIFOSZ field */
+
+/*
+ * IER (0x1C) interrupt-enable bits align one-to-one with the FSR flags
+ * (FULL_IE@0, EMPTY_IE@1, WM_IE@2, ..., OF_IE@6, UF_IE@7).  The FIFO is always
+ * drained, so EMPTY and WM (room available) are effectively asserted; plus any
+ * latched overflow/underflow.  An interrupt is requested when an effective
+ * flag and its enable are both set.
+ */
+static void mcxn_dac_update_irq(MCXNDACState *s)
+{
+    uint32_t fsr = (s->regs[DAC_FSR / 4] & FSR_W1C_MASK) | FSR_EMPTY | FSR_WM;
+    uint32_t ier = s->regs[DAC_IER / 4];
+
+    qemu_set_irq(s->irq, (fsr & ier) != 0);
+}
 
 static uint64_t mcxn_dac_read(void *opaque, hwaddr offset, unsigned size)
 {
@@ -91,6 +107,11 @@ static void mcxn_dac_write(void *opaque, hwaddr offset, uint64_t value,
     case DAC_FSR:
         /* W1C overflow/underflow; other bits are status (ignore writes). */
         s->regs[DAC_FSR / 4] &= ~(value & FSR_W1C_MASK);
+        mcxn_dac_update_irq(s);
+        return;
+    case DAC_IER:
+        s->regs[DAC_IER / 4] = value;
+        mcxn_dac_update_irq(s);
         return;
     default:
         s->regs[offset / 4] = value;
@@ -114,6 +135,7 @@ static void mcxn_dac_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     s->data = 0;
+    qemu_set_irq(s->irq, 0);
 }
 
 static void mcxn_dac_realize(DeviceState *dev, Error **errp)
@@ -123,6 +145,7 @@ static void mcxn_dac_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_dac_ops, s,
                           TYPE_MCXN_DAC, MCXN_DAC_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
 
 static const VMStateDescription vmstate_mcxn_dac = {

@@ -24,6 +24,7 @@ struct MCXNDACState {
 
     /*< public >*/
     MemoryRegion iomem;
+    qemu_irq irq;
     uint32_t regs[MCXN_DAC_SIZE / 4];
     uint32_t data;   /* last value written to DATA (the modelled "output") */
 };
