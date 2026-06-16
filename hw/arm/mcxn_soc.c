@@ -19,6 +19,13 @@
 #include "hw/core/qdev-properties-system.h" /* qdev_prop_set_chr */
 #include "hw/misc/unimp.h"
 #include "hw/misc/mcxn_stub.h"
+#include "hw/misc/mcxn_crc.h"
+#include "hw/misc/mcxn_cdog.h"
+#include "hw/misc/mcxn_ewm.h"
+#include "hw/misc/mcxn_inputmux.h"
+#include "hw/misc/mcxn_evtg.h"
+#include "hw/misc/mcxn_plu.h"
+#include "hw/misc/mcxn_freqme.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -108,6 +115,18 @@ typedef struct MCXNStubDesc {
 
 static const MCXNStubDesc mcxn_stub_table[] = {
 #include "mcxn_peripherals.inc"
+};
+
+/* Functional register-accurate config blocks (MMIO only, no IRQ/clock). */
+static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
+    { TYPE_MCXN_CRC,      0x400CB000 },
+    { TYPE_MCXN_CDOG,     0x400BB000 },   /* CDOG0 */
+    { TYPE_MCXN_CDOG,     0x400BC000 },   /* CDOG1 */
+    { TYPE_MCXN_EWM,      0x400C0000 },
+    { TYPE_MCXN_INPUTMUX, 0x40006000 },
+    { TYPE_MCXN_EVTG,     0x400D2000 },
+    { TYPE_MCXN_PLU,      0x40034000 },
+    { TYPE_MCXN_FREQME,   0x40011000 },
 };
 
 static const MCXNConfig *mcxn_lookup(const char *part)
@@ -398,6 +417,25 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      mcxn_lptmr_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->lptmr_s_alias[i]);
+    }
+
+    /* Functional register-accurate config blocks (MMIO only): each NS + secure
+     * alias.  Instantiated dynamically since they need no IRQ/clock wiring. */
+    for (i = 0; i < (int)ARRAY_SIZE(mcxn_cfgdev); i++) {
+        DeviceState *d = qdev_new(mcxn_cfgdev[i].type);
+        MemoryRegion *al = g_new(MemoryRegion, 1);
+        g_autofree char *cn = g_strdup_printf("cfgdev%d", i);
+        g_autofree char *an = g_strdup_printf("mcxn.cfg%d.s", i);
+        MemoryRegion *mr;
+
+        object_property_add_child(OBJECT(dev), cn, OBJECT(d));
+        sysbus_realize_and_unref(SYS_BUS_DEVICE(d), &error_abort);
+        sysbus_mmio_map(SYS_BUS_DEVICE(d), 0, mcxn_cfgdev[i].base);
+        mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(d), 0);
+        memory_region_init_alias(al, OBJECT(dev), an, mr, 0,
+                                 memory_region_size(mr));
+        memory_region_add_subregion(system_memory,
+                                     mcxn_cfgdev[i].base + MCXN_SECURE_ALIAS, al);
     }
 
     /* Generic permissive stubs for every other peripheral present on the SoC

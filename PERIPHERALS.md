@@ -26,11 +26,11 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `CACHE64_CTRL` | 1 | ○ stub (present, readback, non-blocking) |
 | `CACHE64_POLSEL` | 1 | ○ stub (present, readback, non-blocking) |
 | `CAN` | 2 | ○ stub (present, readback, non-blocking) |
-| `CDOG` | 2 | ○ stub (present, readback, non-blocking) |
+| `CDOG` | 2 | ✅ functional (register-accurate) |
 | `CMC` | 1 | ○ stub (present, readback, non-blocking) |
 | `CMP` | 3 | ○ stub (present, readback, non-blocking) |
 | `CMX_PERFMON` | 2 | ○ stub (present, readback, non-blocking) |
-| `CRC` | 1 | ○ stub (present, readback, non-blocking) |
+| `CRC` | 1 | ✅ functional (register-accurate) |
 | `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
 | `DAC` | 3 | ○ stub (present, readback, non-blocking) |
 | `DM` | 1 | ○ stub (present, readback, non-blocking) |
@@ -40,17 +40,17 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `EMVSIM` | 2 | ○ stub (present, readback, non-blocking) |
 | `ENET` | 1 | ○ stub (present, readback, non-blocking) |
 | `ERM` | 1 | ○ stub (present, readback, non-blocking) |
-| `EVTG` | 1 | ○ stub (present, readback, non-blocking) |
-| `EWM` | 1 | ○ stub (present, readback, non-blocking) |
+| `EVTG` | 1 | ✅ functional (register-accurate) |
+| `EWM` | 1 | ✅ functional (register-accurate) |
 | `FLEXIO` | 1 | ○ stub (present, readback, non-blocking) |
 | `FLEXSPI` | 1 | ○ stub (present, readback, non-blocking) |
 | `FMU` | 1 | ○ stub (present, readback, non-blocking) |
 | `FMU0TEST` | 1 | ○ stub (present, readback, non-blocking) |
-| `FREQME` | 1 | ○ stub (present, readback, non-blocking) |
+| `FREQME` | 1 | ✅ functional (register-accurate) |
 | `GDET` | 2 | ○ stub (present, readback, non-blocking) |
 | `GPIO` | 6 | ✅ functional |
 | `I3C` | 2 | ○ stub (present, readback, non-blocking) |
-| `INPUTMUX` | 1 | ○ stub (present, readback, non-blocking) |
+| `INPUTMUX` | 1 | ✅ functional (register-accurate) |
 | `INTM` | 1 | ○ stub (present, readback, non-blocking) |
 | `ITRC` | 1 | ○ stub (present, readback, non-blocking) |
 | `LPI2C` | 10 | ○ stub (present, readback, non-blocking) |
@@ -67,7 +67,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `PDM` | 1 | ○ stub (present, readback, non-blocking) |
 | `PINT` | 1 | ○ stub (present, readback, non-blocking) |
 | `PKC` | 1 | ○ stub (present, readback, non-blocking) |
-| `PLU` | 1 | ○ stub (present, readback, non-blocking) |
+| `PLU` | 1 | ✅ functional (register-accurate) |
 | `PORT` | 6 | ◐ pin-mux stub (adequate) |
 | `POWERQUAD` | 1 | ○ stub (present, readback, non-blocking) |
 | `PUF` | 1 | ○ stub (present, readback, non-blocking) |

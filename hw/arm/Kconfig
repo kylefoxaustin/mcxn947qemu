@@ -731,6 +731,13 @@ config MCXN_SOC
     select MCXN_CTIMER
     select MCXN_MRT
     select MCXN_LPTMR
+    select MCXN_CRC
+    select MCXN_CDOG
+    select MCXN_EWM
+    select MCXN_INPUTMUX
+    select MCXN_EVTG
+    select MCXN_PLU
+    select MCXN_FREQME
     select MCXN_GPIO
     select MCXN_PORT
 

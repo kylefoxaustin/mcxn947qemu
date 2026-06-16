@@ -273,3 +273,24 @@ config MCXN_SPC
 
 config MCXN_STUB
     bool
+
+config MCXN_CRC
+    bool
+
+config MCXN_CDOG
+    bool
+
+config MCXN_EWM
+    bool
+
+config MCXN_INPUTMUX
+    bool
+
+config MCXN_EVTG
+    bool
+
+config MCXN_PLU
+    bool
+
+config MCXN_FREQME
+    bool
