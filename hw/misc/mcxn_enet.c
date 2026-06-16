@@ -83,6 +83,8 @@
 #define R_DMA_CH0_RXRING_LEN    0x1130
 #define R_DMA_CH0_INT_EN        0x1134
 #define R_DMA_CH0_STATUS        0x1160
+#define R_MTL_TXQ0_OP_MODE      0x0D00  /* MTL Tx queue-0 operation mode */
+#define MTL_TXQ_FTQ      (1u << 0)   /* flush Tx queue (self-clearing) */
 
 /* DMA channel control / status / interrupt-enable bits. */
 #define DMA_TX_ST        (1u << 0)   /* start transmission */
@@ -161,38 +163,59 @@ static void enet_desc_write_word3(uint32_t addr, uint32_t w3)
                      MEMTXATTRS_UNSPECIFIED);
 }
 
-/* Deliver a received frame into the next owned Rx descriptor. */
+/*
+ * Deliver a received frame into the Rx descriptor ring.  The receive buffer
+ * size (RBSZ, from DMA_CH0_RX_CTRL) is typically smaller than a frame, so the
+ * frame is split across consecutive owned descriptors: each holds up to RBSZ
+ * bytes and its control word carries the CUMULATIVE length through that buffer
+ * (what the driver expects); the first descriptor is flagged FD, the last LD.
+ */
 static bool mcxn_enet_deliver(MCXNEnetState *s, const uint8_t *buf, size_t len)
 {
     uint32_t base = s->regs[R_DMA_CH0_RXDESC_LIST >> 2] & ~0x3u;
     uint32_t ringlen = (s->regs[R_DMA_CH0_RXRING_LEN >> 2] & 0x3FF) + 1;
-    uint32_t d[4];
+    uint32_t rbsz = (s->regs[R_DMA_CH0_RX_CTRL >> 2] >> 1) & 0x3FFF;
+    size_t off = 0;
+    bool first = true;
 
     if (!(s->regs[R_MAC_CONFIGURATION >> 2] & MAC_CFG_RE) ||
         !(s->regs[R_DMA_CH0_RX_CTRL >> 2] & DMA_RX_SR) || base == 0) {
         return false;
     }
-
-    enet_desc_read(s->cur_rx, d);
-    if (!(d[3] & RDES3_OWN)) {
-        s->regs[R_DMA_CH0_STATUS >> 2] |= DMA_STAT_RBU | DMA_STAT_NIS;
-        mcxn_enet_update_irq(s);
-        return false;   /* no buffer available, drop */
+    if (rbsz == 0 || rbsz > ENET_FRAME_MAX) {
+        rbsz = ENET_FRAME_MAX;
     }
-
     if (len > ENET_FRAME_MAX) {
         len = ENET_FRAME_MAX;
     }
-    dma_memory_write(&address_space_memory, d[0], buf, len,
-                     MEMTXATTRS_UNSPECIFIED);
-    /* Write-back: clear OWN, mark first+last, store packet length. */
-    enet_desc_write_word3(s->cur_rx,
-                          RDES3_FD | RDES3_LD | ((uint32_t)len & RDES3_PL_MASK));
 
-    s->cur_rx += 16;
-    if (s->cur_rx >= base + ringlen * 16) {
-        s->cur_rx = base;
-    }
+    do {
+        uint32_t d[4], chunk;
+        bool last;
+
+        enet_desc_read(s->cur_rx, d);
+        if (!(d[3] & RDES3_OWN)) {
+            s->regs[R_DMA_CH0_STATUS >> 2] |= DMA_STAT_RBU | DMA_STAT_NIS;
+            mcxn_enet_update_irq(s);
+            return false;   /* ran out of buffers */
+        }
+        chunk = MIN(rbsz, len - off);
+        dma_memory_write(&address_space_memory, d[0], buf + off, chunk,
+                         MEMTXATTRS_UNSPECIFIED);
+        off += chunk;
+        last = (off >= len);
+        /* Write-back: clear OWN, FD on first / LD on last, cumulative length. */
+        enet_desc_write_word3(s->cur_rx,
+                              (first ? RDES3_FD : 0) | (last ? RDES3_LD : 0) |
+                              ((uint32_t)off & RDES3_PL_MASK));
+        first = false;
+
+        s->cur_rx += 16;
+        if (s->cur_rx >= base + ringlen * 16) {
+            s->cur_rx = base;
+        }
+    } while (off < len);
+
     s->regs[R_DMA_CH0_STATUS >> 2] |= DMA_STAT_RI | DMA_STAT_NIS;
     mcxn_enet_update_irq(s);
     return true;
@@ -216,7 +239,7 @@ static void mcxn_enet_tx_process(MCXNEnetState *s)
     }
 
     while (s->cur_tx != tail && guard-- > 0) {
-        uint32_t d[4], b1len;
+        uint32_t d[4], b1len, b2len;
 
         enet_desc_read(s->cur_tx, d);
         if (!(d[3] & TDES3_OWN)) {
@@ -226,11 +249,20 @@ static void mcxn_enet_tx_process(MCXNEnetState *s)
             flen = 0;
             ioc = false;
         }
+        /* TDES2 carries buffer-1 length [13:0] and buffer-2 length [29:16];
+         * the driver puts the L2 header in buffer 1 and the payload in
+         * buffer 2 (TDES0 / TDES1 addresses). */
         b1len = d[2] & TDES2_B1L_MASK;
         if (b1len && flen + b1len <= sizeof(frame)) {
             dma_memory_read(&address_space_memory, d[0], frame + flen, b1len,
                             MEMTXATTRS_UNSPECIFIED);
             flen += b1len;
+        }
+        b2len = (d[2] >> 16) & TDES2_B1L_MASK;
+        if (b2len && flen + b2len <= sizeof(frame)) {
+            dma_memory_read(&address_space_memory, d[1], frame + flen, b2len,
+                            MEMTXATTRS_UNSPECIFIED);
+            flen += b2len;
         }
         if (d[2] & TDES2_IOC) {
             ioc = true;
@@ -260,7 +292,6 @@ static void mcxn_enet_tx_process(MCXNEnetState *s)
 static bool mcxn_enet_can_receive(NetClientState *nc)
 {
     MCXNEnetState *s = qemu_get_nic_opaque(nc);
-
     return (s->regs[R_MAC_CONFIGURATION >> 2] & MAC_CFG_RE) &&
            (s->regs[R_DMA_CH0_RX_CTRL >> 2] & DMA_RX_SR);
 }
@@ -325,11 +356,16 @@ static uint64_t enet_read(void *opaque, hwaddr off, unsigned size)
     case R_MAC_VERSION:
         v = MAC_VERSION_VALUE;
         break;
+    case R_DMA_INTERRUPT_STATUS:
+        /* DC0IS (bit 0) summarises DMA channel 0's pending interrupt; the
+         * driver's ISR gates on it before reading the channel status. */
+        v = (s->regs[R_DMA_CH0_STATUS >> 2] & s->regs[R_DMA_CH0_INT_EN >> 2] &
+             (DMA_STAT_TI | DMA_STAT_RI | DMA_STAT_RBU)) ? 1u : 0u;
+        break;
     case R_MAC_INTERRUPT_STATUS:
     case R_MAC_RX_TX_STATUS:
     case R_MAC_DEBUG:
     case R_MTL_INTERRUPT_STATUS:
-    case R_DMA_INTERRUPT_STATUS:
     case R_DMA_DEBUG_STATUS0:
         /* Status registers read idle. */
         v = s->regs[(off & ~3u) >> 2];
@@ -367,6 +403,10 @@ static void enet_write(void *opaque, hwaddr off, uint64_t value, unsigned size)
     case R_DMA_MODE:
         /* SWR self-clears: the soft reset is instantaneous in the model. */
         s->regs[idx] = val & ~DMA_MODE_SWR;
+        return;
+    case R_MTL_TXQ0_OP_MODE:
+        /* FTQ (flush Tx queue) self-clears: the flush completes instantly. */
+        s->regs[idx] = val & ~MTL_TXQ_FTQ;
         return;
     case R_MAC_MDIO_ADDRESS:
         /*

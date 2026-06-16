@@ -41,7 +41,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `EIM` | 1 | ✅ functional (register-accurate) |
 | `ELS` | 1 | ✅ functional (register-accurate) |
 | `EMVSIM` | 2 | ✅ functional (register-accurate) |
-| `ENET` | 1 | ✅ functional + active (MDIO/PHY + real MAC frame DMA-ring TX/RX over QEMU NIC, MAC loopback, TI/RI IRQ 139; tests/mcxn-enet + mcxn-enet-mac) |
+| `ENET` | 1 | ✅ functional + active + REAL TCP/IP (DWC ENET-QoS descriptor DMA TX/RX over QEMU NIC; Zephyr net stack completes DHCP over it; MAC loopback; TI/RI IRQ 139; tests/mcxn-enet*, mcxn-enet-tcpip) |
 | `ERM` | 1 | ✅ functional (register-accurate) |
 | `EVTG` | 1 | ✅ functional (register-accurate) |
 | `EWM` | 1 | ✅ functional (register-accurate) |
