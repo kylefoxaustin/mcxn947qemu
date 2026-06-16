@@ -74,3 +74,6 @@ config MCXN_MRT
 
 config MCXN_LPTMR
     bool
+
+config MCXN_OSTIMER
+    bool

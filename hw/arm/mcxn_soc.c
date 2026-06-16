@@ -215,6 +215,7 @@ static void mcxn_soc_instance_init(Object *obj)
         object_initialize_child(obj, name, &s->lptmr[i], TYPE_MCXN_LPTMR);
     }
     object_initialize_child(obj, "fmu0", &s->fmu0, TYPE_MCXN_FMU);
+    object_initialize_child(obj, "ostimer0", &s->ostimer0, TYPE_MCXN_OSTIMER);
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -474,6 +475,18 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      mcxn_lptmr_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->lptmr_s_alias[i]);
     }
+
+    /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->ostimer0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->ostimer0), 0, 0x40049000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->ostimer0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 57));
+    memory_region_init_alias(&s->ostimer0_s_alias, OBJECT(dev), "mcxn.ostimer0.s",
+                             &s->ostimer0.iomem, 0, 0x1000);
+    memory_region_add_subregion(system_memory, 0x40049000 + MCXN_SECURE_ALIAS,
+                                &s->ostimer0_s_alias);
 
     /* FMU flash controller: knows the flash backing so erase/verify work;
      * IRQ to cpu0 NVIC. */

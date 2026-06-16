@@ -732,6 +732,7 @@ config MCXN_SOC
     select MCXN_CTIMER
     select MCXN_MRT
     select MCXN_LPTMR
+    select MCXN_OSTIMER
     select MCXN_CRC
     select MCXN_CDOG
     select MCXN_EWM

@@ -42,3 +42,4 @@ tests/mcxn-ctimer/*.elf
 tests/mcxn-timers/*.elf
 tests/mcxn-fmu/*.elf
 tests/mcxn-multiuart/*.elf
+tests/mcxn-ostimer/*.elf

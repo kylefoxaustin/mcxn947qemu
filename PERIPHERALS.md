@@ -62,7 +62,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `MRT` | 1 | ✅ functional (4-ch down-counter -> NVIC IRQ) |
 | `NPX` | 1 | ○ stub (present, readback, non-blocking) |
 | `OPAMP` | 3 | ○ stub (present, readback, non-blocking) |
-| `OSTIMER` | 1 | ○ stub (present, readback, non-blocking) |
+| `OSTIMER` | 1 | ✅ functional (gray-code counter + match IRQ) |
 | `OTPC` | 1 | ✅ functional (register-accurate) |
 | `PDM` | 1 | ○ stub (present, readback, non-blocking) |
 | `PINT` | 1 | ○ stub (present, readback, non-blocking) |

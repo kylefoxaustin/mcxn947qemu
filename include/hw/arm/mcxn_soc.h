@@ -20,6 +20,7 @@
 #include "hw/timer/mcxn_ctimer.h"
 #include "hw/timer/mcxn_mrt.h"
 #include "hw/timer/mcxn_lptmr.h"
+#include "hw/timer/mcxn_ostimer.h"
 #include "hw/misc/mcxn_fmu.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
@@ -75,6 +76,7 @@ struct MCXNState {
     MCXNMRTState    mrt0;                     /* Multi-Rate Timer */
     MCXNLPTMRState  lptmr[MCXN_NUM_LPTMR];    /* LPTMR0..1 */
     MCXNFMUState    fmu0;                      /* flash management unit */
+    MCXNOSTimerState ostimer0;                 /* OS event timer */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -95,6 +97,7 @@ struct MCXNState {
     MemoryRegion mrt0_s_alias;                    /* secure alias of MRT */
     MemoryRegion lptmr_s_alias[MCXN_NUM_LPTMR];   /* secure aliases of LPTMR */
     MemoryRegion fmu0_s_alias;                    /* secure alias of FMU */
+    MemoryRegion ostimer0_s_alias;                /* secure alias of OSTIMER */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */
