@@ -34,6 +34,7 @@
 #include "hw/misc/mcxn_powerquad.h"
 #include "hw/misc/mcxn_pwm.h"
 #include "hw/misc/mcxn_sct.h"
+#include "hw/misc/mcxn_i3c.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -55,6 +56,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNState, MCXN_SOC)
 #define MCXN_NUM_SAI 2       /* SAI0..1 */
 #define MCXN_NUM_DAC 3       /* DAC0..2 (LPDAC x2 + HPDAC) */
 #define MCXN_NUM_PWM 2       /* eFlexPWM0..1 */
+#define MCXN_NUM_I3C 2       /* I3C0..1 */
 
 /*
  * Per-SKU configuration.
@@ -107,6 +109,7 @@ struct MCXNState {
     MCXNPowerQuadState powerquad0;                 /* PowerQuad DSP coproc */
     MCXNPWMState    pwm[MCXN_NUM_PWM];             /* eFlexPWM0..1 */
     MCXNSCTState    sct0;                          /* SCTimer/PWM */
+    MCXNI3CState    i3c[MCXN_NUM_I3C];             /* I3C0..1 */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -140,6 +143,7 @@ struct MCXNState {
     MemoryRegion powerquad0_s_alias;               /* secure alias of PowerQuad */
     MemoryRegion pwm_s_alias[MCXN_NUM_PWM];        /* secure aliases of PWM0..1 */
     MemoryRegion sct0_s_alias;                     /* secure alias of SCT */
+    MemoryRegion i3c_s_alias[MCXN_NUM_I3C];        /* secure aliases of I3C0..1 */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */

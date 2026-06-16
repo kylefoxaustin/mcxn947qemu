@@ -229,9 +229,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_PDM,      0x4010C000 },
     { TYPE_MCXN_EMVSIM,   0x40103000 },   /* EMVSIM0 */
     { TYPE_MCXN_EMVSIM,   0x40104000 },   /* EMVSIM1 */
-    /* Comm/serial: I3C0/1, FlexIO. */
-    { TYPE_MCXN_I3C,      0x40021000 },   /* I3C0 */
-    { TYPE_MCXN_I3C,      0x40022000 },   /* I3C1 */
+    /* Comm/serial: FlexIO.  (I3C0/1 instantiated below — IRQs wired.) */
     { TYPE_MCXN_FLEXIO,   0x40105000 },
     /* Connectivity: FlexCAN0/1 and ENET instantiated below (IRQs wired). */
     /* Analog: TSI.  (ADC0/1 + RTC instantiated explicitly below — IRQ wired.) */
@@ -329,6 +327,10 @@ static void mcxn_soc_instance_init(Object *obj)
         object_initialize_child(obj, name, &s->pwm[i], TYPE_MCXN_PWM);
     }
     object_initialize_child(obj, "sct0", &s->sct0, TYPE_MCXN_SCT);
+    for (i = 0; i < MCXN_NUM_I3C; i++) {
+        g_autofree char *name = g_strdup_printf("i3c%d", i);
+        object_initialize_child(obj, name, &s->i3c[i], TYPE_MCXN_I3C);
+    }
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -786,6 +788,26 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                              &s->sct0.iomem, 0, MCXN_SCT_SIZE);
     memory_region_add_subregion(system_memory, 0x40091000 + MCXN_SECURE_ALIAS,
                                 &s->sct0_s_alias);
+
+    /* I3C0..1: controller transfer-complete interrupt to cpu0 NVIC. */
+    for (i = 0; i < MCXN_NUM_I3C; i++) {
+        static const struct { hwaddr base; int irq; }
+        i3c_cfg[MCXN_NUM_I3C] = { { 0x40021000, 95 }, { 0x40022000, 96 } };
+        g_autofree char *aname = g_strdup_printf("mcxn.i3c%d.s", i);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->i3c[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->i3c[i]), 0, i3c_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->i3c[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            i3c_cfg[i].irq));
+        memory_region_init_alias(&s->i3c_s_alias[i], OBJECT(dev), aname,
+                                 &s->i3c[i].iomem, 0, MCXN_I3C_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     i3c_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->i3c_s_alias[i]);
+    }
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->ostimer0), errp)) {

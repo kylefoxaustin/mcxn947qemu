@@ -120,6 +120,25 @@ static void mcxn_i3c_reset(DeviceState *dev)
     s->regs[R_MDATACTRL / 4]      = I3C_MDATACTRL_RST;
     s->regs[R_IBIEXT1 / 4]        = I3C_IBIEXT1_RST;
     s->regs[R_SID / 4]            = I3C_SID_RST;
+    qemu_set_irq(s->irq, 0);
+}
+
+/* MCTRL request field and the controller status bits it completes. */
+#define I3C_MCTRL_REQUEST    0x7u
+#define I3C_MSTATUS_MCTRLDONE 0x200u
+#define I3C_MSTATUS_COMPLETE  0x400u
+
+/*
+ * Controller interrupt: MINTMASKED = MSTATUS & enabled (MINTSET holds the
+ * enable mask; MINTCLR clears it).  The masked status is cached so its
+ * read-only register reflects it, and it drives the IRQ line.
+ */
+static void mcxn_i3c_update_irq(MCXNI3CState *s)
+{
+    uint32_t pend = s->regs[R_MSTATUS / 4] & s->regs[R_MINTSET / 4];
+
+    s->regs[R_MINTMASKED / 4] = pend;
+    qemu_set_irq(s->irq, pend != 0);
 }
 
 static bool i3c_is_readonly(hwaddr off)
@@ -202,6 +221,35 @@ static void mcxn_i3c_write(void *opaque, hwaddr off, uint64_t value,
     if (idx == R_SSTATUS || idx == R_MSTATUS) {
         uint32_t w1c = (uint32_t)(value << shift) & mask;
         s->regs[idx >> 2] = cur & ~w1c;
+        if (idx == R_MSTATUS) {
+            mcxn_i3c_update_irq(s);
+        }
+        return;
+    }
+
+    /* MINTSET is write-1-to-set, MINTCLR write-1-to-clear, of the controller
+     * interrupt-enable mask (held in MINTSET). */
+    if (idx == R_MINTSET) {
+        s->regs[R_MINTSET / 4] |= (uint32_t)(value << shift) & mask;
+        mcxn_i3c_update_irq(s);
+        return;
+    }
+    if (idx == R_MINTCLR) {
+        s->regs[R_MINTSET / 4] &= ~((uint32_t)(value << shift) & mask);
+        s->regs[R_MINTCLR / 4] = v;
+        mcxn_i3c_update_irq(s);
+        return;
+    }
+
+    /* Issuing a controller request (MCTRL.REQUEST != 0) completes the message
+     * immediately: raise MCTRLDONE + COMPLETE so a polled or interrupt-driven
+     * transfer resolves. */
+    if (idx == R_MCTRL) {
+        s->regs[idx >> 2] = v;
+        if (v & I3C_MCTRL_REQUEST) {
+            s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE | I3C_MSTATUS_COMPLETE;
+            mcxn_i3c_update_irq(s);
+        }
         return;
     }
 

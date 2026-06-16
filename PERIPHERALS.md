@@ -52,7 +52,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `FREQME` | 1 | ✅ functional (register-accurate) |
 | `GDET` | 2 | ✅ functional (register-accurate) |
 | `GPIO` | 6 | ✅ functional |
-| `I3C` | 2 | ✅ functional (register-accurate; idle-FIFO status) |
+| `I3C` | 2 | ✅ functional + active (controller request -> MCTRLDONE/COMPLETE IRQ 95/96 to NVIC; tests/mcxn-i3c) |
 | `INPUTMUX` | 1 | ✅ functional (register-accurate) |
 | `INTM` | 1 | ✅ functional (register-accurate) |
 | `ITRC` | 1 | ✅ functional (register-accurate) |
@@ -118,9 +118,11 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **PowerQuad** — compute-launch -> completion IRQ (76). `tests/mcxn-powerquad`.
 - [x] **PWM** — submodule-0 running counter -> periodic reload IRQ (114/120, QEMUTimer). `tests/mcxn-pwm`.
 - [x] **SCT** — running counter -> periodic match/limit event-0 IRQ (33, QEMUTimer). `tests/mcxn-sct`.
+- [x] **I3C** — controller request -> transfer-complete IRQ (95/96). `tests/mcxn-i3c`.
 
 Priority order (remaining):
-- **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.
+- **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C). (I3C transfer-
+  complete done; PDM/SINC/EMVSIM FIFO interrupts remain.)
 - **Analog results**: (RTC alarm/tick + DAC FIFO-watermark done; CMP is
   pure-analog, correctly register-only.)
 - **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport; register-only
