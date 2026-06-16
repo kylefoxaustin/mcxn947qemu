@@ -390,3 +390,63 @@ config MCXN_PDM
 
 config MCXN_EMVSIM
     bool
+
+config MCXN_I3C
+    bool
+
+config MCXN_FLEXIO
+    bool
+
+config MCXN_FLEXCAN
+    bool
+
+config MCXN_ENET
+    bool
+
+config MCXN_ADC
+    bool
+
+config MCXN_RTC
+    bool
+
+config MCXN_TSI
+    bool
+
+config MCXN_SAI
+    bool
+
+config MCXN_USDHC
+    bool
+
+config MCXN_FLEXSPI
+    bool
+
+config MCXN_PWM
+    bool
+
+config MCXN_QDC
+    bool
+
+config MCXN_SCT
+    bool
+
+config MCXN_USBFS
+    bool
+
+config MCXN_USBDCD
+    bool
+
+config MCXN_USBPHY
+    bool
+
+config MCXN_USBHS
+    bool
+
+config MCXN_SMARTDMA
+    bool
+
+config MCXN_POWERQUAD
+    bool
+
+config MCXN_NPU
+    bool

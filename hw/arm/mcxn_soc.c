@@ -57,6 +57,26 @@
 #include "hw/misc/mcxn_sinc.h"
 #include "hw/misc/mcxn_pdm.h"
 #include "hw/misc/mcxn_emvsim.h"
+#include "hw/misc/mcxn_i3c.h"
+#include "hw/misc/mcxn_flexio.h"
+#include "hw/misc/mcxn_flexcan.h"
+#include "hw/misc/mcxn_enet.h"
+#include "hw/misc/mcxn_adc.h"
+#include "hw/misc/mcxn_rtc.h"
+#include "hw/misc/mcxn_tsi.h"
+#include "hw/misc/mcxn_sai.h"
+#include "hw/misc/mcxn_usdhc.h"
+#include "hw/misc/mcxn_flexspi.h"
+#include "hw/misc/mcxn_pwm.h"
+#include "hw/misc/mcxn_qdc.h"
+#include "hw/misc/mcxn_sct.h"
+#include "hw/misc/mcxn_usbfs.h"
+#include "hw/misc/mcxn_usbdcd.h"
+#include "hw/misc/mcxn_usbphy.h"
+#include "hw/misc/mcxn_usbhs.h"
+#include "hw/misc/mcxn_smartdma.h"
+#include "hw/misc/mcxn_powerquad.h"
+#include "hw/misc/mcxn_npu.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -212,6 +232,41 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_PDM,      0x4010C000 },
     { TYPE_MCXN_EMVSIM,   0x40103000 },   /* EMVSIM0 */
     { TYPE_MCXN_EMVSIM,   0x40104000 },   /* EMVSIM1 */
+    /* Comm/serial: I3C0/1, FlexIO. */
+    { TYPE_MCXN_I3C,      0x40021000 },   /* I3C0 */
+    { TYPE_MCXN_I3C,      0x40022000 },   /* I3C1 */
+    { TYPE_MCXN_FLEXIO,   0x40105000 },
+    /* Connectivity: FlexCAN0/1 (0x4000 windows), ENET (0x2000). */
+    { TYPE_MCXN_FLEXCAN,  0x400D4000 },   /* CAN0 */
+    { TYPE_MCXN_FLEXCAN,  0x400D8000 },   /* CAN1 */
+    { TYPE_MCXN_ENET,     0x40100000 },
+    /* Analog: ADC0/1, RTC, TSI. */
+    { TYPE_MCXN_ADC,      0x4010D000 },   /* ADC0 */
+    { TYPE_MCXN_ADC,      0x4010E000 },   /* ADC1 */
+    { TYPE_MCXN_RTC,      0x4004C000 },
+    { TYPE_MCXN_TSI,      0x40050000 },
+    /* Audio/storage: SAI0/1, uSDHC, FlexSPI. */
+    { TYPE_MCXN_SAI,      0x40106000 },   /* SAI0 */
+    { TYPE_MCXN_SAI,      0x40107000 },   /* SAI1 */
+    { TYPE_MCXN_USDHC,    0x40109000 },
+    { TYPE_MCXN_FLEXSPI,  0x400C8000 },
+    /* Motor/timer: eFlexPWM0/1, QDC0/1, SCT. */
+    { TYPE_MCXN_PWM,      0x400CE000 },   /* PWM0 */
+    { TYPE_MCXN_PWM,      0x400D0000 },   /* PWM1 */
+    { TYPE_MCXN_QDC,      0x400CF000 },   /* QDC0 */
+    { TYPE_MCXN_QDC,      0x400D1000 },   /* QDC1 */
+    { TYPE_MCXN_SCT,      0x40091000 },
+    /* USB: FS-OTG, charger detect, HS PHY + HS core/non-core (OBMF-ICP path). */
+    { TYPE_MCXN_USBFS,        0x400DD000 },
+    { TYPE_MCXN_USBDCD,       0x400DC000 },
+    { TYPE_MCXN_USBPHY,       0x4010A000 },   /* 0x800 window */
+    { TYPE_MCXN_USBHS_PHYDCD, 0x4010A800 },   /* 0x800 window */
+    { TYPE_MCXN_USBHS_CORE,   0x4010B000 },   /* 0x200 window */
+    { TYPE_MCXN_USBHS_NC,     0x4010B200 },   /* 0xE00 window */
+    /* Accelerators: SmartDMA, PowerQuad, eIQ Neutron NPU (NPX). */
+    { TYPE_MCXN_SMARTDMA,  0x40033000 },
+    { TYPE_MCXN_POWERQUAD, 0x400BF000 },
+    { TYPE_MCXN_NPU,       0x400CC000 },
 };
 
 static const MCXNConfig *mcxn_lookup(const char *part)

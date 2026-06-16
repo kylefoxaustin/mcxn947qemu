@@ -764,6 +764,26 @@ config MCXN_SOC
     select MCXN_SINC
     select MCXN_PDM
     select MCXN_EMVSIM
+    select MCXN_I3C
+    select MCXN_FLEXIO
+    select MCXN_FLEXCAN
+    select MCXN_ENET
+    select MCXN_ADC
+    select MCXN_RTC
+    select MCXN_TSI
+    select MCXN_SAI
+    select MCXN_USDHC
+    select MCXN_FLEXSPI
+    select MCXN_PWM
+    select MCXN_QDC
+    select MCXN_SCT
+    select MCXN_USBFS
+    select MCXN_USBDCD
+    select MCXN_USBPHY
+    select MCXN_USBHS
+    select MCXN_SMARTDMA
+    select MCXN_POWERQUAD
+    select MCXN_NPU
     select MCXN_BSP32
     select MCXN_DM
     select MCXN_PINT
