@@ -32,12 +32,12 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `CMX_PERFMON` | 2 | ✅ functional (register-accurate) |
 | `CRC` | 1 | ✅ functional (register-accurate) |
 | `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
-| `DAC` | 3 | ○ stub (present, readback, non-blocking) |
+| `DAC` | 3 | ✅ functional (register-accurate) |
 | `DM` | 1 | ✅ functional (register-accurate) |
-| `DMA` | 2 | ○ stub (present, readback, non-blocking) |
+| `DMA` | 2 | ✅ functional (16-channel TCD engine, software-triggered transfers -> NVIC IRQ) |
 | `EIM` | 1 | ✅ functional (register-accurate) |
-| `ELS` | 1 | ○ stub (present, readback, non-blocking) |
-| `EMVSIM` | 2 | ○ stub (present, readback, non-blocking) |
+| `ELS` | 1 | ✅ functional (register-accurate) |
+| `EMVSIM` | 2 | ✅ functional (register-accurate) |
 | `ENET` | 1 | ○ stub (present, readback, non-blocking) |
 | `ERM` | 1 | ✅ functional (register-accurate) |
 | `EVTG` | 1 | ✅ functional (register-accurate) |
@@ -64,13 +64,13 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `OPAMP` | 3 | ✅ functional (register-accurate) |
 | `OSTIMER` | 1 | ✅ functional (gray-code counter + match IRQ) |
 | `OTPC` | 1 | ✅ functional (register-accurate) |
-| `PDM` | 1 | ○ stub (present, readback, non-blocking) |
+| `PDM` | 1 | ✅ functional (register-accurate) |
 | `PINT` | 1 | ✅ functional (register-accurate) |
-| `PKC` | 1 | ○ stub (present, readback, non-blocking) |
+| `PKC` | 1 | ✅ functional (register-accurate) |
 | `PLU` | 1 | ✅ functional (register-accurate) |
 | `PORT` | 6 | ◐ pin-mux stub (adequate) |
 | `POWERQUAD` | 1 | ○ stub (present, readback, non-blocking) |
-| `PUF` | 1 | ○ stub (present, readback, non-blocking) |
+| `PUF` | 1 | ✅ functional (register-accurate) |
 | `PWM` | 2 | ○ stub (present, readback, non-blocking) |
 | `QDC` | 2 | ○ stub (present, readback, non-blocking) |
 | `RTC` | 1 | ○ stub (present, readback, non-blocking) |
@@ -78,12 +78,12 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `SCG` | 1 | ✅ functional |
 | `SCT` | 1 | ○ stub (present, readback, non-blocking) |
 | `SEMA42` | 1 | ✅ functional (register-accurate) |
-| `SINC` | 1 | ○ stub (present, readback, non-blocking) |
+| `SINC` | 1 | ✅ functional (register-accurate) |
 | `SMARTDMA` | 1 | ○ stub (present, readback, non-blocking) |
 | `SPC` | 1 | ✅ functional |
 | `SYSCON` | 1 | ✅ functional |
 | `TDET` | 1 | ✅ functional (register-accurate) |
-| `TRDC` | 1 | ○ stub (present, readback, non-blocking) |
+| `TRDC` | 1 | ✅ functional (register-accurate) |
 | `TSI` | 1 | ○ stub (present, readback, non-blocking) |
 | `USBDCD` | 1 | ○ stub (present, readback, non-blocking) |
 | `USBFS` | 1 | ○ stub (present, readback, non-blocking) |
