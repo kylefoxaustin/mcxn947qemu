@@ -240,9 +240,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_FLEXCAN,  0x400D4000 },   /* CAN0 */
     { TYPE_MCXN_FLEXCAN,  0x400D8000 },   /* CAN1 */
     { TYPE_MCXN_ENET,     0x40100000 },
-    /* Analog: ADC0/1, RTC, TSI. */
-    { TYPE_MCXN_ADC,      0x4010D000 },   /* ADC0 */
-    { TYPE_MCXN_ADC,      0x4010E000 },   /* ADC1 */
+    /* Analog: RTC, TSI.  (ADC0/1 instantiated explicitly below — IRQ wired.) */
     { TYPE_MCXN_RTC,      0x4004C000 },
     { TYPE_MCXN_TSI,      0x40050000 },
     /* Audio/storage: SAI0/1, uSDHC, FlexSPI. */
@@ -318,6 +316,10 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_EDMA; i++) {
         g_autofree char *name = g_strdup_printf("edma%d", i);
         object_initialize_child(obj, name, &s->edma[i], TYPE_MCXN_EDMA);
+    }
+    for (i = 0; i < MCXN_NUM_ADC; i++) {
+        g_autofree char *name = g_strdup_printf("adc%d", i);
+        object_initialize_child(obj, name, &s->adc[i], TYPE_MCXN_ADC);
     }
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
@@ -601,6 +603,26 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      edma_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->edma_s_alias[i]);
+    }
+
+    /* ADC0..1 (LPADC): conversion-complete IRQ to cpu0 NVIC. */
+    for (i = 0; i < MCXN_NUM_ADC; i++) {
+        static const struct { hwaddr base; int irq; }
+        adc_cfg[MCXN_NUM_ADC] = { { 0x4010D000, 45 }, { 0x4010E000, 46 } };
+        g_autofree char *aname = g_strdup_printf("mcxn.adc%d.s", i);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->adc[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->adc[i]), 0, adc_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->adc[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            adc_cfg[i].irq));
+        memory_region_init_alias(&s->adc_s_alias[i], OBJECT(dev), aname,
+                                 &s->adc[i].iomem, 0, MCXN_ADC_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     adc_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->adc_s_alias[i]);
     }
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */

@@ -44,3 +44,4 @@ tests/mcxn-fmu/*.elf
 tests/mcxn-multiuart/*.elf
 tests/mcxn-ostimer/*.elf
 tests/mcxn-dma/*.elf
+tests/mcxn-adc/*.elf
