@@ -12,6 +12,7 @@
 #define HW_MISC_MCXN_RTC_H
 
 #include "hw/core/sysbus.h"
+#include "qemu/timer.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_RTC "mcxn-rtc"
@@ -26,6 +27,7 @@ struct MCXNRTCState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq irq;
+    QEMUTimer tick;       /* 1 Hz calendar tick */
     uint32_t regs[MCXN_RTC_SIZE / 4];
 };
 

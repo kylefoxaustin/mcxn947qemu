@@ -237,8 +237,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_I3C,      0x40022000 },   /* I3C1 */
     { TYPE_MCXN_FLEXIO,   0x40105000 },
     /* Connectivity: FlexCAN0/1 and ENET instantiated below (IRQs wired). */
-    /* Analog: RTC, TSI.  (ADC0/1 instantiated explicitly below — IRQ wired.) */
-    { TYPE_MCXN_RTC,      0x4004C000 },
+    /* Analog: TSI.  (ADC0/1 + RTC instantiated explicitly below — IRQ wired.) */
     { TYPE_MCXN_TSI,      0x40050000 },
     /* Audio/storage: SAI0/1, uSDHC, FlexSPI. */
     { TYPE_MCXN_SAI,      0x40106000 },   /* SAI0 */
@@ -323,6 +322,7 @@ static void mcxn_soc_instance_init(Object *obj)
         object_initialize_child(obj, name, &s->flexcan[i], TYPE_MCXN_FLEXCAN);
     }
     object_initialize_child(obj, "enet0", &s->enet0, TYPE_MCXN_ENET);
+    object_initialize_child(obj, "rtc0", &s->rtc0, TYPE_MCXN_RTC);
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -658,6 +658,18 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                              &s->enet0.iomem, 0, MCXN_ENET_SIZE);
     memory_region_add_subregion(system_memory, 0x40100000 + MCXN_SECURE_ALIAS,
                                 &s->enet0_s_alias);
+
+    /* RTC (calendar): 1 Hz tick + alarm interrupt to cpu0 NVIC. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->rtc0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->rtc0), 0, 0x4004C000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->rtc0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 52));
+    memory_region_init_alias(&s->rtc0_s_alias, OBJECT(dev), "mcxn.rtc0.s",
+                             &s->rtc0.iomem, 0, MCXN_RTC_SIZE);
+    memory_region_add_subregion(system_memory, 0x4004C000 + MCXN_SECURE_ALIAS,
+                                &s->rtc0_s_alias);
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->ostimer0), errp)) {

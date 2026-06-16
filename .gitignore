@@ -47,3 +47,4 @@ tests/mcxn-dma/*.elf
 tests/mcxn-adc/*.elf
 tests/mcxn-flexcan/*.elf
 tests/mcxn-enet/*.elf
+tests/mcxn-rtc/*.elf

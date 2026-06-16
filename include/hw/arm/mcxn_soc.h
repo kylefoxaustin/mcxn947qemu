@@ -26,6 +26,7 @@
 #include "hw/misc/mcxn_adc.h"
 #include "hw/misc/mcxn_flexcan.h"
 #include "hw/misc/mcxn_enet.h"
+#include "hw/misc/mcxn_rtc.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -88,6 +89,7 @@ struct MCXNState {
     MCXNADCState    adc[MCXN_NUM_ADC];           /* ADC0..1 (LPADC) */
     MCXNFlexCanState flexcan[MCXN_NUM_FLEXCAN];   /* CAN0..1 (FlexCAN) */
     MCXNEnetState   enet0;                        /* ENET (Ethernet QoS) */
+    MCXNRTCState    rtc0;                          /* RTC (calendar) */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -113,6 +115,7 @@ struct MCXNState {
     MemoryRegion adc_s_alias[MCXN_NUM_ADC];       /* secure aliases of ADC0..1 */
     MemoryRegion flexcan_s_alias[MCXN_NUM_FLEXCAN]; /* secure aliases of CAN0..1 */
     MemoryRegion enet0_s_alias;                   /* secure alias of ENET */
+    MemoryRegion rtc0_s_alias;                     /* secure alias of RTC */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */

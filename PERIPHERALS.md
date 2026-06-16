@@ -76,7 +76,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `PUF` | 1 | ✅ functional (register-accurate) |
 | `PWM` | 2 | ✅ functional (register-accurate; eFlexPWM, LDOK self-clear) |
 | `QDC` | 2 | ✅ functional (register-accurate; quadrature decoder) |
-| `RTC` | 1 | ✅ functional (register-accurate) |
+| `RTC` | 1 | ✅ functional + active (live 1 Hz calendar tick + alarm match -> IRQ 52 to NVIC; tests/mcxn-rtc) |
 | `SAI` | 2 | ✅ functional (register-accurate; FIFO/reset semantics) |
 | `SCG` | 1 | ✅ functional |
 | `SCT` | 1 | ✅ functional (register-accurate; SCTimer/PWM) |
@@ -110,10 +110,11 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **ADC** — SW-trigger conversion -> RESFIFO valid result + EOC IRQ (45/46). `tests/mcxn-adc`.
 - [x] **FlexCAN** — loopback TX MB -> RX MB + IFLAG IRQ (62/63). `tests/mcxn-flexcan`.
 - [x] **ENET** — MDIO PHY read (link-up/ID) + DMA soft-reset + PHYIS IRQ (139). `tests/mcxn-enet`.
+- [x] **RTC** — live 1 Hz QEMUTimer calendar tick + alarm match IRQ (52). `tests/mcxn-rtc`.
 
 Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.
-- **Analog results**: DAC output, CMP edge IRQ.
+- **Analog results**: DAC output, CMP edge IRQ. (RTC alarm/tick done.)
 - **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport), SAI audio
   stream, FlexSPI external-flash reads, uSDHC block transfers. (ENET MDIO +
   PHY done; MAC frame DMA-ring transfer still pending.)

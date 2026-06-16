@@ -12,6 +12,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "qemu/osdep.h"
+#include "qemu/timer.h"
 #include "hw/misc/mcxn_rtc.h"
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
@@ -48,8 +49,18 @@
 #define STATUS_WE_MASK  (0x3u << STATUS_WE_SHIFT)   /* write enable field */
 #define STATUS_CMP_INT  (1u << 5)
 
-/* ISR flags (write-1-to-clear). */
+/* ISR/IER flags (write-1-to-clear in ISR). */
 #define ISR_W1C_MASK    0xFFFCu     /* ALM/DAY/HOUR/MIN/sample-rate flags */
+#define ISR_ALM_IS      (1u << 2)   /* alarm match */
+#define ISR_IS_1HZ      (1u << 6)   /* 1 Hz periodic */
+
+/* Calendar count-field masks (CMSIS RTC_*). */
+#define SEC_MASK   0x003Fu          /* SECONDS.SEC_CNT  */
+#define MIN_MASK   0x003Fu          /* HOURMIN.MIN_CNT  */
+#define HOUR_MASK  0x1F00u          /* HOURMIN.HOUR_CNT */
+#define HM_MASK    (HOUR_MASK | MIN_MASK)
+#define DAY_MASK   0x001Fu          /* DAYS.DAY_CNT     */
+#define MON_MASK   0x000Fu          /* YEARMON.MON_CNT  */
 
 /* SUBSECOND_CTRL. */
 #define SUBSECOND_CNT_EN (1u << 0)
@@ -72,6 +83,67 @@ static void mcxn_rtc_update_irq(MCXNRTCState *s)
     uint16_t ier = (word >> 16) & 0xFFFF;
 
     qemu_set_irq(s->irq, (isr & ier) != 0);
+}
+
+/* Get/set one 16-bit register from the shared 32-bit backing word. */
+static uint16_t rtc_get16(MCXNRTCState *s, hwaddr off)
+{
+    uint32_t word = s->regs[off / 4];
+    return (off & 2) ? (word >> 16) & 0xFFFF : word & 0xFFFF;
+}
+
+static void rtc_set16(MCXNRTCState *s, hwaddr off, uint16_t val)
+{
+    uint32_t *word = &s->regs[off / 4];
+    if (off & 2) {
+        *word = (*word & 0x0000FFFF) | ((uint32_t)val << 16);
+    } else {
+        *word = (*word & 0xFFFF0000) | val;
+    }
+}
+
+/*
+ * 1 Hz calendar tick: advance SECONDS with carry into minutes / hours / days,
+ * set the 1 Hz interrupt-status flag, and raise the alarm flag when the
+ * calendar (seconds / minutes+hours / day / month count fields) matches the
+ * alarm registers.  Re-evaluates the IRQ and reschedules one second later.
+ */
+static void mcxn_rtc_tick(void *opaque)
+{
+    MCXNRTCState *s = opaque;
+    uint16_t hm = rtc_get16(s, R_HOURMIN);
+    unsigned sec = rtc_get16(s, R_SECONDS) & SEC_MASK;
+    unsigned min = hm & MIN_MASK;
+    unsigned hour = (hm & HOUR_MASK) >> 8;
+    uint16_t days = rtc_get16(s, R_DAYS);
+    unsigned day = days & DAY_MASK;
+
+    if (++sec >= 60) {
+        sec = 0;
+        if (++min >= 60) {
+            min = 0;
+            if (++hour >= 24) {
+                hour = 0;
+                day++;   /* month/year rollover not modelled */
+            }
+        }
+    }
+
+    rtc_set16(s, R_SECONDS, sec & SEC_MASK);
+    rtc_set16(s, R_HOURMIN, (uint16_t)((hour << 8) | min));
+    rtc_set16(s, R_DAYS, (days & ~DAY_MASK) | (day & DAY_MASK));
+
+    s->regs[R_ISR / 4] |= ISR_IS_1HZ;
+
+    if ((rtc_get16(s, R_SECONDS) & SEC_MASK) == (rtc_get16(s, R_ALM_SECONDS) & SEC_MASK) &&
+        (rtc_get16(s, R_HOURMIN) & HM_MASK)  == (rtc_get16(s, R_ALM_HOURMIN) & HM_MASK) &&
+        (rtc_get16(s, R_DAYS) & DAY_MASK)    == (rtc_get16(s, R_ALM_DAYS) & DAY_MASK) &&
+        (rtc_get16(s, R_YEARMON) & MON_MASK) == (rtc_get16(s, R_ALM_YEARMON) & MON_MASK)) {
+        s->regs[R_ISR / 4] |= ISR_ALM_IS;
+    }
+
+    mcxn_rtc_update_irq(s);
+    timer_mod(&s->tick, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + NANOSECONDS_PER_SECOND);
 }
 
 static uint64_t mcxn_rtc_read(void *opaque, hwaddr offset, unsigned size)
@@ -177,6 +249,11 @@ static void mcxn_rtc_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_RTC, MCXN_RTC_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+
+    /* The RTC oscillator runs free: start the 1 Hz calendar tick. */
+    timer_init_ns(&s->tick, QEMU_CLOCK_VIRTUAL, mcxn_rtc_tick, s);
+    timer_mod(&s->tick, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                        NANOSECONDS_PER_SECOND);
 }
 
 static const VMStateDescription vmstate_mcxn_rtc = {
@@ -185,6 +262,7 @@ static const VMStateDescription vmstate_mcxn_rtc = {
     .minimum_version_id = 1,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNRTCState, MCXN_RTC_SIZE / 4),
+        VMSTATE_TIMER(tick, MCXNRTCState),
         VMSTATE_END_OF_LIST()
     },
 };
