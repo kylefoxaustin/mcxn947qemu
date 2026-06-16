@@ -318,3 +318,12 @@ config MCXN_INTM
 
 config MCXN_FMU
     bool
+
+config MCXN_CMX_PERFMON
+    bool
+
+config MCXN_SEMA42
+    bool
+
+config MCXN_MAILBOX
+    bool

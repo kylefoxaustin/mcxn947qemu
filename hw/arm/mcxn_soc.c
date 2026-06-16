@@ -33,6 +33,9 @@
 #include "hw/misc/mcxn_eim.h"
 #include "hw/misc/mcxn_erm.h"
 #include "hw/misc/mcxn_intm.h"
+#include "hw/misc/mcxn_cmx_perfmon.h"
+#include "hw/misc/mcxn_sema42.h"
+#include "hw/misc/mcxn_mailbox.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -152,6 +155,10 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_EIM,      0x4005B000 },
     { TYPE_MCXN_ERM,      0x4005C000 },
     { TYPE_MCXN_INTM,     0x4005D000 },
+    { TYPE_MCXN_CMX_PERFMON, 0x400C1000 },   /* CMX_PERFMON0 */
+    { TYPE_MCXN_CMX_PERFMON, 0x400C2000 },   /* CMX_PERFMON1 */
+    { TYPE_MCXN_SEMA42,   0x400B1000 },
+    { TYPE_MCXN_MAILBOX,  0x400B2000 },
 };
 
 static const MCXNConfig *mcxn_lookup(const char *part)

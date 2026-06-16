@@ -29,7 +29,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `CDOG` | 2 | ✅ functional (register-accurate) |
 | `CMC` | 1 | ✅ functional (register-accurate) |
 | `CMP` | 3 | ○ stub (present, readback, non-blocking) |
-| `CMX_PERFMON` | 2 | ○ stub (present, readback, non-blocking) |
+| `CMX_PERFMON` | 2 | ✅ functional (register-accurate) |
 | `CRC` | 1 | ✅ functional (register-accurate) |
 | `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
 | `DAC` | 3 | ○ stub (present, readback, non-blocking) |
@@ -58,7 +58,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `LPTMR` | 2 | ✅ functional (up-count to compare -> NVIC IRQ) |
 | `LPUART` | 10 | ✅ functional (10 FlexComm UARTs) |
 | `LP_FLEXCOMM` | 10 | ✅ functional (all 10 as LPUART; cpu0+cpu1 consoles) |
-| `MAILBOX` | 1 | ○ stub (present, readback, non-blocking) |
+| `MAILBOX` | 1 | ✅ functional (register-accurate) |
 | `MRT` | 1 | ✅ functional (4-ch down-counter -> NVIC IRQ) |
 | `NPX` | 1 | ○ stub (present, readback, non-blocking) |
 | `OPAMP` | 3 | ○ stub (present, readback, non-blocking) |
@@ -77,7 +77,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `SAI` | 2 | ○ stub (present, readback, non-blocking) |
 | `SCG` | 1 | ✅ functional |
 | `SCT` | 1 | ○ stub (present, readback, non-blocking) |
-| `SEMA42` | 1 | ○ stub (present, readback, non-blocking) |
+| `SEMA42` | 1 | ✅ functional (register-accurate) |
 | `SINC` | 1 | ○ stub (present, readback, non-blocking) |
 | `SMARTDMA` | 1 | ○ stub (present, readback, non-blocking) |
 | `SPC` | 1 | ✅ functional |

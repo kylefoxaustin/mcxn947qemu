@@ -1,0 +1,155 @@
+/*
+ * NXP MCX N MAILBOX (Inter-CPU Mailbox) — register-accurate model.
+ *
+ * The mailbox provides a handshake between CPU0 (Cortex-M33) and CPU1
+ * (CoolFlux).  Each direction owns an MBOXIRQ[n] triplet:
+ *   - IRQ    (offset 0x00 / 0x10): read/write pending interrupt-request word.
+ *   - IRQSET (offset 0x04 / 0x14): write-only; set bits in IRQ (read 0).
+ *   - IRQCLR (offset 0x08 / 0x18): write-only; clear bits in IRQ (read 0).
+ * A single MUTEX register (offset 0xF8) implements the resource handshake:
+ * MUTEX[EX] reads the current availability and then becomes 0 (so the reader
+ * that observes 1 has taken the lock); any write makes it 1 again (release).
+ *
+ * This model performs the register read/write and the IRQ set/clear bookkeeping
+ * but raises no actual interrupt line (there is no second CPU in the machine).
+ *
+ * Offsets/bits/access-types from the MCXN947 CMSIS header (MAILBOX_Type); reset
+ * values from the MCX N Reference Manual (chapter 22): IRQ words 0,
+ * MUTEX[EX] = 1 (resource available).
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+#include "qemu/osdep.h"
+#include "hw/misc/mcxn_mailbox.h"
+#include "migration/vmstate.h"
+
+#define MAILBOX_IRQ0     0x00   /* RW  CPU0 interrupt request */
+#define MAILBOX_IRQSET0  0x04   /* WO  CPU0 interrupt set */
+#define MAILBOX_IRQCLR0  0x08   /* WO  CPU0 interrupt clear */
+#define MAILBOX_IRQ1     0x10   /* RW  CPU1 interrupt request */
+#define MAILBOX_IRQSET1  0x14   /* WO  CPU1 interrupt set */
+#define MAILBOX_IRQCLR1  0x18   /* WO  CPU1 interrupt clear */
+#define MAILBOX_MUTEX    0xF8   /* RW  Mutual Exclusion */
+
+#define MAILBOX_MUTEX_EX (1u << 0)
+
+static uint64_t mcxn_mailbox_read(void *opaque, hwaddr offset, unsigned size)
+{
+    MCXNMailboxState *s = MCXN_MAILBOX(opaque);
+    uint32_t val;
+
+    switch (offset) {
+    case MAILBOX_IRQ0:
+        return s->irq[0];
+    case MAILBOX_IRQ1:
+        return s->irq[1];
+    case MAILBOX_IRQSET0:
+    case MAILBOX_IRQCLR0:
+    case MAILBOX_IRQSET1:
+    case MAILBOX_IRQCLR1:
+        /* Write-only registers: reads return 0. */
+        return 0;
+    case MAILBOX_MUTEX:
+        /*
+         * Reading MUTEX returns the current availability and atomically clears
+         * the EX bit: the reader that sees 1 has acquired the lock.
+         */
+        val = s->mutex & MAILBOX_MUTEX_EX;
+        s->mutex &= ~MAILBOX_MUTEX_EX;
+        return val;
+    default:
+        return 0;
+    }
+}
+
+static void mcxn_mailbox_write(void *opaque, hwaddr offset, uint64_t value,
+                               unsigned size)
+{
+    MCXNMailboxState *s = MCXN_MAILBOX(opaque);
+
+    switch (offset) {
+    case MAILBOX_IRQ0:
+        s->irq[0] = value;
+        return;
+    case MAILBOX_IRQ1:
+        s->irq[1] = value;
+        return;
+    case MAILBOX_IRQSET0:
+        s->irq[0] |= value;
+        return;
+    case MAILBOX_IRQCLR0:
+        s->irq[0] &= ~(uint32_t)value;
+        return;
+    case MAILBOX_IRQSET1:
+        s->irq[1] |= value;
+        return;
+    case MAILBOX_IRQCLR1:
+        s->irq[1] &= ~(uint32_t)value;
+        return;
+    case MAILBOX_MUTEX:
+        /* Any write releases the resource: EX becomes 1 again. */
+        s->mutex |= MAILBOX_MUTEX_EX;
+        return;
+    default:
+        return;
+    }
+}
+
+static const MemoryRegionOps mcxn_mailbox_ops = {
+    .read = mcxn_mailbox_read,
+    .write = mcxn_mailbox_write,
+    .endianness = DEVICE_LITTLE_ENDIAN,
+    .valid.min_access_size = 4,
+    .valid.max_access_size = 4,
+    .impl.min_access_size = 4,
+    .impl.max_access_size = 4,
+};
+
+static void mcxn_mailbox_reset(DeviceState *dev)
+{
+    MCXNMailboxState *s = MCXN_MAILBOX(dev);
+
+    s->irq[0] = 0;
+    s->irq[1] = 0;
+    s->mutex = MAILBOX_MUTEX_EX;   /* resource available at reset */
+}
+
+static void mcxn_mailbox_realize(DeviceState *dev, Error **errp)
+{
+    MCXNMailboxState *s = MCXN_MAILBOX(dev);
+
+    memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_mailbox_ops, s,
+                          TYPE_MCXN_MAILBOX, MCXN_MAILBOX_SIZE);
+    sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+}
+
+static const VMStateDescription vmstate_mcxn_mailbox = {
+    .name = TYPE_MCXN_MAILBOX,
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .fields = (const VMStateField[]) {
+        VMSTATE_UINT32_ARRAY(irq, MCXNMailboxState, 2),
+        VMSTATE_UINT32(mutex, MCXNMailboxState),
+        VMSTATE_END_OF_LIST()
+    },
+};
+
+static void mcxn_mailbox_class_init(ObjectClass *klass, const void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+
+    dc->realize = mcxn_mailbox_realize;
+    device_class_set_legacy_reset(dc, mcxn_mailbox_reset);
+    dc->vmsd = &vmstate_mcxn_mailbox;
+}
+
+static const TypeInfo mcxn_mailbox_types[] = {
+    {
+        .name          = TYPE_MCXN_MAILBOX,
+        .parent        = TYPE_SYS_BUS_DEVICE,
+        .instance_size = sizeof(MCXNMailboxState),
+        .class_init    = mcxn_mailbox_class_init,
+    },
+};
+
+DEFINE_TYPES(mcxn_mailbox_types)

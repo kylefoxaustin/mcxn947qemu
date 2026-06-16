@@ -746,6 +746,9 @@ config MCXN_SOC
     select MCXN_EIM
     select MCXN_ERM
     select MCXN_INTM
+    select MCXN_CMX_PERFMON
+    select MCXN_SEMA42
+    select MCXN_MAILBOX
     select MCXN_GPIO
     select MCXN_PORT
 
