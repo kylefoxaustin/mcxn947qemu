@@ -366,3 +366,27 @@ config MCXN_CMP
 
 config MCXN_VREF
     bool
+
+config MCXN_ELS
+    bool
+
+config MCXN_PUF
+    bool
+
+config MCXN_PKC
+    bool
+
+config MCXN_TRDC
+    bool
+
+config MCXN_DAC
+    bool
+
+config MCXN_SINC
+    bool
+
+config MCXN_PDM
+    bool
+
+config MCXN_EMVSIM
+    bool

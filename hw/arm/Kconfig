@@ -756,6 +756,14 @@ config MCXN_SOC
     select MCXN_OPAMP
     select MCXN_CMP
     select MCXN_VREF
+    select MCXN_ELS
+    select MCXN_PUF
+    select MCXN_PKC
+    select MCXN_TRDC
+    select MCXN_DAC
+    select MCXN_SINC
+    select MCXN_PDM
+    select MCXN_EMVSIM
     select MCXN_BSP32
     select MCXN_DM
     select MCXN_PINT

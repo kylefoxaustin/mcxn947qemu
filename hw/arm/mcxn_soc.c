@@ -49,6 +49,14 @@
 #include "hw/misc/mcxn_opamp.h"
 #include "hw/misc/mcxn_cmp.h"
 #include "hw/misc/mcxn_vref.h"
+#include "hw/misc/mcxn_els.h"
+#include "hw/misc/mcxn_puf.h"
+#include "hw/misc/mcxn_pkc.h"
+#include "hw/misc/mcxn_trdc.h"
+#include "hw/misc/mcxn_dac.h"
+#include "hw/misc/mcxn_sinc.h"
+#include "hw/misc/mcxn_pdm.h"
+#include "hw/misc/mcxn_emvsim.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -191,6 +199,19 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_CMP,      0x40052000 },   /* CMP1 */
     { TYPE_MCXN_CMP,      0x40053000 },   /* CMP2 */
     { TYPE_MCXN_VREF,     0x40111000 },
+    /* Security: ELS (EdgeLock), PUF, PKC (public-key crypto), TRDC. */
+    { TYPE_MCXN_ELS,      0x40054000 },
+    { TYPE_MCXN_PUF,      0x4002C000 },
+    { TYPE_MCXN_PKC,      0x4002B000 },
+    { TYPE_MCXN_TRDC,     0x400C7000 },
+    /* Analog/audio: DAC0/1 (LPDAC) + DAC2 (HPDAC), SINC, PDM, EMVSIM0/1. */
+    { TYPE_MCXN_DAC,      0x4010F000 },   /* DAC0 (LPDAC) */
+    { TYPE_MCXN_DAC,      0x40112000 },   /* DAC1 (LPDAC) */
+    { TYPE_MCXN_DAC,      0x40114000 },   /* DAC2 (HPDAC) */
+    { TYPE_MCXN_SINC,     0x40108000 },
+    { TYPE_MCXN_PDM,      0x4010C000 },
+    { TYPE_MCXN_EMVSIM,   0x40103000 },   /* EMVSIM0 */
+    { TYPE_MCXN_EMVSIM,   0x40104000 },   /* EMVSIM1 */
 };
 
 static const MCXNConfig *mcxn_lookup(const char *part)
