@@ -339,3 +339,21 @@ config MCXN_OTPC
 
 config MCXN_CACHE64_CTRL
     bool
+
+config MCXN_AHBSC
+    bool
+
+config MCXN_BSP32
+    bool
+
+config MCXN_DM
+    bool
+
+config MCXN_PINT
+    bool
+
+config MCXN_UTICK
+    bool
+
+config MCXN_WWDT
+    bool

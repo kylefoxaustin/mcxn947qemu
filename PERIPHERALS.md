@@ -21,7 +21,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | Peripheral | Instances | Status |
 |------------|-----------|--------|
 | `ADC` | 2 | ○ stub (present, readback, non-blocking) |
-| `AHBSC` | 1 | ○ stub (present, readback, non-blocking) |
+| `AHBSC` | 1 | ✅ functional (register-accurate) |
 | `BSP32` | 1 | ○ stub (present, readback, non-blocking) |
 | `CACHE64_CTRL` | 1 | ✅ functional (register-accurate) |
 | `CACHE64_POLSEL` | 1 | ✅ functional (register-accurate) |
@@ -33,7 +33,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `CRC` | 1 | ✅ functional (register-accurate) |
 | `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
 | `DAC` | 3 | ○ stub (present, readback, non-blocking) |
-| `DM` | 1 | ○ stub (present, readback, non-blocking) |
+| `DM` | 1 | ✅ functional (register-accurate) |
 | `DMA` | 2 | ○ stub (present, readback, non-blocking) |
 | `EIM` | 1 | ✅ functional (register-accurate) |
 | `ELS` | 1 | ○ stub (present, readback, non-blocking) |
@@ -65,7 +65,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `OSTIMER` | 1 | ✅ functional (gray-code counter + match IRQ) |
 | `OTPC` | 1 | ✅ functional (register-accurate) |
 | `PDM` | 1 | ○ stub (present, readback, non-blocking) |
-| `PINT` | 1 | ○ stub (present, readback, non-blocking) |
+| `PINT` | 1 | ✅ functional (register-accurate) |
 | `PKC` | 1 | ○ stub (present, readback, non-blocking) |
 | `PLU` | 1 | ✅ functional (register-accurate) |
 | `PORT` | 6 | ◐ pin-mux stub (adequate) |
@@ -92,11 +92,11 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `USBHS1__USBNC` | 1 | ○ stub (present, readback, non-blocking) |
 | `USBPHY` | 1 | ○ stub (present, readback, non-blocking) |
 | `USDHC` | 1 | ○ stub (present, readback, non-blocking) |
-| `UTICK` | 1 | ○ stub (present, readback, non-blocking) |
+| `UTICK` | 1 | ✅ functional (register-accurate) |
 | `VBAT` | 1 | ✅ functional (register-accurate) |
 | `VREF` | 1 | ○ stub (present, readback, non-blocking) |
 | `WUU` | 1 | ✅ functional (register-accurate) |
-| `WWDT` | 2 | ○ stub (present, readback, non-blocking) |
+| `WWDT` | 2 | ✅ functional (register-accurate) |
 ## Next functional upgrades (active blocks that need real behaviour)
 Priority order — blocks whose behaviour real firmware/tests can observe:
 - **Timers/counters** → interrupts: CTIMER (x5), MRT, OSTIMER, LPTMR (x2), RTC, SCT.

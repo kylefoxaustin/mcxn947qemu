@@ -40,6 +40,12 @@
 #include "hw/misc/mcxn_wuu.h"
 #include "hw/misc/mcxn_otpc.h"
 #include "hw/misc/mcxn_cache64_ctrl.h"
+#include "hw/misc/mcxn_ahbsc.h"
+#include "hw/misc/mcxn_bsp32.h"
+#include "hw/misc/mcxn_dm.h"
+#include "hw/misc/mcxn_pint.h"
+#include "hw/misc/mcxn_utick.h"
+#include "hw/misc/mcxn_wwdt.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -168,6 +174,13 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_OTPC,     0x400C9000 },
     /* One CACHE64 device covers the full window (POLSEL @0x14, CTRL @0x800). */
     { TYPE_MCXN_CACHE64_CTRL, 0x4001B000 },
+    { TYPE_MCXN_AHBSC,    0x40120000 },
+    { TYPE_MCXN_BSP32,    0x40032000 },
+    { TYPE_MCXN_DM,       0x400BD000 },
+    { TYPE_MCXN_PINT,     0x40004000 },
+    { TYPE_MCXN_UTICK,    0x40012000 },
+    { TYPE_MCXN_WWDT,     0x40016000 },   /* WWDT0 */
+    { TYPE_MCXN_WWDT,     0x40017000 },   /* WWDT1 */
 };
 
 static const MCXNConfig *mcxn_lookup(const char *part)
