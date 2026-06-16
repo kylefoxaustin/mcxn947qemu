@@ -77,7 +77,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `PWM` | 2 | ✅ functional (register-accurate; eFlexPWM, LDOK self-clear) |
 | `QDC` | 2 | ✅ functional (register-accurate; quadrature decoder) |
 | `RTC` | 1 | ✅ functional + active (live 1 Hz calendar tick + alarm match -> IRQ 52 to NVIC; tests/mcxn-rtc) |
-| `SAI` | 2 | ✅ functional (register-accurate; FIFO/reset semantics) |
+| `SAI` | 2 | ✅ functional + active (TX FIFO-request interrupt FRF&FRIE -> IRQ 59/60 to NVIC; tests/mcxn-sai) |
 | `SCG` | 1 | ✅ functional |
 | `SCT` | 1 | ✅ functional (register-accurate; SCTimer/PWM) |
 | `SEMA42` | 1 | ✅ functional (register-accurate) |
@@ -113,12 +113,14 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **RTC** — live 1 Hz QEMUTimer calendar tick + alarm match IRQ (52). `tests/mcxn-rtc`.
 - [x] **uSDHC** — SD command/response handshake (CMD8/CMD3/ACMD41) + CC IRQ (61). `tests/mcxn-usdhc`.
 - [x] **FlexSPI** — IP-command-done IRQ (58). `tests/mcxn-flexspi`.
+- [x] **SAI** — TX FIFO-request interrupt (FRF & FRIE) IRQ (59/60). `tests/mcxn-sai`.
 
 Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.
 - **Analog results**: DAC output, CMP edge IRQ. (RTC alarm/tick done.)
-- **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport), SAI audio
-  stream. (ENET MDIO+PHY, uSDHC command/response, FlexSPI IP-command-done
+- **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport; register-only
+  today, no usb-bus backend - confirmed to holobench, gated until unparked).
+  (ENET MDIO+PHY, uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request
   all done; their bulk DMA/data paths remain future work.)
 - **Accelerators**: SmartDMA program execution, PowerQuad compute, NPU.
 - **IRQ wiring**: connect the per-device IRQ lines (init'd in wave 6) to the

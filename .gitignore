@@ -50,3 +50,4 @@ tests/mcxn-enet/*.elf
 tests/mcxn-rtc/*.elf
 tests/mcxn-usdhc/*.elf
 tests/mcxn-flexspi/*.elf
+tests/mcxn-sai/*.elf

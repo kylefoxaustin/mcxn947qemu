@@ -66,9 +66,36 @@
 /* W1C flag bits within TCSR/RCSR. */
 #define CSR_FLAGS_W1C  (CSR_FEF | CSR_SEF | CSR_WSF)
 
+/*
+ * Interrupt-enable bits sit 8 below their status flag (FRIE@8 enables FRF@16,
+ * FWIE@9 enables FWF@17, FEIE@10 enables FEF@18, ...).  An interrupt is
+ * requested when any (flag & matching-enable) is set.
+ */
+#define CSR_IE_TO_FLAG_SHIFT  8
+#define CSR_STICKY_FLAGS  (CSR_FEF | CSR_SEF | CSR_WSF)
+
 /* Best-effort constants (firmware does not gate boot on these). */
 #define SAI_VERID_VALUE  0x03010000u   /* major=3, minor=1 (best-effort) */
 #define SAI_PARAM_VALUE  0x00050302u   /* FIFO=32, channels=2 (best-effort) */
+
+static void mcxn_sai_update_irq(MCXNSAIState *s)
+{
+    uint32_t tcsr = s->regs[SAI_TCSR >> 2];
+    uint32_t rcsr = s->regs[SAI_RCSR >> 2];
+    /*
+     * The transmit FIFO always reports space, so FRF/FWF are effectively
+     * asserted whenever the transmitter is enabled (TE).  Plus any sticky
+     * error flags that the guest has not cleared.  The receive FIFO is empty,
+     * so only its sticky flags can interrupt.
+     */
+    uint32_t tflags = ((tcsr & CSR_EN) ? (CSR_FRF | CSR_FWF) : 0) |
+                      (tcsr & CSR_STICKY_FLAGS);
+    uint32_t rflags = rcsr & CSR_STICKY_FLAGS;
+    bool tx = (((tflags >> 16) & 0x1Fu) & ((tcsr >> CSR_IE_TO_FLAG_SHIFT) & 0x1Fu)) != 0;
+    bool rx = (((rflags >> 16) & 0x1Fu) & ((rcsr >> CSR_IE_TO_FLAG_SHIFT) & 0x1Fu)) != 0;
+
+    qemu_set_irq(s->irq, tx || rx);
+}
 
 static uint64_t mcxn_sai_read(void *opaque, hwaddr off, unsigned size)
 {
@@ -146,6 +173,7 @@ static void mcxn_sai_write(void *opaque, hwaddr off, uint64_t value,
         /* Soft-reset bits self-clear immediately. */
         cur &= ~(CSR_SR | CSR_FR);
         s->regs[off >> 2] = cur;
+        mcxn_sai_update_irq(s);
         return;
     }
     case SAI_TDR0:

@@ -29,6 +29,7 @@
 #include "hw/misc/mcxn_rtc.h"
 #include "hw/misc/mcxn_usdhc.h"
 #include "hw/misc/mcxn_flexspi.h"
+#include "hw/misc/mcxn_sai.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -47,6 +48,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNState, MCXN_SOC)
 #define MCXN_NUM_EDMA 2      /* DMA0..1 (eDMA) */
 #define MCXN_NUM_ADC 2       /* ADC0..1 (LPADC) */
 #define MCXN_NUM_FLEXCAN 2   /* CAN0..1 (FlexCAN) */
+#define MCXN_NUM_SAI 2       /* SAI0..1 */
 
 /*
  * Per-SKU configuration.
@@ -94,6 +96,7 @@ struct MCXNState {
     MCXNRTCState    rtc0;                          /* RTC (calendar) */
     MCXNUSDHCState  usdhc0;                        /* uSDHC (SD/MMC host) */
     MCXNFlexSPIState flexspi0;                     /* FlexSPI (ext flash ctrl) */
+    MCXNSAIState    sai[MCXN_NUM_SAI];             /* SAI0..1 (audio) */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -122,6 +125,7 @@ struct MCXNState {
     MemoryRegion rtc0_s_alias;                     /* secure alias of RTC */
     MemoryRegion usdhc0_s_alias;                   /* secure alias of uSDHC */
     MemoryRegion flexspi0_s_alias;                 /* secure alias of FlexSPI */
+    MemoryRegion sai_s_alias[MCXN_NUM_SAI];        /* secure aliases of SAI0..1 */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */
