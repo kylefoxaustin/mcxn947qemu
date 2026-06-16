@@ -27,7 +27,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `CACHE64_POLSEL` | 1 | ○ stub (present, readback, non-blocking) |
 | `CAN` | 2 | ○ stub (present, readback, non-blocking) |
 | `CDOG` | 2 | ✅ functional (register-accurate) |
-| `CMC` | 1 | ○ stub (present, readback, non-blocking) |
+| `CMC` | 1 | ✅ functional (register-accurate) |
 | `CMP` | 3 | ○ stub (present, readback, non-blocking) |
 | `CMX_PERFMON` | 2 | ○ stub (present, readback, non-blocking) |
 | `CRC` | 1 | ✅ functional (register-accurate) |
@@ -35,11 +35,11 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `DAC` | 3 | ○ stub (present, readback, non-blocking) |
 | `DM` | 1 | ○ stub (present, readback, non-blocking) |
 | `DMA` | 2 | ○ stub (present, readback, non-blocking) |
-| `EIM` | 1 | ○ stub (present, readback, non-blocking) |
+| `EIM` | 1 | ✅ functional (register-accurate) |
 | `ELS` | 1 | ○ stub (present, readback, non-blocking) |
 | `EMVSIM` | 2 | ○ stub (present, readback, non-blocking) |
 | `ENET` | 1 | ○ stub (present, readback, non-blocking) |
-| `ERM` | 1 | ○ stub (present, readback, non-blocking) |
+| `ERM` | 1 | ✅ functional (register-accurate) |
 | `EVTG` | 1 | ✅ functional (register-accurate) |
 | `EWM` | 1 | ✅ functional (register-accurate) |
 | `FLEXIO` | 1 | ○ stub (present, readback, non-blocking) |
@@ -47,12 +47,12 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `FMU` | 1 | ○ stub (present, readback, non-blocking) |
 | `FMU0TEST` | 1 | ○ stub (present, readback, non-blocking) |
 | `FREQME` | 1 | ✅ functional (register-accurate) |
-| `GDET` | 2 | ○ stub (present, readback, non-blocking) |
+| `GDET` | 2 | ✅ functional (register-accurate) |
 | `GPIO` | 6 | ✅ functional |
 | `I3C` | 2 | ○ stub (present, readback, non-blocking) |
 | `INPUTMUX` | 1 | ✅ functional (register-accurate) |
-| `INTM` | 1 | ○ stub (present, readback, non-blocking) |
-| `ITRC` | 1 | ○ stub (present, readback, non-blocking) |
+| `INTM` | 1 | ✅ functional (register-accurate) |
+| `ITRC` | 1 | ✅ functional (register-accurate) |
 | `LPI2C` | 10 | ○ stub (present, readback, non-blocking) |
 | `LPSPI` | 10 | ○ stub (present, readback, non-blocking) |
 | `LPTMR` | 2 | ✅ functional (up-count to compare -> NVIC IRQ) |
@@ -82,7 +82,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `SMARTDMA` | 1 | ○ stub (present, readback, non-blocking) |
 | `SPC` | 1 | ✅ functional |
 | `SYSCON` | 1 | ✅ functional |
-| `TDET` | 1 | ○ stub (present, readback, non-blocking) |
+| `TDET` | 1 | ✅ functional (register-accurate) |
 | `TRDC` | 1 | ○ stub (present, readback, non-blocking) |
 | `TSI` | 1 | ○ stub (present, readback, non-blocking) |
 | `USBDCD` | 1 | ○ stub (present, readback, non-blocking) |

@@ -294,3 +294,24 @@ config MCXN_PLU
 
 config MCXN_FREQME
     bool
+
+config MCXN_GDET
+    bool
+
+config MCXN_ITRC
+    bool
+
+config MCXN_TDET
+    bool
+
+config MCXN_CMC
+    bool
+
+config MCXN_EIM
+    bool
+
+config MCXN_ERM
+    bool
+
+config MCXN_INTM
+    bool

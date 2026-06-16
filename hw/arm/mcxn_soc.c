@@ -26,6 +26,13 @@
 #include "hw/misc/mcxn_evtg.h"
 #include "hw/misc/mcxn_plu.h"
 #include "hw/misc/mcxn_freqme.h"
+#include "hw/misc/mcxn_gdet.h"
+#include "hw/misc/mcxn_itrc.h"
+#include "hw/misc/mcxn_tdet.h"
+#include "hw/misc/mcxn_cmc.h"
+#include "hw/misc/mcxn_eim.h"
+#include "hw/misc/mcxn_erm.h"
+#include "hw/misc/mcxn_intm.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -127,6 +134,14 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_EVTG,     0x400D2000 },
     { TYPE_MCXN_PLU,      0x40034000 },
     { TYPE_MCXN_FREQME,   0x40011000 },
+    { TYPE_MCXN_GDET,     0x40024000 },   /* GDET0 */
+    { TYPE_MCXN_GDET,     0x40025000 },   /* GDET1 */
+    { TYPE_MCXN_ITRC,     0x40026000 },
+    { TYPE_MCXN_TDET,     0x40058000 },
+    { TYPE_MCXN_CMC,      0x40048000 },
+    { TYPE_MCXN_EIM,      0x4005B000 },
+    { TYPE_MCXN_ERM,      0x4005C000 },
+    { TYPE_MCXN_INTM,     0x4005D000 },
 };
 
 static const MCXNConfig *mcxn_lookup(const char *part)

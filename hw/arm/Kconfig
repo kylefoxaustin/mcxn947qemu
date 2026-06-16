@@ -738,6 +738,13 @@ config MCXN_SOC
     select MCXN_EVTG
     select MCXN_PLU
     select MCXN_FREQME
+    select MCXN_GDET
+    select MCXN_ITRC
+    select MCXN_TDET
+    select MCXN_CMC
+    select MCXN_EIM
+    select MCXN_ERM
+    select MCXN_INTM
     select MCXN_GPIO
     select MCXN_PORT
 
