@@ -44,6 +44,23 @@
 #define R_CRCR     0x044   /* CRC (RO) */
 #define R_RXFIR    0x04C   /* Legacy RX FIFO Information (RO) */
 #define R_FDCRC    0xC08   /* CAN FD CRC (RO) */
+#define R_RXMGMASK 0x010   /* RX Message Buffers Global Mask */
+
+/* CTRL1 loopback-mode enable. */
+#define CTRL1_LPB  (1u << 12)
+
+/*
+ * Classic message-buffer array: MB[32] at offset 0x80, step 0x10
+ * (CS, ID, WORD0, WORD1).  CS holds CODE[27:24] and DLC[19:16].
+ */
+#define MB_BASE        0x080
+#define MB_STRIDE      0x010
+#define MB_COUNT       32
+#define MB_CODE_SHIFT  24
+#define MB_CODE_MASK   0xFu
+#define CODE_RX_EMPTY  0x4   /* MB configured to receive, currently empty */
+#define CODE_RX_FULL   0x2   /* MB holds a received frame */
+#define CODE_TX_DATA   0xC   /* MB armed to transmit a data frame */
 
 /* MCR bit positions (CAN_MCR_*_SHIFT). */
 #define MCR_LPMACK   (1u << 20)
@@ -76,6 +93,58 @@ static uint32_t flexcan_mcr_settle(uint32_t mcr)
         mcr |= MCR_LPMACK | MCR_NOTRDY;
     }
     return mcr;
+}
+
+static void flexcan_update_irq(MCXNFlexCanState *s)
+{
+    bool active = (s->regs[R_IFLAG1 >> 2] & s->regs[R_IMASK1 >> 2]) != 0;
+    qemu_set_irq(s->irq, active);
+}
+
+/*
+ * Software transmit from message buffer "tx".  When the controller is in
+ * loopback mode (CTRL1.LPB), the transmitted frame is delivered internally to
+ * the first RX-empty message buffer whose ID matches under the global mask
+ * (RXMGMASK; a 0 mask bit is "don't care", so a reset mask of 0 accepts any
+ * ID).  The receiving MB is filled (CODE=FULL, ID/DLC/data copied) and its
+ * IFLAG1 bit set; the transmitting MB also raises its IFLAG1 (transmit done).
+ */
+static void flexcan_transmit(MCXNFlexCanState *s, unsigned tx)
+{
+    uint32_t t = (MB_BASE + tx * MB_STRIDE) >> 2;
+    uint32_t tcs = s->regs[t];
+    uint32_t tid = s->regs[t + 1];
+
+    if (s->regs[R_CTRL1 >> 2] & CTRL1_LPB) {
+        uint32_t mask = s->regs[R_RXMGMASK >> 2];
+        unsigned rx;
+
+        for (rx = 0; rx < MB_COUNT; rx++) {
+            uint32_t r = (MB_BASE + rx * MB_STRIDE) >> 2;
+            uint32_t rcs = s->regs[r];
+
+            if (rx == tx) {
+                continue;
+            }
+            if (((rcs >> MB_CODE_SHIFT) & MB_CODE_MASK) != CODE_RX_EMPTY) {
+                continue;
+            }
+            if (((tid ^ s->regs[r + 1]) & mask) != 0) {
+                continue;
+            }
+            /* Deliver the frame: keep DLC/RTR/IDE/SRR, set CODE=FULL. */
+            s->regs[r]     = (CODE_RX_FULL << MB_CODE_SHIFT) | (tcs & 0x00FF0000u);
+            s->regs[r + 1] = tid;
+            s->regs[r + 2] = s->regs[t + 2];
+            s->regs[r + 3] = s->regs[t + 3];
+            s->regs[R_IFLAG1 >> 2] |= (1u << rx);
+            break;
+        }
+    }
+
+    /* Transmit complete: the TX message buffer raises its own interrupt. */
+    s->regs[R_IFLAG1 >> 2] |= (1u << tx);
+    flexcan_update_irq(s);
 }
 
 static uint64_t flexcan_read(void *opaque, hwaddr off, unsigned size)
@@ -133,9 +202,17 @@ static void flexcan_write(void *opaque, hwaddr off, uint64_t value,
         s->regs[idx] = flexcan_mcr_settle(val);
         return;
     case R_ESR1:
-    case R_IFLAG1:
         /* Write-1-to-clear status flags. */
         s->regs[idx] &= ~((uint32_t)(value << shift) & mask);
+        return;
+    case R_IFLAG1:
+        /* Write-1-to-clear MB interrupt flags; re-evaluate the IRQ. */
+        s->regs[idx] &= ~((uint32_t)(value << shift) & mask);
+        flexcan_update_irq(s);
+        return;
+    case R_IMASK1:
+        s->regs[idx] = val;
+        flexcan_update_irq(s);
         return;
     case R_ESR2:
     case R_CRCR:
@@ -145,6 +222,12 @@ static void flexcan_write(void *opaque, hwaddr off, uint64_t value,
         return;
     default:
         s->regs[idx] = val;
+        /* Arming a message buffer for transmit (CS CODE=TX_DATA) sends it. */
+        if (off >= MB_BASE && off < MB_BASE + MB_COUNT * MB_STRIDE &&
+            ((off - MB_BASE) % MB_STRIDE) == 0 &&
+            ((val >> MB_CODE_SHIFT) & MB_CODE_MASK) == CODE_TX_DATA) {
+            flexcan_transmit(s, (off - MB_BASE) / MB_STRIDE);
+        }
         return;
     }
 }

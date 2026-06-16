@@ -236,9 +236,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_I3C,      0x40021000 },   /* I3C0 */
     { TYPE_MCXN_I3C,      0x40022000 },   /* I3C1 */
     { TYPE_MCXN_FLEXIO,   0x40105000 },
-    /* Connectivity: FlexCAN0/1 (0x4000 windows), ENET (0x2000). */
-    { TYPE_MCXN_FLEXCAN,  0x400D4000 },   /* CAN0 */
-    { TYPE_MCXN_FLEXCAN,  0x400D8000 },   /* CAN1 */
+    /* Connectivity: ENET (0x2000).  (FlexCAN0/1 instantiated below — IRQ wired.) */
     { TYPE_MCXN_ENET,     0x40100000 },
     /* Analog: RTC, TSI.  (ADC0/1 instantiated explicitly below — IRQ wired.) */
     { TYPE_MCXN_RTC,      0x4004C000 },
@@ -320,6 +318,10 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_ADC; i++) {
         g_autofree char *name = g_strdup_printf("adc%d", i);
         object_initialize_child(obj, name, &s->adc[i], TYPE_MCXN_ADC);
+    }
+    for (i = 0; i < MCXN_NUM_FLEXCAN; i++) {
+        g_autofree char *name = g_strdup_printf("flexcan%d", i);
+        object_initialize_child(obj, name, &s->flexcan[i], TYPE_MCXN_FLEXCAN);
     }
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
@@ -623,6 +625,26 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      adc_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->adc_s_alias[i]);
+    }
+
+    /* FlexCAN CAN0..1: message-buffer interrupt to cpu0 NVIC.  0x4000 window. */
+    for (i = 0; i < MCXN_NUM_FLEXCAN; i++) {
+        static const struct { hwaddr base; int irq; }
+        can_cfg[MCXN_NUM_FLEXCAN] = { { 0x400D4000, 62 }, { 0x400D8000, 63 } };
+        g_autofree char *aname = g_strdup_printf("mcxn.flexcan%d.s", i);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->flexcan[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->flexcan[i]), 0, can_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcan[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            can_cfg[i].irq));
+        memory_region_init_alias(&s->flexcan_s_alias[i], OBJECT(dev), aname,
+                                 &s->flexcan[i].iomem, 0, MCXN_FLEXCAN_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     can_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->flexcan_s_alias[i]);
     }
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */

@@ -24,6 +24,7 @@
 #include "hw/dma/mcxn_edma.h"
 #include "hw/misc/mcxn_fmu.h"
 #include "hw/misc/mcxn_adc.h"
+#include "hw/misc/mcxn_flexcan.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -41,6 +42,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNState, MCXN_SOC)
 #define MCXN_NUM_FLEXCOMM 10 /* LP_FLEXCOMM0..9 (LPUART mode) */
 #define MCXN_NUM_EDMA 2      /* DMA0..1 (eDMA) */
 #define MCXN_NUM_ADC 2       /* ADC0..1 (LPADC) */
+#define MCXN_NUM_FLEXCAN 2   /* CAN0..1 (FlexCAN) */
 
 /*
  * Per-SKU configuration.
@@ -83,6 +85,7 @@ struct MCXNState {
     MCXNOSTimerState ostimer0;                 /* OS event timer */
     MCXNEDMAState   edma[MCXN_NUM_EDMA];        /* DMA0..1 (eDMA) */
     MCXNADCState    adc[MCXN_NUM_ADC];           /* ADC0..1 (LPADC) */
+    MCXNFlexCanState flexcan[MCXN_NUM_FLEXCAN];   /* CAN0..1 (FlexCAN) */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -106,6 +109,7 @@ struct MCXNState {
     MemoryRegion ostimer0_s_alias;                /* secure alias of OSTIMER */
     MemoryRegion edma_s_alias[MCXN_NUM_EDMA];     /* secure aliases of eDMA */
     MemoryRegion adc_s_alias[MCXN_NUM_ADC];       /* secure aliases of ADC0..1 */
+    MemoryRegion flexcan_s_alias[MCXN_NUM_FLEXCAN]; /* secure aliases of CAN0..1 */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */
