@@ -239,10 +239,9 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     /* Connectivity: FlexCAN0/1 and ENET instantiated below (IRQs wired). */
     /* Analog: TSI.  (ADC0/1 + RTC instantiated explicitly below — IRQ wired.) */
     { TYPE_MCXN_TSI,      0x40050000 },
-    /* Audio/storage: SAI0/1, uSDHC, FlexSPI. */
+    /* Audio/storage: SAI0/1, FlexSPI.  (uSDHC instantiated below — IRQ wired.) */
     { TYPE_MCXN_SAI,      0x40106000 },   /* SAI0 */
     { TYPE_MCXN_SAI,      0x40107000 },   /* SAI1 */
-    { TYPE_MCXN_USDHC,    0x40109000 },
     { TYPE_MCXN_FLEXSPI,  0x400C8000 },
     /* Motor/timer: eFlexPWM0/1, QDC0/1, SCT. */
     { TYPE_MCXN_PWM,      0x400CE000 },   /* PWM0 */
@@ -323,6 +322,7 @@ static void mcxn_soc_instance_init(Object *obj)
     }
     object_initialize_child(obj, "enet0", &s->enet0, TYPE_MCXN_ENET);
     object_initialize_child(obj, "rtc0", &s->rtc0, TYPE_MCXN_RTC);
+    object_initialize_child(obj, "usdhc0", &s->usdhc0, TYPE_MCXN_USDHC);
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -670,6 +670,18 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                              &s->rtc0.iomem, 0, MCXN_RTC_SIZE);
     memory_region_add_subregion(system_memory, 0x4004C000 + MCXN_SECURE_ALIAS,
                                 &s->rtc0_s_alias);
+
+    /* uSDHC (SD/MMC host): command/transfer-complete interrupt to cpu0 NVIC. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->usdhc0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->usdhc0), 0, 0x40109000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->usdhc0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 61));
+    memory_region_init_alias(&s->usdhc0_s_alias, OBJECT(dev), "mcxn.usdhc0.s",
+                             &s->usdhc0.iomem, 0, MCXN_USDHC_SIZE);
+    memory_region_add_subregion(system_memory, 0x40109000 + MCXN_SECURE_ALIAS,
+                                &s->usdhc0_s_alias);
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->ostimer0), errp)) {

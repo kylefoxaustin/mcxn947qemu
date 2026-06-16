@@ -16,8 +16,10 @@
  *     the SD enumeration state machine advances.
  *   - HOST_CTRL_CAP advertises a plausible capability set.
  *
- * No actual card responses are produced; CMD_RSPx reads back zero.  Offsets and
- * bit masks come from the MCXN947 CMSIS header (USDHC_Type).  HOST_CTRL_CAP and
+ * Card responses for the SD enumeration commands (CMD8/CMD3/ACMD41/CMD2/CMD9
+ * and a default R1) are modelled in CMD_RSP0..3, so a driver's init handshake
+ * reads back sane values.  Offsets and bit masks come from the MCXN947 CMSIS
+ * header (USDHC_Type).  HOST_CTRL_CAP and
  * the reset-value constants are best-effort for this uSDHC revision (firmware
  * boot does not gate on the exact capability bits).
  *
@@ -77,6 +79,18 @@
 
 /* CMD_XFR_TYP bits. */
 #define CMD_XFR_DPSEL   (1u << 21)  /* data present select */
+#define CMD_XFR_CMDINX_SHIFT 24
+#define CMD_XFR_CMDINX_MASK  0x3Fu
+
+/*
+ * Modelled card responses for the SD enumeration commands.  RCA is the card's
+ * relative address handed out at CMD3; the OCR reports the card powered up
+ * with its voltage window and not busy; the default R1 reports the card ready
+ * in the transfer state.
+ */
+#define SD_RCA          0x0001u
+#define SD_OCR_VALUE    0x80FF8000u  /* power-up done + 2.7-3.6V window */
+#define SD_R1_VALUE     0x00000900u  /* READY_FOR_DATA + state=transfer */
 
 /* INT_STATUS bits. */
 #define INT_CC   (1u << 0)   /* command complete  */
@@ -95,6 +109,44 @@ static void mcxn_usdhc_update_irq(MCXNUSDHCState *s)
     qemu_set_irq(s->irq, active != 0);
 }
 
+/*
+ * Produce the response for an issued command into CMD_RSP0..3, based on the
+ * command index and argument.  Covers the SD initialization handshake:
+ *   CMD8  (SEND_IF_COND)   -> R7: echo the voltage + check-pattern argument
+ *   CMD3  (SEND_RELATIVE_ADDR) -> R6: the assigned RCA in bits 31:16
+ *   ACMD41(SD_SEND_OP_COND)-> R3: OCR (powered up, voltage window, not busy)
+ *   CMD2/9(ALL_SEND_CID / SEND_CSD) -> R2: a recognizable 128-bit CID/CSD
+ *   others                 -> R1: card status (ready, transfer state)
+ */
+static void mcxn_usdhc_make_response(MCXNUSDHCState *s, unsigned cmdinx,
+                                     uint32_t arg)
+{
+    s->regs[USDHC_CMD_RSP1 >> 2] = 0;
+    s->regs[USDHC_CMD_RSP2 >> 2] = 0;
+    s->regs[USDHC_CMD_RSP3 >> 2] = 0;
+
+    switch (cmdinx) {
+    case 8:
+        s->regs[USDHC_CMD_RSP0 >> 2] = arg & 0xFFFu;
+        break;
+    case 3:
+        s->regs[USDHC_CMD_RSP0 >> 2] = ((uint32_t)SD_RCA << 16) | 0x0500u;
+        break;
+    case 41:
+        s->regs[USDHC_CMD_RSP0 >> 2] = SD_OCR_VALUE;
+        break;
+    case 2:
+    case 9:
+        /* 128-bit response: a recognizable model CID/CSD pattern. */
+        s->regs[USDHC_CMD_RSP0 >> 2] = 0x004D4358u;  /* "MCX" marker */
+        s->regs[USDHC_CMD_RSP1 >> 2] = 0x00000001u;
+        break;
+    default:
+        s->regs[USDHC_CMD_RSP0 >> 2] = SD_R1_VALUE;
+        break;
+    }
+}
+
 static uint64_t mcxn_usdhc_read(void *opaque, hwaddr off, unsigned size)
 {
     MCXNUSDHCState *s = MCXN_USDHC(opaque);
@@ -110,11 +162,6 @@ static uint64_t mcxn_usdhc_read(void *opaque, hwaddr off, unsigned size)
         return PRES_STATE_VALUE;
     case USDHC_HOST_CTRL_CAP:
         return HOST_CTRL_CAP_VALUE;
-    case USDHC_CMD_RSP0:
-    case USDHC_CMD_RSP1:
-    case USDHC_CMD_RSP2:
-    case USDHC_CMD_RSP3:
-        return 0;   /* no card responses modelled */
     case USDHC_ADMA_ERR_STATUS:
     case USDHC_DLL_STATUS:
         return 0;
@@ -165,10 +212,14 @@ static void mcxn_usdhc_write(void *opaque, hwaddr off, uint64_t value,
         return;
     case USDHC_CMD_XFR_TYP:
         /*
-         * Issuing a command completes instantly: raise command-complete, and
-         * for a data command also transfer-complete, so the poll loop ends.
+         * Issuing a command completes instantly: produce the card response,
+         * raise command-complete, and for a data command also transfer-
+         * complete, so the poll loop ends.
          */
         s->regs[off >> 2] = val;
+        mcxn_usdhc_make_response(s,
+            (val >> CMD_XFR_CMDINX_SHIFT) & CMD_XFR_CMDINX_MASK,
+            s->regs[USDHC_CMD_ARG >> 2]);
         s->regs[USDHC_INT_STATUS >> 2] |= INT_CC;
         if (val & CMD_XFR_DPSEL) {
             s->regs[USDHC_INT_STATUS >> 2] |= INT_TC;
