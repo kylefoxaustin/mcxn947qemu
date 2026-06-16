@@ -23,12 +23,12 @@ the blocks whose dynamics firmware/tests can observe — see below.
 ## Status by peripheral family
 | Peripheral | Instances | Status |
 |------------|-----------|--------|
-| `ADC` | 2 | ✅ functional (register-accurate; SW-trigger -> RESFIFO valid result) |
+| `ADC` | 2 | ✅ functional + active (SW-trigger conversion -> RESFIFO + EOC IRQ to NVIC; tests/mcxn-adc) |
 | `AHBSC` | 1 | ✅ functional (register-accurate) |
 | `BSP32` | 1 | ✅ functional (register-accurate) |
 | `CACHE64_CTRL` | 1 | ✅ functional (register-accurate) |
 | `CACHE64_POLSEL` | 1 | ✅ functional (register-accurate) |
-| `CAN` | 2 | ✅ functional (register-accurate; FlexCAN freeze/halt handshake, 0x4000 window) |
+| `CAN` | 2 | ✅ functional + active (FlexCAN loopback TX->RX MB + IFLAG IRQ to NVIC; tests/mcxn-flexcan) |
 | `CDOG` | 2 | ✅ functional (register-accurate) |
 | `CMC` | 1 | ✅ functional (register-accurate) |
 | `CMP` | 3 | ✅ functional (register-accurate) |
@@ -106,12 +106,16 @@ blocks whose behaviour real firmware/tests can observe. Each register-accurate
 model already keeps polled firmware unblocked; the next step adds the data path
 + IRQ generation (and a per-block bare-metal test, the way CTIMER/DMA/FMU have).
 
-Priority order:
+Done so far (active behaviour + IRQ to NVIC + bare-metal test):
+- [x] **ADC** — SW-trigger conversion -> RESFIFO valid result + EOC IRQ (45/46). `tests/mcxn-adc`.
+- [x] **FlexCAN** — loopback TX MB -> RX MB + IFLAG IRQ (62/63). `tests/mcxn-flexcan`.
+
+Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.
-- **Analog results**: ADC conversion FIFO + EOC IRQ, DAC output, CMP edge IRQ.
+- **Analog results**: DAC output, CMP edge IRQ.
 - **Connectivity**: ENET MAC frames + MDIO PHY, USBFS/USBHS endpoints
-  (OBMF-ICP transport), FlexCAN mailboxes + bus, SAI audio stream, FlexSPI
-  external-flash reads, uSDHC block transfers.
+  (OBMF-ICP transport), SAI audio stream, FlexSPI external-flash reads,
+  uSDHC block transfers.
 - **Accelerators**: SmartDMA program execution, PowerQuad compute, NPU.
 - **IRQ wiring**: connect the per-device IRQ lines (init'd in wave 6) to the
   cpu0 NVIC as each block starts generating interrupts.
