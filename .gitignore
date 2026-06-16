@@ -57,3 +57,4 @@ tests/mcxn-pwm/*.elf
 tests/mcxn-sct/*.elf
 tests/mcxn-i3c/*.elf
 tests/mcxn-zephyr/*.elf
+tests/mcxn-enet-mac/*.elf

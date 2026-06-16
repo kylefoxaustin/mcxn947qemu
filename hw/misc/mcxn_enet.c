@@ -28,7 +28,12 @@
 #include "qemu/log.h"
 #include "hw/misc/mcxn_enet.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
+#include "system/dma.h"
+#include "system/address-spaces.h"
+#include "net/eth.h"
+#include "qemu/module.h"
 
 /* Register offsets (ENET_Type). */
 #define R_MAC_CONFIGURATION    0x000
@@ -62,6 +67,48 @@
 /* DMA_MODE.SWR: software reset (self-clears when reset completes). */
 #define DMA_MODE_SWR     (1u << 0)
 
+/* MAC_CONFIGURATION enables. */
+#define MAC_CFG_RE       (1u << 0)   /* receiver enable    */
+#define MAC_CFG_TE       (1u << 1)   /* transmitter enable */
+#define MAC_CFG_LM       (1u << 12)  /* MAC loopback mode  */
+
+/* DMA channel-0 register offsets (DWC ENET-QoS). */
+#define R_DMA_CH0_TX_CTRL       0x1104
+#define R_DMA_CH0_RX_CTRL       0x1108
+#define R_DMA_CH0_TXDESC_LIST   0x1114
+#define R_DMA_CH0_RXDESC_LIST   0x111C
+#define R_DMA_CH0_TXDESC_TAIL   0x1120
+#define R_DMA_CH0_RXDESC_TAIL   0x1128
+#define R_DMA_CH0_TXRING_LEN    0x112C
+#define R_DMA_CH0_RXRING_LEN    0x1130
+#define R_DMA_CH0_INT_EN        0x1134
+#define R_DMA_CH0_STATUS        0x1160
+
+/* DMA channel control / status / interrupt-enable bits. */
+#define DMA_TX_ST        (1u << 0)   /* start transmission */
+#define DMA_RX_SR        (1u << 0)   /* start receive      */
+#define DMA_STAT_TI      (1u << 0)   /* transmit interrupt */
+#define DMA_STAT_RI      (1u << 6)   /* receive interrupt  */
+#define DMA_STAT_RBU     (1u << 7)   /* receive buffer unavailable */
+#define DMA_STAT_NIS     (1u << 15)  /* normal interrupt summary   */
+#define DMA_INT_TIE      (1u << 0)
+#define DMA_INT_RIE      (1u << 6)
+#define DMA_INT_NIE      (1u << 15)
+
+/* Descriptor bits (DWC ENET-QoS normal descriptors). */
+#define TDES2_IOC        (1u << 31)  /* interrupt on completion */
+#define TDES3_OWN        (1u << 31)
+#define TDES3_FD         (1u << 29)  /* first descriptor */
+#define TDES3_LD         (1u << 28)  /* last descriptor  */
+#define TDES2_B1L_MASK   0x3FFFu     /* buffer-1 length  */
+#define RDES3_OWN        (1u << 31)
+#define RDES3_FD         (1u << 29)
+#define RDES3_LD         (1u << 28)
+#define RDES3_PL_MASK    0x7FFFu     /* packet length (write-back) */
+
+#define ENET_FRAME_MAX   2048
+#define ENET_RING_GUARD  256         /* bound the descriptor walk */
+
 /*
  * Model PHY: a single Clause-22 PHY answering at MDIO address 2 (a common
  * default for the FRDM-MCXN947 RMII PHY).  It reports link-up with
@@ -89,10 +136,150 @@
 
 static void mcxn_enet_update_irq(MCXNEnetState *s)
 {
-    bool active = (s->regs[R_MAC_INTERRUPT_STATUS >> 2] &
-                   s->regs[R_MAC_INTERRUPT_ENABLE >> 2] & MAC_IS_PHYIS) != 0;
-    qemu_set_irq(s->irq, active);
+    bool mac = (s->regs[R_MAC_INTERRUPT_STATUS >> 2] &
+                s->regs[R_MAC_INTERRUPT_ENABLE >> 2] & MAC_IS_PHYIS) != 0;
+    bool dma = (s->regs[R_DMA_CH0_STATUS >> 2] &
+                s->regs[R_DMA_CH0_INT_EN >> 2] &
+                (DMA_STAT_TI | DMA_STAT_RI)) != 0;
+
+    qemu_set_irq(s->irq, mac || dma);
 }
+
+/* Read/write a 16-byte little-endian descriptor at a guest address. */
+static void enet_desc_read(uint32_t addr, uint32_t d[4])
+{
+    dma_memory_read(&address_space_memory, addr, d, 16, MEMTXATTRS_UNSPECIFIED);
+    for (int i = 0; i < 4; i++) {
+        d[i] = le32_to_cpu(d[i]);
+    }
+}
+
+static void enet_desc_write_word3(uint32_t addr, uint32_t w3)
+{
+    uint32_t le = cpu_to_le32(w3);
+    dma_memory_write(&address_space_memory, addr + 12, &le, 4,
+                     MEMTXATTRS_UNSPECIFIED);
+}
+
+/* Deliver a received frame into the next owned Rx descriptor. */
+static bool mcxn_enet_deliver(MCXNEnetState *s, const uint8_t *buf, size_t len)
+{
+    uint32_t base = s->regs[R_DMA_CH0_RXDESC_LIST >> 2] & ~0x3u;
+    uint32_t ringlen = (s->regs[R_DMA_CH0_RXRING_LEN >> 2] & 0x3FF) + 1;
+    uint32_t d[4];
+
+    if (!(s->regs[R_MAC_CONFIGURATION >> 2] & MAC_CFG_RE) ||
+        !(s->regs[R_DMA_CH0_RX_CTRL >> 2] & DMA_RX_SR) || base == 0) {
+        return false;
+    }
+
+    enet_desc_read(s->cur_rx, d);
+    if (!(d[3] & RDES3_OWN)) {
+        s->regs[R_DMA_CH0_STATUS >> 2] |= DMA_STAT_RBU | DMA_STAT_NIS;
+        mcxn_enet_update_irq(s);
+        return false;   /* no buffer available, drop */
+    }
+
+    if (len > ENET_FRAME_MAX) {
+        len = ENET_FRAME_MAX;
+    }
+    dma_memory_write(&address_space_memory, d[0], buf, len,
+                     MEMTXATTRS_UNSPECIFIED);
+    /* Write-back: clear OWN, mark first+last, store packet length. */
+    enet_desc_write_word3(s->cur_rx,
+                          RDES3_FD | RDES3_LD | ((uint32_t)len & RDES3_PL_MASK));
+
+    s->cur_rx += 16;
+    if (s->cur_rx >= base + ringlen * 16) {
+        s->cur_rx = base;
+    }
+    s->regs[R_DMA_CH0_STATUS >> 2] |= DMA_STAT_RI | DMA_STAT_NIS;
+    mcxn_enet_update_irq(s);
+    return true;
+}
+
+/* Walk the Tx ring, assembling and sending each owned, completed frame. */
+static void mcxn_enet_tx_process(MCXNEnetState *s)
+{
+    uint32_t base = s->regs[R_DMA_CH0_TXDESC_LIST >> 2] & ~0x3u;
+    uint32_t tail = s->regs[R_DMA_CH0_TXDESC_TAIL >> 2] & ~0x3u;
+    uint32_t ringlen = (s->regs[R_DMA_CH0_TXRING_LEN >> 2] & 0x3FF) + 1;
+    bool loopback = s->regs[R_MAC_CONFIGURATION >> 2] & MAC_CFG_LM;
+    uint8_t frame[ENET_FRAME_MAX];
+    uint32_t flen = 0;
+    int guard = ENET_RING_GUARD;
+    bool ioc = false;
+
+    if (!(s->regs[R_MAC_CONFIGURATION >> 2] & MAC_CFG_TE) ||
+        !(s->regs[R_DMA_CH0_TX_CTRL >> 2] & DMA_TX_ST) || base == 0) {
+        return;
+    }
+
+    while (s->cur_tx != tail && guard-- > 0) {
+        uint32_t d[4], b1len;
+
+        enet_desc_read(s->cur_tx, d);
+        if (!(d[3] & TDES3_OWN)) {
+            break;   /* descriptor still owned by software */
+        }
+        if (d[3] & TDES3_FD) {
+            flen = 0;
+            ioc = false;
+        }
+        b1len = d[2] & TDES2_B1L_MASK;
+        if (b1len && flen + b1len <= sizeof(frame)) {
+            dma_memory_read(&address_space_memory, d[0], frame + flen, b1len,
+                            MEMTXATTRS_UNSPECIFIED);
+            flen += b1len;
+        }
+        if (d[2] & TDES2_IOC) {
+            ioc = true;
+        }
+        enet_desc_write_word3(s->cur_tx, d[3] & ~TDES3_OWN);   /* give to CPU */
+
+        if (d[3] & TDES3_LD) {
+            if (loopback) {
+                mcxn_enet_deliver(s, frame, flen);
+            } else if (s->nic) {
+                qemu_send_packet(qemu_get_queue(s->nic), frame, flen);
+            }
+            if (ioc) {
+                s->regs[R_DMA_CH0_STATUS >> 2] |= DMA_STAT_TI | DMA_STAT_NIS;
+            }
+            flen = 0;
+        }
+
+        s->cur_tx += 16;
+        if (s->cur_tx >= base + ringlen * 16) {
+            s->cur_tx = base;
+        }
+    }
+    mcxn_enet_update_irq(s);
+}
+
+static bool mcxn_enet_can_receive(NetClientState *nc)
+{
+    MCXNEnetState *s = qemu_get_nic_opaque(nc);
+
+    return (s->regs[R_MAC_CONFIGURATION >> 2] & MAC_CFG_RE) &&
+           (s->regs[R_DMA_CH0_RX_CTRL >> 2] & DMA_RX_SR);
+}
+
+static ssize_t mcxn_enet_receive(NetClientState *nc, const uint8_t *buf,
+                                 size_t size)
+{
+    MCXNEnetState *s = qemu_get_nic_opaque(nc);
+
+    mcxn_enet_deliver(s, buf, size);
+    return size;
+}
+
+static NetClientInfo net_mcxn_enet_info = {
+    .type = NET_CLIENT_DRIVER_NIC,
+    .size = sizeof(NICState),
+    .can_receive = mcxn_enet_can_receive,
+    .receive = mcxn_enet_receive,
+};
 
 /* Read a Clause-22 PHY register; BMSR always reports live link-up status. */
 static uint16_t mcxn_enet_phy_read(MCXNEnetState *s, unsigned reg)
@@ -219,6 +406,28 @@ static void enet_write(void *opaque, hwaddr off, uint64_t value, unsigned size)
         s->regs[idx] = val;
         mcxn_enet_update_irq(s);
         return;
+    case R_DMA_CH0_TXDESC_LIST:
+        s->regs[idx] = val;
+        s->cur_tx = val & ~0x3u;
+        return;
+    case R_DMA_CH0_RXDESC_LIST:
+        s->regs[idx] = val;
+        s->cur_rx = val & ~0x3u;
+        return;
+    case R_DMA_CH0_TXDESC_TAIL:
+        /* Tail-pointer write is the transmit doorbell. */
+        s->regs[idx] = val;
+        mcxn_enet_tx_process(s);
+        return;
+    case R_DMA_CH0_STATUS:
+        /* Interrupt-status bits are write-1-to-clear. */
+        s->regs[idx] &= ~val;
+        mcxn_enet_update_irq(s);
+        return;
+    case R_DMA_CH0_INT_EN:
+        s->regs[idx] = val;
+        mcxn_enet_update_irq(s);
+        return;
     default:
         s->regs[idx] = val;
         return;
@@ -245,6 +454,8 @@ static void mcxn_enet_reset(DeviceState *dev)
     s->phy[PHY_BMSR] = PHY_BMSR_VALUE;
     s->phy[PHY_ID1]  = PHY_ID1_VALUE;
     s->phy[PHY_ID2]  = PHY_ID2_VALUE;
+    s->cur_tx = 0;
+    s->cur_rx = 0;
     qemu_set_irq(s->irq, 0);
 }
 
@@ -256,17 +467,29 @@ static void mcxn_enet_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_ENET, MCXN_ENET_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+
+    qemu_macaddr_default_if_unset(&s->conf.macaddr);
+    s->nic = qemu_new_nic(&net_mcxn_enet_info, &s->conf,
+                          object_get_typename(OBJECT(dev)), dev->id,
+                          &dev->mem_reentrancy_guard, s);
+    qemu_format_nic_info_str(qemu_get_queue(s->nic), s->conf.macaddr.a);
 }
 
 static const VMStateDescription vmstate_mcxn_enet = {
     .name = TYPE_MCXN_ENET,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNEnetState, MCXN_ENET_SIZE / 4),
         VMSTATE_UINT16_ARRAY(phy, MCXNEnetState, 32),
+        VMSTATE_UINT32(cur_tx, MCXNEnetState),
+        VMSTATE_UINT32(cur_rx, MCXNEnetState),
         VMSTATE_END_OF_LIST()
     },
+};
+
+static const Property mcxn_enet_properties[] = {
+    DEFINE_NIC_PROPERTIES(MCXNEnetState, conf),
 };
 
 static void mcxn_enet_class_init(ObjectClass *klass, const void *data)
@@ -275,6 +498,7 @@ static void mcxn_enet_class_init(ObjectClass *klass, const void *data)
 
     dc->realize = mcxn_enet_realize;
     device_class_set_legacy_reset(dc, mcxn_enet_reset);
+    device_class_set_props(dc, mcxn_enet_properties);
     dc->vmsd = &vmstate_mcxn_enet;
 }
 

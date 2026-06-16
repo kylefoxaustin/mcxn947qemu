@@ -41,7 +41,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `EIM` | 1 | ✅ functional (register-accurate) |
 | `ELS` | 1 | ✅ functional (register-accurate) |
 | `EMVSIM` | 2 | ✅ functional (register-accurate) |
-| `ENET` | 1 | ✅ functional + active (MDIO + model PHY link-up/ID, DMA SWR, PHYIS IRQ 139 to NVIC; tests/mcxn-enet) |
+| `ENET` | 1 | ✅ functional + active (MDIO/PHY + real MAC frame DMA-ring TX/RX over QEMU NIC, MAC loopback, TI/RI IRQ 139; tests/mcxn-enet + mcxn-enet-mac) |
 | `ERM` | 1 | ✅ functional (register-accurate) |
 | `EVTG` | 1 | ✅ functional (register-accurate) |
 | `EWM` | 1 | ✅ functional (register-accurate) |
@@ -119,6 +119,7 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **PWM** — submodule-0 running counter -> periodic reload IRQ (114/120, QEMUTimer). `tests/mcxn-pwm`.
 - [x] **SCT** — running counter -> periodic match/limit event-0 IRQ (33, QEMUTimer). `tests/mcxn-sct`.
 - [x] **I3C** — controller request -> transfer-complete IRQ (95/96). `tests/mcxn-i3c`.
+- [x] **ENET MAC frame path** — DWC ENET-QoS descriptor-ring TX/RX over a real QEMU NIC backend (-nic) + MAC loopback, TI/RI DMA IRQ. `tests/mcxn-enet-mac`. **Cross-board ready.**
 
 Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C). (I3C transfer-
@@ -127,8 +128,8 @@ Priority order (remaining):
   pure-analog, correctly register-only.)
 - **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport; register-only
   today, no usb-bus backend - confirmed to holobench, gated until unparked).
-  (ENET MDIO+PHY, uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request
-  all done; their bulk DMA/data paths remain future work.)
+  (ENET now has full MAC frame DMA-ring + QEMU NIC - cross-board ready;
+  uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request done.)
 - **Accelerators**: SmartDMA program execution, NPU. (PowerQuad compute-done
   IRQ done; SmartDMA/NPU left register-accurate - both need coprocessor
   firmware/compute we don't model, so a fabricated IRQ would be dishonest.)

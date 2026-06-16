@@ -655,7 +655,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      &s->flexcan_s_alias[i]);
     }
 
-    /* ENET (Ethernet QoS): MAC/PHY-event interrupt to cpu0 NVIC.  0x2000 win. */
+    /* ENET (Ethernet QoS): MAC/PHY-event interrupt to cpu0 NVIC.  0x2000 win.
+     * Connect a host network backend (-nic) so real frames can flow; MAC
+     * loopback mode still works without one. */
+    qemu_configure_nic_device(DEVICE(&s->enet0), true, NULL);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->enet0), errp)) {
         return;
     }

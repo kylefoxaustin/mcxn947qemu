@@ -13,6 +13,7 @@
 #define HW_MISC_MCXN_ENET_H
 
 #include "hw/core/sysbus.h"
+#include "net/net.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_ENET "mcxn-enet"
@@ -32,6 +33,10 @@ struct MCXNEnetState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq irq;
+    NICState *nic;
+    NICConf conf;
+    uint32_t cur_tx;    /* current Tx descriptor address (DMA channel 0) */
+    uint32_t cur_rx;    /* current Rx descriptor address (DMA channel 0) */
     uint32_t regs[MCXN_ENET_SIZE / 4];
     uint16_t phy[32];   /* model Clause-22 PHY register file (one PHY) */
 };
