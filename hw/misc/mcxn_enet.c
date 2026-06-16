@@ -414,6 +414,14 @@ static void enet_write(void *opaque, hwaddr off, uint64_t value, unsigned size)
         s->regs[idx] = val;
         s->cur_rx = val & ~0x3u;
         return;
+    case R_DMA_CH0_RXDESC_TAIL:
+        /* Publishing Rx buffers makes the receiver ready: unblock the net
+         * queue so any frame held while can_receive was false is delivered. */
+        s->regs[idx] = val;
+        if (s->nic) {
+            qemu_flush_queued_packets(qemu_get_queue(s->nic));
+        }
+        return;
     case R_DMA_CH0_TXDESC_TAIL:
         /* Tail-pointer write is the transmit doorbell. */
         s->regs[idx] = val;
@@ -427,6 +435,15 @@ static void enet_write(void *opaque, hwaddr off, uint64_t value, unsigned size)
     case R_DMA_CH0_INT_EN:
         s->regs[idx] = val;
         mcxn_enet_update_irq(s);
+        return;
+    case R_MAC_CONFIGURATION:
+    case R_DMA_CH0_RX_CTRL:
+        /* Enabling the receiver unblocks any queued inbound frame. */
+        s->regs[idx] = val;
+        if (s->nic && (s->regs[R_MAC_CONFIGURATION >> 2] & MAC_CFG_RE) &&
+            (s->regs[R_DMA_CH0_RX_CTRL >> 2] & DMA_RX_SR)) {
+            qemu_flush_queued_packets(qemu_get_queue(s->nic));
+        }
         return;
     default:
         s->regs[idx] = val;
