@@ -28,7 +28,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `CAN` | 2 | ○ stub (present, readback, non-blocking) |
 | `CDOG` | 2 | ✅ functional (register-accurate) |
 | `CMC` | 1 | ✅ functional (register-accurate) |
-| `CMP` | 3 | ○ stub (present, readback, non-blocking) |
+| `CMP` | 3 | ✅ functional (register-accurate) |
 | `CMX_PERFMON` | 2 | ✅ functional (register-accurate) |
 | `CRC` | 1 | ✅ functional (register-accurate) |
 | `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
@@ -61,7 +61,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `MAILBOX` | 1 | ✅ functional (register-accurate) |
 | `MRT` | 1 | ✅ functional (4-ch down-counter -> NVIC IRQ) |
 | `NPX` | 1 | ○ stub (present, readback, non-blocking) |
-| `OPAMP` | 3 | ○ stub (present, readback, non-blocking) |
+| `OPAMP` | 3 | ✅ functional (register-accurate) |
 | `OSTIMER` | 1 | ✅ functional (gray-code counter + match IRQ) |
 | `OTPC` | 1 | ✅ functional (register-accurate) |
 | `PDM` | 1 | ○ stub (present, readback, non-blocking) |
@@ -94,7 +94,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `USDHC` | 1 | ○ stub (present, readback, non-blocking) |
 | `UTICK` | 1 | ✅ functional (register-accurate) |
 | `VBAT` | 1 | ✅ functional (register-accurate) |
-| `VREF` | 1 | ○ stub (present, readback, non-blocking) |
+| `VREF` | 1 | ✅ functional (register-accurate) |
 | `WUU` | 1 | ✅ functional (register-accurate) |
 | `WWDT` | 2 | ✅ functional (register-accurate) |
 ## Next functional upgrades (active blocks that need real behaviour)

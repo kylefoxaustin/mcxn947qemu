@@ -357,3 +357,12 @@ config MCXN_UTICK
 
 config MCXN_WWDT
     bool
+
+config MCXN_OPAMP
+    bool
+
+config MCXN_CMP
+    bool
+
+config MCXN_VREF
+    bool

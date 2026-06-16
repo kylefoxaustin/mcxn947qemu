@@ -752,6 +752,9 @@ config MCXN_SOC
     select MCXN_MAILBOX
     select MCXN_VBAT
     select MCXN_AHBSC
+    select MCXN_OPAMP
+    select MCXN_CMP
+    select MCXN_VREF
     select MCXN_BSP32
     select MCXN_DM
     select MCXN_PINT

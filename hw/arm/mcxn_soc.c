@@ -46,6 +46,9 @@
 #include "hw/misc/mcxn_pint.h"
 #include "hw/misc/mcxn_utick.h"
 #include "hw/misc/mcxn_wwdt.h"
+#include "hw/misc/mcxn_opamp.h"
+#include "hw/misc/mcxn_cmp.h"
+#include "hw/misc/mcxn_vref.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -181,6 +184,13 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_UTICK,    0x40012000 },
     { TYPE_MCXN_WWDT,     0x40016000 },   /* WWDT0 */
     { TYPE_MCXN_WWDT,     0x40017000 },   /* WWDT1 */
+    { TYPE_MCXN_OPAMP,    0x40110000 },   /* OPAMP0 */
+    { TYPE_MCXN_OPAMP,    0x40113000 },   /* OPAMP1 */
+    { TYPE_MCXN_OPAMP,    0x40115000 },   /* OPAMP2 */
+    { TYPE_MCXN_CMP,      0x40051000 },   /* CMP0 */
+    { TYPE_MCXN_CMP,      0x40052000 },   /* CMP1 */
+    { TYPE_MCXN_CMP,      0x40053000 },   /* CMP2 */
+    { TYPE_MCXN_VREF,     0x40111000 },
 };
 
 static const MCXNConfig *mcxn_lookup(const char *part)
