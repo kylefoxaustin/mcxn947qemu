@@ -239,6 +239,10 @@ static void mcxn_soc_instance_init(Object *obj)
     }
     object_initialize_child(obj, "fmu0", &s->fmu0, TYPE_MCXN_FMU);
     object_initialize_child(obj, "ostimer0", &s->ostimer0, TYPE_MCXN_OSTIMER);
+    for (i = 0; i < MCXN_NUM_EDMA; i++) {
+        g_autofree char *name = g_strdup_printf("edma%d", i);
+        object_initialize_child(obj, name, &s->edma[i], TYPE_MCXN_EDMA);
+    }
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -497,6 +501,30 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      mcxn_lptmr_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->lptmr_s_alias[i]);
+    }
+
+    /* eDMA DMA0..1: 16 channels each, channel IRQs to cpu0 NVIC. */
+    for (i = 0; i < MCXN_NUM_EDMA; i++) {
+        static const struct { hwaddr base; int irq0; }
+        edma_cfg[MCXN_NUM_EDMA] = { { 0x40080000, 1 }, { 0x400A0000, 77 } };
+        g_autofree char *aname = g_strdup_printf("mcxn.edma%d.s", i);
+        uint64_t sz = 0x1000 * (MCXN_EDMA_CHANNELS + 1);
+        int ch;
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->edma[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->edma[i]), 0, edma_cfg[i].base);
+        for (ch = 0; ch < MCXN_EDMA_CHANNELS; ch++) {
+            sysbus_connect_irq(SYS_BUS_DEVICE(&s->edma[i]), ch,
+                               qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                                edma_cfg[i].irq0 + ch));
+        }
+        memory_region_init_alias(&s->edma_s_alias[i], OBJECT(dev), aname,
+                                 &s->edma[i].iomem, 0, sz);
+        memory_region_add_subregion(system_memory,
+                                     edma_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->edma_s_alias[i]);
     }
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */

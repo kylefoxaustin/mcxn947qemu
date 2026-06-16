@@ -729,6 +729,7 @@ config MCXN_SOC
     select MCXN_SPC
     select MCXN_STUB
     select MCXN_FMU
+    select MCXN_EDMA
     select MCXN_CTIMER
     select MCXN_MRT
     select MCXN_LPTMR
