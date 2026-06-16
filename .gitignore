@@ -49,3 +49,4 @@ tests/mcxn-flexcan/*.elf
 tests/mcxn-enet/*.elf
 tests/mcxn-rtc/*.elf
 tests/mcxn-usdhc/*.elf
+tests/mcxn-flexspi/*.elf

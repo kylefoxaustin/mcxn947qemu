@@ -46,7 +46,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `EVTG` | 1 | ✅ functional (register-accurate) |
 | `EWM` | 1 | ✅ functional (register-accurate) |
 | `FLEXIO` | 1 | ✅ functional (register-accurate; SWRST self-clear) |
-| `FLEXSPI` | 1 | ✅ functional (register-accurate; IP-command-done) |
+| `FLEXSPI` | 1 | ✅ functional + active (IP-command-done IRQ 58 to NVIC; tests/mcxn-flexspi) |
 | `FMU` | 1 | ✅ functional (erase/program/verify flash controller) |
 | `FMU0TEST` | 1 | ✅ functional (test-alias of FMU0 @0x40043000; covered by FMU model) |
 | `FREQME` | 1 | ✅ functional (register-accurate) |
@@ -112,14 +112,14 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **ENET** — MDIO PHY read (link-up/ID) + DMA soft-reset + PHYIS IRQ (139). `tests/mcxn-enet`.
 - [x] **RTC** — live 1 Hz QEMUTimer calendar tick + alarm match IRQ (52). `tests/mcxn-rtc`.
 - [x] **uSDHC** — SD command/response handshake (CMD8/CMD3/ACMD41) + CC IRQ (61). `tests/mcxn-usdhc`.
+- [x] **FlexSPI** — IP-command-done IRQ (58). `tests/mcxn-flexspi`.
 
 Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.
 - **Analog results**: DAC output, CMP edge IRQ. (RTC alarm/tick done.)
 - **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport), SAI audio
-  stream, FlexSPI external-flash reads. (ENET MDIO + PHY done, MAC frame
-  DMA-ring transfer pending; uSDHC command/response done, block-data DMA
-  pending.)
+  stream. (ENET MDIO+PHY, uSDHC command/response, FlexSPI IP-command-done
+  all done; their bulk DMA/data paths remain future work.)
 - **Accelerators**: SmartDMA program execution, PowerQuad compute, NPU.
 - **IRQ wiring**: connect the per-device IRQ lines (init'd in wave 6) to the
   cpu0 NVIC as each block starts generating interrupts.
