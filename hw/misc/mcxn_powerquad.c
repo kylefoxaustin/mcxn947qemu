@@ -24,7 +24,15 @@
 
 #define CONTROL_INST_BUSY  (1u << 31)  /* reads 0 (idle) in this model */
 #define INTRSTAT_INTR_STAT (1u << 0)   /* completion interrupt status (W1C) */
+#define INTREN_INTR_EN     (1u << 0)   /* completion interrupt enable */
 #define ERRSTAT_MASK       0x1Fu       /* OVERFLOW/NAN/FIXEDOVERFLOW/UFLOW/BERR */
+
+static void mcxn_powerquad_update_irq(MCXNPowerQuadState *s)
+{
+    bool active = (s->regs[R_INTRSTAT >> 2] & INTRSTAT_INTR_STAT) &&
+                  (s->regs[R_INTREN >> 2] & INTREN_INTR_EN);
+    qemu_set_irq(s->irq, active);
+}
 
 static uint64_t mcxn_powerquad_read(void *opaque, hwaddr off, unsigned size)
 {
@@ -59,18 +67,25 @@ static void mcxn_powerquad_write(void *opaque, hwaddr off,
     case R_CONTROL:
         /*
          * Reflect the launch back without the busy bit: the instruction is
-         * already "done" the moment it is written.
+         * already "done" the moment it is written, so raise the completion
+         * interrupt status immediately.
          */
         s->regs[off >> 2] = v & ~CONTROL_INST_BUSY;
+        s->regs[R_INTRSTAT >> 2] |= INTRSTAT_INTR_STAT;
+        mcxn_powerquad_update_irq(s);
         return;
     case R_ERRSTAT:
         /* Error flags are write-1-to-clear; no errors are ever generated. */
         s->regs[off >> 2] &= ~(v & ERRSTAT_MASK);
         return;
+    case R_INTREN:
+        s->regs[off >> 2] = v;
+        mcxn_powerquad_update_irq(s);
+        return;
     case R_INTRSTAT:
         /* Completion interrupt status is write-1-to-clear. */
         s->regs[off >> 2] &= ~(v & INTRSTAT_INTR_STAT);
-        qemu_set_irq(s->irq, 0);
+        mcxn_powerquad_update_irq(s);
         return;
     default:
         s->regs[off >> 2] = v;

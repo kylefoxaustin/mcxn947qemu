@@ -31,6 +31,7 @@
 #include "hw/misc/mcxn_flexspi.h"
 #include "hw/misc/mcxn_sai.h"
 #include "hw/misc/mcxn_dac.h"
+#include "hw/misc/mcxn_powerquad.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -100,6 +101,7 @@ struct MCXNState {
     MCXNFlexSPIState flexspi0;                     /* FlexSPI (ext flash ctrl) */
     MCXNSAIState    sai[MCXN_NUM_SAI];             /* SAI0..1 (audio) */
     MCXNDACState    dac[MCXN_NUM_DAC];             /* DAC0..2 */
+    MCXNPowerQuadState powerquad0;                 /* PowerQuad DSP coproc */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -130,6 +132,7 @@ struct MCXNState {
     MemoryRegion flexspi0_s_alias;                 /* secure alias of FlexSPI */
     MemoryRegion sai_s_alias[MCXN_NUM_SAI];        /* secure aliases of SAI0..1 */
     MemoryRegion dac_s_alias[MCXN_NUM_DAC];        /* secure aliases of DAC0..2 */
+    MemoryRegion powerquad0_s_alias;               /* secure alias of PowerQuad */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */

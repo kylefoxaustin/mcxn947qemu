@@ -72,7 +72,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `PKC` | 1 | ✅ functional (register-accurate) |
 | `PLU` | 1 | ✅ functional (register-accurate) |
 | `PORT` | 6 | ◐ pin-mux stub (adequate) |
-| `POWERQUAD` | 1 | ✅ functional (register-accurate; compute-poll completes) |
+| `POWERQUAD` | 1 | ✅ functional + active (compute-launch -> completion IRQ 76 to NVIC; tests/mcxn-powerquad) |
 | `PUF` | 1 | ✅ functional (register-accurate) |
 | `PWM` | 2 | ✅ functional (register-accurate; eFlexPWM, LDOK self-clear) |
 | `QDC` | 2 | ✅ functional (register-accurate; quadrature decoder) |
@@ -115,6 +115,7 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **FlexSPI** — IP-command-done IRQ (58). `tests/mcxn-flexspi`.
 - [x] **SAI** — TX FIFO-request interrupt (FRF & FRIE) IRQ (59/60). `tests/mcxn-sai`.
 - [x] **DAC** — FIFO watermark interrupt (FSR.WM & IER.WM_IE) IRQ (106/107/108). `tests/mcxn-dac`.
+- [x] **PowerQuad** — compute-launch -> completion IRQ (76). `tests/mcxn-powerquad`.
 
 Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.
@@ -124,7 +125,9 @@ Priority order (remaining):
   today, no usb-bus backend - confirmed to holobench, gated until unparked).
   (ENET MDIO+PHY, uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request
   all done; their bulk DMA/data paths remain future work.)
-- **Accelerators**: SmartDMA program execution, PowerQuad compute, NPU.
+- **Accelerators**: SmartDMA program execution, NPU. (PowerQuad compute-done
+  IRQ done; SmartDMA/NPU left register-accurate - both need coprocessor
+  firmware/compute we don't model, so a fabricated IRQ would be dishonest.)
 - **IRQ wiring**: connect the per-device IRQ lines (init'd in wave 6) to the
   cpu0 NVIC as each block starts generating interrupts.
 

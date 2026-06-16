@@ -250,9 +250,8 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_USBHS_PHYDCD, 0x4010A800 },   /* 0x800 window */
     { TYPE_MCXN_USBHS_CORE,   0x4010B000 },   /* 0x200 window */
     { TYPE_MCXN_USBHS_NC,     0x4010B200 },   /* 0xE00 window */
-    /* Accelerators: SmartDMA, PowerQuad, eIQ Neutron NPU (NPX). */
+    /* Accelerators: SmartDMA, eIQ Neutron NPU (NPX).  (PowerQuad below — IRQ.) */
     { TYPE_MCXN_SMARTDMA,  0x40033000 },
-    { TYPE_MCXN_POWERQUAD, 0x400BF000 },
     { TYPE_MCXN_NPU,       0x400CC000 },
 };
 
@@ -326,6 +325,8 @@ static void mcxn_soc_instance_init(Object *obj)
         g_autofree char *name = g_strdup_printf("dac%d", i);
         object_initialize_child(obj, name, &s->dac[i], TYPE_MCXN_DAC);
     }
+    object_initialize_child(obj, "powerquad0", &s->powerquad0,
+                            TYPE_MCXN_POWERQUAD);
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -738,6 +739,19 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      dac_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->dac_s_alias[i]);
     }
+
+    /* PowerQuad (DSP coprocessor): compute-complete interrupt to cpu0 NVIC. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->powerquad0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->powerquad0), 0, 0x400BF000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->powerquad0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 76));
+    memory_region_init_alias(&s->powerquad0_s_alias, OBJECT(dev),
+                             "mcxn.powerquad0.s", &s->powerquad0.iomem, 0,
+                             MCXN_POWERQUAD_SIZE);
+    memory_region_add_subregion(system_memory, 0x400BF000 + MCXN_SECURE_ALIAS,
+                                &s->powerquad0_s_alias);
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->ostimer0), errp)) {
