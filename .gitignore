@@ -53,3 +53,4 @@ tests/mcxn-flexspi/*.elf
 tests/mcxn-sai/*.elf
 tests/mcxn-dac/*.elf
 tests/mcxn-powerquad/*.elf
+tests/mcxn-pwm/*.elf

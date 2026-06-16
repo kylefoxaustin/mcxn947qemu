@@ -32,6 +32,7 @@
 #include "hw/misc/mcxn_sai.h"
 #include "hw/misc/mcxn_dac.h"
 #include "hw/misc/mcxn_powerquad.h"
+#include "hw/misc/mcxn_pwm.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
 
@@ -52,6 +53,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNState, MCXN_SOC)
 #define MCXN_NUM_FLEXCAN 2   /* CAN0..1 (FlexCAN) */
 #define MCXN_NUM_SAI 2       /* SAI0..1 */
 #define MCXN_NUM_DAC 3       /* DAC0..2 (LPDAC x2 + HPDAC) */
+#define MCXN_NUM_PWM 2       /* eFlexPWM0..1 */
 
 /*
  * Per-SKU configuration.
@@ -102,6 +104,7 @@ struct MCXNState {
     MCXNSAIState    sai[MCXN_NUM_SAI];             /* SAI0..1 (audio) */
     MCXNDACState    dac[MCXN_NUM_DAC];             /* DAC0..2 */
     MCXNPowerQuadState powerquad0;                 /* PowerQuad DSP coproc */
+    MCXNPWMState    pwm[MCXN_NUM_PWM];             /* eFlexPWM0..1 */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -133,6 +136,7 @@ struct MCXNState {
     MemoryRegion sai_s_alias[MCXN_NUM_SAI];        /* secure aliases of SAI0..1 */
     MemoryRegion dac_s_alias[MCXN_NUM_DAC];        /* secure aliases of DAC0..2 */
     MemoryRegion powerquad0_s_alias;               /* secure alias of PowerQuad */
+    MemoryRegion pwm_s_alias[MCXN_NUM_PWM];        /* secure aliases of PWM0..1 */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */

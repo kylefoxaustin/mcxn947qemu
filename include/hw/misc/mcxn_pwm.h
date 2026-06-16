@@ -15,6 +15,7 @@
 #define HW_MISC_MCXN_PWM_H
 
 #include "hw/core/sysbus.h"
+#include "qemu/timer.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_PWM "mcxn-pwm"
@@ -29,6 +30,7 @@ struct MCXNPWMState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq     irq;           /* main submodule-0 capture/compare/reload line */
+    QEMUTimer    reload_timer;  /* submodule-0 periodic reload */
 
     uint8_t regs[MCXN_PWM_SIZE];
 };

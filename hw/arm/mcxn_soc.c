@@ -237,9 +237,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     /* Analog: TSI.  (ADC0/1 + RTC instantiated explicitly below — IRQ wired.) */
     { TYPE_MCXN_TSI,      0x40050000 },
     /* (SAI0/1 + uSDHC + FlexSPI instantiated below — IRQs wired.) */
-    /* Motor/timer: eFlexPWM0/1, QDC0/1, SCT. */
-    { TYPE_MCXN_PWM,      0x400CE000 },   /* PWM0 */
-    { TYPE_MCXN_PWM,      0x400D0000 },   /* PWM1 */
+    /* Motor/timer: QDC0/1, SCT.  (eFlexPWM0/1 below — IRQs wired.) */
     { TYPE_MCXN_QDC,      0x400CF000 },   /* QDC0 */
     { TYPE_MCXN_QDC,      0x400D1000 },   /* QDC1 */
     { TYPE_MCXN_SCT,      0x40091000 },
@@ -327,6 +325,10 @@ static void mcxn_soc_instance_init(Object *obj)
     }
     object_initialize_child(obj, "powerquad0", &s->powerquad0,
                             TYPE_MCXN_POWERQUAD);
+    for (i = 0; i < MCXN_NUM_PWM; i++) {
+        g_autofree char *name = g_strdup_printf("pwm%d", i);
+        object_initialize_child(obj, name, &s->pwm[i], TYPE_MCXN_PWM);
+    }
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -752,6 +754,26 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                              MCXN_POWERQUAD_SIZE);
     memory_region_add_subregion(system_memory, 0x400BF000 + MCXN_SECURE_ALIAS,
                                 &s->powerquad0_s_alias);
+
+    /* eFlexPWM0..1: submodule-0 reload/compare interrupt to cpu0 NVIC. */
+    for (i = 0; i < MCXN_NUM_PWM; i++) {
+        static const struct { hwaddr base; int irq; }
+        pwm_cfg[MCXN_NUM_PWM] = { { 0x400CE000, 114 }, { 0x400D0000, 120 } };
+        g_autofree char *aname = g_strdup_printf("mcxn.pwm%d.s", i);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->pwm[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->pwm[i]), 0, pwm_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            pwm_cfg[i].irq));
+        memory_region_init_alias(&s->pwm_s_alias[i], OBJECT(dev), aname,
+                                 &s->pwm[i].iomem, 0, MCXN_PWM_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     pwm_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->pwm_s_alias[i]);
+    }
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->ostimer0), errp)) {

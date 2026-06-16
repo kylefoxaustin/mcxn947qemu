@@ -10,6 +10,7 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+#include "qemu/timer.h"
 #include "hw/misc/mcxn_pwm.h"
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
@@ -20,7 +21,22 @@
 #define PWM_SM_BASE(n)     ((n) * PWM_SM_STEP)
 
 /* Submodule register offsets within a block. */
+#define PWM_SM_INIT        0x02    /* Initial count */
+#define PWM_SM_VAL1        0x0E    /* Modulo (period) value */
 #define PWM_SM_STS         0x24    /* Status (W1C flags) */
+#define PWM_SM_INTEN       0x26    /* Interrupt enable */
+
+/* STS / INTEN interrupt bits (submodule). */
+#define PWM_STS_CMPF       0x003Fu /* compare flags */
+#define PWM_STS_RF         0x1000u /* reload flag */
+#define PWM_INTEN_CMPIE    0x003Fu /* compare interrupt enables */
+#define PWM_INTEN_RIE      0x1000u /* reload interrupt enable */
+
+/* MCTRL.RUN bit for submodule 0 (bits [11:8], one per submodule). */
+#define PWM_MCTRL_RUN_SM0  0x0100u
+
+/* Nominal PWM counter clock: 10 ns/tick (~100 MHz) for the modelled period. */
+#define PWM_TICK_NS        10
 
 /* Top-level (shared) registers. */
 #define PWM_OUTEN          0x180
@@ -54,6 +70,38 @@ static inline void pwm_st16(MCXNPWMState *s, hwaddr off, uint16_t v)
 {
     s->regs[off] = v & 0xff;
     s->regs[off + 1] = (v >> 8) & 0xff;
+}
+
+/* Submodule-0 reload/compare interrupt: (STS & INTEN) on the IRQ-bearing bits. */
+static void mcxn_pwm_update_irq(MCXNPWMState *s)
+{
+    uint16_t sts = pwm_ld16(s, PWM_SM_STS);
+    uint16_t inten = pwm_ld16(s, PWM_SM_INTEN);
+    bool active = (sts & inten & (PWM_STS_RF | PWM_STS_CMPF)) != 0;
+
+    qemu_set_irq(s->irq, active);
+}
+
+/* Submodule-0 counter period from INIT/VAL1 at the nominal PWM tick rate. */
+static int64_t mcxn_pwm_period_ns(MCXNPWMState *s)
+{
+    uint16_t init = pwm_ld16(s, PWM_SM_INIT);
+    uint16_t val1 = pwm_ld16(s, PWM_SM_VAL1);
+    int64_t span = (uint16_t)(val1 - init) + 1;   /* counter range, wraps ok */
+    int64_t ns = span * PWM_TICK_NS;
+
+    return ns < 1000 ? 1000 : ns;                 /* floor to keep it sane */
+}
+
+/* One submodule-0 reload: set the reload flag and re-arm. */
+static void mcxn_pwm_reload_tick(void *opaque)
+{
+    MCXNPWMState *s = opaque;
+
+    pwm_st16(s, PWM_SM_STS, pwm_ld16(s, PWM_SM_STS) | PWM_STS_RF);
+    mcxn_pwm_update_irq(s);
+    timer_mod(&s->reload_timer,
+              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + mcxn_pwm_period_ns(s));
 }
 
 static uint64_t mcxn_pwm_read(void *opaque, hwaddr offset, unsigned size)
@@ -91,6 +139,13 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
         uint16_t cldok = (mctrl & PWM_MCTRL_CLDOK_MASK) >> 4;
         (void)cldok;   /* load is instantaneous, so LDOK is already cleared */
         pwm_st16(s, PWM_MCTRL, run);
+        /* Submodule-0 RUN gates the periodic reload timer. */
+        if (run & PWM_MCTRL_RUN_SM0) {
+            timer_mod(&s->reload_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                                        mcxn_pwm_period_ns(s));
+        } else {
+            timer_del(&s->reload_timer);
+        }
         return;
     }
 
@@ -102,6 +157,9 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
                 uint16_t cur = pwm_ld16(s, sts);
                 cur &= ~((uint16_t)value & PWM_STS_W1C_MASK);
                 pwm_st16(s, sts, cur);
+                if (n == 0) {
+                    mcxn_pwm_update_irq(s);
+                }
                 return;
             }
         }
@@ -120,6 +178,11 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
             s->regs[offset + i] = (value >> (8 * i)) & 0xff;
         }
     }
+
+    /* A write touching submodule-0 INTEN can change the interrupt condition. */
+    if (offset <= PWM_SM_INTEN + 1 && offset + size > PWM_SM_INTEN) {
+        mcxn_pwm_update_irq(s);
+    }
 }
 
 static const MemoryRegionOps mcxn_pwm_ops = {
@@ -137,6 +200,8 @@ static void mcxn_pwm_reset(DeviceState *dev)
     MCXNPWMState *s = MCXN_PWM(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+    timer_del(&s->reload_timer);
+    qemu_set_irq(s->irq, 0);
 }
 
 static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
@@ -147,6 +212,7 @@ static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_PWM, MCXN_PWM_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    timer_init_ns(&s->reload_timer, QEMU_CLOCK_VIRTUAL, mcxn_pwm_reload_tick, s);
 }
 
 static const VMStateDescription vmstate_mcxn_pwm = {
@@ -155,6 +221,7 @@ static const VMStateDescription vmstate_mcxn_pwm = {
     .minimum_version_id = 1,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNPWMState, MCXN_PWM_SIZE),
+        VMSTATE_TIMER(reload_timer, MCXNPWMState),
         VMSTATE_END_OF_LIST()
     },
 };

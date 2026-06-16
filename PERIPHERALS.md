@@ -74,7 +74,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `PORT` | 6 | ◐ pin-mux stub (adequate) |
 | `POWERQUAD` | 1 | ✅ functional + active (compute-launch -> completion IRQ 76 to NVIC; tests/mcxn-powerquad) |
 | `PUF` | 1 | ✅ functional (register-accurate) |
-| `PWM` | 2 | ✅ functional (register-accurate; eFlexPWM, LDOK self-clear) |
+| `PWM` | 2 | ✅ functional + active (submodule-0 counter -> periodic reload IRQ 114/120 to NVIC; tests/mcxn-pwm) |
 | `QDC` | 2 | ✅ functional (register-accurate; quadrature decoder) |
 | `RTC` | 1 | ✅ functional + active (live 1 Hz calendar tick + alarm match -> IRQ 52 to NVIC; tests/mcxn-rtc) |
 | `SAI` | 2 | ✅ functional + active (TX FIFO-request interrupt FRF&FRIE -> IRQ 59/60 to NVIC; tests/mcxn-sai) |
@@ -116,6 +116,7 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **SAI** — TX FIFO-request interrupt (FRF & FRIE) IRQ (59/60). `tests/mcxn-sai`.
 - [x] **DAC** — FIFO watermark interrupt (FSR.WM & IER.WM_IE) IRQ (106/107/108). `tests/mcxn-dac`.
 - [x] **PowerQuad** — compute-launch -> completion IRQ (76). `tests/mcxn-powerquad`.
+- [x] **PWM** — submodule-0 running counter -> periodic reload IRQ (114/120, QEMUTimer). `tests/mcxn-pwm`.
 
 Priority order (remaining):
 - **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C), I3C transfers.
