@@ -35,6 +35,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNState, MCXN_SOC)
 #define MCXN_NUM_PORT 6
 #define MCXN_NUM_CTIMER 5   /* CTIMER0..4 */
 #define MCXN_NUM_LPTMR 2    /* LPTMR0..1 */
+#define MCXN_NUM_FLEXCOMM 10 /* LP_FLEXCOMM0..9 (LPUART mode) */
 
 /*
  * Per-SKU configuration.
@@ -64,7 +65,7 @@ struct MCXNState {
     /*< public >*/
     ARMv7MState  armv7m[MCXN_MAX_CPUS];   /* dual Cortex-M33 (cpu0 + cpu1) */
     MemoryRegion cpu_mem[MCXN_MAX_CPUS];  /* per-core alias view of the SoC map */
-    MCXNLPUARTState flexcomm4;     /* FRDM debug console (LPUART4) */
+    MCXNLPUARTState flexcomm[MCXN_NUM_FLEXCOMM]; /* LP_FLEXCOMM0..9 (LPUART) */
     MCXNSCGState    scg0;          /* system clock generator (stub) */
     MCXNSysconState syscon;        /* CPU1 boot control (CPUCTRL/CPBOOT) */
     MCXNSPCState    spc0;          /* system power controller */
@@ -84,7 +85,7 @@ struct MCXNState {
     MemoryRegion rom;     MemoryRegion rom_alias;    /* 0x03000000 / 0x13000000 */
     MemoryRegion sramx;   MemoryRegion sramx_alias;  /* 0x04000000 / 0x14000000 */
     MemoryRegion sram;    MemoryRegion sram_alias;   /* 0x20000000 / 0x30000000 */
-    MemoryRegion flexcomm4_s_alias; /* TrustZone secure alias of the console */
+    MemoryRegion flexcomm_s_alias[MCXN_NUM_FLEXCOMM]; /* secure aliases */
     MemoryRegion scg0_s_alias;      /* TrustZone secure alias of SCG0 */
     MemoryRegion syscon_s_alias;    /* TrustZone secure alias of SYSCON */
     MemoryRegion spc0_s_alias;      /* TrustZone secure alias of SPC */

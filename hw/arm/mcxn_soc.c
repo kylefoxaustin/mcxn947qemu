@@ -112,6 +112,16 @@ static const struct { hwaddr base; int irq; } mcxn_lptmr_cfg[MCXN_NUM_LPTMR] = {
     { 0x4004A000, 143 }, { 0x4004B000, 144 },
 };
 
+/* LP_FLEXCOMM0..9 in LPUART mode: base, NVIC IRQ, and host -serial index
+ * (-1 = no backend).  FlexComm4 = cpu0 console, FlexComm2 = cpu1 console. */
+static const struct { hwaddr base; int irq; int serial; }
+mcxn_flexcomm_cfg[MCXN_NUM_FLEXCOMM] = {
+    { 0x40092000, 35, -1 }, { 0x40093000, 36, -1 }, { 0x40094000, 37,  1 },
+    { 0x40095000, 38, -1 }, { 0x400B4000, 39,  0 }, { 0x400B5000, 40, -1 },
+    { 0x400B6000, 41, -1 }, { 0x400B7000, 42, -1 }, { 0x400B8000, 43, -1 },
+    { 0x400B9000, 44, -1 },
+};
+
 /* Every other peripheral present on the SoC, covered by the generic permissive
  * stub until it gets a real model (see mcxn_peripherals.inc). */
 typedef struct MCXNStubDesc {
@@ -164,7 +174,10 @@ static void mcxn_soc_instance_init(Object *obj)
         g_autofree char *name = g_strdup_printf("cpu%d", i);
         object_initialize_child(obj, name, &s->armv7m[i], TYPE_ARMV7M);
     }
-    object_initialize_child(obj, "flexcomm4", &s->flexcomm4, TYPE_MCXN_LPUART);
+    for (i = 0; i < MCXN_NUM_FLEXCOMM; i++) {
+        g_autofree char *name = g_strdup_printf("flexcomm%d", i);
+        object_initialize_child(obj, name, &s->flexcomm[i], TYPE_MCXN_LPUART);
+    }
     object_initialize_child(obj, "scg0", &s->scg0, TYPE_MCXN_SCG);
     object_initialize_child(obj, "syscon", &s->syscon, TYPE_MCXN_SYSCON);
     object_initialize_child(obj, "spc0", &s->spc0, TYPE_MCXN_SPC);
@@ -300,22 +313,33 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
      */
     create_unimplemented_device("mcxn.periph", 0x40000000, 0x20000000);
 
-    /* FlexComm4 / LPUART4 console.  Mapped at default priority, so it overrides
-     * the low-priority catch-all at this address.  serial_hd(0) wires it to the
-     * board's -serial chardev (e.g. -serial mon:stdio). */
-    qdev_prop_set_chr(DEVICE(&s->flexcomm4), "chardev", serial_hd(0));
-    if (!sysbus_realize(SYS_BUS_DEVICE(&s->flexcomm4), errp)) {
-        return;
+    /* LP_FLEXCOMM0..9 as LPUARTs: each NS-mapped + secure alias, NVIC line
+     * connected.  The console instances bind a host -serial chardev
+     * (FlexComm4 = cpu0 console on serial_hd(0); FlexComm2 = cpu1 on
+     * serial_hd(1)); the rest run without a host backend. */
+    for (i = 0; i < MCXN_NUM_FLEXCOMM; i++) {
+        DeviceState *fc = DEVICE(&s->flexcomm[i]);
+        g_autofree char *aname = g_strdup_printf("mcxn.flexcomm%d.s", i);
+        Chardev *chr = (mcxn_flexcomm_cfg[i].serial >= 0)
+                       ? serial_hd(mcxn_flexcomm_cfg[i].serial) : NULL;
+
+        if (chr) {
+            qdev_prop_set_chr(fc, "chardev", chr);
+        }
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->flexcomm[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->flexcomm[i]), 0,
+                        mcxn_flexcomm_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            mcxn_flexcomm_cfg[i].irq));
+        memory_region_init_alias(&s->flexcomm_s_alias[i], OBJECT(dev), aname,
+                                 &s->flexcomm[i].iomem, 0, 0x1000);
+        memory_region_add_subregion(system_memory,
+                                     mcxn_flexcomm_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->flexcomm_s_alias[i]);
     }
-    sysbus_mmio_map(SYS_BUS_DEVICE(&s->flexcomm4), 0, MCXN_FLEXCOMM4_BASE);
-    sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm4), 0,
-                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), MCXN_FLEXCOMM4_IRQ));
-    /* Secure alias so TrustZone-secure firmware reaches the same console regs. */
-    memory_region_init_alias(&s->flexcomm4_s_alias, OBJECT(dev),
-                             "mcxn.flexcomm4.s", &s->flexcomm4.iomem, 0, 0x1000);
-    memory_region_add_subregion(system_memory,
-                                MCXN_FLEXCOMM4_BASE + MCXN_SECURE_ALIAS,
-                                &s->flexcomm4_s_alias);
 
     /* SCG0 clock generator (stub: reports oscillators/PLLs ready). */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->scg0), errp)) {

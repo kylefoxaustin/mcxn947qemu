@@ -56,8 +56,8 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `LPI2C` | 10 | ○ stub (present, readback, non-blocking) |
 | `LPSPI` | 10 | ○ stub (present, readback, non-blocking) |
 | `LPTMR` | 2 | ✅ functional (up-count to compare -> NVIC IRQ) |
-| `LPUART` | 10 | ◐ console only (FlexComm4); others stubbed |
-| `LP_FLEXCOMM` | 10 | ◐ console only (FlexComm4); others stubbed |
+| `LPUART` | 10 | ✅ functional (10 FlexComm UARTs) |
+| `LP_FLEXCOMM` | 10 | ✅ functional (all 10 as LPUART; cpu0+cpu1 consoles) |
 | `MAILBOX` | 1 | ○ stub (present, readback, non-blocking) |
 | `MRT` | 1 | ✅ functional (4-ch down-counter -> NVIC IRQ) |
 | `NPX` | 1 | ○ stub (present, readback, non-blocking) |
