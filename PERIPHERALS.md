@@ -23,8 +23,8 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `ADC` | 2 | ○ stub (present, readback, non-blocking) |
 | `AHBSC` | 1 | ○ stub (present, readback, non-blocking) |
 | `BSP32` | 1 | ○ stub (present, readback, non-blocking) |
-| `CACHE64_CTRL` | 1 | ○ stub (present, readback, non-blocking) |
-| `CACHE64_POLSEL` | 1 | ○ stub (present, readback, non-blocking) |
+| `CACHE64_CTRL` | 1 | ✅ functional (register-accurate) |
+| `CACHE64_POLSEL` | 1 | ✅ functional (register-accurate) |
 | `CAN` | 2 | ○ stub (present, readback, non-blocking) |
 | `CDOG` | 2 | ✅ functional (register-accurate) |
 | `CMC` | 1 | ✅ functional (register-accurate) |
@@ -63,7 +63,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `NPX` | 1 | ○ stub (present, readback, non-blocking) |
 | `OPAMP` | 3 | ○ stub (present, readback, non-blocking) |
 | `OSTIMER` | 1 | ○ stub (present, readback, non-blocking) |
-| `OTPC` | 1 | ○ stub (present, readback, non-blocking) |
+| `OTPC` | 1 | ✅ functional (register-accurate) |
 | `PDM` | 1 | ○ stub (present, readback, non-blocking) |
 | `PINT` | 1 | ○ stub (present, readback, non-blocking) |
 | `PKC` | 1 | ○ stub (present, readback, non-blocking) |
@@ -93,9 +93,9 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `USBPHY` | 1 | ○ stub (present, readback, non-blocking) |
 | `USDHC` | 1 | ○ stub (present, readback, non-blocking) |
 | `UTICK` | 1 | ○ stub (present, readback, non-blocking) |
-| `VBAT` | 1 | ○ stub (present, readback, non-blocking) |
+| `VBAT` | 1 | ✅ functional (register-accurate) |
 | `VREF` | 1 | ○ stub (present, readback, non-blocking) |
-| `WUU` | 1 | ○ stub (present, readback, non-blocking) |
+| `WUU` | 1 | ✅ functional (register-accurate) |
 | `WWDT` | 2 | ○ stub (present, readback, non-blocking) |
 ## Next functional upgrades (active blocks that need real behaviour)
 Priority order — blocks whose behaviour real firmware/tests can observe:

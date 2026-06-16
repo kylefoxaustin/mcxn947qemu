@@ -327,3 +327,15 @@ config MCXN_SEMA42
 
 config MCXN_MAILBOX
     bool
+
+config MCXN_VBAT
+    bool
+
+config MCXN_WUU
+    bool
+
+config MCXN_OTPC
+    bool
+
+config MCXN_CACHE64_CTRL
+    bool

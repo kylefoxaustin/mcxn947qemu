@@ -749,6 +749,10 @@ config MCXN_SOC
     select MCXN_CMX_PERFMON
     select MCXN_SEMA42
     select MCXN_MAILBOX
+    select MCXN_VBAT
+    select MCXN_WUU
+    select MCXN_OTPC
+    select MCXN_CACHE64_CTRL
     select MCXN_GPIO
     select MCXN_PORT
 

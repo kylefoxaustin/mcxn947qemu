@@ -36,6 +36,10 @@
 #include "hw/misc/mcxn_cmx_perfmon.h"
 #include "hw/misc/mcxn_sema42.h"
 #include "hw/misc/mcxn_mailbox.h"
+#include "hw/misc/mcxn_vbat.h"
+#include "hw/misc/mcxn_wuu.h"
+#include "hw/misc/mcxn_otpc.h"
+#include "hw/misc/mcxn_cache64_ctrl.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -159,6 +163,11 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_CMX_PERFMON, 0x400C2000 },   /* CMX_PERFMON1 */
     { TYPE_MCXN_SEMA42,   0x400B1000 },
     { TYPE_MCXN_MAILBOX,  0x400B2000 },
+    { TYPE_MCXN_VBAT,     0x40059000 },
+    { TYPE_MCXN_WUU,      0x40046000 },
+    { TYPE_MCXN_OTPC,     0x400C9000 },
+    /* One CACHE64 device covers the full window (POLSEL @0x14, CTRL @0x800). */
+    { TYPE_MCXN_CACHE64_CTRL, 0x4001B000 },
 };
 
 static const MCXNConfig *mcxn_lookup(const char *part)
