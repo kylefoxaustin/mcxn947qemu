@@ -185,6 +185,7 @@ static void mcxn_soc_instance_init(Object *obj)
         g_autofree char *name = g_strdup_printf("lptmr%d", i);
         object_initialize_child(obj, name, &s->lptmr[i], TYPE_MCXN_LPTMR);
     }
+    object_initialize_child(obj, "fmu0", &s->fmu0, TYPE_MCXN_FMU);
 
     /* Input clocks the board drives; forwarded to the ARMV7M container. */
     s->sysclk = qdev_init_clock_in(DEVICE(s), "sysclk", NULL, NULL, 0);
@@ -433,6 +434,21 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      mcxn_lptmr_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->lptmr_s_alias[i]);
     }
+
+    /* FMU flash controller: knows the flash backing so erase/verify work;
+     * IRQ to cpu0 NVIC. */
+    s->fmu0.flash = &s->flash;
+    s->fmu0.flash_size = cfg->flash_size;
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->fmu0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->fmu0), 0, 0x40043000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->fmu0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 138));
+    memory_region_init_alias(&s->fmu0_s_alias, OBJECT(dev), "mcxn.fmu0.s",
+                             &s->fmu0.iomem, 0, 0x1000);
+    memory_region_add_subregion(system_memory, 0x40043000 + MCXN_SECURE_ALIAS,
+                                &s->fmu0_s_alias);
 
     /* Functional register-accurate config blocks (MMIO only): each NS + secure
      * alias.  Instantiated dynamically since they need no IRQ/clock wiring. */

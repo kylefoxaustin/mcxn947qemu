@@ -44,7 +44,7 @@ blinky toggles GPIO) runs without hitting an unmodelled hang.
 | `EWM` | 1 | ✅ functional (register-accurate) |
 | `FLEXIO` | 1 | ○ stub (present, readback, non-blocking) |
 | `FLEXSPI` | 1 | ○ stub (present, readback, non-blocking) |
-| `FMU` | 1 | ○ stub (present, readback, non-blocking) |
+| `FMU` | 1 | ✅ functional (erase/program/verify flash controller) |
 | `FMU0TEST` | 1 | ○ stub (present, readback, non-blocking) |
 | `FREQME` | 1 | ✅ functional (register-accurate) |
 | `GDET` | 2 | ✅ functional (register-accurate) |

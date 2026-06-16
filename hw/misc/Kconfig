@@ -315,3 +315,6 @@ config MCXN_ERM
 
 config MCXN_INTM
     bool
+
+config MCXN_FMU
+    bool
