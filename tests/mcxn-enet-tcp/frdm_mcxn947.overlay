@@ -1,0 +1,17 @@
+/* Enable the MCXN947 ENET-QoS MAC + MDIO + a PHY at MDIO address 2
+ * (matching the mcxn-enet QEMU model's modelled PHY). */
+&enet_mac {
+	status = "okay";
+	phy-connection-type = "rmii";
+	zephyr,random-mac-address;
+	phy-handle = <&eth_phy>;
+};
+
+&enet_mdio {
+	status = "okay";
+	eth_phy: ethernet-phy@2 {
+		compatible = "ethernet-phy";
+		reg = <2>;
+		status = "okay";
+	};
+};

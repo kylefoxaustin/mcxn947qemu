@@ -62,3 +62,4 @@ tests/mcxn-enet-x2/*.elf
 tests/mcxn-enet-tcpip/*.elf
 tests/mcxn-soak/incidents/
 /build-san/
+tests/mcxn-enet-tcp/*.elf
