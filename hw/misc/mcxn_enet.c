@@ -115,8 +115,10 @@
  * Model PHY: a single Clause-22 PHY answering at MDIO address 2 (a common
  * default for the FRDM-MCXN947 RMII PHY).  It reports link-up with
  * auto-negotiation complete so a driver's "wait for link" loop terminates.
- * The PHY identity is a plausible Microchip LAN8741-class value (model data,
- * not silicon-verified).
+ * The PHY identity is the exact Microchip LAN8741 ID so the stock NXP
+ * `phylan8741` SDK driver recognises it: devId = (ID1<<16)+ID2 with the low
+ * revision nibble masked must equal (OUI<<10)|(model<<4) = (0x1F0<<10)|(0x12<<4)
+ * = 0x0007_C120, i.e. ID1=0x0007, ID2=0xC120.
  */
 #define ENET_PHY_ADDR    2
 #define PHY_BMCR         0x00
@@ -126,7 +128,7 @@
 #define PHY_BMCR_RESET   0x1140u  /* AN enable, 100M, full-duplex */
 #define PHY_BMSR_VALUE   0x782Du  /* 10/100 capable, AN able+complete, link up */
 #define PHY_ID1_VALUE    0x0007u
-#define PHY_ID2_VALUE    0xC110u
+#define PHY_ID2_VALUE    0xC120u  /* LAN8741: OUI 0x1F0, model 0x12, rev 0 */
 
 /*
  * Read-only identification constants.  The RM does not document an explicit
