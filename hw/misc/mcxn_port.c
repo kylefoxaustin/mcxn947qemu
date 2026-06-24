@@ -40,7 +40,13 @@ static const MemoryRegionOps mcxn_port_ops = {
     .read = mcxn_port_read,
     .write = mcxn_port_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .valid.min_access_size = 4,
+    /*
+     * The NXP SDK PORT driver writes PCR as a 16-bit halfword (PORT_SetPinConfig
+     * does `*(volatile uint16_t*)&base->PCR[pin] = ...`).  Accept byte/halfword
+     * accesses from the guest; keep the handler word-only (impl=4) so QEMU
+     * adapts sub-word writes into a word read-modify-write over regs[].
+     */
+    .valid.min_access_size = 1,
     .valid.max_access_size = 4,
     .impl.min_access_size = 4,
     .impl.max_access_size = 4,
