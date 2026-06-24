@@ -28,6 +28,13 @@
 #define LPUART_FIFO     0x28
 #define LPUART_WATER    0x2C
 #define LPUART_DATARO   0x30  /* RO */
+#define LPUART_REIR     0x48  /* Receiver Extended Idle */
+#define LPUART_TEIR     0x4C  /* Transmitter Extended Idle */
+#define LPUART_HDCR     0x50  /* Half Duplex Control */
+#define LPUART_TOCR     0x58  /* Timeout Control */
+#define LPUART_TOSR     0x5C  /* Timeout Status */
+#define LPUART_TIMEOUT0 0x60  /* Timeout 0..3 (step 4) */
+#define LPUART_TIMEOUT3 0x6C
 
 /* --- LP_FLEXCOMM wrapper register offsets ---------------------------------- */
 #define LPFLEXCOMM_ISTAT   0xFF4  /* RO */
@@ -55,7 +62,18 @@
 
 #define PSELID_PERSEL   0x7u
 #define PSELID_LOCK     0x8u
-#define PERSEL_LPUART   3u    /* USART function */
+#define PERSEL_LPUART   1u    /* LP_FLEXCOMM_PERIPH_LPUART (CMSIS enum value) */
+/*
+ * Read-only capability bits in PSELID: a full LP_FLEXCOMM (as FlexComm4 is)
+ * advertises LPUART/LPSPI/LPI2C present.  The MCUXpresso SDK gates LPUART_Init
+ * on UARTPRESENT via LP_FLEXCOMM_PeripheralIsPresent() — without it the console
+ * driver bails before programming BAUD/CTRL and PRINTF silently emits nothing.
+ */
+#define PSELID_UARTPRESENT  0x10u
+#define PSELID_SPIPRESENT   0x20u
+#define PSELID_I2CPRESENT   0x40u
+#define PSELID_PRESENT_BITS \
+    (PSELID_UARTPRESENT | PSELID_SPIPRESENT | PSELID_I2CPRESENT)
 
 /*
  * VERID/PARAM are read by some HALs to size the FIFO.  Values are plausible
@@ -136,11 +154,30 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
     case LPUART_WATER:
         r = s->water;
         break;
+    case LPUART_REIR:
+        r = s->reir;
+        break;
+    case LPUART_TEIR:
+        r = s->teir;
+        break;
+    case LPUART_HDCR:
+        r = s->hdcr;
+        break;
+    case LPUART_TOCR:
+        r = s->tocr;
+        break;
+    case LPUART_TOSR:
+        r = s->tosr;
+        break;
+    case LPUART_TIMEOUT0 ... LPUART_TIMEOUT3:
+        r = s->timeout[(offset - LPUART_TIMEOUT0) >> 2];
+        break;
     case LPFLEXCOMM_ISTAT:
         r = 0;   /* no FlexComm-level interrupts modelled */
         break;
     case LPFLEXCOMM_PSELID:
-        r = s->pselid;
+        /* writable PERSEL/LOCK plus the RO present-capability bits */
+        r = s->pselid | PSELID_PRESENT_BITS;
         break;
     default:
         qemu_log_mask(LOG_UNIMP, "%s: unhandled read @0x%03" HWADDR_PRIx "\n",
@@ -172,6 +209,13 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
     case LPUART_BAUD:
         s->baud = value;
         break;
+    case LPUART_STAT:
+        /*
+         * STAT is computed on read (TX always ready, RDRF tracks rx).  The
+         * write-1-to-clear flag bits the SDK clears here have no standalone
+         * model state, so accept and ignore the write.
+         */
+        break;
     case LPUART_CTRL:
         s->ctrl = value;
         mcxn_lpuart_update_irq(s);
@@ -195,6 +239,24 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
         break;
     case LPUART_WATER:
         s->water = value;
+        break;
+    case LPUART_REIR:
+        s->reir = value;
+        break;
+    case LPUART_TEIR:
+        s->teir = value;
+        break;
+    case LPUART_HDCR:
+        s->hdcr = value;
+        break;
+    case LPUART_TOCR:
+        s->tocr = value;
+        break;
+    case LPUART_TOSR:
+        s->tosr = value;
+        break;
+    case LPUART_TIMEOUT0 ... LPUART_TIMEOUT3:
+        s->timeout[(offset - LPUART_TIMEOUT0) >> 2] = value;
         break;
     case LPFLEXCOMM_PSELID:
         s->pselid = value & (PSELID_PERSEL | PSELID_LOCK);
@@ -248,6 +310,8 @@ static void mcxn_lpuart_reset(DeviceState *dev)
     s->global = s->pincfg = s->baud = s->ctrl = 0;
     s->match = s->modir = s->fifo = s->water = 0;
     s->pselid = PERSEL_LPUART;   /* default selection for a console instance */
+    s->reir = s->teir = s->hdcr = s->tocr = s->tosr = 0;
+    s->timeout[0] = s->timeout[1] = s->timeout[2] = s->timeout[3] = 0;
     s->rx_byte = 0;
     s->rx_full = false;
 }
@@ -280,6 +344,12 @@ static const VMStateDescription vmstate_mcxn_lpuart = {
         VMSTATE_UINT32(fifo, MCXNLPUARTState),
         VMSTATE_UINT32(water, MCXNLPUARTState),
         VMSTATE_UINT32(pselid, MCXNLPUARTState),
+        VMSTATE_UINT32(reir, MCXNLPUARTState),
+        VMSTATE_UINT32(teir, MCXNLPUARTState),
+        VMSTATE_UINT32(hdcr, MCXNLPUARTState),
+        VMSTATE_UINT32(tocr, MCXNLPUARTState),
+        VMSTATE_UINT32(tosr, MCXNLPUARTState),
+        VMSTATE_UINT32_ARRAY(timeout, MCXNLPUARTState, 4),
         VMSTATE_UINT8(rx_byte, MCXNLPUARTState),
         VMSTATE_BOOL(rx_full, MCXNLPUARTState),
         VMSTATE_END_OF_LIST()

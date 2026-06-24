@@ -39,6 +39,14 @@ struct MCXNLPUARTState {
     uint32_t water;
     uint32_t pselid;     /* LP_FLEXCOMM peripheral-select */
 
+    /* Extended/timeout registers the SDK driver zeroes during init (0x48..0x6C). */
+    uint32_t reir;       /* Receiver Extended Idle    @0x48 */
+    uint32_t teir;       /* Transmitter Extended Idle @0x4C */
+    uint32_t hdcr;       /* Half Duplex Control       @0x50 */
+    uint32_t tocr;       /* Timeout Control           @0x58 */
+    uint32_t tosr;       /* Timeout Status            @0x5C */
+    uint32_t timeout[4]; /* Timeout 0..3              @0x60..0x6C */
+
     uint8_t  rx_byte;
     bool     rx_full;
 };
