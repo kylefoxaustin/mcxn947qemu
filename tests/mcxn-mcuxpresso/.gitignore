@@ -1,0 +1,5 @@
+# MCUXpresso SDK binaries are NOT redistributed — never commit a built ELF.
+*.elf
+*.bin
+*.map
+*.o
