@@ -1,11 +1,13 @@
 /*
- * NXP MCX N LP_FLEXCOMM in LPUART (USART) mode — console model
+ * NXP MCX N LP_FLEXCOMM — LPUART / LPSPI / LPI2C function-selectable model
  *
- * Models one FlexComm instance as an LPUART.  The LPUART core registers sit at
+ * Models one FlexComm instance.  The selected function's core registers sit at
  * the bottom of the 4 KiB block; the LP_FLEXCOMM wrapper (ISTAT @ 0xFF4,
- * PSELID @ 0xFF8) sits at the top.  Register layout is the standard NXP LPUART,
- * identical to i.MX 93/95 — an existing i.MX LPUART model ports across almost
- * unchanged.
+ * PSELID @ 0xFF8) sits at the top.  PSELID.PERSEL selects LPUART (1), LPSPI (2)
+ * or LPI2C (3); the device decodes the matching register map and they share one
+ * NVIC line.  The LPUART layout is the standard NXP LPUART, identical to
+ * i.MX 93/95.  LPSPI/LPI2C model the master/controller transfer engine with
+ * internal loopback/echo (see mcxn_lpuart.c).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -49,6 +51,36 @@ struct MCXNLPUARTState {
 
     uint8_t  rx_byte;
     bool     rx_full;
+
+    /*
+     * LP_FLEXCOMM SPI / I2C function state.  The same 4 KiB window decodes as
+     * LPSPI (PERSEL=2) or LPI2C (PERSEL=3) instead of LPUART.  These model the
+     * controller (master) transfer engine only — there is no external SPI/I2C
+     * bus, so a master transfer completes synchronously with internal
+     * loopback/echo, mirroring the FlexCAN MB-loopback and I3C completion
+     * models.  All offsets/bits are from the MCXN947 CMSIS header.
+     */
+    /* LPSPI (master) */
+    uint32_t spi_cr;
+    uint32_t spi_sr;      /* latched W1C flags (WCF/FCF/TCF) */
+    uint32_t spi_ier;
+    uint32_t spi_cfgr0;
+    uint32_t spi_cfgr1;
+    uint32_t spi_ccr;
+    uint32_t spi_fcr;
+    uint32_t spi_tcr;
+    uint32_t spi_rdr;     /* rx data holding */
+    bool     spi_rx_full;
+
+    /* LPI2C (master) */
+    uint32_t i2c_mcr;
+    uint32_t i2c_msr;     /* latched W1C flags (EPF/SDF/NDF) */
+    uint32_t i2c_mier;
+    uint32_t i2c_mcfgr1;
+    uint32_t i2c_mrdr;    /* rx data holding */
+    bool     i2c_rx_full;
+    bool     i2c_busy;    /* asserted between START and STOP */
+    uint8_t  i2c_last_tx; /* echoed back by a receive command */
 };
 
 #endif /* HW_CHAR_MCXN_LPUART_H */

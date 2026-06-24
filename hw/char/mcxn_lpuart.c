@@ -82,28 +82,390 @@
 #define LPUART_VERID_VALUE  0x04010003u
 #define LPUART_PARAM_VALUE  0x00000404u  /* TX/RX FIFO depth fields */
 
-static void mcxn_lpuart_update_irq(MCXNLPUARTState *s)
-{
-    int level = 0;
+/* PERSEL function selections (LP_FLEXCOMM_PERIPH_T, CMSIS enum). */
+#define PERSEL_LPSPI    2u
+#define PERSEL_LPI2C    3u
 
-    /* TX data-register-empty and transmit-complete are always asserted in this
-     * model (writes are synchronous), so TIE/TCIE assert the line immediately. */
-    if (s->ctrl & CTRL_TIE) {
-        level = 1;
+/* LP_FLEXCOMM ISTAT (0xFF4) per-function interrupt-pending bits (CMSIS). */
+#define ISTAT_UARTTX    0x1u
+#define ISTAT_UARTRX    0x2u
+#define ISTAT_SPI       0x4u
+#define ISTAT_I2CM      0x10u
+
+/* === LPSPI register offsets (PERSEL = 2, master view) ====================== */
+#define LPSPI_VERID     0x00  /* RO */
+#define LPSPI_PARAM     0x04  /* RO */
+#define LPSPI_CR        0x10
+#define LPSPI_SR        0x14
+#define LPSPI_IER       0x18
+#define LPSPI_DER       0x1C
+#define LPSPI_CFGR0     0x20
+#define LPSPI_CFGR1     0x24
+#define LPSPI_CCR       0x40
+#define LPSPI_CCR1      0x44
+#define LPSPI_FCR       0x58
+#define LPSPI_FSR       0x5C  /* RO */
+#define LPSPI_TCR       0x60
+#define LPSPI_TDR       0x64  /* WO */
+#define LPSPI_RSR       0x70  /* RO */
+#define LPSPI_RDR       0x74  /* RO */
+#define LPSPI_RDROR     0x78  /* RO */
+
+#define LPSPI_CR_MEN    0x1u
+#define LPSPI_CR_RST    0x2u
+#define LPSPI_CR_RTF    0x100u  /* reset TX FIFO (self-clearing) */
+#define LPSPI_CR_RRF    0x200u  /* reset RX FIFO (self-clearing) */
+#define LPSPI_SR_TDF    0x1u
+#define LPSPI_SR_RDF    0x2u
+#define LPSPI_SR_WCF    0x100u
+#define LPSPI_SR_FCF    0x200u
+#define LPSPI_SR_TCF    0x400u
+#define LPSPI_SR_W1C    (LPSPI_SR_WCF | LPSPI_SR_FCF | LPSPI_SR_TCF)
+#define LPSPI_IER_TDIE  0x1u
+#define LPSPI_IER_RDIE  0x2u
+#define LPSPI_TCR_FRAMESZ 0xFFFu
+#define LPSPI_TCR_RXMSK 0x80000u
+#define LPSPI_RSR_RXEMPTY 0x2u
+
+#define LPSPI_VERID_VALUE  0x01010004u
+#define LPSPI_PARAM_VALUE  0x00040404u  /* PCSNUM=4, RX/TX FIFO depth exp=4 */
+
+/* === LPI2C register offsets (PERSEL = 3, controller/master view) =========== */
+#define LPI2C_VERID     0x00  /* RO */
+#define LPI2C_PARAM     0x04  /* RO */
+#define LPI2C_MCR       0x10
+#define LPI2C_MSR       0x14
+#define LPI2C_MIER      0x18
+#define LPI2C_MDER      0x1C
+#define LPI2C_MCFGR0    0x20
+#define LPI2C_MCFGR1    0x24
+#define LPI2C_MCFGR2    0x28
+#define LPI2C_MCFGR3    0x2C
+#define LPI2C_MCCR0     0x48
+#define LPI2C_MCCR1     0x50
+#define LPI2C_MFCR      0x58
+#define LPI2C_MFSR      0x5C  /* RO */
+#define LPI2C_MTDR      0x60  /* WO */
+#define LPI2C_MRDR      0x70  /* RO */
+
+#define LPI2C_MCR_MEN   0x1u
+#define LPI2C_MCR_RST   0x2u
+#define LPI2C_MCR_RTF   0x100u  /* reset TX FIFO (self-clearing) */
+#define LPI2C_MCR_RRF   0x200u  /* reset RX FIFO (self-clearing) */
+#define LPI2C_MSR_TDF   0x1u
+#define LPI2C_MSR_RDF   0x2u
+#define LPI2C_MSR_EPF   0x100u
+#define LPI2C_MSR_SDF   0x200u
+#define LPI2C_MSR_NDF   0x400u
+#define LPI2C_MSR_MBF   0x1000000u
+#define LPI2C_MSR_BBF   0x2000000u
+#define LPI2C_MSR_W1C   (LPI2C_MSR_EPF | LPI2C_MSR_SDF | LPI2C_MSR_NDF)
+#define LPI2C_MIER_TDIE 0x1u
+#define LPI2C_MIER_RDIE 0x2u
+#define LPI2C_MRDR_RXEMPTY 0x4000u
+#define LPI2C_MTDR_CMD_SHIFT 8
+#define LPI2C_MTDR_CMD_MASK  0x700u
+#define LPI2C_MTDR_DATA_MASK 0xFFu
+/* MTDR command field [10:8] (CMSIS RM): */
+#define LPI2C_CMD_TXDATA   0u   /* transmit DATA byte                    */
+#define LPI2C_CMD_RXDATA   1u   /* receive (DATA+1) bytes                */
+#define LPI2C_CMD_STOP     2u   /* generate STOP                         */
+#define LPI2C_CMD_START    4u   /* generate (re)START + transmit address; 4..7 are START variants */
+
+#define LPI2C_VERID_VALUE  0x01000003u
+#define LPI2C_PARAM_VALUE  0x00000202u  /* M TX/RX FIFO depth exp=2 (4 deep) */
+
+/* Dynamic LPSPI status: latched W1C flags plus the always-current TDF/RDF. */
+static uint32_t mcxn_lpspi_status(MCXNLPUARTState *s)
+{
+    uint32_t sr = s->spi_sr;
+    if (s->spi_cr & LPSPI_CR_MEN) {
+        sr |= LPSPI_SR_TDF;          /* synchronous TX FIFO always has room */
     }
-    if (s->ctrl & CTRL_TCIE) {
-        level = 1;
+    if (s->spi_rx_full) {
+        sr |= LPSPI_SR_RDF;
     }
-    if ((s->ctrl & CTRL_RIE) && s->rx_full) {
-        level = 1;
+    return sr;
+}
+
+/* Dynamic LPI2C controller status. */
+static uint32_t mcxn_lpi2c_status(MCXNLPUARTState *s)
+{
+    uint32_t msr = s->i2c_msr;
+    if (s->i2c_mcr & LPI2C_MCR_MEN) {
+        msr |= LPI2C_MSR_TDF;        /* synchronous TX FIFO always has room */
     }
-    qemu_set_irq(s->irq, level);
+    if (s->i2c_rx_full) {
+        msr |= LPI2C_MSR_RDF;
+    }
+    if (s->i2c_busy) {
+        msr |= LPI2C_MSR_MBF | LPI2C_MSR_BBF;
+    }
+    return msr;
+}
+
+/*
+ * LP_FLEXCOMM ISTAT (0xFF4): which selected function currently has an enabled
+ * interrupt pending.  The single FlexComm NVIC line is the OR of these; the
+ * SDK's LP_FLEXCOMM IRQ handler reads ISTAT to dispatch to the sub-driver.
+ */
+static uint32_t mcxn_flexcomm_istat(MCXNLPUARTState *s)
+{
+    uint32_t istat = 0;
+
+    switch (s->pselid & PSELID_PERSEL) {
+    case PERSEL_LPSPI:
+        if (s->spi_ier & mcxn_lpspi_status(s)) {
+            istat |= ISTAT_SPI;
+        }
+        break;
+    case PERSEL_LPI2C:
+        if (s->i2c_mier & mcxn_lpi2c_status(s)) {
+            istat |= ISTAT_I2CM;
+        }
+        break;
+    default: /* LPUART (or NONE) */
+        /* TX data-register-empty and transmit-complete are always asserted in
+         * this model (writes are synchronous), so TIE/TCIE assert immediately. */
+        if (s->ctrl & (CTRL_TIE | CTRL_TCIE)) {
+            istat |= ISTAT_UARTTX;
+        }
+        if ((s->ctrl & CTRL_RIE) && s->rx_full) {
+            istat |= ISTAT_UARTRX;
+        }
+        break;
+    }
+    return istat;
+}
+
+static void mcxn_flexcomm_update_irq(MCXNLPUARTState *s)
+{
+    qemu_set_irq(s->irq, mcxn_flexcomm_istat(s) != 0);
+}
+
+/* === LPSPI (master) function ============================================== */
+static uint64_t mcxn_lpspi_read(MCXNLPUARTState *s, hwaddr offset)
+{
+    switch (offset) {
+    case LPSPI_VERID: return LPSPI_VERID_VALUE;
+    case LPSPI_PARAM: return LPSPI_PARAM_VALUE;
+    case LPSPI_CR:    return s->spi_cr;
+    case LPSPI_SR:    return mcxn_lpspi_status(s);
+    case LPSPI_IER:   return s->spi_ier;
+    case LPSPI_CFGR0: return s->spi_cfgr0;
+    case LPSPI_CFGR1: return s->spi_cfgr1;
+    case LPSPI_CCR:   return s->spi_ccr;
+    case LPSPI_FCR:   return s->spi_fcr;
+    case LPSPI_TCR:   return s->spi_tcr;
+    case LPSPI_FSR:   return s->spi_rx_full ? (1u << 16) : 0; /* RXCOUNT=1 */
+    case LPSPI_RSR:   return s->spi_rx_full ? 0 : LPSPI_RSR_RXEMPTY;
+    case LPSPI_RDROR: return s->spi_rdr;                       /* peek, no pop */
+    case LPSPI_RDR: {
+        uint32_t v = s->spi_rdr;
+        if (s->spi_rx_full) {
+            s->spi_rx_full = false;
+            mcxn_flexcomm_update_irq(s);
+        }
+        return v;
+    }
+    default:
+        qemu_log_mask(LOG_UNIMP, "%s: unhandled LPSPI read @0x%03" HWADDR_PRIx
+                      "\n", __func__, offset);
+        return 0;
+    }
+}
+
+static void mcxn_lpspi_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
+{
+    switch (offset) {
+    case LPSPI_CR:
+        if (value & LPSPI_CR_RST) {
+            s->spi_cr = s->spi_sr = s->spi_ier = 0;
+            s->spi_rx_full = false;
+        } else {
+            s->spi_cr = value & ~(LPSPI_CR_RTF | LPSPI_CR_RRF);
+            if (value & LPSPI_CR_RRF) {
+                s->spi_rx_full = false;   /* flush RX FIFO */
+            }
+            /* RTF: TX FIFO is always empty in this synchronous model. */
+        }
+        mcxn_flexcomm_update_irq(s);
+        break;
+    case LPSPI_SR:
+        s->spi_sr &= ~(value & LPSPI_SR_W1C);
+        mcxn_flexcomm_update_irq(s);
+        break;
+    case LPSPI_IER:
+        s->spi_ier = value;
+        mcxn_flexcomm_update_irq(s);
+        break;
+    case LPSPI_CFGR0: s->spi_cfgr0 = value; break;
+    case LPSPI_CFGR1: s->spi_cfgr1 = value; break;
+    case LPSPI_CCR:   s->spi_ccr = value;   break;
+    case LPSPI_FCR:   s->spi_fcr = value;   break;
+    case LPSPI_TCR:   s->spi_tcr = value;   break;
+    case LPSPI_CCR1:
+    case LPSPI_DER:
+        break;  /* accepted, not modelled */
+    case LPSPI_TDR:
+        /*
+         * Master transmit: shift one word out.  With no external device the
+         * word loops straight back into the RX FIFO (a physical MOSI->MISO
+         * jumper), so a self-contained master transfer completes and can read
+         * its own data back — the same loopback idiom as the FlexCAN/I3C
+         * models.  RXMSK in TCR suppresses the receive (write-only transfer).
+         */
+        if (s->spi_cr & LPSPI_CR_MEN) {
+            if (!(s->spi_tcr & LPSPI_TCR_RXMSK)) {
+                uint32_t framesz = (s->spi_tcr & LPSPI_TCR_FRAMESZ) + 1; /* bits */
+                uint32_t mask = (framesz >= 32) ? 0xFFFFFFFFu
+                                                : ((1u << framesz) - 1);
+                s->spi_rdr = value & mask;
+                s->spi_rx_full = true;
+            }
+            s->spi_sr |= LPSPI_SR_WCF | LPSPI_SR_FCF | LPSPI_SR_TCF;
+            mcxn_flexcomm_update_irq(s);
+        }
+        break;
+    default:
+        qemu_log_mask(LOG_UNIMP, "%s: unhandled LPSPI write @0x%03" HWADDR_PRIx
+                      " = 0x%08x\n", __func__, offset, value);
+        break;
+    }
+}
+
+/* === LPI2C (controller/master) function =================================== */
+static uint64_t mcxn_lpi2c_read(MCXNLPUARTState *s, hwaddr offset)
+{
+    switch (offset) {
+    case LPI2C_VERID:  return LPI2C_VERID_VALUE;
+    case LPI2C_PARAM:  return LPI2C_PARAM_VALUE;
+    case LPI2C_MCR:    return s->i2c_mcr;
+    case LPI2C_MSR:    return mcxn_lpi2c_status(s);
+    case LPI2C_MIER:   return s->i2c_mier;
+    case LPI2C_MCFGR1: return s->i2c_mcfgr1;
+    case LPI2C_MFSR:   return s->i2c_rx_full ? (1u << 16) : 0;  /* RXCOUNT=1 */
+    case LPI2C_MRDR: {
+        uint32_t v;
+        if (s->i2c_rx_full) {
+            v = s->i2c_mrdr;
+            s->i2c_rx_full = false;
+            mcxn_flexcomm_update_irq(s);
+        } else {
+            v = LPI2C_MRDR_RXEMPTY;
+        }
+        return v;
+    }
+    case LPI2C_MCFGR0:
+    case LPI2C_MCFGR2:
+    case LPI2C_MCFGR3:
+    case LPI2C_MCCR0:
+    case LPI2C_MCCR1:
+    case LPI2C_MFCR:
+    case LPI2C_MDER:
+        return 0;  /* accepted, not modelled */
+    default:
+        qemu_log_mask(LOG_UNIMP, "%s: unhandled LPI2C read @0x%03" HWADDR_PRIx
+                      "\n", __func__, offset);
+        return 0;
+    }
+}
+
+static void mcxn_lpi2c_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
+{
+    switch (offset) {
+    case LPI2C_MCR:
+        if (value & LPI2C_MCR_RST) {
+            s->i2c_mcr = s->i2c_msr = s->i2c_mier = 0;
+            s->i2c_rx_full = s->i2c_busy = false;
+        } else {
+            s->i2c_mcr = value & ~(LPI2C_MCR_RTF | LPI2C_MCR_RRF);
+            if (value & LPI2C_MCR_RRF) {
+                s->i2c_rx_full = false;
+            }
+        }
+        mcxn_flexcomm_update_irq(s);
+        break;
+    case LPI2C_MSR:
+        s->i2c_msr &= ~(value & LPI2C_MSR_W1C);
+        mcxn_flexcomm_update_irq(s);
+        break;
+    case LPI2C_MIER:
+        s->i2c_mier = value;
+        mcxn_flexcomm_update_irq(s);
+        break;
+    case LPI2C_MCFGR1: s->i2c_mcfgr1 = value; break;
+    case LPI2C_MCFGR0:
+    case LPI2C_MCFGR2:
+    case LPI2C_MCFGR3:
+    case LPI2C_MCCR0:
+    case LPI2C_MCCR1:
+    case LPI2C_MFCR:
+    case LPI2C_MDER:
+        break;  /* accepted, not modelled */
+    case LPI2C_MTDR: {
+        /*
+         * Controller command FIFO.  No external I2C bus is modelled; instead a
+         * tiny echo target ACKs every address and returns the most recently
+         * transmitted byte on a receive command, so a master read-after-write
+         * sequence completes deterministically (the FlexCAN/I3C loopback idiom).
+         */
+        uint32_t cmd = (value & LPI2C_MTDR_CMD_MASK) >> LPI2C_MTDR_CMD_SHIFT;
+        uint8_t data = value & LPI2C_MTDR_DATA_MASK;
+
+        if (!(s->i2c_mcr & LPI2C_MCR_MEN)) {
+            break;
+        }
+        switch (cmd) {
+        case LPI2C_CMD_START:
+        case 5: case 6: case 7:          /* all START + address variants */
+            s->i2c_busy = true;          /* target present -> ACK, no NDF */
+            break;
+        case LPI2C_CMD_TXDATA:
+            s->i2c_last_tx = data;       /* echoed back by a receive command */
+            break;
+        case LPI2C_CMD_RXDATA:
+            s->i2c_mrdr = s->i2c_last_tx;
+            s->i2c_rx_full = true;
+            break;
+        case LPI2C_CMD_STOP:
+            s->i2c_busy = false;
+            s->i2c_msr |= LPI2C_MSR_SDF | LPI2C_MSR_EPF;
+            break;
+        default:
+            break;
+        }
+        mcxn_flexcomm_update_irq(s);
+        break;
+    }
+    default:
+        qemu_log_mask(LOG_UNIMP, "%s: unhandled LPI2C write @0x%03" HWADDR_PRIx
+                      " = 0x%08x\n", __func__, offset, value);
+        break;
+    }
 }
 
 static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
 {
     MCXNLPUARTState *s = MCXN_LPUART(opaque);
     uint32_t r = 0;
+
+    /* Wrapper registers are common to every function selection. */
+    if (offset == LPFLEXCOMM_PSELID) {
+        return s->pselid | PSELID_PRESENT_BITS;
+    }
+    if (offset == LPFLEXCOMM_ISTAT) {
+        return mcxn_flexcomm_istat(s);
+    }
+    /* Function-select: route to the LPSPI/LPI2C decode when chosen. */
+    switch (s->pselid & PSELID_PERSEL) {
+    case PERSEL_LPSPI:
+        return mcxn_lpspi_read(s, offset);
+    case PERSEL_LPI2C:
+        return mcxn_lpi2c_read(s, offset);
+    default:
+        break;  /* fall through to the LPUART register map */
+    }
 
     switch (offset) {
     case LPUART_VERID:
@@ -136,7 +498,7 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
         r = s->rx_byte;
         if (offset == LPUART_DATA && s->rx_full) {
             s->rx_full = false;
-            mcxn_lpuart_update_irq(s);
+            mcxn_flexcomm_update_irq(s);
         }
         break;
     case LPUART_MATCH:
@@ -172,13 +534,6 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
     case LPUART_TIMEOUT0 ... LPUART_TIMEOUT3:
         r = s->timeout[(offset - LPUART_TIMEOUT0) >> 2];
         break;
-    case LPFLEXCOMM_ISTAT:
-        r = 0;   /* no FlexComm-level interrupts modelled */
-        break;
-    case LPFLEXCOMM_PSELID:
-        /* writable PERSEL/LOCK plus the RO present-capability bits */
-        r = s->pselid | PSELID_PRESENT_BITS;
-        break;
     default:
         qemu_log_mask(LOG_UNIMP, "%s: unhandled read @0x%03" HWADDR_PRIx "\n",
                       __func__, offset);
@@ -193,6 +548,26 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
     MCXNLPUARTState *s = MCXN_LPUART(opaque);
     uint8_t ch;
 
+    /* Wrapper registers are common to every function selection. */
+    if (offset == LPFLEXCOMM_PSELID) {
+        s->pselid = value & (PSELID_PERSEL | PSELID_LOCK);
+        return;
+    }
+    if (offset == LPFLEXCOMM_ISTAT) {
+        return;  /* read-only */
+    }
+    /* Function-select: route to the LPSPI/LPI2C decode when chosen. */
+    switch (s->pselid & PSELID_PERSEL) {
+    case PERSEL_LPSPI:
+        mcxn_lpspi_write(s, offset, value);
+        return;
+    case PERSEL_LPI2C:
+        mcxn_lpi2c_write(s, offset, value);
+        return;
+    default:
+        break;  /* fall through to the LPUART register map */
+    }
+
     switch (offset) {
     case LPUART_GLOBAL:
         s->global = value;
@@ -200,7 +575,7 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
             /* Software reset: clear the model's writable state. */
             s->ctrl = s->baud = s->fifo = s->water = 0;
             s->rx_full = false;
-            mcxn_lpuart_update_irq(s);
+            mcxn_flexcomm_update_irq(s);
         }
         break;
     case LPUART_PINCFG:
@@ -218,7 +593,7 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
         break;
     case LPUART_CTRL:
         s->ctrl = value;
-        mcxn_lpuart_update_irq(s);
+        mcxn_flexcomm_update_irq(s);
         break;
     case LPUART_DATA:
         ch = value & 0xFF;
@@ -226,7 +601,7 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
         if (s->ctrl & CTRL_TE) {
             qemu_chr_fe_write_all(&s->chr, &ch, 1);
         }
-        mcxn_lpuart_update_irq(s);
+        mcxn_flexcomm_update_irq(s);
         break;
     case LPUART_MATCH:
         s->match = value;
@@ -258,13 +633,9 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
     case LPUART_TIMEOUT0 ... LPUART_TIMEOUT3:
         s->timeout[(offset - LPUART_TIMEOUT0) >> 2] = value;
         break;
-    case LPFLEXCOMM_PSELID:
-        s->pselid = value & (PSELID_PERSEL | PSELID_LOCK);
-        break;
     case LPUART_VERID:
     case LPUART_PARAM:
     case LPUART_DATARO:
-    case LPFLEXCOMM_ISTAT:
         /* read-only */
         break;
     default:
@@ -299,7 +670,7 @@ static void mcxn_lpuart_rx(void *opaque, const uint8_t *buf, int size)
     if (size > 0) {
         s->rx_byte = buf[0];
         s->rx_full = true;
-        mcxn_lpuart_update_irq(s);
+        mcxn_flexcomm_update_irq(s);
     }
 }
 
@@ -314,6 +685,16 @@ static void mcxn_lpuart_reset(DeviceState *dev)
     s->timeout[0] = s->timeout[1] = s->timeout[2] = s->timeout[3] = 0;
     s->rx_byte = 0;
     s->rx_full = false;
+
+    /* LPSPI / LPI2C function state. */
+    s->spi_cr = s->spi_sr = s->spi_ier = 0;
+    s->spi_cfgr0 = s->spi_cfgr1 = s->spi_ccr = s->spi_fcr = s->spi_tcr = 0;
+    s->spi_rdr = 0;
+    s->spi_rx_full = false;
+    s->i2c_mcr = s->i2c_msr = s->i2c_mier = s->i2c_mcfgr1 = 0;
+    s->i2c_mrdr = 0;
+    s->i2c_rx_full = s->i2c_busy = false;
+    s->i2c_last_tx = 0;
 }
 
 static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
@@ -332,8 +713,8 @@ static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_lpuart = {
     .name = TYPE_MCXN_LPUART,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(global, MCXNLPUARTState),
         VMSTATE_UINT32(pincfg, MCXNLPUARTState),
@@ -352,6 +733,26 @@ static const VMStateDescription vmstate_mcxn_lpuart = {
         VMSTATE_UINT32_ARRAY(timeout, MCXNLPUARTState, 4),
         VMSTATE_UINT8(rx_byte, MCXNLPUARTState),
         VMSTATE_BOOL(rx_full, MCXNLPUARTState),
+        /* LPSPI function */
+        VMSTATE_UINT32(spi_cr, MCXNLPUARTState),
+        VMSTATE_UINT32(spi_sr, MCXNLPUARTState),
+        VMSTATE_UINT32(spi_ier, MCXNLPUARTState),
+        VMSTATE_UINT32(spi_cfgr0, MCXNLPUARTState),
+        VMSTATE_UINT32(spi_cfgr1, MCXNLPUARTState),
+        VMSTATE_UINT32(spi_ccr, MCXNLPUARTState),
+        VMSTATE_UINT32(spi_fcr, MCXNLPUARTState),
+        VMSTATE_UINT32(spi_tcr, MCXNLPUARTState),
+        VMSTATE_UINT32(spi_rdr, MCXNLPUARTState),
+        VMSTATE_BOOL(spi_rx_full, MCXNLPUARTState),
+        /* LPI2C function */
+        VMSTATE_UINT32(i2c_mcr, MCXNLPUARTState),
+        VMSTATE_UINT32(i2c_msr, MCXNLPUARTState),
+        VMSTATE_UINT32(i2c_mier, MCXNLPUARTState),
+        VMSTATE_UINT32(i2c_mcfgr1, MCXNLPUARTState),
+        VMSTATE_UINT32(i2c_mrdr, MCXNLPUARTState),
+        VMSTATE_BOOL(i2c_rx_full, MCXNLPUARTState),
+        VMSTATE_BOOL(i2c_busy, MCXNLPUARTState),
+        VMSTATE_UINT8(i2c_last_tx, MCXNLPUARTState),
         VMSTATE_END_OF_LIST()
     },
 };

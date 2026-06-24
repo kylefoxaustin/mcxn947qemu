@@ -120,10 +120,11 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **SCT** — running counter -> periodic match/limit event-0 IRQ (33, QEMUTimer). `tests/mcxn-sct`.
 - [x] **I3C** — controller request -> transfer-complete IRQ (95/96). `tests/mcxn-i3c`.
 - [x] **ENET MAC frame path** — DWC ENET-QoS descriptor-ring TX/RX over a real QEMU NIC backend (-nic) + MAC loopback, TI/RI DMA IRQ. `tests/mcxn-enet-mac`. **Cross-board ready.**
+- [x] **FlexComm SPI/I2C** — LP_FLEXCOMM PSELID function-select: LPSPI master loopback (TDR->RDR, WCF/FCF/TCF + RDF) and LPI2C controller (START/TX/RX/STOP echo target, SDF/EPF), both raising the shared FlexComm NVIC line via ISTAT. `tests/mcxn-flexcomm` (LPSPI on FC3 IRQ 38, LPI2C on FC0 IRQ 35).
 
 Priority order (remaining):
-- **Comm data path**: FlexComm SPI/I2C modes (LPSPI/LPI2C). (I3C transfer-
-  complete done; PDM/SINC/EMVSIM FIFO interrupts remain.)
+- **Comm data path**: (FlexComm LPSPI/LPI2C done; I3C transfer-complete done;
+  PDM/SINC/EMVSIM FIFO interrupts remain.)
 - **Analog results**: (RTC alarm/tick + DAC FIFO-watermark done; CMP is
   pure-analog, correctly register-only.)
 - **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport; register-only
