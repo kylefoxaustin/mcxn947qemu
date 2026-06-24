@@ -121,10 +121,12 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **I3C** — controller request -> transfer-complete IRQ (95/96). `tests/mcxn-i3c`.
 - [x] **ENET MAC frame path** — DWC ENET-QoS descriptor-ring TX/RX over a real QEMU NIC backend (-nic) + MAC loopback, TI/RI DMA IRQ. `tests/mcxn-enet-mac`. **Cross-board ready.**
 - [x] **FlexComm SPI/I2C** — LP_FLEXCOMM PSELID function-select: LPSPI master loopback (TDR->RDR, WCF/FCF/TCF + RDF) and LPI2C controller (START/TX/RX/STOP echo target, SDF/EPF), both raising the shared FlexComm NVIC line via ISTAT. `tests/mcxn-flexcomm` (LPSPI on FC3 IRQ 38, LPI2C on FC0 IRQ 35).
+- [x] **EMVSIM0/1** — software-driven TX: TX_BUF write -> synchronous transmit -> TX_STATUS.TCF/ETCF/TDTF/TFE latched -> transmit-complete IRQ when the matching INT_MASK enable bit is clear (RM: 0=enabled). `tests/mcxn-emvsim` (IRQ 103/104). Moved out of cfgdev into explicit NVIC-wired instantiation.
 
 Priority order (remaining):
 - **Comm data path**: (FlexComm LPSPI/LPI2C done; I3C transfer-complete done;
-  PDM/SINC/EMVSIM FIFO interrupts remain.)
+  EMVSIM TX-complete done; PDM/SINC are input-driven — register-only-honest,
+  no software-observable interrupt source without mic/modulator stimulus.)
 - **Analog results**: (RTC alarm/tick + DAC FIFO-watermark done; CMP is
   pure-analog, correctly register-only.)
 - **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport; register-only

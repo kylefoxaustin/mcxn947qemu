@@ -23,6 +23,7 @@ struct MCXNEMVSIMState {
 
     /*< public >*/
     MemoryRegion iomem;
+    qemu_irq     irq;
     uint32_t regs[MCXN_EMVSIM_SIZE / 4];
 };
 

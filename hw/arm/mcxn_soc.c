@@ -224,11 +224,9 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_PUF,      0x4002C000 },
     { TYPE_MCXN_PKC,      0x4002B000 },
     { TYPE_MCXN_TRDC,     0x400C7000 },
-    /* Analog/audio: SINC, PDM, EMVSIM0/1.  (DAC0..2 below — IRQs wired.) */
+    /* Analog/audio: SINC, PDM.  (DAC0..2 + EMVSIM0/1 below — IRQs wired.) */
     { TYPE_MCXN_SINC,     0x40108000 },
     { TYPE_MCXN_PDM,      0x4010C000 },
-    { TYPE_MCXN_EMVSIM,   0x40103000 },   /* EMVSIM0 */
-    { TYPE_MCXN_EMVSIM,   0x40104000 },   /* EMVSIM1 */
     /* Comm/serial: FlexIO.  (I3C0/1 instantiated below — IRQs wired.) */
     { TYPE_MCXN_FLEXIO,   0x40105000 },
     /* Connectivity: FlexCAN0/1 and ENET instantiated below (IRQs wired). */
@@ -303,6 +301,10 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_ADC; i++) {
         g_autofree char *name = g_strdup_printf("adc%d", i);
         object_initialize_child(obj, name, &s->adc[i], TYPE_MCXN_ADC);
+    }
+    for (i = 0; i < MCXN_NUM_EMVSIM; i++) {
+        g_autofree char *name = g_strdup_printf("emvsim%d", i);
+        object_initialize_child(obj, name, &s->emvsim[i], TYPE_MCXN_EMVSIM);
     }
     for (i = 0; i < MCXN_NUM_FLEXCAN; i++) {
         g_autofree char *name = g_strdup_printf("flexcan%d", i);
@@ -633,6 +635,26 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      adc_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->adc_s_alias[i]);
+    }
+
+    /* EMVSIM0..1 (smartcard): transmit-complete IRQ to cpu0 NVIC. */
+    for (i = 0; i < MCXN_NUM_EMVSIM; i++) {
+        static const struct { hwaddr base; int irq; }
+        emvsim_cfg[MCXN_NUM_EMVSIM] = { { 0x40103000, 103 }, { 0x40104000, 104 } };
+        g_autofree char *aname = g_strdup_printf("mcxn.emvsim%d.s", i);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->emvsim[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->emvsim[i]), 0, emvsim_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->emvsim[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            emvsim_cfg[i].irq));
+        memory_region_init_alias(&s->emvsim_s_alias[i], OBJECT(dev), aname,
+                                 &s->emvsim[i].iomem, 0, MCXN_EMVSIM_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     emvsim_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->emvsim_s_alias[i]);
     }
 
     /* FlexCAN CAN0..1: message-buffer interrupt to cpu0 NVIC.  0x4000 window. */

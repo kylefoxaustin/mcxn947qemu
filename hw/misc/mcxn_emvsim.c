@@ -1,17 +1,21 @@
 /*
- * NXP MCX N EMVSIM (EMV smartcard interface, UART-like) — bring-up model.
+ * NXP MCX N EMVSIM (EMV smartcard interface, UART-like) — model.
  *
- * One shared type for EMVSIM0/EMVSIM1.  The data path is simplified: TX_BUF
- * writes are accepted (the modelled "transmit") and TX_STATUS always reports
- * the transmitter empty/complete (TFE/TCF/TDTF) so a firmware TX poll completes
- * immediately.  RX_STATUS reports no received data and RX_BUF reads 0.  Both
- * status registers carry W1C flags.  Bit masks and offsets taken verbatim from
- * the MCXN947 CMSIS header (EMVSIM_Type).
+ * One shared type for EMVSIM0/EMVSIM1.  The transmit path is software-driven
+ * and honest: a TX_BUF write transmits the byte synchronously and latches the
+ * transmit-complete / early-complete / data-threshold / FIFO-empty flags in
+ * TX_STATUS.  When the matching INT_MASK enable bit is clear (per the RM, 0 =
+ * interrupt enabled, 1 = masked) this raises the EMVSIM interrupt; the ISR
+ * clears the W1C flag to drop the line.  TX_STATUS still reads the transmitter
+ * ready for poll-only firmware.  RX_STATUS reports no card data and RX_BUF
+ * reads 0.  Bit masks and offsets taken verbatim from the MCXN947 CMSIS header
+ * (EMVSIM_Type); IM polarity confirmed against the reference manual.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "qemu/osdep.h"
 #include "hw/misc/mcxn_emvsim.h"
+#include "hw/core/irq.h"
 #include "migration/vmstate.h"
 
 /* --- Register offsets ------------------------------------------------------ */
@@ -45,7 +49,16 @@
 
 /* --- RX_STATUS bit masks (CMSIS) ------------------------------------------- */
 #define RX_STATUS_RX_DATA  0x00000010u  /* receiver has data */
+#define RX_STATUS_RDTF     0x00000020u  /* rx data threshold, W1C */
 #define RX_STATUS_W1C      0x00003FE1u  /* RFO + RDTF..FEF are W1C */
+
+/* --- INT_MASK bit masks (CMSIS); per RM, 0 = enabled, 1 = masked ----------- */
+#define INT_MASK_RDT_IM     0x00000001u  /* gates RX_STATUS.RDTF      */
+#define INT_MASK_TC_IM      0x00000002u  /* gates TX_STATUS.TCF       */
+#define INT_MASK_ETC_IM     0x00000008u  /* gates TX_STATUS.ETCF      */
+#define INT_MASK_TFE_IM     0x00000010u  /* gates TX_STATUS.TFE       */
+#define INT_MASK_TDT_IM     0x00000080u  /* gates TX_STATUS.TDTF      */
+#define INT_MASK_RX_DATA_IM 0x00004000u  /* gates RX_STATUS.RX_DATA   */
 
 /*
  * VER_ID/PARAM are read-only identity registers.  Plausible MCX-class
@@ -53,6 +66,28 @@
  */
 #define EMVSIM_VER_ID_VALUE  0x00000100u
 #define EMVSIM_PARAM_VALUE   0x00000404u  /* RX/TX FIFO depth fields */
+
+/*
+ * The single EMVSIM interrupt is the OR of the enabled, latched status flags.
+ * Only the software-observable transmit events and any latched RX flags can be
+ * active in this model (no card -> RX/error sources stay idle).
+ */
+static void mcxn_emvsim_update_irq(MCXNEMVSIMState *s)
+{
+    uint32_t mask = s->regs[EMVSIM_INT_MASK / 4];
+    uint32_t tx   = s->regs[EMVSIM_TX_STATUS / 4];
+    uint32_t rx   = s->regs[EMVSIM_RX_STATUS / 4];
+    int level = 0;
+
+    if ((tx & TX_STATUS_TCF)     && !(mask & INT_MASK_TC_IM))      level = 1;
+    if ((tx & TX_STATUS_ETCF)    && !(mask & INT_MASK_ETC_IM))     level = 1;
+    if ((tx & TX_STATUS_TDTF)    && !(mask & INT_MASK_TDT_IM))     level = 1;
+    if ((tx & TX_STATUS_TFE)     && !(mask & INT_MASK_TFE_IM))     level = 1;
+    if ((rx & RX_STATUS_RDTF)    && !(mask & INT_MASK_RDT_IM))     level = 1;
+    if ((rx & RX_STATUS_RX_DATA) && !(mask & INT_MASK_RX_DATA_IM)) level = 1;
+
+    qemu_set_irq(s->irq, level);
+}
 
 static uint64_t mcxn_emvsim_read(void *opaque, hwaddr offset, unsigned size)
 {
@@ -100,12 +135,25 @@ static void mcxn_emvsim_write(void *opaque, hwaddr offset, uint64_t value,
         return;  /* read-only */
     case EMVSIM_TX_STATUS:
         s->regs[EMVSIM_TX_STATUS / 4] &= ~(value & TX_STATUS_W1C);
+        mcxn_emvsim_update_irq(s);
         return;
     case EMVSIM_RX_STATUS:
         s->regs[EMVSIM_RX_STATUS / 4] &= ~(value & RX_STATUS_W1C);
+        mcxn_emvsim_update_irq(s);
+        return;
+    case EMVSIM_INT_MASK:
+        s->regs[EMVSIM_INT_MASK / 4] = value;
+        mcxn_emvsim_update_irq(s);
         return;
     case EMVSIM_TX_BUF:
-        /* Accept and discard the transmitted byte (instantaneous TX). */
+        /*
+         * Synchronous transmit: the byte goes out immediately and the
+         * transmit-complete / early-complete / data-threshold / FIFO-empty
+         * events latch, driving the interrupt when enabled.
+         */
+        s->regs[EMVSIM_TX_STATUS / 4] |=
+            TX_STATUS_TCF | TX_STATUS_ETCF | TX_STATUS_TDTF | TX_STATUS_TFE;
+        mcxn_emvsim_update_irq(s);
         return;
     default:
         s->regs[offset / 4] = value;
@@ -137,6 +185,7 @@ static void mcxn_emvsim_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_emvsim_ops, s,
                           TYPE_MCXN_EMVSIM, MCXN_EMVSIM_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
 
 static const VMStateDescription vmstate_mcxn_emvsim = {
