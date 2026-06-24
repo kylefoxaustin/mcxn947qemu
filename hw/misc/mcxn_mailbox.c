@@ -10,8 +10,10 @@
  * MUTEX[EX] reads the current availability and then becomes 0 (so the reader
  * that observes 1 has taken the lock); any write makes it 1 again (release).
  *
- * This model performs the register read/write and the IRQ set/clear bookkeeping
- * but raises no actual interrupt line (there is no second CPU in the machine).
+ * Each CPU's IRQ word, when non-zero, asserts that CPU's mailbox interrupt
+ * (MAILBOX_IRQn = 54 on its own NVIC): IRQ[0] -> cpu0, IRQ[1] -> cpu1.  One core
+ * signals the other by writing the other's IRQSET, so this is a genuine
+ * cross-core interrupt — the notification mechanism OpenAMP/rpmsg rides on.
  *
  * Offsets/bits/access-types from the MCXN947 CMSIS header (MAILBOX_Type); reset
  * values from the MCX N Reference Manual (chapter 22): IRQ words 0,
@@ -21,6 +23,7 @@
  */
 #include "qemu/osdep.h"
 #include "hw/misc/mcxn_mailbox.h"
+#include "hw/core/irq.h"
 #include "migration/vmstate.h"
 
 #define MAILBOX_IRQ0     0x00   /* RW  CPU0 interrupt request */
@@ -32,6 +35,13 @@
 #define MAILBOX_MUTEX    0xF8   /* RW  Mutual Exclusion */
 
 #define MAILBOX_MUTEX_EX (1u << 0)
+
+/* Each CPU's IRQ word, when non-zero, drives that CPU's mailbox NVIC line. */
+static void mcxn_mailbox_update_irq(MCXNMailboxState *s)
+{
+    qemu_set_irq(s->out[0], s->irq[0] != 0);
+    qemu_set_irq(s->out[1], s->irq[1] != 0);
+}
 
 static uint64_t mcxn_mailbox_read(void *opaque, hwaddr offset, unsigned size)
 {
@@ -70,21 +80,27 @@ static void mcxn_mailbox_write(void *opaque, hwaddr offset, uint64_t value,
     switch (offset) {
     case MAILBOX_IRQ0:
         s->irq[0] = value;
+        mcxn_mailbox_update_irq(s);
         return;
     case MAILBOX_IRQ1:
         s->irq[1] = value;
+        mcxn_mailbox_update_irq(s);
         return;
     case MAILBOX_IRQSET0:
         s->irq[0] |= value;
+        mcxn_mailbox_update_irq(s);
         return;
     case MAILBOX_IRQCLR0:
         s->irq[0] &= ~(uint32_t)value;
+        mcxn_mailbox_update_irq(s);
         return;
     case MAILBOX_IRQSET1:
         s->irq[1] |= value;
+        mcxn_mailbox_update_irq(s);
         return;
     case MAILBOX_IRQCLR1:
         s->irq[1] &= ~(uint32_t)value;
+        mcxn_mailbox_update_irq(s);
         return;
     case MAILBOX_MUTEX:
         /* Any write releases the resource: EX becomes 1 again. */
@@ -121,6 +137,8 @@ static void mcxn_mailbox_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_mailbox_ops, s,
                           TYPE_MCXN_MAILBOX, MCXN_MAILBOX_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->out[0]);  /* -> cpu0 NVIC[54] */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->out[1]);  /* -> cpu1 NVIC[54] */
 }
 
 static const VMStateDescription vmstate_mcxn_mailbox = {

@@ -199,7 +199,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_CMX_PERFMON, 0x400C1000 },   /* CMX_PERFMON0 */
     { TYPE_MCXN_CMX_PERFMON, 0x400C2000 },   /* CMX_PERFMON1 */
     { TYPE_MCXN_SEMA42,   0x400B1000 },
-    { TYPE_MCXN_MAILBOX,  0x400B2000 },
+    /* MAILBOX 0x400B2000 instantiated explicitly below (cross-core IRQ wired). */
     { TYPE_MCXN_VBAT,     0x40059000 },
     { TYPE_MCXN_WUU,      0x40046000 },
     { TYPE_MCXN_OTPC,     0x400C9000 },
@@ -311,6 +311,7 @@ static void mcxn_soc_instance_init(Object *obj)
         object_initialize_child(obj, name, &s->flexcan[i], TYPE_MCXN_FLEXCAN);
     }
     object_initialize_child(obj, "enet0", &s->enet0, TYPE_MCXN_ENET);
+    object_initialize_child(obj, "mailbox", &s->mailbox, TYPE_MCXN_MAILBOX);
     object_initialize_child(obj, "rtc0", &s->rtc0, TYPE_MCXN_RTC);
     object_initialize_child(obj, "usdhc0", &s->usdhc0, TYPE_MCXN_USDHC);
     object_initialize_child(obj, "flexspi0", &s->flexspi0, TYPE_MCXN_FLEXSPI);
@@ -502,6 +503,21 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory,
                                 MCXN_SYSCON_BASE + MCXN_SECURE_ALIAS,
                                 &s->syscon_s_alias);
+
+    /* Inter-CPU MAILBOX: cross-core notification.  IRQ[0]->cpu0, IRQ[1]->cpu1,
+     * both on MAILBOX_IRQn = 54.  This is the rpmsg/OpenAMP signalling path. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->mailbox), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->mailbox), 0, 0x400B2000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->mailbox), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 54));
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->mailbox), 1,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[ncpu > 1 ? 1 : 0]), 54));
+    memory_region_init_alias(&s->mailbox_s_alias, OBJECT(dev), "mcxn.mailbox.s",
+                             &s->mailbox.iomem, 0, MCXN_MAILBOX_SIZE);
+    memory_region_add_subregion(system_memory, 0x400B2000 + MCXN_SECURE_ALIAS,
+                                &s->mailbox_s_alias);
 
     /* SPC system power controller (SRAMCTL REQ/ACK handshake for boot). */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->spc0), errp)) {

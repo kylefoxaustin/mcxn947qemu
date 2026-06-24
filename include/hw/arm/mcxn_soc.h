@@ -27,6 +27,7 @@
 #include "hw/misc/mcxn_emvsim.h"
 #include "hw/misc/mcxn_flexcan.h"
 #include "hw/misc/mcxn_enet.h"
+#include "hw/misc/mcxn_mailbox.h"
 #include "hw/misc/mcxn_rtc.h"
 #include "hw/misc/mcxn_usdhc.h"
 #include "hw/misc/mcxn_flexspi.h"
@@ -104,6 +105,7 @@ struct MCXNState {
     MCXNEMVSIMState emvsim[MCXN_NUM_EMVSIM];      /* EMVSIM0..1 (smartcard) */
     MCXNFlexCanState flexcan[MCXN_NUM_FLEXCAN];   /* CAN0..1 (FlexCAN) */
     MCXNEnetState   enet0;                        /* ENET (Ethernet QoS) */
+    MCXNMailboxState mailbox;                      /* Inter-CPU mailbox */
     MCXNRTCState    rtc0;                          /* RTC (calendar) */
     MCXNUSDHCState  usdhc0;                        /* uSDHC (SD/MMC host) */
     MCXNFlexSPIState flexspi0;                     /* FlexSPI (ext flash ctrl) */
@@ -139,6 +141,7 @@ struct MCXNState {
     MemoryRegion emvsim_s_alias[MCXN_NUM_EMVSIM]; /* secure aliases of EMVSIM0..1 */
     MemoryRegion flexcan_s_alias[MCXN_NUM_FLEXCAN]; /* secure aliases of CAN0..1 */
     MemoryRegion enet0_s_alias;                   /* secure alias of ENET */
+    MemoryRegion mailbox_s_alias;                  /* secure alias of mailbox */
     MemoryRegion rtc0_s_alias;                     /* secure alias of RTC */
     MemoryRegion usdhc0_s_alias;                   /* secure alias of uSDHC */
     MemoryRegion flexspi0_s_alias;                 /* secure alias of FlexSPI */

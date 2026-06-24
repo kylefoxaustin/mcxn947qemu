@@ -22,6 +22,8 @@ struct MCXNMailboxState {
 
     /*< public >*/
     MemoryRegion iomem;
+    /* Per-CPU mailbox NVIC lines: out[0] -> cpu0, out[1] -> cpu1 (IRQ 54). */
+    qemu_irq out[2];
 
     /* Per-CPU pending interrupt request words (MBOXIRQ[n].IRQ). */
     uint32_t irq[2];
