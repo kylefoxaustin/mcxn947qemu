@@ -11,11 +11,19 @@ passes; `run.sh` asserts that string for each staged ELF.
 
 | Suite | Coverage |
 |-------|----------|
+| `tests/kernel/common` | comprehensive kernel sanity (atomics, bitfields, clock, errno, multilib, slist/dlist, …) |
 | `tests/kernel/context` | IRQ enable/lock/unlock, context switching, `k_cpu_idle` (WFI), busy-wait, `k_sleep`, `k_yield`, thread creation |
 | `tests/kernel/fifo/fifo_api` | FIFO IPC: put/get, blocking, timeouts, cancel |
 | `tests/kernel/lifo/lifo_api` | LIFO IPC: put/get, blocking, timeouts |
 | `tests/kernel/mbox/mbox_api` | mailbox IPC: synchronous/async message passing |
 | `tests/kernel/mem_slab/mslab_api` | fixed-block memory slab alloc/free |
+| `tests/kernel/mutex/mutex_api` | mutex API: lock/unlock, priority inheritance, recursion |
+| `tests/kernel/pipe/pipe_api` | pipe IPC: byte-stream put/get, blocking, timeouts |
+| `tests/kernel/workq/work_queue` | workqueue: submit, delayed work, cancellation |
+| `tests/kernel/timer/timer_api` | timer API: start/stop, period, expiry/stop callbacks, status |
+| `tests/kernel/condvar/condvar_api` | condition variables: wait/signal/broadcast |
+| `tests/kernel/sleep` | `k_sleep`/`k_usleep` timing + busy-wait |
+| `tests/kernel/tickless/tickless_concept` | tickless-idle SysTick reprogramming |
 
 ### Userspace / MPU / SAU secure path (need `gperf`)
 
@@ -29,19 +37,25 @@ secure handling. Install the host tool first: `sudo apt-get install -y gperf`.
 | `tests/kernel/mem_protect/mem_protect` | memory-domain partition add/remove/enforce |
 | `tests/kernel/mem_protect/syscalls` | user→kernel syscall boundary + argument validation |
 | `tests/kernel/mem_protect/protection` | fault-on-violation (RO write, NULL deref, exec data) |
+| `tests/kernel/mem_protect/futex` | userspace futex wait/wake |
+| `tests/kernel/mem_protect/obj_validation` | kernel-object permission validation |
 | `tests/kernel/semaphore/semaphore` | counting semaphores from user threads |
 | `tests/kernel/mutex/sys_mutex` | userspace mutex API |
 | `tests/kernel/queue` | k_queue from user threads |
 | `tests/kernel/poll` | k_poll multi-object wait from user threads |
 
-13 suites in total, ~244 ztest cases, all green on the model.
+23 suites in total, ~360 ztest cases, all green on the model.
 
-**Excluded on purpose:** HW timing-accuracy suites such as
-`tests/kernel/timer/timer_behavior`. Their jitter/drift/ramp asserts demand
-cycle-accurate timing (e.g. "32768 ticks must land within ±2"), which QEMU's
-TCG cannot provide — they fail on any emulator. Zephyr's own twister filters
-them to real hardware. Functional timing (`k_sleep`, timeouts) is covered by
-the suites above and passes.
+**Excluded on purpose** (depend on capabilities the model doesn't provide — not model bugs):
+- `tests/kernel/timer/timer_behavior` — HW timing-accuracy (jitter/drift/ramp)
+  asserts demand cycle-accurate timing (e.g. "32768 ticks within ±2") that QEMU
+  TCG cannot provide; fails on any emulator. Zephyr's twister filters it to
+  hardware. Functional timing (`k_sleep`, timeouts, `timer_api`) is covered and
+  passes.
+- `tests/kernel/mem_protect/stack_random` — needs a real entropy source
+  (`CONFIG_ENTROPY_GENERATOR`); MCXN947's RNG lives in the ELS security block,
+  which is not yet functionally modelled (reads return constant → the stack
+  pointer never randomises). A functional ELS/RNG model would unblock this.
 
 ## Build + run
 
