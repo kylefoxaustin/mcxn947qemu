@@ -9,6 +9,7 @@
 #include "qemu/log.h"
 #include "hw/misc/mcxn_smartdma.h"
 #include "hw/core/irq.h"
+#include "qom/object.h"
 #include "migration/vmstate.h"
 
 /* Register offsets (CMSIS SMARTDMA_Type). */
@@ -70,7 +71,17 @@ static void mcxn_smartdma_write(void *opaque, hwaddr off,
     case R_SP:
         return;                 /* read-only engine state */
     case R_CTRL:
-        /* Reflect control back but immediately retire the START request. */
+        /* Reflect control back but immediately retire the START request.  The
+         * EZH program is NOT executed (no SmartDMA core modelled): flag it so a
+         * guest trusting the result is detectable, not silently wrong. */
+        if (v & CTRL_START) {
+            s->programs_started++;
+            qemu_log_mask(LOG_UNIMP,
+                          "%s: SmartDMA program START acked but NOT executed "
+                          "(no EZH core modelled; compute-modelled=false, "
+                          "programs-started=%u)\n",
+                          __func__, s->programs_started);
+        }
         s->regs[off >> 2] = v & ~CTRL_START;
         return;
     case R_EZH2ARM:
@@ -108,7 +119,26 @@ static void mcxn_smartdma_reset(DeviceState *dev)
     MCXNSmartDMAState *s = MCXN_SMARTDMA(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+    s->programs_started = 0;
     qemu_set_irq(s->irq, 0);
+}
+
+/* Honesty marker: the SmartDMA EZH program is never executed. */
+static bool mcxn_smartdma_compute_modelled(Object *obj, Error **errp)
+{
+    return false;
+}
+
+static void mcxn_smartdma_init(Object *obj)
+{
+    MCXNSmartDMAState *s = MCXN_SMARTDMA(obj);
+
+    /* Farm-control-plane visibility (qom-get): is the engine actually computing,
+     * and how many program starts were acked-but-not-executed. */
+    object_property_add_bool(obj, "compute-modelled",
+                             mcxn_smartdma_compute_modelled, NULL);
+    object_property_add_uint32_ptr(obj, "programs-started",
+                                   &s->programs_started, OBJ_PROP_FLAG_READ);
 }
 
 static void mcxn_smartdma_realize(DeviceState *dev, Error **errp)
@@ -123,10 +153,11 @@ static void mcxn_smartdma_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_smartdma = {
     .name = TYPE_MCXN_SMARTDMA,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNSmartDMAState, MCXN_SMARTDMA_SIZE / 4),
+        VMSTATE_UINT32(programs_started, MCXNSmartDMAState),
         VMSTATE_END_OF_LIST()
     },
 };
@@ -145,6 +176,7 @@ static const TypeInfo mcxn_smartdma_types[] = {
         .name          = TYPE_MCXN_SMARTDMA,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNSmartDMAState),
+        .instance_init = mcxn_smartdma_init,
         .class_init    = mcxn_smartdma_class_init,
     },
 };

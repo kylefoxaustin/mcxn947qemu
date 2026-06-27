@@ -17,6 +17,7 @@
 OBJECT_DECLARE_SIMPLE_TYPE(MCXNADCState, MCXN_ADC)
 
 #define MCXN_ADC_SIZE 0x1000
+#define MCXN_ADC_CHANNELS 16   /* operator-settable analog inputs ch0..15 */
 
 struct MCXNADCState {
     /*< private >*/
@@ -26,6 +27,13 @@ struct MCXNADCState {
     MemoryRegion iomem;
     qemu_irq irq;
     uint32_t regs[MCXN_ADC_SIZE / 4];
+
+    /* Operator-driven analog inputs: the conversion result is the value of the
+     * channel selected by the triggered command, NOT a hidden constant.  Each
+     * is a runtime QOM property "adc-chN" (the model's analog of the board pin
+     * voltage); default = documented mid-scale.  Inject via:
+     *   qom-set /machine/.../adc0 adc-ch5 2748 */
+    uint16_t adc_ch[MCXN_ADC_CHANNELS];
 
     /* Modelled result FIFO 0: a single completed conversion is presented when
      * software arms a conversion (SWTRIG / TCTRL).  fifo_valid means RESFIFO[0]

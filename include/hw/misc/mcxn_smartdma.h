@@ -27,6 +27,14 @@ struct MCXNSmartDMAState {
     MemoryRegion iomem;
     qemu_irq irq;
     uint32_t regs[MCXN_SMARTDMA_SIZE / 4];
+
+    /* Fidelity flag-at-operator: the SmartDMA "EZH" core executes a firmware
+     * program we do NOT run, so a CTRL.START is acked but does no work (silent
+     * no-compute).  Counts program starts acked-but-not-executed; exposed via
+     * the read-only QOM properties "compute-modelled" (false) and
+     * "programs-started" so the farm control-plane can detect a guest trusting
+     * an accelerator that isn't computing — without hanging it. */
+    uint32_t programs_started;
 };
 
 #endif /* HW_MISC_MCXN_SMARTDMA_H */

@@ -13,8 +13,10 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "qemu/osdep.h"
+#include "qemu/host-utils.h"   /* ctz32 */
 #include "hw/misc/mcxn_adc.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 
 /* Register offsets (CMSIS ADC_Type). */
@@ -83,8 +85,16 @@
 #define ADC_VERID_VALUE   0x02000209u   /* MAJOR=2 MINOR=0 NUM_FIFO=2 ... */
 #define ADC_PARAM_VALUE   0x0F0F0F08u   /* CMD_NUM=15 CV_NUM=15 FIFOSIZE=15 TRIG_NUM=8 */
 
-/* A plausible mid-scale 16-bit conversion result. */
-#define ADC_RESULT_SAMPLE 0x0800u
+/* Default operator-input value: documented mid-scale (override via QOM). */
+#define ADC_CH_DEFAULT 0x0800u
+
+/* CMDL channel + TCTRL command-select fields (CMSIS). */
+#define CMDL_ADCH_MASK   0x1Fu
+#define TCTRL_TCMD_SHIFT 24
+#define TCTRL_TCMD_MASK  0xFu
+/* RESFIFO CMDSRC field (which command produced the entry). */
+#define RESFIFO_CMDSRC_SHIFT 24
+#define RESFIFO_CMDSRC_MASK  0xFu
 
 static void mcxn_adc_update_irq(MCXNADCState *s)
 {
@@ -92,13 +102,38 @@ static void mcxn_adc_update_irq(MCXNADCState *s)
     qemu_set_irq(s->irq, active);
 }
 
-/* Arm a completed conversion in result FIFO 0. */
-static void mcxn_adc_do_conversion(MCXNADCState *s)
+/*
+ * Arm a completed conversion in result FIFO 0.  The result is the OPERATOR-SET
+ * value of the channel the triggered command selects (not a hidden constant):
+ * SWTRIG bit n -> TCTRLn[TCMD] command index -> CMD[idx].CMDL[ADCH] channel ->
+ * adc_ch[channel].  This makes sensor/voltage-dependent guest code read what
+ * the operator injects, the way a real board pin would drive it.
+ */
+static void mcxn_adc_do_conversion(MCXNADCState *s, uint32_t swtrig)
 {
+    uint32_t trig, cmd = 0, ch = 0;
+
     if (!(s->regs[R_CTRL / 4] & CTRL_ADCEN)) {
         return;
     }
-    s->fifo_data = ADC_RESULT_SAMPLE | RESFIFO_VALID;
+
+    /* Lowest set trigger bit selects the trigger; read its starting command. */
+    trig = swtrig ? ctz32(swtrig) : 0;
+    if (trig < 4) {
+        cmd = (s->regs[(R_TCTRL0 + trig * 4) / 4] >> TCTRL_TCMD_SHIFT)
+              & TCTRL_TCMD_MASK;
+    }
+    /* Command index is 1-based; CMDL[ADCH] gives the analog channel. */
+    if (cmd >= 1 && cmd <= 15) {
+        uint32_t cmdl = s->regs[(R_CMD_BASE + (cmd - 1) * 8) / 4];
+        ch = cmdl & CMDL_ADCH_MASK;
+    }
+    if (ch >= MCXN_ADC_CHANNELS) {
+        ch = 0;
+    }
+
+    s->fifo_data = (uint32_t)s->adc_ch[ch] | RESFIFO_VALID |
+                   ((cmd & RESFIFO_CMDSRC_MASK) << RESFIFO_CMDSRC_SHIFT);
     s->fifo_valid = true;
     s->regs[R_STAT / 4] |= STAT_RDY0;
     mcxn_adc_update_irq(s);
@@ -178,7 +213,7 @@ static void mcxn_adc_write(void *opaque, hwaddr offset, uint64_t value,
     case R_SWTRIG:
         /* Any software trigger arms a completed conversion. */
         if (v) {
-            mcxn_adc_do_conversion(s);
+            mcxn_adc_do_conversion(s, v);
         }
         return;
     case R_TCTRL0:
@@ -209,11 +244,33 @@ static const MemoryRegionOps mcxn_adc_ops = {
 static void mcxn_adc_reset(DeviceState *dev)
 {
     MCXNADCState *s = MCXN_ADC(dev);
+    int i;
 
     memset(s->regs, 0, sizeof(s->regs));
     s->fifo_data = 0;
     s->fifo_valid = false;
+    /* Default analog inputs to documented mid-scale (operator overrides persist
+     * across guest soft-resets — this only re-defaults on a full machine reset). */
+    for (i = 0; i < MCXN_ADC_CHANNELS; i++) {
+        s->adc_ch[i] = ADC_CH_DEFAULT;
+    }
     qemu_set_irq(s->irq, 0);
+}
+
+static void mcxn_adc_init(Object *obj)
+{
+    MCXNADCState *s = MCXN_ADC(obj);
+    int i;
+
+    /* Expose each analog input as a runtime QOM property "adc-chN" so an
+     * operator can inject the value a board pin would drive:
+     *   qom-set /machine/.../adc0 adc-ch5 2748   */
+    for (i = 0; i < MCXN_ADC_CHANNELS; i++) {
+        g_autofree char *name = g_strdup_printf("adc-ch%d", i);
+        s->adc_ch[i] = ADC_CH_DEFAULT;
+        object_property_add_uint16_ptr(obj, name, &s->adc_ch[i],
+                                       OBJ_PROP_FLAG_READWRITE);
+    }
 }
 
 static void mcxn_adc_realize(DeviceState *dev, Error **errp)
@@ -228,10 +285,11 @@ static void mcxn_adc_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_adc = {
     .name = TYPE_MCXN_ADC,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNADCState, MCXN_ADC_SIZE / 4),
+        VMSTATE_UINT16_ARRAY(adc_ch, MCXNADCState, MCXN_ADC_CHANNELS),
         VMSTATE_UINT32(fifo_data, MCXNADCState),
         VMSTATE_BOOL(fifo_valid, MCXNADCState),
         VMSTATE_END_OF_LIST()
@@ -252,6 +310,7 @@ static const TypeInfo mcxn_adc_types[] = {
         .name          = TYPE_MCXN_ADC,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNADCState),
+        .instance_init = mcxn_adc_init,
         .class_init    = mcxn_adc_class_init,
     },
 };
