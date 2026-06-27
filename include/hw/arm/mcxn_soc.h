@@ -24,6 +24,8 @@
 #include "hw/dma/mcxn_edma.h"
 #include "hw/misc/mcxn_fmu.h"
 #include "hw/misc/mcxn_adc.h"
+#include "hw/misc/mcxn_cmp.h"
+#include "hw/misc/mcxn_tsi.h"
 #include "hw/misc/mcxn_emvsim.h"
 #include "hw/misc/mcxn_flexcan.h"
 #include "hw/misc/mcxn_enet.h"
@@ -54,6 +56,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNState, MCXN_SOC)
 #define MCXN_NUM_FLEXCOMM 10 /* LP_FLEXCOMM0..9 (LPUART mode) */
 #define MCXN_NUM_EDMA 2      /* DMA0..1 (eDMA) */
 #define MCXN_NUM_ADC 2       /* ADC0..1 (LPADC) */
+#define MCXN_NUM_CMP 3       /* CMP0..2 (LPCMP) */
+#define MCXN_NUM_TSI 1       /* TSI0 (touch sense) */
 #define MCXN_NUM_EMVSIM 2    /* EMVSIM0..1 (smartcard) */
 #define MCXN_NUM_FLEXCAN 2   /* CAN0..1 (FlexCAN) */
 #define MCXN_NUM_SAI 2       /* SAI0..1 */
@@ -102,6 +106,8 @@ struct MCXNState {
     MCXNOSTimerState ostimer0;                 /* OS event timer */
     MCXNEDMAState   edma[MCXN_NUM_EDMA];        /* DMA0..1 (eDMA) */
     MCXNADCState    adc[MCXN_NUM_ADC];           /* ADC0..1 (LPADC) */
+    MCXNCMPState    cmp[MCXN_NUM_CMP];           /* CMP0..2 (LPCMP) */
+    MCXNTSIState    tsi[MCXN_NUM_TSI];           /* TSI0 (touch sense) */
     MCXNEMVSIMState emvsim[MCXN_NUM_EMVSIM];      /* EMVSIM0..1 (smartcard) */
     MCXNFlexCanState flexcan[MCXN_NUM_FLEXCAN];   /* CAN0..1 (FlexCAN) */
     MCXNEnetState   enet0;                        /* ENET (Ethernet QoS) */
@@ -138,6 +144,8 @@ struct MCXNState {
     MemoryRegion ostimer0_s_alias;                /* secure alias of OSTIMER */
     MemoryRegion edma_s_alias[MCXN_NUM_EDMA];     /* secure aliases of eDMA */
     MemoryRegion adc_s_alias[MCXN_NUM_ADC];       /* secure aliases of ADC0..1 */
+    MemoryRegion cmp_s_alias[MCXN_NUM_CMP];       /* secure aliases of CMP0..2 */
+    MemoryRegion tsi_s_alias[MCXN_NUM_TSI];       /* secure aliases of TSI0 */
     MemoryRegion emvsim_s_alias[MCXN_NUM_EMVSIM]; /* secure aliases of EMVSIM0..1 */
     MemoryRegion flexcan_s_alias[MCXN_NUM_FLEXCAN]; /* secure aliases of CAN0..1 */
     MemoryRegion enet0_s_alias;                   /* secure alias of ENET */

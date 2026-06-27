@@ -215,9 +215,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_OPAMP,    0x40110000 },   /* OPAMP0 */
     { TYPE_MCXN_OPAMP,    0x40113000 },   /* OPAMP1 */
     { TYPE_MCXN_OPAMP,    0x40115000 },   /* OPAMP2 */
-    { TYPE_MCXN_CMP,      0x40051000 },   /* CMP0 */
-    { TYPE_MCXN_CMP,      0x40052000 },   /* CMP1 */
-    { TYPE_MCXN_CMP,      0x40053000 },   /* CMP2 */
+    /* CMP0..2 instantiated explicitly below (operator-driven output + IRQ). */
     { TYPE_MCXN_VREF,     0x40111000 },
     /* Security: ELS (EdgeLock), PUF, PKC (public-key crypto), TRDC. */
     { TYPE_MCXN_ELS,      0x40054000 },
@@ -230,8 +228,8 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     /* Comm/serial: FlexIO.  (I3C0/1 instantiated below — IRQs wired.) */
     { TYPE_MCXN_FLEXIO,   0x40105000 },
     /* Connectivity: FlexCAN0/1 and ENET instantiated below (IRQs wired). */
-    /* Analog: TSI.  (ADC0/1 + RTC instantiated explicitly below — IRQ wired.) */
-    { TYPE_MCXN_TSI,      0x40050000 },
+    /* Analog: TSI0 + ADC0/1 instantiated explicitly below (operator-driven
+     * inputs + IRQ).  RTC also below. */
     /* (SAI0/1 + uSDHC + FlexSPI instantiated below — IRQs wired.) */
     /* Motor/timer: QDC0/1.  (eFlexPWM0/1 + SCT below — IRQs wired.) */
     { TYPE_MCXN_QDC,      0x400CF000 },   /* QDC0 */
@@ -301,6 +299,14 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_ADC; i++) {
         g_autofree char *name = g_strdup_printf("adc%d", i);
         object_initialize_child(obj, name, &s->adc[i], TYPE_MCXN_ADC);
+    }
+    for (i = 0; i < MCXN_NUM_CMP; i++) {
+        g_autofree char *name = g_strdup_printf("cmp%d", i);
+        object_initialize_child(obj, name, &s->cmp[i], TYPE_MCXN_CMP);
+    }
+    for (i = 0; i < MCXN_NUM_TSI; i++) {
+        g_autofree char *name = g_strdup_printf("tsi%d", i);
+        object_initialize_child(obj, name, &s->tsi[i], TYPE_MCXN_TSI);
     }
     for (i = 0; i < MCXN_NUM_EMVSIM; i++) {
         g_autofree char *name = g_strdup_printf("emvsim%d", i);
@@ -651,6 +657,47 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      adc_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->adc_s_alias[i]);
+    }
+
+    /* CMP0..2 (LPCMP): operator-driven output, edge-flag IRQ to cpu0 NVIC. */
+    for (i = 0; i < MCXN_NUM_CMP; i++) {
+        static const struct { hwaddr base; int irq; }
+        cmp_cfg[MCXN_NUM_CMP] = { { 0x40051000, 109 }, { 0x40052000, 110 },
+                                  { 0x40053000, 111 } };
+        g_autofree char *aname = g_strdup_printf("mcxn.cmp%d.s", i);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->cmp[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->cmp[i]), 0, cmp_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->cmp[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            cmp_cfg[i].irq));
+        memory_region_init_alias(&s->cmp_s_alias[i], OBJECT(dev), aname,
+                                 &s->cmp[i].iomem, 0, MCXN_CMP_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     cmp_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->cmp_s_alias[i]);
+    }
+
+    /* TSI0 (touch sense): operator-driven per-channel count, end-of-scan IRQ. */
+    for (i = 0; i < MCXN_NUM_TSI; i++) {
+        static const struct { hwaddr base; int irq; }
+        tsi_cfg[MCXN_NUM_TSI] = { { 0x40050000, 101 } };
+        g_autofree char *aname = g_strdup_printf("mcxn.tsi%d.s", i);
+
+        if (!sysbus_realize(SYS_BUS_DEVICE(&s->tsi[i]), errp)) {
+            return;
+        }
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->tsi[i]), 0, tsi_cfg[i].base);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->tsi[i]), 0,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            tsi_cfg[i].irq));
+        memory_region_init_alias(&s->tsi_s_alias[i], OBJECT(dev), aname,
+                                 &s->tsi[i].iomem, 0, MCXN_TSI_SIZE);
+        memory_region_add_subregion(system_memory,
+                                     tsi_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     &s->tsi_s_alias[i]);
     }
 
     /* EMVSIM0..1 (smartcard): transmit-complete IRQ to cpu0 NVIC. */

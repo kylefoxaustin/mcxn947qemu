@@ -31,7 +31,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `CAN` | 2 | ✅ functional + active (FlexCAN loopback TX->RX MB + IFLAG IRQ to NVIC; tests/mcxn-flexcan) |
 | `CDOG` | 2 | ✅ functional (register-accurate) |
 | `CMC` | 1 | ✅ functional (register-accurate) |
-| `CMP` | 3 | ✅ functional (register-accurate) |
+| `CMP` | 3 | ✅ operator-driven (output via `comparator-output` QOM prop; edge-flag IRQ 109/110/111) |
 | `CMX_PERFMON` | 2 | ✅ functional (register-accurate) |
 | `CRC` | 1 | ✅ functional (register-accurate) |
 | `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
@@ -87,7 +87,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `SYSCON` | 1 | ✅ functional |
 | `TDET` | 1 | ✅ functional (register-accurate) |
 | `TRDC` | 1 | ✅ functional (register-accurate) |
-| `TSI` | 1 | ✅ functional (register-accurate; end-of-scan completes) |
+| `TSI` | 1 | ✅ operator-driven (per-channel count via `tsi-countN` QOM prop; end-of-scan IRQ 101) |
 | `USBDCD` | 1 | ✅ functional (register-accurate) |
 | `USBFS` | 1 | ✅ functional (register-accurate; reset self-clear, W1C status) |
 | `USBHS1_PHY_DCD` | 1 | ✅ functional (register-accurate; HS phy/dcd 0x800 window) |
@@ -128,8 +128,9 @@ Priority order (remaining):
 - **Comm data path**: (FlexComm LPSPI/LPI2C done; I3C transfer-complete done;
   EMVSIM TX-complete done; PDM/SINC are input-driven — register-only-honest,
   no software-observable interrupt source without mic/modulator stimulus.)
-- **Analog results**: (RTC alarm/tick + DAC FIFO-watermark done; CMP is
-  pure-analog, correctly register-only.)
+- **Analog results**: (RTC alarm/tick + DAC FIFO-watermark done; ADC/CMP/TSI
+  are operator-driven — analog inputs exposed as QOM properties so an operator
+  injects what a board pin would drive, with conversion/edge/scan IRQs wired.)
 - **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport; register-only
   today, no usb-bus backend - confirmed to holobench, gated until unparked).
   (ENET now has full MAC frame DMA-ring + QEMU NIC - cross-board ready;

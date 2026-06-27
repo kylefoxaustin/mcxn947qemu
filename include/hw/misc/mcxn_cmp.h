@@ -2,9 +2,11 @@
  * NXP MCX N CMP (Low-Power Analog Comparator) — register-accurate model.
  *
  * Shared device type (CMP_Type / CMSIS LPCMP_Type) instantiated three times on
- * the MCXN947 (CMP0/1/2).  This is an analog block with no analog behaviour to
- * emulate; only the register interface is modelled.  Offsets/access-types from
- * the MCXN947 CMSIS header (LPCMP_Type).
+ * the MCXN947 (CMP0/1/2).  QEMU has no analog stimulus, so the comparator
+ * output is OPERATOR-DRIVEN: the level a real +/- input pair would resolve to
+ * is exposed as the "comparator-output" QOM property.  Toggling it latches the
+ * rising/falling edge flags (CSR[CFR]/CSR[CFF]) and raises the comparator IRQ
+ * when enabled.  Offsets/access-types from the MCXN947 CMSIS header.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -25,7 +27,13 @@ struct MCXNCMPState {
 
     /*< public >*/
     MemoryRegion iomem;
+    qemu_irq irq;
     uint32_t regs[MCXN_CMP_SIZE / 4];
+
+    /* Operator-driven analog: the comparator output level (CSR[COUT]) the
+     * +/- inputs would resolve to.  Settable via the "comparator-output" QOM
+     * property; a transition latches CSR[CFR] (rising) / CSR[CFF] (falling). */
+    bool cout;
 };
 
 #endif /* HW_MISC_MCXN_CMP_H */

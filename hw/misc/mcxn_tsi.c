@@ -15,6 +15,7 @@
 #include "qemu/osdep.h"
 #include "hw/misc/mcxn_tsi.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 
 /* Register offsets (CMSIS TSI_Type). */
@@ -33,6 +34,10 @@
 #define R_MISC      0x108
 #define R_TRIG      0x10C
 
+/* CONFIG bits (channel select). */
+#define CONFIG_TSICH_SHIFT 1
+#define CONFIG_TSICH_MASK  0x3Eu     /* bits [5:1]: scanned channel index */
+
 /* GENCS bits. */
 #define GENCS_STM       (1u << 3)    /* scan trigger mode (periodic) */
 #define GENCS_TSIEN     (1u << 5)    /* module enable */
@@ -45,7 +50,7 @@
 #define DATA_OUTRGF      (1u << 30)
 #define DATA_W1C_MASK    (DATA_EOSF | DATA_OVERRUNF | DATA_OUTRGF)
 
-/* A plausible touch counter reading. */
+/* Default operator-input value: a documented sample count (override via QOM). */
 #define TSI_COUNT_SAMPLE 0x0100u
 
 static void mcxn_tsi_update_irq(MCXNTSIState *s)
@@ -56,14 +61,26 @@ static void mcxn_tsi_update_irq(MCXNTSIState *s)
     qemu_set_irq(s->irq, active);
 }
 
-/* Complete a scan: latch a count and raise the end-of-scan flag. */
+/*
+ * Complete a scan: latch the OPERATOR-SET count of the selected channel and
+ * raise the end-of-scan flag.  The channel comes from CONFIG[TSICH]; the count
+ * is tsi_count[channel] (the value a real electrode's capacitance would drive,
+ * injectable via the "tsi-countN" QOM property) instead of a hidden constant.
+ */
 static void mcxn_tsi_do_scan(MCXNTSIState *s)
 {
+    uint32_t ch;
+
     if (!(s->regs[R_GENCS / 4] & GENCS_TSIEN)) {
         return;
     }
+    ch = (s->regs[R_CONFIG / 4] & CONFIG_TSICH_MASK) >> CONFIG_TSICH_SHIFT;
+    if (ch >= MCXN_TSI_CHANNELS) {
+        ch = 0;
+    }
     s->regs[R_DATA / 4] = (s->regs[R_DATA / 4] & ~DATA_TSICNT_MASK) |
-                          TSI_COUNT_SAMPLE | DATA_EOSF;
+                          ((uint32_t)s->tsi_count[ch] & DATA_TSICNT_MASK) |
+                          DATA_EOSF;
     mcxn_tsi_update_irq(s);
 }
 
@@ -123,9 +140,31 @@ static const MemoryRegionOps mcxn_tsi_ops = {
 static void mcxn_tsi_reset(DeviceState *dev)
 {
     MCXNTSIState *s = MCXN_TSI(dev);
+    int i;
 
     memset(s->regs, 0, sizeof(s->regs));
+    /* Default electrodes to the documented sample count (operator overrides
+     * persist across guest soft-resets; this re-defaults on machine reset). */
+    for (i = 0; i < MCXN_TSI_CHANNELS; i++) {
+        s->tsi_count[i] = TSI_COUNT_SAMPLE;
+    }
     qemu_set_irq(s->irq, 0);
+}
+
+static void mcxn_tsi_init(Object *obj)
+{
+    MCXNTSIState *s = MCXN_TSI(obj);
+    int i;
+
+    /* Expose each electrode's scan counter as a runtime QOM property
+     * "tsi-countN" so an operator can inject the value a real touch would
+     * drive:  qom-set /machine/.../tsi0 tsi-count3 1840   */
+    for (i = 0; i < MCXN_TSI_CHANNELS; i++) {
+        g_autofree char *name = g_strdup_printf("tsi-count%d", i);
+        s->tsi_count[i] = TSI_COUNT_SAMPLE;
+        object_property_add_uint16_ptr(obj, name, &s->tsi_count[i],
+                                       OBJ_PROP_FLAG_READWRITE);
+    }
 }
 
 static void mcxn_tsi_realize(DeviceState *dev, Error **errp)
@@ -140,10 +179,11 @@ static void mcxn_tsi_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_tsi = {
     .name = TYPE_MCXN_TSI,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNTSIState, MCXN_TSI_SIZE / 4),
+        VMSTATE_UINT16_ARRAY(tsi_count, MCXNTSIState, MCXN_TSI_CHANNELS),
         VMSTATE_END_OF_LIST()
     },
 };
@@ -162,6 +202,7 @@ static const TypeInfo mcxn_tsi_types[] = {
         .name          = TYPE_MCXN_TSI,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNTSIState),
+        .instance_init = mcxn_tsi_init,
         .class_init    = mcxn_tsi_class_init,
     },
 };

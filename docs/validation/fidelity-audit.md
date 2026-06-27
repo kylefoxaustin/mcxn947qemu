@@ -34,8 +34,8 @@ each block behaves at runtime**. Shares the format used by the i.MX95 model's
 | Block | Status | Notes |
 |-------|--------|-------|
 | ADC0/1 (LPADC) | **OPERATOR-DRIVEN** | Conversion result = `adc_ch[channel]` selected by the triggered command (TCTRL→CMD→ADCH), not a constant. Inject: `qom-set …/adc0 adc-ch5 2748`. Default = documented mid-scale 0x800. |
-| CMP0/1/2 (comparator) | ◐ **constant (TODO operator-driven)** | Output not yet operator-exposed — same pattern as ADC to follow. |
-| TSI (touch sense) | ◐ **constant (TODO operator-driven)** | Per-channel count is a constant; operator-driven counts to follow. |
+| CMP0/1/2 (comparator) | **OPERATOR-DRIVEN** | Output level = the `comparator-output` bool QOM prop (what the +/- inputs would resolve to). Setting it drives CSR[COUT], latches the rising/falling edge flags CSR[CFR]/[CFF] and raises the comparator IRQ (109/110/111) when armed. Inject: `qom-set …/cmp0 comparator-output true`. |
+| TSI (touch sense) | **OPERATOR-DRIVEN** | A scan latches DATA[TSICNT] from `tsi_count[ CONFIG[TSICH] ]` (per-channel, 25 channels) and raises the end-of-scan IRQ (101). Inject: `qom-set …/tsi0 tsi-count3 1840`. Default = documented sample 0x100. |
 | DAC0/1/2 | REGISTER-ONLY-OK | Output sink (FIFO watermark IRQ modelled); no analog read-back to falsify. |
 
 ## Functional / honest blocks (compute or move real data correctly)

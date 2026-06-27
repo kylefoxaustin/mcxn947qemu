@@ -2,15 +2,18 @@
  * NXP MCX N CMP (Low-Power Analog Comparator, CMSIS LPCMP_Type) — model.
  *
  * One shared device type instantiated three times on the MCXN947 (CMP0/1/2).
- * The comparator is a pure analog block; QEMU does not simulate the analog
- * inputs, so a faithful register model (correct offsets, access types, reset
- * values and the write-1-to-clear status semantics) is the correct behaviour.
+ * The comparator is an analog block; QEMU has no analog stimulus, so the output
+ * is OPERATOR-DRIVEN (fidelity-first): rather than hard-wiring CSR[COUT] low,
+ * the level the +/- inputs would resolve to is exposed as the runtime QOM
+ * property "comparator-output".  Setting it drives CSR[COUT], latches the
+ * rising/falling edge flags (CSR[CFR]/CSR[CFF]) and raises the comparator IRQ
+ * when the matching IER bit is set — so interrupt- and poll-driven comparator
+ * code both progress as on silicon.
  *
  *   - VERID / PARAM are read-only (CMSIS __I) and return constant values.
- *   - CSR is the Comparator Status register.  COUT (bit 8) is the comparator
- *     output level: with no analog stimulus it reads 0.  CFR (bit 0, rising
- *     edge), CFF (bit 1, falling edge) and RRF (bit 2, round-robin) are
- *     write-1-to-clear sticky flags; with no stimulus they stay 0.
+ *   - CSR[COUT] (bit 8) reflects the operator-set output level.  CFR (bit 0,
+ *     rising edge), CFF (bit 1, falling edge) and RRF (bit 2, round-robin) are
+ *     write-1-to-clear sticky flags.
  *   - The comparator has no multi-cycle power-up handshake that firmware spins
  *     on, so all control registers are simply stored.
  *
@@ -21,6 +24,8 @@
  */
 #include "qemu/osdep.h"
 #include "hw/misc/mcxn_cmp.h"
+#include "hw/core/irq.h"
+#include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 
 #define CMP_VERID    0x00   /* RO  Version ID */
@@ -51,6 +56,18 @@
 /* Non-zero RM reset value for a backed control register. */
 #define CMP_CCR0_RESET    0x00000002u
 
+/*
+ * IER enable bits align 1:1 with the CSR W1C flag bits (CFR_IE/CFF_IE/RRF_IE
+ * at 0/1/2, matching CFR/CFF/RRF), so an enabled-and-pending edge is just
+ * (CSR & IER & W1C_MASK).
+ */
+static void mcxn_cmp_update_irq(MCXNCMPState *s)
+{
+    bool active = (s->regs[CMP_CSR / 4] & s->regs[CMP_IER / 4] &
+                   CMP_CSR_W1C_MASK) != 0;
+    qemu_set_irq(s->irq, active);
+}
+
 static uint64_t mcxn_cmp_read(void *opaque, hwaddr offset, unsigned size)
 {
     MCXNCMPState *s = MCXN_CMP(opaque);
@@ -61,12 +78,10 @@ static uint64_t mcxn_cmp_read(void *opaque, hwaddr offset, unsigned size)
     case CMP_PARAM:
         return CMP_PARAM_VALUE;
     case CMP_CSR:
-        /*
-         * No analog stimulus is simulated: the comparator output (COUT) reads
-         * low and the edge/round-robin flags only ever hold whatever software
-         * has not yet cleared.
-         */
-        return s->regs[CMP_CSR / 4] & ~CMP_CSR_COUT;
+        /* COUT reflects the operator-set output level; the edge/round-robin
+         * flags hold whatever software has not yet cleared. */
+        return (s->regs[CMP_CSR / 4] & ~CMP_CSR_COUT) |
+               (s->cout ? CMP_CSR_COUT : 0);
     default:
         return s->regs[offset / 4];
     }
@@ -85,11 +100,40 @@ static void mcxn_cmp_write(void *opaque, hwaddr offset, uint64_t value,
     case CMP_CSR:
         /* CFR/CFF/RRF are write-1-to-clear; COUT is read-only. */
         s->regs[CMP_CSR / 4] &= ~(value & CMP_CSR_W1C_MASK);
+        mcxn_cmp_update_irq(s);
+        return;
+    case CMP_IER:
+        s->regs[CMP_IER / 4] = value;
+        mcxn_cmp_update_irq(s);
         return;
     default:
         s->regs[offset / 4] = value;
         return;
     }
+}
+
+/*
+ * Operator sets the comparator output level (what the +/- inputs would resolve
+ * to).  A 0->1 transition latches the rising-edge flag CSR[CFR]; 1->0 latches
+ * the falling-edge flag CSR[CFF]; both honour the polarity-independent edge
+ * interrupt enables, raising the IRQ when armed.
+ */
+static void mcxn_cmp_set_cout(Object *obj, bool value, Error **errp)
+{
+    MCXNCMPState *s = MCXN_CMP(obj);
+
+    if (value && !s->cout) {
+        s->regs[CMP_CSR / 4] |= CMP_CSR_CFR;
+    } else if (!value && s->cout) {
+        s->regs[CMP_CSR / 4] |= CMP_CSR_CFF;
+    }
+    s->cout = value;
+    mcxn_cmp_update_irq(s);
+}
+
+static bool mcxn_cmp_get_cout(Object *obj, Error **errp)
+{
+    return MCXN_CMP(obj)->cout;
 }
 
 static const MemoryRegionOps mcxn_cmp_ops = {
@@ -108,6 +152,17 @@ static void mcxn_cmp_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     s->regs[CMP_CCR0 / 4] = CMP_CCR0_RESET;
+    s->cout = false;
+    qemu_set_irq(s->irq, 0);
+}
+
+static void mcxn_cmp_init(Object *obj)
+{
+    /* Expose the comparator output level as a runtime QOM property so an
+     * operator can drive what the +/- inputs would resolve to:
+     *   qom-set /machine/.../cmp0 comparator-output true   */
+    object_property_add_bool(obj, "comparator-output",
+                             mcxn_cmp_get_cout, mcxn_cmp_set_cout);
 }
 
 static void mcxn_cmp_realize(DeviceState *dev, Error **errp)
@@ -117,14 +172,16 @@ static void mcxn_cmp_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_cmp_ops, s,
                           TYPE_MCXN_CMP, MCXN_CMP_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
 
 static const VMStateDescription vmstate_mcxn_cmp = {
     .name = TYPE_MCXN_CMP,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNCMPState, MCXN_CMP_SIZE / 4),
+        VMSTATE_BOOL(cout, MCXNCMPState),
         VMSTATE_END_OF_LIST()
     },
 };
@@ -143,6 +200,7 @@ static const TypeInfo mcxn_cmp_types[] = {
         .name          = TYPE_MCXN_CMP,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNCMPState),
+        .instance_init = mcxn_cmp_init,
         .class_init    = mcxn_cmp_class_init,
     },
 };
