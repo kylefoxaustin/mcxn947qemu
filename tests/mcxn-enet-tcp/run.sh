@@ -20,8 +20,11 @@ PORT=$(( (RANDOM % 20000) + 20000 )); CON="$(mktemp)"
   -nic "user,model=mcxn-enet,hostfwd=tcp::${PORT}-:4242" \
   -kernel "$ECHO_ELF" -no-reboot >/dev/null 2>&1 &
 QPID=$!; trap 'kill $QPID 2>/dev/null; rm -f "$CON"' EXIT
-for i in $(seq 1 25); do grep -aqi 'Waiting for TCP' "$CON" 2>/dev/null && break; sleep 1; done
-sleep 2
+# Wait for the DHCP lease (the IPv4 address), not just the listener banner:
+# with a real entropy source the DHCPv4 client applies its randomized startup
+# delay, so the lease can land ~9s in — probing before it raced and failed.
+for i in $(seq 1 30); do grep -aqi 'IPv4 address' "$CON" 2>/dev/null && break; sleep 1; done
+sleep 1
 MSG="MCX-TCP-OVER-ENET-$$-$RANDOM"
 REPLY=$(printf '%s\n' "$MSG" | timeout 6 python3 -c '
 import socket,sys

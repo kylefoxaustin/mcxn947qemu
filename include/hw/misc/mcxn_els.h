@@ -26,6 +26,7 @@ struct MCXNELSState {
     /*< public >*/
     MemoryRegion iomem;
     uint32_t regs[MCXN_ELS_SIZE / 4];
+    uint32_t rng_state;   /* PRNG backing the TRNG data output (PRNG_DATOUT) */
 };
 
 #endif /* HW_MISC_MCXN_ELS_H */

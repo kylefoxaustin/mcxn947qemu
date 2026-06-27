@@ -43,15 +43,15 @@ SUITES=(
     "kernel/mem_protect/protection:protection"
     "kernel/mem_protect/futex:futex"
     "kernel/mem_protect/obj_validation:obj_validation"
+    "kernel/mem_protect/stack_random:stack_random"
     "kernel/semaphore/semaphore:semaphore"
     "kernel/mutex/sys_mutex:sys_mutex"
     "kernel/queue:queue"
     "kernel/poll:poll"
 )
 # Excluded (depend on model capabilities we don't provide, not model bugs):
-#   kernel/timer/timer_behavior      - HW cycle-accurate jitter/drift (fails on any emulator)
-#   kernel/mem_protect/stack_random  - needs a real entropy source; MCXN's RNG is in the
-#                                      ELS security block, not yet functionally modelled
+#   kernel/timer/timer_behavior  - HW cycle-accurate jitter/drift (fails on any emulator)
+# (stack_random now PASSES — the ELS TRNG data output is functionally modelled.)
 
 # shellcheck disable=SC1090
 source "$VENV"

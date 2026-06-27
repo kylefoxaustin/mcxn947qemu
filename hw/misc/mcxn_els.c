@@ -66,6 +66,29 @@
 /* Version register value (X.Y1.Y2.Z = 1.0.0.0). Unconfirmed against RM. */
 #define ELS_VERSION_VALUE  0x00001000u
 
+/* Seed for the TRNG-output PRNG (any nonzero constant). */
+#define ELS_PRNG_SEED  0x2545F491u
+
+/*
+ * The PRNG/DRBG data-output register (ELS_PRNG_DATOUT) must return *fresh*
+ * data on each read — that is what a TRNG does, and the NXP ELS entropy driver
+ * reads it word-by-word to fill the kernel entropy pool.  Returning a constant
+ * (the old behaviour) yields all-zero entropy, so anything seeded from it
+ * (stack-pointer randomisation, CSPRNG) degenerates.  Back it with a small
+ * xorshift32 PRNG: varying per read and reproducible per run (deterministic for
+ * CI), not cryptographically strong — swap to qemu_guest_getrandom() if true
+ * entropy is ever needed.
+ */
+static uint32_t els_prng_next(MCXNELSState *s)
+{
+    uint32_t x = s->rng_state;
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    s->rng_state = x;
+    return x;
+}
+
 static bool els_is_ro(hwaddr off)
 {
     switch (off) {
@@ -95,6 +118,8 @@ static uint64_t mcxn_els_read(void *opaque, hwaddr off, unsigned size)
         return 0;        /* no error pending */
     case ELS_VERSION:
         return ELS_VERSION_VALUE;
+    case ELS_PRNG_DATOUT:
+        return els_prng_next(s);   /* fresh random word per read */
     case ELS_INT_STATUS_CLR:
     case ELS_INT_STATUS_SET:
     case ELS_ERR_STATUS_CLR:
@@ -140,6 +165,7 @@ static void mcxn_els_reset(DeviceState *dev)
     MCXNELSState *s = MCXN_ELS(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+    s->rng_state = ELS_PRNG_SEED;
 }
 
 static void mcxn_els_realize(DeviceState *dev, Error **errp)
@@ -153,10 +179,11 @@ static void mcxn_els_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_els = {
     .name = TYPE_MCXN_ELS,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNELSState, MCXN_ELS_SIZE / 4),
+        VMSTATE_UINT32(rng_state, MCXNELSState),
         VMSTATE_END_OF_LIST()
     },
 };

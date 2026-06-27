@@ -39,12 +39,13 @@ secure handling. Install the host tool first: `sudo apt-get install -y gperf`.
 | `tests/kernel/mem_protect/protection` | fault-on-violation (RO write, NULL deref, exec data) |
 | `tests/kernel/mem_protect/futex` | userspace futex wait/wake |
 | `tests/kernel/mem_protect/obj_validation` | kernel-object permission validation |
+| `tests/kernel/mem_protect/stack_random` | stack-pointer randomisation (exercises the ELS TRNG entropy path) |
 | `tests/kernel/semaphore/semaphore` | counting semaphores from user threads |
 | `tests/kernel/mutex/sys_mutex` | userspace mutex API |
 | `tests/kernel/queue` | k_queue from user threads |
 | `tests/kernel/poll` | k_poll multi-object wait from user threads |
 
-23 suites in total, ~360 ztest cases, all green on the model.
+24 suites in total, ~360 ztest cases, all green on the model.
 
 **Excluded on purpose** (depend on capabilities the model doesn't provide — not model bugs):
 - `tests/kernel/timer/timer_behavior` — HW timing-accuracy (jitter/drift/ramp)
@@ -52,10 +53,9 @@ secure handling. Install the host tool first: `sudo apt-get install -y gperf`.
   TCG cannot provide; fails on any emulator. Zephyr's twister filters it to
   hardware. Functional timing (`k_sleep`, timeouts, `timer_api`) is covered and
   passes.
-- `tests/kernel/mem_protect/stack_random` — needs a real entropy source
-  (`CONFIG_ENTROPY_GENERATOR`); MCXN947's RNG lives in the ELS security block,
-  which is not yet functionally modelled (reads return constant → the stack
-  pointer never randomises). A functional ELS/RNG model would unblock this.
+
+(`mem_protect/stack_random` was previously excluded for lack of entropy; the ELS
+TRNG data output is now functionally modelled, so it passes and is included.)
 
 ## Build + run
 
