@@ -55,6 +55,18 @@ typedef struct MCXNUsbBackendOps {
     void (*set_config)(void *be, uint8_t config);
 } MCXNUsbBackendOps;
 
+/* An in-flight host request awaiting an async backend completion.  Indexed by
+ * endpoint slot = (ep & 0xf) | (IN ? 0x10 : 0); EP0 control uses slot 0/16. */
+typedef struct MCXNUsbPending {
+    bool     active;
+    bool     is_control;
+    uint64_t id;                    /* usbredir transaction id               */
+    uint16_t length;                /* host-requested length                 */
+    uint8_t  ep;                    /* usbredir endpoint address             */
+} MCXNUsbPending;
+
+#define MCXN_USB_NSLOTS 32
+
 struct MCXNUsbDevState {
     /*< private >*/
     DeviceState parent_obj;
@@ -68,7 +80,11 @@ struct MCXNUsbDevState {
     int            read_buf_size;
     unsigned int   watch;
 
-    bool connected;                 /* hello handshake completed             */
+    bool    connected;              /* hello handshake completed             */
+    bool    attached;               /* device_connect sent (firmware enabled)*/
+    uint8_t speed;                  /* usb_redir_speed_*                     */
+
+    MCXNUsbPending pending[MCXN_USB_NSLOTS];
 
     /* Backend (controller engine) registration. */
     const MCXNUsbBackendOps *be_ops;
@@ -78,6 +94,16 @@ struct MCXNUsbDevState {
 /* Backend registration — called by the controller engine at realize. */
 void mcxn_usbdev_set_backend(MCXNUsbDevState *s,
                              const MCXNUsbBackendOps *ops, void *be);
+
+/* The controller engine calls this when guest firmware enables the controller
+ * and asserts the pull-up — i.e. when a device would appear on the bus.  Sends
+ * usbredir device_connect so the remote host begins enumeration.  @speed is a
+ * usb_redir_speed_* value (full/high). */
+void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed);
+
+/* The controller engine calls this when firmware disables the controller /
+ * drops the pull-up. */
+void mcxn_usbdev_detach(MCXNUsbDevState *s);
 
 /* Async completion hooks — backend calls these when a primed descriptor that
  * answered a previously-ASYNC host request is retired by guest firmware. */

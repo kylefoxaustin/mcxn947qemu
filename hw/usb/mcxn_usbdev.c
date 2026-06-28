@@ -84,7 +84,22 @@ static void usbdev_log(void *priv, int level, const char *msg)
 }
 
 /* ------------------------------------------------------------------------- *
- * Device-side receive callbacks — STUBS for now (enumeration lands next).
+ * Endpoint-slot helpers + pending-request tracking.
+ * ------------------------------------------------------------------------- */
+
+static int usbdev_slot(uint8_t ep_addr)
+{
+    return (ep_addr & 0x0f) | ((ep_addr & 0x80) ? 0x10 : 0);
+}
+
+static MCXNUsbPending *usbdev_pending(MCXNUsbDevState *s, uint8_t ep_addr)
+{
+    return &s->pending[usbdev_slot(ep_addr)];
+}
+
+/* ------------------------------------------------------------------------- *
+ * Device-side receive callbacks — forward host transfers to the controller
+ * backend (guest firmware), reply over usbredir (sync or async).
  * ------------------------------------------------------------------------- */
 
 static void usbdev_hello(void *priv, struct usb_redir_hello_header *h)
@@ -92,28 +107,154 @@ static void usbdev_hello(void *priv, struct usb_redir_hello_header *h)
     MCXNUsbDevState *s = priv;
 
     s->connected = true;
-    qemu_log_mask(LOG_UNIMP, "mcxn-usbdev: hello from peer (enumeration TODO)\n");
+    /* If firmware already enabled the controller before the peer connected,
+     * (re)announce the device now that the handshake is complete. */
+    if (s->attached && s->parser) {
+        mcxn_usbdev_attach(s, s->speed);
+    }
 }
 
 static void usbdev_reset(void *priv)
 {
-    qemu_log_mask(LOG_UNIMP, "mcxn-usbdev: bus reset (TODO)\n");
+    MCXNUsbDevState *s = priv;
+
+    memset(s->pending, 0, sizeof(s->pending));
+    /* A USB bus reset reverts the device to the default (addr 0) state; let the
+     * backend re-arm EP0 as firmware re-runs its reset ISR. */
+    qemu_log_mask(LOG_GUEST_ERROR, "mcxn-usbdev: host bus reset\n");
 }
 
+/*
+ * Control transfer from the host.  Build the 8-byte SETUP, hand it to the
+ * backend's EP0, then move the data stage:
+ *   - IN  (requesttype bit7=1): pull up to @length bytes from EP0 IN.
+ *   - OUT (requesttype bit7=0): push @data_len bytes to EP0 OUT, ack status.
+ * A backend that must wait for firmware returns ASYNC; we stash the request and
+ * answer from mcxn_usbdev_complete_in()/_out().
+ */
 static void usbdev_control_packet(void *priv, uint64_t id,
                                   struct usb_redir_control_packet_header *ch,
                                   uint8_t *data, int data_len)
 {
-    qemu_log_mask(LOG_UNIMP, "mcxn-usbdev: control packet (TODO)\n");
-    usbredirparser_free_packet_data(((MCXNUsbDevState *)priv)->parser, data);
+    MCXNUsbDevState *s = priv;
+    uint8_t setup[8];
+    bool dev_to_host = ch->requesttype & 0x80;
+    int rc;
+
+    if (!s->be_ops) {
+        ch->status = usb_redir_stall;
+        usbredirparser_send_control_packet(s->parser, id, ch, NULL, 0);
+        usbredirparser_free_packet_data(s->parser, data);
+        return;
+    }
+
+    setup[0] = ch->requesttype;
+    setup[1] = ch->request;
+    setup[2] = ch->value & 0xff;
+    setup[3] = ch->value >> 8;
+    setup[4] = ch->index & 0xff;
+    setup[5] = ch->index >> 8;
+    setup[6] = ch->length & 0xff;
+    setup[7] = ch->length >> 8;
+    s->be_ops->setup(s->be, setup);
+
+    if (dev_to_host) {
+        g_autofree uint8_t *buf = g_malloc0(ch->length ? ch->length : 1);
+        int out_len = 0;
+
+        rc = s->be_ops->ep_in(s->be, 0, buf, ch->length, &out_len);
+        if (rc == MCXN_USB_XFER_ASYNC) {
+            MCXNUsbPending *p = usbdev_pending(s, 0x80);
+            p->active = true;
+            p->is_control = true;
+            p->id = id;
+            p->length = ch->length;
+            p->ep = 0x80;
+        } else if (rc == MCXN_USB_XFER_OK) {
+            ch->status = usb_redir_success;
+            usbredirparser_send_control_packet(s->parser, id, ch, buf, out_len);
+        } else {
+            ch->status = usb_redir_stall;
+            usbredirparser_send_control_packet(s->parser, id, ch, NULL, 0);
+        }
+    } else {
+        rc = data_len ? s->be_ops->ep_out(s->be, 0, data, data_len)
+                      : MCXN_USB_XFER_OK;
+        if (rc == MCXN_USB_XFER_ASYNC) {
+            MCXNUsbPending *p = usbdev_pending(s, 0x00);
+            p->active = true;
+            p->is_control = true;
+            p->id = id;
+            p->ep = 0x00;
+        } else {
+            ch->status = (rc == MCXN_USB_XFER_OK) ? usb_redir_success
+                                                  : usb_redir_stall;
+            usbredirparser_send_control_packet(s->parser, id, ch, NULL, 0);
+        }
+    }
+    usbredirparser_free_packet_data(s->parser, data);
 }
 
+/* Bulk transfer from the host: forward to the addressed endpoint. */
 static void usbdev_bulk_packet(void *priv, uint64_t id,
                                struct usb_redir_bulk_packet_header *bh,
                                uint8_t *data, int data_len)
 {
-    qemu_log_mask(LOG_UNIMP, "mcxn-usbdev: bulk packet (TODO)\n");
-    usbredirparser_free_packet_data(((MCXNUsbDevState *)priv)->parser, data);
+    MCXNUsbDevState *s = priv;
+    bool dev_to_host = bh->endpoint & 0x80;
+    int ep = bh->endpoint & 0x0f;
+    uint16_t length = bh->length | ((uint32_t)bh->length_high << 16);
+    int rc;
+
+    if (!s->be_ops) {
+        bh->status = usb_redir_stall;
+        bh->length = 0;
+        bh->length_high = 0;
+        usbredirparser_send_bulk_packet(s->parser, id, bh, NULL, 0);
+        usbredirparser_free_packet_data(s->parser, data);
+        return;
+    }
+
+    if (dev_to_host) {
+        g_autofree uint8_t *buf = g_malloc0(length ? length : 1);
+        int out_len = 0;
+
+        rc = s->be_ops->ep_in(s->be, ep, buf, length, &out_len);
+        if (rc == MCXN_USB_XFER_ASYNC) {
+            MCXNUsbPending *p = usbdev_pending(s, bh->endpoint);
+            p->active = true;
+            p->is_control = false;
+            p->id = id;
+            p->length = length;
+            p->ep = bh->endpoint;
+        } else if (rc == MCXN_USB_XFER_OK) {
+            bh->status = usb_redir_success;
+            bh->length = out_len & 0xffff;
+            bh->length_high = out_len >> 16;
+            usbredirparser_send_bulk_packet(s->parser, id, bh, buf, out_len);
+        } else {
+            bh->status = usb_redir_stall;
+            bh->length = 0;
+            bh->length_high = 0;
+            usbredirparser_send_bulk_packet(s->parser, id, bh, NULL, 0);
+        }
+    } else {
+        rc = s->be_ops->ep_out(s->be, ep, data, data_len);
+        if (rc == MCXN_USB_XFER_ASYNC) {
+            MCXNUsbPending *p = usbdev_pending(s, bh->endpoint);
+            p->active = true;
+            p->is_control = false;
+            p->id = id;
+            p->ep = bh->endpoint;
+        } else {
+            bh->status = (rc == MCXN_USB_XFER_OK) ? usb_redir_success
+                                                  : usb_redir_stall;
+            bh->length = 0;
+            bh->length_high = 0;
+            usbredirparser_send_bulk_packet(s->parser, id, bh, NULL, 0);
+        }
+    }
+    usbredirparser_free_packet_data(s->parser, data);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -214,16 +355,92 @@ void mcxn_usbdev_set_backend(MCXNUsbDevState *s,
     s->be = be;
 }
 
+void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed)
+{
+    struct usb_redir_device_connect_header dc = { 0 };
+
+    s->attached = true;
+    s->speed = speed;
+    if (!s->parser || !s->connected) {
+        return;     /* announced once the hello handshake completes */
+    }
+
+    /* Descriptors are sourced from guest firmware via forwarded control
+     * transfers, so the connect header carries only the speed; the host learns
+     * class/ids/version from the real GET_DESCRIPTOR responses. */
+    dc.speed = speed;
+    usbredirparser_send_device_connect(s->parser, &dc);
+    usbredirparser_do_write(s->parser);
+}
+
+void mcxn_usbdev_detach(MCXNUsbDevState *s)
+{
+    s->attached = false;
+    memset(s->pending, 0, sizeof(s->pending));
+    if (s->parser && s->connected) {
+        usbredirparser_send_device_disconnect(s->parser);
+        usbredirparser_do_write(s->parser);
+    }
+}
+
+/* Backend retired a primed IN descriptor that answers a pending host IN. */
 void mcxn_usbdev_complete_in(MCXNUsbDevState *s, int ep,
                              const uint8_t *buf, int len)
 {
-    /* Async IN completion -> usbredir reply.  Filled in with enumeration. */
-    qemu_log_mask(LOG_UNIMP, "mcxn-usbdev: complete_in ep%d (TODO)\n", ep);
+    uint8_t ep_addr = (ep & 0x0f) | 0x80;
+    MCXNUsbPending *p = usbdev_pending(s, ep_addr);
+
+    if (!p->active || !s->parser) {
+        return;
+    }
+    if (len > p->length) {
+        len = p->length;
+    }
+
+    if (p->is_control) {
+        struct usb_redir_control_packet_header ch = { 0 };
+        ch.endpoint = ep_addr;
+        ch.status = usb_redir_success;
+        ch.length = len;
+        usbredirparser_send_control_packet(s->parser, p->id, &ch,
+                                           (uint8_t *)buf, len);
+    } else {
+        struct usb_redir_bulk_packet_header bh = { 0 };
+        bh.endpoint = ep_addr;
+        bh.status = usb_redir_success;
+        bh.length = len & 0xffff;
+        bh.length_high = len >> 16;
+        usbredirparser_send_bulk_packet(s->parser, p->id, &bh,
+                                        (uint8_t *)buf, len);
+    }
+    p->active = false;
+    usbredirparser_do_write(s->parser);
 }
 
+/* Backend retired a primed OUT descriptor that answers a pending host OUT. */
 void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status)
 {
-    qemu_log_mask(LOG_UNIMP, "mcxn-usbdev: complete_out ep%d (TODO)\n", ep);
+    uint8_t ep_addr = ep & 0x0f;
+    MCXNUsbPending *p = usbdev_pending(s, ep_addr);
+    uint8_t st = (status == MCXN_USB_XFER_OK) ? usb_redir_success
+                                              : usb_redir_stall;
+
+    if (!p->active || !s->parser) {
+        return;
+    }
+    if (p->is_control) {
+        struct usb_redir_control_packet_header ch = { 0 };
+        ch.endpoint = ep_addr;
+        ch.status = st;
+        usbredirparser_send_control_packet(s->parser, p->id, &ch, NULL, 0);
+    } else {
+        struct usb_redir_bulk_packet_header bh = { 0 };
+        bh.endpoint = ep_addr;
+        bh.status = st;
+        usbredirparser_send_bulk_packet(s->parser, p->id, &bh, NULL, 0);
+    }
+    p->active = false;
+    usbredirparser_do_write(s->parser);
 }
 
 /* ------------------------------------------------------------------------- *
