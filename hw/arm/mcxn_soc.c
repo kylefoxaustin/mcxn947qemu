@@ -237,7 +237,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_QDC,      0x400CF000 },   /* QDC0 */
     { TYPE_MCXN_QDC,      0x400D1000 },   /* QDC1 */
     /* USB: FS-OTG, charger detect, HS PHY + HS core/non-core (OBMF-ICP path). */
-    { TYPE_MCXN_USBFS,        0x400DD000 },
+    /* USBFS0 @ 0x400DD000 instantiated explicitly (device-mode engine + IRQ). */
     { TYPE_MCXN_USBDCD,       0x400DC000 },
     { TYPE_MCXN_USBPHY,       0x4010A000 },   /* 0x800 window */
     { TYPE_MCXN_USBHS_PHYDCD, 0x4010A800 },   /* 0x800 window */
@@ -323,6 +323,8 @@ static void mcxn_soc_instance_init(Object *obj)
     object_initialize_child(obj, "rtc0", &s->rtc0, TYPE_MCXN_RTC);
     object_initialize_child(obj, "usdhc0", &s->usdhc0, TYPE_MCXN_USDHC);
     object_initialize_child(obj, "flexspi0", &s->flexspi0, TYPE_MCXN_FLEXSPI);
+    object_initialize_child(obj, "usbdev", &s->usbdev, TYPE_MCXN_USBDEV);
+    object_initialize_child(obj, "usbfs0", &s->usbfs0, TYPE_MCXN_USBFS);
     for (i = 0; i < MCXN_NUM_SAI; i++) {
         g_autofree char *name = g_strdup_printf("sai%d", i);
         object_initialize_child(obj, name, &s->sai[i], TYPE_MCXN_SAI);
@@ -804,6 +806,26 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                              s->flexspi0.flash_size);
     memory_region_add_subregion(system_memory, MCXN_FLEXSPI0_AHB_S,
                                 &s->flexspi0_nor_s_alias);
+
+    /* USB device-mode core (usbredir bridge) + USBFS0 (KHCI) engine.  Realize
+     * the core first so the controller can link to it; the chardev is attached
+     * from the command line via `-global mcxn-usbdev.chardev=<id>`.  USBFS0:
+     * NS @ 0x400D_D000 + secure alias, IP IRQ 50 (USB0_FS_IRQn). */
+    if (!qdev_realize(DEVICE(&s->usbdev), NULL, errp)) {
+        return;
+    }
+    object_property_set_link(OBJECT(&s->usbfs0), "usbdev",
+                             OBJECT(&s->usbdev), &error_abort);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->usbfs0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->usbfs0), 0, 0x400DD000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->usbfs0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 50));
+    memory_region_init_alias(&s->usbfs0_s_alias, OBJECT(dev), "mcxn.usbfs0.s",
+                             &s->usbfs0.iomem, 0, MCXN_USBFS_SIZE);
+    memory_region_add_subregion(system_memory, 0x400DD000 + MCXN_SECURE_ALIAS,
+                                &s->usbfs0_s_alias);
 
     /* SAI0..1 (audio): FIFO-request/error interrupt to cpu0 NVIC. */
     for (i = 0; i < MCXN_NUM_SAI; i++) {
