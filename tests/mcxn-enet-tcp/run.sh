@@ -26,10 +26,20 @@ QPID=$!; trap 'kill $QPID 2>/dev/null; rm -f "$CON"' EXIT
 for i in $(seq 1 30); do grep -aqi 'IPv4 address' "$CON" 2>/dev/null && break; sleep 1; done
 sleep 1
 MSG="MCX-TCP-OVER-ENET-$$-$RANDOM"
-REPLY=$(printf '%s\n' "$MSG" | timeout 6 python3 -c '
-import socket,sys
-s=socket.create_connection(("127.0.0.1",'"$PORT"'),timeout=5)
-d=sys.stdin.buffer.read(); s.sendall(d)
-sys.stdout.write(s.recv(len(d)+16).decode(errors="replace")); s.close()' 2>/dev/null)
+# Retry the whole connect+echo round-trip: the lease can be applied a beat
+# before the echo_server's TCP listener is accepting, and slirp can drop the
+# first SYN — a single attempt is a flaky oracle (per the fleet net-flake
+# post-mortem), so re-attempt a few times within the outer timeout.
+REPLY=$(printf '%s\n' "$MSG" | timeout 12 python3 -c '
+import socket,sys,time
+d=sys.stdin.buffer.read()
+for _ in range(4):
+    try:
+        s=socket.create_connection(("127.0.0.1",'"$PORT"'),timeout=5)
+        s.sendall(d)
+        sys.stdout.write(s.recv(len(d)+16).decode(errors="replace")); s.close()
+        break
+    except OSError:
+        time.sleep(1)' 2>/dev/null)
 echo "sent: $MSG | echoed: $REPLY"
 echo "$REPLY" | grep -q "$MSG" && { echo "PASS: TCP connect + echo round-trip over ENET"; exit 0; } || { echo "FAIL: no TCP echo"; exit 1; }
