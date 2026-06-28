@@ -723,6 +723,54 @@ static bool trans_VSTR_sysreg(DisasContext *s, arg_vldr_sysreg *a)
     return gen_M_fp_sysreg_read(s, a->reg, fp_sysreg_to_memory, a);
 }
 
+/*
+ * NXP MCX-N PowerQuad custom coprocessor (CP_PQ = p0) scalar math.
+ *
+ * These run only when the CPU has ARM_FEATURE_POWERQUAD (the MCXN947 M33s, set
+ * via the "powerquad" property) and only for the float32 format; otherwise they
+ * return false so the decode falls through to the normal NOCP UsageFault — so
+ * every other Arm CPU behaves exactly as before.  Only float32 is computed; the
+ * fixed-point variants (CRn bit0 = 1, or for MCRR opc1 bit0 = 1) fall through
+ * to NOCP rather than risk a silently-wrong Q-format result.
+ */
+static bool trans_PQ_MCR(DisasContext *s, arg_pqcr *a)
+{
+    if (!arm_dc_feature(s, ARM_FEATURE_POWERQUAD) || (a->crn & 1)) {
+        return false;
+    }
+    gen_helper_powerquad_mcr(tcg_env, load_reg(s, a->rt),
+                             tcg_constant_i32(a->opc1),
+                             tcg_constant_i32(a->crn),
+                             tcg_constant_i32(a->opc2));
+    return true;
+}
+
+static bool trans_PQ_MRC(DisasContext *s, arg_pqcr *a)
+{
+    TCGv_i32 res;
+
+    if (!arm_dc_feature(s, ARM_FEATURE_POWERQUAD) || (a->crn & 1)) {
+        return false;
+    }
+    res = tcg_temp_new_i32();
+    gen_helper_powerquad_mrc(res, tcg_env,
+                             tcg_constant_i32(a->opc1),
+                             tcg_constant_i32(a->crn));
+    store_reg(s, a->rt, res);
+    return true;
+}
+
+static bool trans_PQ_MCRR(DisasContext *s, arg_pqmcrr *a)
+{
+    if (!arm_dc_feature(s, ARM_FEATURE_POWERQUAD) || (a->opc1 & 1)) {
+        return false;
+    }
+    gen_helper_powerquad_mcrr(tcg_env, load_reg(s, a->rt), load_reg(s, a->rt2),
+                              tcg_constant_i32(a->opc1),
+                              tcg_constant_i32(a->crm));
+    return true;
+}
+
 static bool trans_NOCP(DisasContext *s, arg_nocp *a)
 {
     /*

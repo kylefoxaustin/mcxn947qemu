@@ -419,6 +419,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         qdev_prop_set_uint8 (cpudev, "num-prio-bits", cfg->num_prio_bits);
         qdev_prop_set_string(cpudev, "cpu-type",      cfg->cpu_type);
         qdev_prop_set_bit   (cpudev, "enable-bitband", false); /* M33: none */
+        /* PowerQuad CP0 scalar-math coprocessor: both M33s have it on silicon. */
+        qdev_prop_set_bit   (cpudev, "powerquad",     true);
         /* Reset reads the vector table (initial SP + reset PC) from flash. */
         qdev_prop_set_uint32(cpudev, "init-svtor",    cfg->flash_base);
         if (i > 0) {

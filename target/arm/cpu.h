@@ -809,6 +809,16 @@ typedef struct CPUArchState {
         uint32_t ctrl;
     } sau;
 
+    /*
+     * NXP MCX-N PowerQuad custom coprocessor (CP0) result registers, used only
+     * when ARM_FEATURE_POWERQUAD is set.  comp[0]/comp[1] hold the COMP0/COMP1
+     * scalar-op results (sin/cos/sqrt/inv/ln/exp/div) written by an MCR/MCRR
+     * and read back by the matching MRC (raw float32/fixed bits).
+     */
+    struct {
+        uint32_t comp[2];
+    } powerquad;
+
 #if !defined(CONFIG_USER_ONLY)
     NVICState *nvic;
     const struct arm_boot_info *boot_info;
@@ -1004,6 +1014,8 @@ struct ArchCPU {
     bool has_el3;
     /* CPU has PMU (Performance Monitor Unit) */
     bool has_pmu;
+    /* CPU has the NXP MCX-N PowerQuad custom coprocessor (CP0 scalar math) */
+    bool powerquad;
     /* CPU has VFP */
     bool has_vfp;
     /* CPU has 32 VFP registers */
@@ -2171,6 +2183,13 @@ enum arm_features {
      * CPU types added in future.
      */
     ARM_FEATURE_BACKCOMPAT_CNTFRQ, /* 62.5MHz timer default */
+    /*
+     * ARM_FEATURE_POWERQUAD: NXP MCX-N PowerQuad custom coprocessor (CP0).
+     * Set per-instance via the "powerquad" CPU property (default off), so only
+     * the MCXN947 SoC's Cortex-M33s decode the PowerQuad MCR/MRC/MCRR scalar
+     * math ops; every other Arm CPU is unaffected and still NOCP-faults CP0.
+     */
+    ARM_FEATURE_POWERQUAD,
 };
 
 static inline int arm_feature(const CPUARMState *env, int feature)

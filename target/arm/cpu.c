@@ -2180,6 +2180,10 @@ static void arm_cpu_realizefn(DeviceState *dev, Error **errp)
     if (!cpu->has_pmu) {
         unset_feature(env, ARM_FEATURE_PMU);
     }
+    if (cpu->powerquad) {
+        /* NXP MCX-N PowerQuad custom coprocessor (CP0) — opt-in per instance. */
+        set_feature(env, ARM_FEATURE_POWERQUAD);
+    }
     if (arm_feature(env, ARM_FEATURE_PMU)) {
         pmu_init(cpu);
 
@@ -2474,6 +2478,13 @@ static const Property arm_cpu_properties[] = {
     DEFINE_PROP_BOOL("backcompat-cntfrq", ARMCPU, backcompat_cntfrq, false),
     DEFINE_PROP_BOOL("backcompat-pauth-default-use-qarma5", ARMCPU,
                       backcompat_pauth_default_use_qarma5, false),
+    /*
+     * NXP MCX-N PowerQuad custom coprocessor (CP0).  Off by default; the
+     * MCXN947 SoC sets it on its Cortex-M33s so PowerQuad scalar-math
+     * MCR/MRC/MCRR ops compute instead of taking a NOCP fault.  No other Arm
+     * machine sets this, so they are unaffected.
+     */
+    DEFINE_PROP_BOOL("powerquad", ARMCPU, powerquad, false),
 };
 
 static const gchar *arm_gdb_arch_name(CPUState *cs)

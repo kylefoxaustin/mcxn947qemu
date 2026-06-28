@@ -68,6 +68,7 @@ arm_common_user_system_ss.add(
   'mve_helper.c',
   'neon_helper.c',
   'op_helper.c',
+  'powerquad_helper.c',
   'translate.c',
   'translate-m-nocp.c',
   'translate-mve.c',

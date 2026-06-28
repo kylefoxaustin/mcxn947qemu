@@ -25,7 +25,8 @@ each block behaves at runtime**. Shares the format used by the i.MX95 model's
 | Block | Status | Notes |
 |-------|--------|-------|
 | PowerQuad — matrix/vector (MMIO) | **COMPUTES** | mult/add/sub/scale/transpose/dot-product, Q15/Q31/float32; real operands → OUTBASE (commit 7241fdc5c1). |
-| PowerQuad — transcendentals (sin/cos/sqrt/ln/exp/div) | ⚠ **HARD-FAULTS today** | These use the custom ARM **CP0/CP1 coprocessor** (MCR/MRC), which QEMU's M33 doesn't implement → NOCP→HardFault. Fix = Phase 2 (target/arm coprocessor). Until then, PowerQuad-math/CMSIS-DSP-on-PQ code crashes — **do not rely on it yet.** |
+| PowerQuad — transcendentals (sin/cos/sqrt/ln/exp/div, **float32**) | **COMPUTES** | Phase 2 done (commit pending): the custom ARM **CP0 coprocessor** (MCR/MCRR/MRC) is implemented in target/arm, gated by ARM_FEATURE_POWERQUAD (only the MCXN947 M33s via the "powerquad" CPU property — every other Arm CPU still NOCP-faults CP0). float32 sin/cos/sqrt/invsqrt/inv/ln/etox/etonx + division compute correctly (host libm; the real PowerQuad is an approximation engine, not IEEE-exact). |
+| PowerQuad — transcendentals (**fixed-point** Q-format) | ⚠ **HONEST-FAULT** | The fixed-point variants (CRn bit0=1) are deliberately routed to the NOCP fault rather than risk a silently-wrong Q-format result — same as before Phase 2. Float32 is the dominant path (CMSIS-DSP-on-PQ + the PQ_*F32 API). |
 | SmartDMA (EZH coprocessor) | **FLAG-AT-OPERATOR** | Runs a firmware program we don't execute. `qom-get …/smartdma compute-modelled` = false; `programs-started` counts acked-uncomputed starts; LOG_UNIMP per start. |
 | eIQ Neutron NPU | ⚠ **NOT MODELLED** | The 0x400C_C000 window models **NPX (flash-cache)**, not the Neutron compute register set (absent from CMSIS). eIQ/LiteRT inference would **not run / not compute**. Treat ML inference as unsupported on this model. |
 
@@ -55,7 +56,9 @@ CDOG, VBAT, INPUTMUX, EVTG, PLU, FREQME, NPX cache, etc. — register-accurate,
 nothing to compute, nothing to get wrong.
 
 ## Bottom line for the farm
-Trust the functional + COMPUTES blocks. For OPERATOR-DRIVEN analog, inject
-inputs via QOM. **Do not trust** (and the control-plane can detect via QMP/log):
-PowerQuad transcendentals (until Phase 2), SmartDMA program output, and Neutron
-NPU inference.
+Trust the functional + COMPUTES blocks (now including PowerQuad's float32
+matrix/vector engine AND its scalar transcendentals/division). For
+OPERATOR-DRIVEN analog (ADC/CMP/TSI), inject inputs via QOM. **Do not trust**
+(and the control-plane can detect via QMP/log): PowerQuad *fixed-point*
+transcendentals (honest-fault), SmartDMA program output, and Neutron NPU
+inference.

@@ -79,6 +79,11 @@ DEF_HELPER_1(v7m_preserve_fp_state, void, env)
 DEF_HELPER_2(v7m_vlstm, void, env, i32)
 DEF_HELPER_2(v7m_vlldm, void, env, i32)
 
+/* NXP MCX-N PowerQuad custom coprocessor (CP0) scalar math. */
+DEF_HELPER_5(powerquad_mcr, void, env, i32, i32, i32, i32)
+DEF_HELPER_5(powerquad_mcrr, void, env, i32, i32, i32, i32)
+DEF_HELPER_3(powerquad_mrc, i32, env, i32, i32)
+
 DEF_HELPER_2(v8m_stackcheck, void, env, i32)
 
 DEF_HELPER_FLAGS_2(check_bxj_trap, TCG_CALL_NO_WG, void, env, i32)

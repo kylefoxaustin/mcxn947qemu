@@ -65,6 +65,17 @@
   VSTR_sysreg  ---- 110 1 . . w:1 0 .... ... 0 111 11 ....... @vldr_sysreg p=1
   VSTR_sysreg  ---- 110 0 . . 1   0 .... ... 0 111 11 ....... @vldr_sysreg p=0 w=1
 
+  # NXP MCX-N PowerQuad custom coprocessor (CP_PQ = p0) scalar math.  These
+  # take precedence over the NOCP catch-all so that, when the CPU has
+  # ARM_FEATURE_POWERQUAD, MCR/MRC/MCRR to cp0 compute instead of faulting.
+  # The trans_ handlers return false (falling through to NOCP) when the feature
+  # is absent or for the fixed-point format, so non-MCX CPUs are unaffected.
+  &pqcr   rt opc1 crn opc2
+  &pqmcrr rt rt2 opc1 crm
+  PQ_MCR   111- 1110 opc1:3 0 crn:4 rt:4 0000 opc2:3 1 ----  &pqcr
+  PQ_MRC   111- 1110 opc1:3 1 crn:4 rt:4 0000 opc2:3 1 ----  &pqcr
+  PQ_MCRR  111- 1100 0100 rt2:4 rt:4 0000 opc1:4 crm:4       &pqmcrr
+
   NOCP         111- 1110 ---- ---- ---- cp:4 ---- ---- &nocp
   NOCP         111- 110- ---- ---- ---- cp:4 ---- ---- &nocp
   # From v8.1M onwards this range will also NOCP:
