@@ -43,7 +43,10 @@ each block behaves at runtime**. Shares the format used by the i.MX95 model's
 
 GPIO, PORT pin-mux, LPUART console, **FlexComm LPSPI/LPI2C** (loopback/echo),
 FlexCAN (MB loopback), **ENET** (real DWC descriptor-ring frames over a QEMU
-NIC), uSDHC (SD cmd/resp), FlexSPI (IP-cmd-done), SAI (TX-request), RTC (live
+NIC), uSDHC (SD cmd/resp), **FlexSPI** (IP-cmd-done **+ XIP**: the AHB-mapped
+NOR window — NS 0x8000_0000 / secure 0x9000_0000, 8 MiB — is real executable
+memory, so code linked there boots/runs in place; tests/mcxn-xip), SAI
+(TX-request), RTC (live
 1 Hz), eDMA (really moves data), CTIMER/SCT/PWM/MRT/OSTIMER/LPTMR (real
 counters), EMVSIM (TX-complete), I3C (transfer-complete), inter-CPU MAILBOX
 (real cross-core IRQ), **ELS** (crypto exercised by els_pkc examples; TRNG

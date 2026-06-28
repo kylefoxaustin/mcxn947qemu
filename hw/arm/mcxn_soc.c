@@ -100,6 +100,8 @@
 #define MCXN_SRAMX_SIZE (96 * KiB)
 #define MCXN_SRAM_NS    0x20000000        /* main SRAM RAMA..H, 416 KB     */
 #define MCXN_SRAM_S     0x30000000
+#define MCXN_FLEXSPI0_AHB_NS 0x80000000   /* FlexSPI0 AHB-mapped NOR (XIP)  */
+#define MCXN_FLEXSPI0_AHB_S  0x90000000   /* secure alias                   */
 
 /* TrustZone-M: secure peripheral alias = non-secure base + 0x1000_0000. */
 #define MCXN_SECURE_ALIAS    0x10000000
@@ -792,6 +794,16 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                              &s->flexspi0.iomem, 0, MCXN_FLEXSPI_SIZE);
     memory_region_add_subregion(system_memory, 0x400C8000 + MCXN_SECURE_ALIAS,
                                 &s->flexspi0_s_alias);
+    /* FlexSPI0 AHB-mapped external NOR (XIP window): non-secure @ 0x8000_0000,
+     * secure alias @ 0x9000_0000 (N947 DTS: spi@500c8000 ahb = 0x9000_0000,
+     * +0x1000_0000 TZ-M offset).  Backs the window with real executable memory
+     * so code linked there boots/runs in place instead of faulting. */
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->flexspi0), 1, MCXN_FLEXSPI0_AHB_NS);
+    memory_region_init_alias(&s->flexspi0_nor_s_alias, OBJECT(dev),
+                             "mcxn.flexspi0.nor.s", &s->flexspi0.nor, 0,
+                             s->flexspi0.flash_size);
+    memory_region_add_subregion(system_memory, MCXN_FLEXSPI0_AHB_S,
+                                &s->flexspi0_nor_s_alias);
 
     /* SAI0..1 (audio): FIFO-request/error interrupt to cpu0 NVIC. */
     for (i = 0; i < MCXN_NUM_SAI; i++) {

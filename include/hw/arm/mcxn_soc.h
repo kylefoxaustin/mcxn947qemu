@@ -152,7 +152,8 @@ struct MCXNState {
     MemoryRegion mailbox_s_alias;                  /* secure alias of mailbox */
     MemoryRegion rtc0_s_alias;                     /* secure alias of RTC */
     MemoryRegion usdhc0_s_alias;                   /* secure alias of uSDHC */
-    MemoryRegion flexspi0_s_alias;                 /* secure alias of FlexSPI */
+    MemoryRegion flexspi0_s_alias;                 /* secure alias of FlexSPI regs */
+    MemoryRegion flexspi0_nor_s_alias;             /* secure alias of FlexSPI NOR (XIP) */
     MemoryRegion sai_s_alias[MCXN_NUM_SAI];        /* secure aliases of SAI0..1 */
     MemoryRegion dac_s_alias[MCXN_NUM_DAC];        /* secure aliases of DAC0..2 */
     MemoryRegion powerquad0_s_alias;               /* secure alias of PowerQuad */

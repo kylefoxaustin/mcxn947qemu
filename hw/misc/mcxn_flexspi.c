@@ -22,8 +22,11 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+#include "qemu/units.h"
+#include "qapi/error.h"
 #include "hw/misc/mcxn_flexspi.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 
 /* Register offsets (CMSIS FLEXSPI_Type). */
@@ -172,11 +175,26 @@ static void mcxn_flexspi_realize(DeviceState *dev, Error **errp)
 {
     MCXNFlexSPIState *s = MCXN_FLEXSPI(dev);
 
+    /* MMIO region 0: the CMSIS register file. */
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_flexspi_ops, s,
                           TYPE_MCXN_FLEXSPI, MCXN_FLEXSPI_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+
+    /* MMIO region 1: the AHB-mapped external NOR.  RAM-backed so the SoC's
+     * AHB window holds real, executable flash contents — the -kernel loader
+     * fills it and code linked there runs in place (XIP). */
+    memory_region_init_ram(&s->nor, OBJECT(s), "mcxn.flexspi-nor",
+                           s->flash_size, &error_fatal);
+    sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->nor);
+
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
+
+static const Property mcxn_flexspi_props[] = {
+    /* Size of the AHB-mapped NOR window.  Default = the FRDM-MCXN947's
+     * 8 MiB Winbond W25Q64 (Zephyr DTS: ranges @ 0x9000_0000, DT_SIZE_M(8)). */
+    DEFINE_PROP_UINT64("flash-size", MCXNFlexSPIState, flash_size, 8 * MiB),
+};
 
 static const VMStateDescription vmstate_mcxn_flexspi = {
     .name = TYPE_MCXN_FLEXSPI,
@@ -194,6 +212,7 @@ static void mcxn_flexspi_class_init(ObjectClass *klass, const void *data)
 
     dc->realize = mcxn_flexspi_realize;
     device_class_set_legacy_reset(dc, mcxn_flexspi_reset);
+    device_class_set_props(dc, mcxn_flexspi_props);
     dc->vmsd = &vmstate_mcxn_flexspi;
 }
 

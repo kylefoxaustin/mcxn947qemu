@@ -74,6 +74,8 @@ in USART mode, which gives you a hardware-accurate console.
 | SRAM              | `0x2000_0000` | 512 KiB     | RAM (banked, mapped contig.)  |
 | Peripherals (NS)  | `0x4000_0000` | —           | catch-all `unimplemented`     |
 | Peripherals (S)   | `0x5000_0000` | —           | secure alias, same catch-all  |
+| FlexSPI NOR (NS)  | `0x8000_0000` | 8 MiB       | AHB-mapped ext flash (XIP)    |
+| FlexSPI NOR (S)   | `0x9000_0000` | 8 MiB       | secure alias of the XIP window|
 | PPB (NVIC/SysTick)| `0xE000_0000` | —           | handled by `ARMV7M` container |
 
 ## Next step: FlexComm4 / LPUART4 console
