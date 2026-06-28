@@ -78,6 +78,11 @@ if usbredir.found()
   usbredir_ss.add(when: 'CONFIG_USB',
                   if_true: [usbredir, files('redirect.c', 'quirks.c')])
   hw_usb_modules += {'redirect': usbredir_ss}
+
+  # MCX N USB device-mode core (usbredir-server bridge) — built into the
+  # softmmu target (not a module) since the SoC links it directly.
+  system_ss.add(when: 'CONFIG_MCXN_USBDEV',
+                if_true: [usbredir, files('mcxn_usbdev.c')])
 endif
 
 # usb pass-through

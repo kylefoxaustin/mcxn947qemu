@@ -146,3 +146,8 @@ config XLNX_USB_SUBSYS
 config USB_CHIPIDEA
     bool
     select USB_EHCI_SYSBUS
+
+config MCXN_USBDEV
+    bool
+    # MCX N USB device-mode core (usbredir-server bridge to a remote USB host).
+    # Requires libusbredirparser at build time (gated in hw/usb/meson.build).

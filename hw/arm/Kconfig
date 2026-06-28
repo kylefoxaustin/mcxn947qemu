@@ -781,6 +781,7 @@ config MCXN_SOC
     select MCXN_USBDCD
     select MCXN_USBPHY
     select MCXN_USBHS
+    select MCXN_USBDEV
     select MCXN_SMARTDMA
     select MCXN_POWERQUAD
     select MCXN_NPU
