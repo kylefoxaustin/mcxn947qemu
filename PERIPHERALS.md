@@ -132,12 +132,14 @@ Priority order (remaining):
 - **Analog results**: (RTC alarm/tick + DAC FIFO-watermark done; ADC/CMP/TSI
   are operator-driven — analog inputs exposed as QOM properties so an operator
   injects what a board pin would drive, with conversion/edge/scan IRQs wired.)
-- **Connectivity**: USBFS device-mode endpoints now ENUMERATE over usbredir
-  (KHCI BDT engine -> shared usbredir-server core -> remote USB host; the
-  OBMF-ICP / inter-QEMU transport, mission #5). `tests/mcxn-usb` proves
-  enumeration against a self-contained usbredir host; the i.MX93-host link is
-  the next integration step. USBHS (ChipIdea) device mode is the follow-on
-  backend on the same core.
+- **Connectivity**: BOTH USB controllers do full device-mode data path over
+  usbredir (the OBMF-ICP / inter-QEMU transport, mission #5): USBFS0 (full-speed,
+  KHCI BDT engine; `tests/mcxn-usb`) and USBHS1 (high-speed, ChipIdea dQH/dTD
+  engine; `tests/mcxn-usb-hs`), each on its own usbredir core/socket. Enumeration
+  (incl. Linux-style partial+full config reads + GET_STATUS) + bulk echo proven
+  against a self-contained host. The i.MX93-host link harness is
+  `tests/mcxn-usb-link/` (MCX = server; i.MX93 = stock `-device usb-redir`
+  client); the live 2-party pairing is the remaining integration step.
   (ENET now has full MAC frame DMA-ring + QEMU NIC - cross-board ready;
   uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request done.)
 - **Accelerators**: SmartDMA program execution, NPU. (PowerQuad compute-done

@@ -22,14 +22,24 @@ EXPECT_CFG = bytes([9, 2, 32, 0, 1, 1, 0, 0x80, 50,        # configuration
                     7, 5, 0x81, 2, 64, 0, 0])              # EP1 IN  bulk
 
 
-def main(host, port):
-    sock = None
+def connect(host, port):
+    # host containing "/" => unix socket path; else TCP host:port.
     for _ in range(50):                       # wait for qemu to listen
         try:
-            sock = socket.create_connection((host, port), timeout=5)
-            break
+            if "/" in host:
+                s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                s.settimeout(5)
+                s.connect(host)
+            else:
+                s = socket.create_connection((host, port), timeout=5)
+            return s
         except OSError:
             time.sleep(0.1)
+    return None
+
+
+def main(host, port):
+    sock = connect(host, port)
     if sock is None:
         print("HOST: could not connect"); return 1
     sock.settimeout(8)
@@ -107,9 +117,15 @@ def main(host, port):
     if st != 0:
         return 1
 
-    # 5) GET_DESCRIPTOR(config) — now 32 bytes (config + iface + 2 bulk eps).
-    st, cfg = control(0x80, 6, 0x80, 0x0200, 0, 32)
-    print("HOST: GET_DESC config status=%d len=%d" % (st, len(cfg)))
+    # 5) GET_DESCRIPTOR(config) the way Linux does: a 9-byte header read to learn
+    #    wTotalLength, then a full-length read (wLength=255).  A vendor stub that
+    #    only answers an exact-size read aborts real-kernel enumeration (-EPROTO).
+    st, hdr = control(0x80, 6, 0x80, 0x0200, 0, 9)
+    print("HOST: GET_DESC config(9) status=%d len=%d" % (st, len(hdr)))
+    if st != 0 or hdr != EXPECT_CFG[:9]:
+        print("HOST: config header MISMATCH:", hdr.hex()); return 1
+    st, cfg = control(0x80, 6, 0x80, 0x0200, 0, 255)
+    print("HOST: GET_DESC config(255) status=%d len=%d" % (st, len(cfg)))
     if st != 0 or cfg != EXPECT_CFG:
         print("HOST: config descriptor MISMATCH:", cfg.hex()); return 1
 
@@ -118,6 +134,12 @@ def main(host, port):
     print("HOST: SET_CONFIGURATION status=%d" % st)
     if st != 0:
         return 1
+
+    # 6b) GET_STATUS(device) — Linux issues this; a stub must return 2 bytes.
+    st, status = control(0x80, 0, 0x80, 0, 0, 2)
+    print("HOST: GET_STATUS status=%d len=%d" % (st, len(status)))
+    if st != 0 or len(status) != 2:
+        print("HOST: GET_STATUS bad:", status.hex()); return 1
     print("HOST: ENUMERATION OK")
 
     # 7) M2 — bulk data both directions: write to EP1 OUT, read the echo on

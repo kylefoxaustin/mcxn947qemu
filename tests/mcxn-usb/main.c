@@ -146,6 +146,9 @@ static void handle_setup(void)
         puts_("  SET_CONFIG\r\n");
         ep0_send(0, 0, 0);
         enum_done = 1;
+    } else if ((bmreq & 0x80) && breq == 0) {  /* GET_STATUS -> 2 bytes */
+        static const uint8_t st[2] = { 0, 0 };
+        ep0_send(st, 2, wlen);
     } else {
         ep0_send(0, 0, 0);                      /* ack other no-data reqs */
     }

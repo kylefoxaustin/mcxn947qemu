@@ -115,6 +115,9 @@ static void handle_setup(void)
         ep0_send(0, 0, 0);
         prime(1, 0, EP1OUT_DTD, EP1OUT_BUF, EP1_CAP);   /* arm EP1 bulk OUT */
         enum_done = 1;
+    } else if ((bmreq & 0x80) && breq == 0) {   /* GET_STATUS -> 2 bytes */
+        static const uint8_t st[2] = { 0, 0 };
+        ep0_send(st, 2, wlen);
     } else {
         ep0_send(0, 0, 0);
     }
