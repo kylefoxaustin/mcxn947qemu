@@ -24,9 +24,15 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+#include "qemu/timer.h"
+#include "qapi/error.h"
+#include "exec/cpu-common.h"
 #include "hw/misc/mcxn_usbhs.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
+
+#include <usbredirproto.h>
 
 /* ---- USBHS1 PHY/DCD (USBHSDCD_Type, identical layout to USBDCD_Type) ---- */
 
@@ -119,7 +125,16 @@ static void usbhs_phydcd_class_init(ObjectClass *klass, const void *data)
     dc->vmsd = &vmstate_usbhs_phydcd;
 }
 
-/* ---- USBHS1 core: EHCI-style controller (USBHS_Type) ---- */
+/* ---- USBHS1 core: ChipIdea/EHCI controller (USBHS_Type), device mode ---- *
+ *
+ * Device-mode endpoint engine: guest firmware programs device Queue Heads (dQH,
+ * 64 B each at ENDPTLISTADDR, indexed ep*2 + (IN?1:0)) and device Transfer
+ * Descriptors (dTD, 32 B); a remote USB host drives transactions via the shared
+ * usbredir core.  A host SETUP is written into the EP0-OUT dQH setup buffer
+ * (ENDPTSETUPSTAT + USBSTS.UI); IN/OUT data walks the primed dTD chain and
+ * retires it (ENDPTCOMPLETE + USBSTS.UI).  Firmware signals primed dTDs via
+ * ENDPTPRIME, which (plus a backstop tick) drives servicing.
+ */
 
 #define HS_ID           0x000   /* RO */
 #define HS_HWGENERAL    0x004   /* RO */
@@ -135,11 +150,33 @@ static void usbhs_phydcd_class_init(ObjectClass *klass, const void *data)
 #define HS_USBCMD       0x140
 #define HS_USBSTS       0x144   /* W1C status bits */
 #define HS_USBINTR      0x148
+#define HS_DEVICEADDR   0x154
+#define HS_ENDPTLISTADDR 0x158
 #define HS_USBMODE      0x1A8
+#define HS_ENDPTSETUPSTAT 0x1AC
+#define HS_ENDPTPRIME   0x1B0   /* WO-ish, self-clears */
+#define HS_ENDPTFLUSH   0x1B4
+#define HS_ENDPTSTAT    0x1B8   /* RO */
+#define HS_ENDPTCOMPLETE 0x1BC  /* W1C */
+#define HS_ENDPTCTRL0   0x1C0   /* ENDPTCTRL[0..7] @ 0x1C0, step 4 */
 
 #define USBCMD_RS       (1u << 0)   /* Run/Stop */
 #define USBCMD_RST      (1u << 1)   /* Controller reset, self-clearing */
+#define USBSTS_UI       (1u << 0)   /* USB interrupt (xfer done / setup) */
+#define USBSTS_URI      (1u << 6)   /* USB reset received */
 #define USBSTS_HCH      (1u << 12)  /* HCHalted */
+#define USBMODE_CM_MASK 0x3
+#define USBMODE_CM_DEVICE 0x2       /* CM = 0b10 = device controller */
+
+/* dTD / dQH token bits. */
+#define DTD_ACTIVE      (1u << 7)
+#define DTD_IOC         (1u << 15)
+#define DTD_TOTBYTES_SHIFT 16
+#define DTD_TOTBYTES_MASK  0x7FFF
+#define DTD_TERMINATE   (1u << 0)
+#define DQH_SETUP0      0x28        /* setup buffer in the dQH               */
+
+#define SOF_PERIOD_NS   (1 * 1000 * 1000)   /* 1 ms backstop */
 
 /*
  * EHCI capability constants for this controller.  CAPLENGTH = 0x40 (operational
@@ -156,6 +193,238 @@ static void usbhs_phydcd_class_init(ObjectClass *klass, const void *data)
 
 /* USBSTS interrupt-status bits are W1C; HCH is status-only (not W1C). */
 #define USBSTS_W1C_MASK      0x000003FFu
+
+/* ---- dQH/dTD memory access ---------------------------------------------- */
+
+static uint32_t hs_ld(uint32_t addr)
+{
+    uint32_t w = 0;
+    cpu_physical_memory_read(addr, &w, 4);
+    return le32_to_cpu(w);
+}
+
+static void hs_st(uint32_t addr, uint32_t w)
+{
+    uint32_t t = cpu_to_le32(w);
+    cpu_physical_memory_write(addr, &t, 4);
+}
+
+/* dQH base for (ep, dir): list base (2 KiB aligned) + index*64. */
+static uint32_t hs_dqh(MCXNUSBHSCoreState *s, int ep, bool in)
+{
+    return (s->regs[HS_ENDPTLISTADDR / 4] & ~0x7FFu) + (ep * 2 + (in ? 1 : 0)) * 64;
+}
+
+static void usbhs_core_update_irq(MCXNUSBHSCoreState *s)
+{
+    bool active = (s->regs[HS_USBSTS / 4] & s->regs[HS_USBINTR / 4] &
+                   USBSTS_W1C_MASK) != 0;
+
+    qemu_set_irq(s->irq, active);
+}
+
+static void usbhs_ui(MCXNUSBHSCoreState *s)
+{
+    s->regs[HS_USBSTS / 4] |= USBSTS_UI;
+    usbhs_core_update_irq(s);
+}
+
+/* Fetch the active dTD for (ep,dir): returns its address or 0 if none ready. */
+static uint32_t hs_active_dtd(MCXNUSBHSCoreState *s, int ep, bool in)
+{
+    uint32_t qh = hs_dqh(s, ep, in);
+    uint32_t next = hs_ld(qh + 8);
+    uint32_t dtd, token;
+
+    if (next & DTD_TERMINATE) {
+        return 0;
+    }
+    dtd = next & ~0x1Fu;
+    token = hs_ld(dtd + 4);
+    return (token & DTD_ACTIVE) ? dtd : 0;
+}
+
+/* Retire a dTD: clear ACTIVE, set the remaining byte count, advance the dQH. */
+static void hs_retire_dtd(MCXNUSBHSCoreState *s, int ep, bool in,
+                          uint32_t dtd, int remaining)
+{
+    uint32_t qh = hs_dqh(s, ep, in);
+    uint32_t token = hs_ld(dtd + 4);
+
+    token &= ~0xFFu;                                  /* clear status (ACTIVE) */
+    token = (token & ~(DTD_TOTBYTES_MASK << DTD_TOTBYTES_SHIFT)) |
+            ((remaining & DTD_TOTBYTES_MASK) << DTD_TOTBYTES_SHIFT);
+    hs_st(dtd + 4, token);
+    hs_st(qh + 4, dtd);                               /* currentDtdPointer */
+    hs_st(qh + 8, hs_ld(dtd));                        /* nextDtdPointer = dtd.next */
+}
+
+/* IN data stage: copy the primed dTD's bytes to the host. */
+static bool usbhs_service_in(MCXNUSBHSCoreState *s, int ep)
+{
+    MCXNUSBHSXfer *x = &s->ep[ep];
+    uint32_t dtd = hs_active_dtd(s, ep, true);
+    uint8_t buf[MCXN_USBHS_XFERMAX];
+    uint32_t token, bufp;
+    int total, n;
+
+    if (!dtd) {
+        return false;
+    }
+    token = hs_ld(dtd + 4);
+    total = (token >> DTD_TOTBYTES_SHIFT) & DTD_TOTBYTES_MASK;
+    bufp = hs_ld(dtd + 8);
+    n = total;
+    if (n > x->in_len) {
+        n = x->in_len;
+    }
+    if (n > MCXN_USBHS_XFERMAX) {
+        n = MCXN_USBHS_XFERMAX;
+    }
+    cpu_physical_memory_read(bufp, buf, n);
+    hs_retire_dtd(s, ep, true, dtd, total - n);
+    s->regs[HS_ENDPTCOMPLETE / 4] |= (1u << (16 + ep));   /* TX complete */
+    usbhs_ui(s);
+    x->in_pending = false;
+    mcxn_usbdev_complete_in(s->usbdev, ep, buf, n);
+    return true;
+}
+
+/* OUT data stage: write host bytes into the primed dTD's buffer. */
+static bool usbhs_service_out(MCXNUSBHSCoreState *s, int ep)
+{
+    MCXNUSBHSXfer *x = &s->ep[ep];
+    uint32_t dtd = hs_active_dtd(s, ep, false);
+    uint32_t token, bufp;
+    int cap, n;
+
+    if (!dtd) {
+        return false;
+    }
+    token = hs_ld(dtd + 4);
+    cap = (token >> DTD_TOTBYTES_SHIFT) & DTD_TOTBYTES_MASK;
+    bufp = hs_ld(dtd + 8);
+    n = x->out_len;
+    if (n > cap) {
+        n = cap;
+    }
+    if (n) {
+        cpu_physical_memory_write(bufp, x->out_buf, n);
+    }
+    hs_retire_dtd(s, ep, false, dtd, cap - n);
+    s->regs[HS_ENDPTCOMPLETE / 4] |= (1u << ep);          /* RX complete */
+    usbhs_ui(s);
+    x->out_pending = false;
+    mcxn_usbdev_complete_out(s->usbdev, ep, MCXN_USB_XFER_OK);
+    return true;
+}
+
+/* Drain the zero-length status-IN dTD of a host->device control transfer. */
+static bool usbhs_consume_status_in(MCXNUSBHSCoreState *s)
+{
+    uint32_t dtd = hs_active_dtd(s, 0, true);
+
+    if (!dtd) {
+        return false;
+    }
+    hs_retire_dtd(s, 0, true, dtd, 0);
+    s->regs[HS_ENDPTCOMPLETE / 4] |= (1u << 16);          /* EP0 TX complete */
+    usbhs_ui(s);
+    s->ep0_status_in = false;
+    mcxn_usbdev_complete_out(s->usbdev, 0, MCXN_USB_XFER_OK);
+    return true;
+}
+
+/* Make progress on whatever the firmware has primed. */
+static void usbhs_service(MCXNUSBHSCoreState *s)
+{
+    int ep;
+
+    if (!s->enabled) {
+        return;
+    }
+    if (s->ep0_status_in) {
+        usbhs_consume_status_in(s);
+    }
+    for (ep = 0; ep < MCXN_USBHS_NEP; ep++) {
+        if (s->ep[ep].out_pending) {
+            usbhs_service_out(s, ep);
+        }
+        if (s->ep[ep].in_pending && !(ep == 0 && s->ep0_status_in)) {
+            usbhs_service_in(s, ep);
+        }
+    }
+}
+
+static void usbhs_sof(void *opaque)
+{
+    MCXNUSBHSCoreState *s = opaque;
+
+    if (!s->enabled) {
+        return;
+    }
+    usbhs_service(s);
+    timer_mod(s->sof, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SOF_PERIOD_NS);
+}
+
+/* ---- usbredir backend ops ----------------------------------------------- */
+
+static void usbhs_be_setup(void *be, const uint8_t setup[8])
+{
+    MCXNUSBHSCoreState *s = be;
+    uint32_t qh0 = hs_dqh(s, 0, false);     /* EP0 OUT dQH holds the setup buf */
+
+    hs_st(qh0 + DQH_SETUP0,     setup[0] | (setup[1] << 8) |
+                                (setup[2] << 16) | (setup[3] << 24));
+    hs_st(qh0 + DQH_SETUP0 + 4, setup[4] | (setup[5] << 8) |
+                                (setup[6] << 16) | (setup[7] << 24));
+    s->regs[HS_ENDPTSETUPSTAT / 4] |= 1;    /* EP0 setup pending */
+    s->ep0_status_in = !(setup[0] & 0x80);  /* host->device -> status is IN */
+    s->ep[0].in_pending = false;
+    s->ep[0].out_pending = false;
+    usbhs_ui(s);
+}
+
+static int usbhs_be_ep_in(void *be, int ep, uint8_t *buf, int len, int *out_len)
+{
+    MCXNUSBHSCoreState *s = be;
+
+    s->ep[ep & 7].in_pending = true;
+    s->ep[ep & 7].in_len = len;
+    *out_len = 0;
+    usbhs_service(s);
+    return MCXN_USB_XFER_ASYNC;
+}
+
+static int usbhs_be_ep_out(void *be, int ep, const uint8_t *buf, int len)
+{
+    MCXNUSBHSCoreState *s = be;
+    MCXNUSBHSXfer *x = &s->ep[ep & 7];
+
+    if (len > MCXN_USBHS_XFERMAX) {
+        len = MCXN_USBHS_XFERMAX;
+    }
+    if (len) {
+        memcpy(x->out_buf, buf, len);
+    }
+    x->out_len = len;
+    x->out_pending = true;
+    usbhs_service(s);
+    return MCXN_USB_XFER_ASYNC;
+}
+
+static void usbhs_be_set_address(void *be, uint8_t addr) { /* firmware writes DEVICEADDR */ }
+static void usbhs_be_set_config(void *be, uint8_t cfg)   { /* firmware handles */ }
+
+static const MCXNUsbBackendOps usbhs_be_ops = {
+    .setup       = usbhs_be_setup,
+    .ep_in       = usbhs_be_ep_in,
+    .ep_out      = usbhs_be_ep_out,
+    .set_address = usbhs_be_set_address,
+    .set_config  = usbhs_be_set_config,
+};
+
+/* ---- MMIO --------------------------------------------------------------- */
 
 static uint64_t usbhs_core_read(void *opaque, hwaddr off, unsigned size)
 {
@@ -179,8 +448,7 @@ static uint64_t usbhs_core_read(void *opaque, hwaddr off, unsigned size)
     case HS_DCIVERSION: return HS_DCIVERSION_VALUE;
     case HS_DCCPARAMS:  return HS_DCCPARAMS_VALUE;
     case HS_USBCMD:
-        /* RST is self-clearing. */
-        return s->regs[HS_USBCMD / 4] & ~USBCMD_RST;
+        return s->regs[HS_USBCMD / 4] & ~USBCMD_RST;  /* RST self-clears */
     case HS_USBSTS:
         /* HCHalted reflects run/stop: halted whenever RS is clear. */
         v = s->regs[HS_USBSTS / 4] & ~USBSTS_HCH;
@@ -188,17 +456,11 @@ static uint64_t usbhs_core_read(void *opaque, hwaddr off, unsigned size)
             v |= USBSTS_HCH;
         }
         return v;
+    case HS_ENDPTPRIME:
+        return 0;                       /* prime is momentary: reads back 0 */
     default:
         return s->regs[off >> 2];
     }
-}
-
-static void usbhs_core_update_irq(MCXNUSBHSCoreState *s)
-{
-    bool active = (s->regs[HS_USBSTS / 4] & s->regs[HS_USBINTR / 4] &
-                   USBSTS_W1C_MASK) != 0;
-
-    qemu_set_irq(s->irq, active);
 }
 
 static void usbhs_core_write(void *opaque, hwaddr off, uint64_t value,
@@ -225,17 +487,32 @@ static void usbhs_core_write(void *opaque, hwaddr off, uint64_t value,
     case HS_HCCPARAMS:
     case HS_DCIVERSION:
     case HS_DCCPARAMS:
-        return;                         /* read-only capability registers */
+    case HS_ENDPTSTAT:
+        return;                         /* read-only */
     case HS_USBCMD:
-        /* RST self-clears; store the rest (RS etc.). */
-        s->regs[HS_USBCMD / 4] = v & ~USBCMD_RST;
-        if (v & USBCMD_RST) {
-            /* Reset returns operational registers to defaults. */
+        if (v & USBCMD_RST) {           /* reset: operational regs to default */
             s->regs[HS_USBCMD / 4] = 0;
             s->regs[HS_USBSTS / 4] = 0;
             s->regs[HS_USBINTR / 4] = 0;
+            s->enabled = false;
+            timer_del(s->sof);
+            usbhs_core_update_irq(s);
+            return;
         }
-        usbhs_core_update_irq(s);
+        s->regs[HS_USBCMD / 4] = v;
+        if ((v & USBCMD_RS) &&
+            (s->regs[HS_USBMODE / 4] & USBMODE_CM_MASK) == USBMODE_CM_DEVICE &&
+            !s->enabled) {
+            /* Run + device mode: a device appears on the bus. */
+            s->enabled = true;
+            timer_mod(s->sof,
+                      qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SOF_PERIOD_NS);
+            mcxn_usbdev_attach(s->usbdev, usb_redir_speed_high);
+        } else if (!(v & USBCMD_RS) && s->enabled) {
+            s->enabled = false;
+            timer_del(s->sof);
+            mcxn_usbdev_detach(s->usbdev);
+        }
         return;
     case HS_USBSTS:
         s->regs[HS_USBSTS / 4] &= ~(v & USBSTS_W1C_MASK);   /* W1C */
@@ -244,6 +521,20 @@ static void usbhs_core_write(void *opaque, hwaddr off, uint64_t value,
     case HS_USBINTR:
         s->regs[HS_USBINTR / 4] = v;
         usbhs_core_update_irq(s);
+        return;
+    case HS_ENDPTSETUPSTAT:
+        s->regs[off >> 2] &= ~v;        /* W1C */
+        return;
+    case HS_ENDPTCOMPLETE:
+        s->regs[off >> 2] &= ~v;        /* W1C */
+        return;
+    case HS_ENDPTPRIME:
+        /* Firmware primed dTD(s): note ready endpoints, then service. */
+        s->regs[HS_ENDPTSTAT / 4] |= v;
+        usbhs_service(s);
+        return;
+    case HS_ENDPTFLUSH:
+        s->regs[HS_ENDPTSTAT / 4] &= ~v;
         return;
     default:
         s->regs[off >> 2] = v;
@@ -266,6 +557,10 @@ static void usbhs_core_reset(DeviceState *dev)
     MCXNUSBHSCoreState *s = MCXN_USBHS_CORE(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+    memset(s->ep, 0, sizeof(s->ep));
+    s->enabled = false;
+    s->ep0_status_in = false;
+    timer_del(s->sof);
 }
 
 static void usbhs_core_realize(DeviceState *dev, Error **errp)
@@ -276,17 +571,27 @@ static void usbhs_core_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_USBHS_CORE, MCXN_USBHS_CORE_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+
+    s->sof = timer_new_ns(QEMU_CLOCK_VIRTUAL, usbhs_sof, s);
+    if (s->usbdev) {
+        mcxn_usbdev_set_backend(s->usbdev, &usbhs_be_ops, s);
+    }
 }
 
 static const VMStateDescription vmstate_usbhs_core = {
     .name = TYPE_MCXN_USBHS_CORE,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNUSBHSCoreState,
                              MCXN_USBHS_CORE_SIZE / 4),
         VMSTATE_END_OF_LIST()
     },
+};
+
+static const Property usbhs_core_props[] = {
+    DEFINE_PROP_LINK("usbdev", MCXNUSBHSCoreState, usbdev, TYPE_MCXN_USBDEV,
+                     MCXNUsbDevState *),
 };
 
 static void usbhs_core_class_init(ObjectClass *klass, const void *data)
@@ -295,6 +600,7 @@ static void usbhs_core_class_init(ObjectClass *klass, const void *data)
 
     dc->realize = usbhs_core_realize;
     device_class_set_legacy_reset(dc, usbhs_core_reset);
+    device_class_set_props(dc, usbhs_core_props);
     dc->vmsd = &vmstate_usbhs_core;
 }
 

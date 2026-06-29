@@ -17,6 +17,7 @@
 #include "hw/core/qdev-clock.h"
 #include "hw/core/qdev-properties.h"
 #include "hw/core/qdev-properties-system.h" /* qdev_prop_set_chr */
+#include "chardev/char.h"                   /* qemu_chr_find */
 #include "hw/misc/unimp.h"
 #include "hw/misc/mcxn_stub.h"
 #include "hw/misc/mcxn_crc.h"
@@ -241,7 +242,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_USBDCD,       0x400DC000 },
     { TYPE_MCXN_USBPHY,       0x4010A000 },   /* 0x800 window */
     { TYPE_MCXN_USBHS_PHYDCD, 0x4010A800 },   /* 0x800 window */
-    { TYPE_MCXN_USBHS_CORE,   0x4010B000 },   /* 0x200 window */
+    /* USBHS core @ 0x4010B000 instantiated explicitly (device engine + IRQ). */
     { TYPE_MCXN_USBHS_NC,     0x4010B200 },   /* 0xE00 window */
     /* Accelerators: SmartDMA, eIQ Neutron NPU (NPX).  (PowerQuad below — IRQ.) */
     { TYPE_MCXN_SMARTDMA,  0x40033000 },
@@ -325,6 +326,9 @@ static void mcxn_soc_instance_init(Object *obj)
     object_initialize_child(obj, "flexspi0", &s->flexspi0, TYPE_MCXN_FLEXSPI);
     object_initialize_child(obj, "usbdev", &s->usbdev, TYPE_MCXN_USBDEV);
     object_initialize_child(obj, "usbfs0", &s->usbfs0, TYPE_MCXN_USBFS);
+    object_initialize_child(obj, "usbdev-hs", &s->usbdev_hs, TYPE_MCXN_USBDEV);
+    object_initialize_child(obj, "usbhs-core", &s->usbhs_core,
+                            TYPE_MCXN_USBHS_CORE);
     for (i = 0; i < MCXN_NUM_SAI; i++) {
         g_autofree char *name = g_strdup_printf("sai%d", i);
         object_initialize_child(obj, name, &s->sai[i], TYPE_MCXN_SAI);
@@ -807,11 +811,27 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, MCXN_FLEXSPI0_AHB_S,
                                 &s->flexspi0_nor_s_alias);
 
-    /* USB device-mode core (usbredir bridge) + USBFS0 (KHCI) engine.  Realize
-     * the core first so the controller can link to it; the chardev is attached
-     * from the command line via `-global mcxn-usbdev.chardev=<id>`.  USBFS0:
-     * NS @ 0x400D_D000 + secure alias, IP IRQ 50 (USB0_FS_IRQn). */
+    /* USB device-mode: two independent controllers, each with its own usbredir
+     * core (so each is a distinct inter-QEMU link).  Each core's socket is
+     * attached by a well-known chardev id — `-chardev socket,id=mcxn-usbfs,...`
+     * for USBFS0, `id=mcxn-usbhs,...` for USBHS1 — looked up here (absent = the
+     * controller simply never appears on a host).  USBFS0: KHCI device engine,
+     * NS @ 0x400D_D000 + secure alias, IRQ 50 (USB0_FS_IRQn).  USBHS1: ChipIdea
+     * device engine, NS @ 0x4010_B000 + secure alias, IRQ 67 (USB1_HS_IRQn). */
+    {
+        Chardev *c0 = qemu_chr_find("mcxn-usbfs");
+        Chardev *c1 = qemu_chr_find("mcxn-usbhs");
+        if (c0) {
+            qdev_prop_set_chr(DEVICE(&s->usbdev), "chardev", c0);
+        }
+        if (c1) {
+            qdev_prop_set_chr(DEVICE(&s->usbdev_hs), "chardev", c1);
+        }
+    }
     if (!qdev_realize(DEVICE(&s->usbdev), NULL, errp)) {
+        return;
+    }
+    if (!qdev_realize(DEVICE(&s->usbdev_hs), NULL, errp)) {
         return;
     }
     object_property_set_link(OBJECT(&s->usbfs0), "usbdev",
@@ -826,6 +846,20 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                              &s->usbfs0.iomem, 0, MCXN_USBFS_SIZE);
     memory_region_add_subregion(system_memory, 0x400DD000 + MCXN_SECURE_ALIAS,
                                 &s->usbfs0_s_alias);
+
+    object_property_set_link(OBJECT(&s->usbhs_core), "usbdev",
+                             OBJECT(&s->usbdev_hs), &error_abort);
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->usbhs_core), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->usbhs_core), 0, 0x4010B000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->usbhs_core), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 67));
+    memory_region_init_alias(&s->usbhs_core_s_alias, OBJECT(dev),
+                             "mcxn.usbhs-core.s", &s->usbhs_core.iomem, 0,
+                             MCXN_USBHS_CORE_SIZE);
+    memory_region_add_subregion(system_memory, 0x4010B000 + MCXN_SECURE_ALIAS,
+                                &s->usbhs_core_s_alias);
 
     /* SAI0..1 (audio): FIFO-request/error interrupt to cpu0 NVIC. */
     for (i = 0; i < MCXN_NUM_SAI; i++) {

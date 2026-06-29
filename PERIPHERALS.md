@@ -91,7 +91,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `USBDCD` | 1 | ✅ functional (register-accurate) |
 | `USBFS` | 1 | ✅ functional + active **device mode** (KHCI BDT endpoint engine; enumerates AND moves bulk data both directions end-to-end over usbredir to a remote USB host; IRQ 50; tests/mcxn-usb) |
 | `USBHS1_PHY_DCD` | 1 | ✅ functional (register-accurate; HS phy/dcd 0x800 window) |
-| `USBHS1__USBC` | 1 | ✅ functional (register-accurate; EHCI HS core 0x200 window) |
+| `USBHS1__USBC` | 1 | ✅ functional + active **device mode** (ChipIdea dQH/dTD endpoint engine; enumerates + bulk data both ways at high-speed over usbredir; IRQ 67; tests/mcxn-usb-hs) |
 | `USBHS1__USBNC` | 1 | ✅ functional (register-accurate; HS non-core 0xE00 window) |
 | `USBPHY` | 1 | ✅ functional (register-accurate; CLKGATE/SFTRST clear, SET/CLR/TOG) |
 | `USDHC` | 1 | ✅ functional + active (SD command/response CMD8/CMD3/ACMD41 + CC IRQ 61 to NVIC; tests/mcxn-usdhc) |

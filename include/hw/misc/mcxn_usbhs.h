@@ -19,6 +19,8 @@
 #define HW_MISC_MCXN_USBHS_H
 
 #include "hw/core/sysbus.h"
+#include "qemu/timer.h"
+#include "hw/usb/mcxn_usbdev.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_USBHS_PHYDCD "mcxn-usbhs-phydcd"
@@ -41,6 +43,19 @@ struct MCXNUSBHSPhyDcdState {
     uint32_t     regs[MCXN_USBHS_PHYDCD_SIZE / 4];
 };
 
+#define MCXN_USBHS_NEP     8        /* device endpoints (HWDEVICE.DEVEP)     */
+#define MCXN_USBHS_MPS     512      /* high-speed bulk max packet size       */
+#define MCXN_USBHS_XFERMAX 1024
+
+/* Per-endpoint in-flight host request awaiting a firmware-primed dTD. */
+typedef struct MCXNUSBHSXfer {
+    bool    in_pending;
+    int     in_len;
+    bool    out_pending;
+    int     out_len;
+    uint8_t out_buf[MCXN_USBHS_XFERMAX];
+} MCXNUSBHSXfer;
+
 struct MCXNUSBHSCoreState {
     /*< private >*/
     SysBusDevice parent_obj;
@@ -48,6 +63,12 @@ struct MCXNUSBHSCoreState {
     MemoryRegion iomem;
     qemu_irq     irq;
     uint32_t     regs[MCXN_USBHS_CORE_SIZE / 4];
+
+    MCXNUsbDevState *usbdev;        /* shared usbredir device core (link)    */
+    QEMUTimer   *sof;               /* token-retry backstop tick             */
+    bool         enabled;           /* RS + device mode seen                 */
+    bool         ep0_status_in;     /* drain a zero-length status-IN dTD     */
+    MCXNUSBHSXfer ep[MCXN_USBHS_NEP];
 };
 
 struct MCXNUSBHSNcState {

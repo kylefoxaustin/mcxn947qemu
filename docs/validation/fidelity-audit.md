@@ -56,7 +56,8 @@ returns real entropy) — all compute or move real data; safe to trust.
 
 | Block | Status | Notes |
 |-------|--------|-------|
-| USBFS0 (KHCI) **device mode** | **COMPUTES / data-path** | Real BDT endpoint engine: guest firmware's descriptors drive a full USB enumeration AND real bulk data transfer to a remote USB *host* over usbredir (we play the usbredir server; the host runs stock `-device usb-redir`). Verified end-to-end in `tests/mcxn-usb`: EP0 control (GET_DESCRIPTOR/SET_ADDRESS/SET_CONFIGURATION) + EP1 bulk OUT→IN echo (host bytes round-trip through firmware). The OBMF-ICP / i.MX-host↔MCX-device transport (mission #5). HS (ChipIdea) backend is the follow-on on the same core. |
+| USBFS0 (KHCI) **device mode** | **COMPUTES / data-path** | Real BDT endpoint engine: guest firmware's descriptors drive a full USB enumeration AND real bulk data transfer to a remote USB *host* over usbredir (we play the usbredir server; the host runs stock `-device usb-redir`). Verified end-to-end in `tests/mcxn-usb`: EP0 control (GET_DESCRIPTOR/SET_ADDRESS/SET_CONFIGURATION) + EP1 bulk OUT→IN echo (host bytes round-trip through firmware). The OBMF-ICP / i.MX-host↔MCX-device transport (mission #5). |
+| USBHS1 (ChipIdea) **device mode** | **COMPUTES / data-path** | Real dQH/dTD endpoint engine on the same shared usbredir core, *high-speed*: enumeration + EP1 bulk echo verified end-to-end in `tests/mcxn-usb-hs`. Each controller has its own usbredir core/socket (`mcxn-usbfs` / `mcxn-usbhs` chardev ids), so both inter-QEMU links are independent. |
 
 ## Honest register-only (no compute expected)
 
