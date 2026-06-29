@@ -56,7 +56,7 @@ returns real entropy) — all compute or move real data; safe to trust.
 
 | Block | Status | Notes |
 |-------|--------|-------|
-| USBFS0 (KHCI) **device mode** | **COMPUTES / data-path** | Real BDT endpoint engine: guest firmware's descriptors drive a full USB enumeration to a remote USB *host* over usbredir (we play the usbredir server; the host runs stock `-device usb-redir`). EP0 control (GET_DESCRIPTOR/SET_ADDRESS/SET_CONFIGURATION) verified end-to-end in `tests/mcxn-usb`. The OBMF-ICP / i.MX-host↔MCX-device transport (mission #5). Bulk endpoints wired; HS (ChipIdea) backend is the follow-on. |
+| USBFS0 (KHCI) **device mode** | **COMPUTES / data-path** | Real BDT endpoint engine: guest firmware's descriptors drive a full USB enumeration AND real bulk data transfer to a remote USB *host* over usbredir (we play the usbredir server; the host runs stock `-device usb-redir`). Verified end-to-end in `tests/mcxn-usb`: EP0 control (GET_DESCRIPTOR/SET_ADDRESS/SET_CONFIGURATION) + EP1 bulk OUT→IN echo (host bytes round-trip through firmware). The OBMF-ICP / i.MX-host↔MCX-device transport (mission #5). HS (ChipIdea) backend is the follow-on on the same core. |
 
 ## Honest register-only (no compute expected)
 

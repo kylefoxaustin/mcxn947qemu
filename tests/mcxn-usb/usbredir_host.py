@@ -11,13 +11,15 @@ import socket, struct, sys, time
 
 # usb_redir_type
 HELLO, DEVICE_CONNECT = 0, 1
-CONTROL_PACKET = 100
+CONTROL_PACKET, BULK_PACKET = 100, 101
 SPEED_FULL = 1
 
 EXPECT_DEV = bytes([18, 1, 0x00, 0x02, 0, 0, 0, 64,
                     0xC9, 0x1F, 0x94, 0x00, 0x00, 0x01, 0, 0, 0, 1])
-EXPECT_CFG = bytes([9, 2, 18, 0, 1, 1, 0, 0x80, 50,
-                    9, 4, 0, 0, 0, 0xFF, 0, 0, 0])
+EXPECT_CFG = bytes([9, 2, 32, 0, 1, 1, 0, 0x80, 50,        # configuration
+                    9, 4, 0, 0, 2, 0xFF, 0, 0, 0,          # interface, 2 ep
+                    7, 5, 0x01, 2, 64, 0, 0,               # EP1 OUT bulk
+                    7, 5, 0x81, 2, 64, 0, 0])              # EP1 IN  bulk
 
 
 def main(host, port):
@@ -64,6 +66,18 @@ def main(host, port):
                 status = body[3]
                 return status, body[10:]
 
+    def bulk(endpoint, length, data=b""):
+        # usb_redir_bulk_packet_header (no 32bit-length cap negotiated): 8 bytes
+        # = endpoint, status, length, stream_id.
+        hdr = struct.pack("<BBHI", endpoint, 0, length & 0xFFFF, 0)
+        myid = nxid[0]; nxid[0] += 1
+        send_packet(BULK_PACKET, myid, hdr + data)
+        while True:
+            t, pid, body = recv_packet()
+            if t == BULK_PACKET:
+                status = body[1]
+                return status, body[8:]
+
     # 1) hello handshake.
     t, _, _ = recv_packet()
     if t != HELLO:
@@ -93,8 +107,8 @@ def main(host, port):
     if st != 0:
         return 1
 
-    # 5) GET_DESCRIPTOR(config).
-    st, cfg = control(0x80, 6, 0x80, 0x0200, 0, 18)
+    # 5) GET_DESCRIPTOR(config) — now 32 bytes (config + iface + 2 bulk eps).
+    st, cfg = control(0x80, 6, 0x80, 0x0200, 0, 32)
     print("HOST: GET_DESC config status=%d len=%d" % (st, len(cfg)))
     if st != 0 or cfg != EXPECT_CFG:
         print("HOST: config descriptor MISMATCH:", cfg.hex()); return 1
@@ -104,8 +118,22 @@ def main(host, port):
     print("HOST: SET_CONFIGURATION status=%d" % st)
     if st != 0:
         return 1
-
     print("HOST: ENUMERATION OK")
+
+    # 7) M2 — bulk data both directions: write to EP1 OUT, read the echo on
+    #    EP1 IN, verify the round-trip byte-for-byte.
+    payload = bytes((i * 7 + 3) & 0xFF for i in range(32))
+    st, _ = bulk(0x01, len(payload), payload)
+    print("HOST: BULK OUT status=%d len=%d" % (st, len(payload)))
+    if st != 0:
+        return 1
+    st, echo = bulk(0x81, 64)
+    print("HOST: BULK IN  status=%d len=%d" % (st, len(echo)))
+    if st != 0 or echo != payload:
+        print("HOST: bulk echo MISMATCH: sent", payload.hex(),
+              "got", echo.hex()); return 1
+
+    print("HOST: BULK ECHO OK")
     return 0
 
 

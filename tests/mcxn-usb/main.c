@@ -42,6 +42,7 @@ static void puts_(const char *s) { while (*s) { putc_(*s++); } }
 #define R_BDTPAGE2 0xB0
 #define R_BDTPAGE3 0xB4
 #define R_ENDPT0   0xC0
+#define R_ENDPT(n) (0xC0 + (n) * 4)
 
 #define ISTAT_USBRST  (1u << 0)
 #define ISTAT_TOKDNE  (1u << 3)
@@ -70,9 +71,12 @@ typedef struct { volatile uint32_t ctrl; volatile uint32_t addr; } bd_t;
 
 static uint8_t setup_buf[8];
 static uint8_t ep0in_buf[64];
+static uint8_t ep1out_buf[64];
+static uint8_t ep1in_buf[64];
 
 /* Controller ping-pong banks the engine will use next, mirrored here. */
-static int rx_odd, tx_odd;
+static int rx_odd, tx_odd;          /* EP0 */
+static int ep1_rx_odd, ep1_tx_odd;  /* EP1 bulk */
 
 /* USB standard descriptors. */
 static const uint8_t dev_desc[18] = {
@@ -81,9 +85,11 @@ static const uint8_t dev_desc[18] = {
     0x94, 0x00,             /* idProduct = 0x0094         */
     0x00, 0x01, 0, 0, 0, 1,
 };
-static const uint8_t cfg_desc[18] = {
-    9, 2, 18, 0, 1, 1, 0, 0x80, 50,          /* configuration */
-    9, 4, 0, 0, 0, 0xFF, 0, 0, 0,            /* interface (vendor class) */
+static const uint8_t cfg_desc[32] = {
+    9, 2, 32, 0, 1, 1, 0, 0x80, 50,          /* configuration, wTotalLength=32 */
+    9, 4, 0, 0, 2, 0xFF, 0, 0, 0,            /* interface (vendor), 2 endpoints */
+    7, 5, 0x01, 2, 64, 0, 0,                 /* EP1 OUT, bulk, wMaxPacketSize=64 */
+    7, 5, 0x81, 2, 64, 0, 0,                 /* EP1 IN,  bulk, wMaxPacketSize=64 */
 };
 
 static void arm_rx(int ep, int odd, void *buf, int len, int data1)
@@ -165,6 +171,16 @@ void usb_isr(void)
             }
             rx_odd = odd ^ 1;
             arm_rx(0, rx_odd, setup_buf, 8, 0); /* re-arm for next SETUP */
+        } else if (ep == 1 && !tx) {            /* EP1 bulk OUT -> echo on IN */
+            uint32_t w = BD(1, 0, odd).ctrl;
+            int bc = BD_GET_BC(w);
+            for (int i = 0; i < bc && i < 64; i++) {
+                ep1in_buf[i] = ep1out_buf[i];
+            }
+            arm_tx(1, ep1_tx_odd, ep1in_buf, bc, ep1_tx_odd);
+            ep1_tx_odd ^= 1;
+            ep1_rx_odd = odd ^ 1;
+            arm_rx(1, ep1_rx_odd, ep1out_buf, 64, 0);  /* re-arm next OUT */
         }
         U8(R_ISTAT) = ISTAT_TOKDNE;             /* W1C; model services next */
     }
@@ -185,6 +201,12 @@ void cpu0_main(void)
     tx_odd = 0;
     arm_rx(0, 0, setup_buf, 8, 0);
     U8(R_ENDPT0) = ENDPT_EPHSHK | ENDPT_EPTXEN | ENDPT_EPRXEN;
+
+    /* Arm EP1 bulk OUT and enable EP1 (TX+RX) for the data-path echo. */
+    ep1_rx_odd = 0;
+    ep1_tx_odd = 0;
+    arm_rx(1, 0, ep1out_buf, 64, 0);
+    U8(R_ENDPT(1)) = ENDPT_EPHSHK | ENDPT_EPTXEN | ENDPT_EPRXEN;
 
     /* Enable TOKDNE + USBRST interrupts, NVIC IRQ 50, then enable the device. */
     U8(R_INTEN) = ISTAT_TOKDNE | ISTAT_USBRST;

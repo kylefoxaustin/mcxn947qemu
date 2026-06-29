@@ -162,20 +162,23 @@ static void usbdev_control_packet(void *priv, uint64_t id,
         g_autofree uint8_t *buf = g_malloc0(ch->length ? ch->length : 1);
         int out_len = 0;
 
+        /* Register the pending request BEFORE invoking the backend: the engine
+         * may complete synchronously (calling complete_in() inline), which must
+         * find this request already active. */
+        MCXNUsbPending *p = usbdev_pending(s, 0x80);
+        p->active = true;
+        p->is_control = true;
+        p->id = id;
+        p->length = ch->length;
+        p->ep = 0x80;
         rc = s->be_ops->ep_in(s->be, 0, buf, ch->length, &out_len);
-        if (rc == MCXN_USB_XFER_ASYNC) {
-            MCXNUsbPending *p = usbdev_pending(s, 0x80);
-            p->active = true;
-            p->is_control = true;
-            p->id = id;
-            p->length = ch->length;
-            p->ep = 0x80;
-        } else if (rc == MCXN_USB_XFER_OK) {
-            ch->status = usb_redir_success;
-            usbredirparser_send_control_packet(s->parser, id, ch, buf, out_len);
-        } else {
-            ch->status = usb_redir_stall;
-            usbredirparser_send_control_packet(s->parser, id, ch, NULL, 0);
+        if (rc != MCXN_USB_XFER_ASYNC) {
+            p->active = false;
+            ch->status = (rc == MCXN_USB_XFER_OK) ? usb_redir_success
+                                                  : usb_redir_stall;
+            usbredirparser_send_control_packet(s->parser, id, ch,
+                                  rc == MCXN_USB_XFER_OK ? buf : NULL,
+                                  rc == MCXN_USB_XFER_OK ? out_len : 0);
         }
     } else {
         /*
@@ -222,34 +225,33 @@ static void usbdev_bulk_packet(void *priv, uint64_t id,
         g_autofree uint8_t *buf = g_malloc0(length ? length : 1);
         int out_len = 0;
 
+        /* Mark pending before the call (engine may complete inline). */
+        MCXNUsbPending *p = usbdev_pending(s, bh->endpoint);
+        p->active = true;
+        p->is_control = false;
+        p->id = id;
+        p->length = length;
+        p->ep = bh->endpoint;
         rc = s->be_ops->ep_in(s->be, ep, buf, length, &out_len);
-        if (rc == MCXN_USB_XFER_ASYNC) {
-            MCXNUsbPending *p = usbdev_pending(s, bh->endpoint);
-            p->active = true;
-            p->is_control = false;
-            p->id = id;
-            p->length = length;
-            p->ep = bh->endpoint;
-        } else if (rc == MCXN_USB_XFER_OK) {
-            bh->status = usb_redir_success;
-            bh->length = out_len & 0xffff;
-            bh->length_high = out_len >> 16;
-            usbredirparser_send_bulk_packet(s->parser, id, bh, buf, out_len);
-        } else {
-            bh->status = usb_redir_stall;
-            bh->length = 0;
-            bh->length_high = 0;
-            usbredirparser_send_bulk_packet(s->parser, id, bh, NULL, 0);
+        if (rc != MCXN_USB_XFER_ASYNC) {
+            p->active = false;
+            bh->status = (rc == MCXN_USB_XFER_OK) ? usb_redir_success
+                                                  : usb_redir_stall;
+            bh->length = (rc == MCXN_USB_XFER_OK) ? (out_len & 0xffff) : 0;
+            bh->length_high = (rc == MCXN_USB_XFER_OK) ? (out_len >> 16) : 0;
+            usbredirparser_send_bulk_packet(s->parser, id, bh,
+                                  rc == MCXN_USB_XFER_OK ? buf : NULL,
+                                  rc == MCXN_USB_XFER_OK ? out_len : 0);
         }
     } else {
+        MCXNUsbPending *p = usbdev_pending(s, bh->endpoint);
+        p->active = true;
+        p->is_control = false;
+        p->id = id;
+        p->ep = bh->endpoint;
         rc = s->be_ops->ep_out(s->be, ep, data, data_len);
-        if (rc == MCXN_USB_XFER_ASYNC) {
-            MCXNUsbPending *p = usbdev_pending(s, bh->endpoint);
-            p->active = true;
-            p->is_control = false;
-            p->id = id;
-            p->ep = bh->endpoint;
-        } else {
+        if (rc != MCXN_USB_XFER_ASYNC) {
+            p->active = false;
             bh->status = (rc == MCXN_USB_XFER_OK) ? usb_redir_success
                                                   : usb_redir_stall;
             bh->length = 0;
