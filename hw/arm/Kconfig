@@ -785,6 +785,7 @@ config MCXN_SOC
     select MCXN_SMARTDMA
     select MCXN_POWERQUAD
     select MCXN_NPU
+    select MCXN_NEUTRON
     select MCXN_BSP32
     select MCXN_DM
     select MCXN_PINT

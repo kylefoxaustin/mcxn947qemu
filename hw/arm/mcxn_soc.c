@@ -78,6 +78,7 @@
 #include "hw/misc/mcxn_smartdma.h"
 #include "hw/misc/mcxn_powerquad.h"
 #include "hw/misc/mcxn_npu.h"
+#include "hw/misc/mcxn_neutron.h"
 #include "system/address-spaces.h"
 #include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
@@ -329,6 +330,7 @@ static void mcxn_soc_instance_init(Object *obj)
     object_initialize_child(obj, "usbdev-hs", &s->usbdev_hs, TYPE_MCXN_USBDEV);
     object_initialize_child(obj, "usbhs-core", &s->usbhs_core,
                             TYPE_MCXN_USBHS_CORE);
+    object_initialize_child(obj, "neutron0", &s->neutron0, TYPE_MCXN_NEUTRON);
     for (i = 0; i < MCXN_NUM_SAI; i++) {
         g_autofree char *name = g_strdup_printf("sai%d", i);
         object_initialize_child(obj, name, &s->sai[i], TYPE_MCXN_SAI);
@@ -860,6 +862,19 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                              MCXN_USBHS_CORE_SIZE);
     memory_region_add_subregion(system_memory, 0x4010B000 + MCXN_SECURE_ALIAS,
                                 &s->usbhs_core_s_alias);
+
+    /* eIQ Neutron NPU: NS @ 0x400B_E000 + secure alias, IRQ 97 (RM NPU line;
+     * "Reserved113" in CMSIS).  FLAG-AT-OPERATOR — see hw/misc/mcxn_neutron.c. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->neutron0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->neutron0), 0, 0x400BE000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->neutron0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 97));
+    memory_region_init_alias(&s->neutron0_s_alias, OBJECT(dev), "mcxn.neutron0.s",
+                             &s->neutron0.iomem, 0, MCXN_NEUTRON_SIZE);
+    memory_region_add_subregion(system_memory, 0x400BE000 + MCXN_SECURE_ALIAS,
+                                &s->neutron0_s_alias);
 
     /* SAI0..1 (audio): FIFO-request/error interrupt to cpu0 NVIC. */
     for (i = 0; i < MCXN_NUM_SAI; i++) {

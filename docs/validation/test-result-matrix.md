@@ -74,7 +74,7 @@ from a green test.
 | PowerQuad (matrix/vector + scalar transcendentals) | ✓ | ✓ | computes | mcxn-powerquad, mcxn-powerquad-coproc | PASS |
 | PowerQuad fixed-point transcendentals | ✓ | ✓ | flag-at-operator | mcxn-powerquad-coproc | PASS |
 | SmartDMA (EZH coprocessor) | ✓ | ◐ | flag-at-operator | boot/corpus | PASS |
-| eIQ Neutron NPU | ✓ | ✗ | not-modelled | — (NPX flash-cache modelled, not Neutron compute) | — |
+| eIQ Neutron NPU | ✓ | ✓ | flag-at-operator | mcxn-neutron (handshake completes; compute-modelled=false, jobs-started) | PASS |
 
 ## Analog (operator-driven)
 

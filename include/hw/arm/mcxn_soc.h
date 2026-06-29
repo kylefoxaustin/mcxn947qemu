@@ -41,6 +41,7 @@
 #include "hw/misc/mcxn_i3c.h"
 #include "hw/misc/mcxn_usbfs.h"
 #include "hw/misc/mcxn_usbhs.h"
+#include "hw/misc/mcxn_neutron.h"
 #include "hw/usb/mcxn_usbdev.h"
 #include "hw/core/clock.h"
 #include "qom/object.h"
@@ -128,6 +129,7 @@ struct MCXNState {
     MCXNUSBFSState  usbfs0;                         /* USBFS (KHCI) device mode */
     MCXNUsbDevState usbdev_hs;                       /* usbredir core (USBHS) */
     MCXNUSBHSCoreState usbhs_core;                   /* USBHS (ChipIdea) device */
+    MCXNNeutronState neutron0;                       /* eIQ Neutron NPU */
     Clock      *sysclk;
     Clock      *refclk;
 
@@ -169,6 +171,7 @@ struct MCXNState {
     MemoryRegion i3c_s_alias[MCXN_NUM_I3C];        /* secure aliases of I3C0..1 */
     MemoryRegion usbfs0_s_alias;                    /* secure alias of USBFS0 */
     MemoryRegion usbhs_core_s_alias;                /* secure alias of USBHS core */
+    MemoryRegion neutron0_s_alias;                  /* secure alias of Neutron NPU */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */

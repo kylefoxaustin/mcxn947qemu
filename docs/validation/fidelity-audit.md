@@ -28,7 +28,7 @@ each block behaves at runtime**. Shares the format used by the i.MX95 model's
 | PowerQuad — transcendentals (sin/cos/sqrt/ln/exp/div, **float32**) | **COMPUTES** | Phase 2 done (commit pending): the custom ARM **CP0 coprocessor** (MCR/MCRR/MRC) is implemented in target/arm, gated by ARM_FEATURE_POWERQUAD (only the MCXN947 M33s via the "powerquad" CPU property — every other Arm CPU still NOCP-faults CP0). float32 sin/cos/sqrt/invsqrt/inv/ln/etox/etonx + division compute correctly (host libm; the real PowerQuad is an approximation engine, not IEEE-exact). |
 | PowerQuad — transcendentals (**fixed-point** Q-format) | ⚠ **HONEST-FAULT** | The fixed-point variants (CRn bit0=1) are deliberately routed to the NOCP fault rather than risk a silently-wrong Q-format result — same as before Phase 2. Float32 is the dominant path (CMSIS-DSP-on-PQ + the PQ_*F32 API). |
 | SmartDMA (EZH coprocessor) | **FLAG-AT-OPERATOR** | Runs a firmware program we don't execute. `qom-get …/smartdma compute-modelled` = false; `programs-started` counts acked-uncomputed starts; LOG_UNIMP per start. |
-| eIQ Neutron NPU | ⚠ **NOT MODELLED** | The 0x400C_C000 window models **NPX (flash-cache)**, not the Neutron compute register set (absent from CMSIS). eIQ/LiteRT inference would **not run / not compute**. Treat ML inference as unsupported on this model. |
+| eIQ Neutron NPU | **FLAG-AT-OPERATOR** | The Neutron N1-16 compute block @ 0x400B_E000 (IRQ 97). RM §20.4: "no user-configurable registers... use eIQ Toolkit" — the compute path is proprietary microcode (SDK binary blobs), so we cannot run it. The CTRL handshake the eIQ driver spins on (exec: while bit31; done: while !=0) is honoured (CTRL idles on write) so inference **does not hang** — but the result is **uncomputed and never silently fabricated**: `qom-get …/neutron0 compute-modelled` = false, `jobs-started` counts acked-uncomputed kicks, LOG_UNIMP per kick. Operator opt-in `uncomputed-errortrap` surfaces the fault to the guest via the non-gating INTR.ERRORTRAP bit + IRQ 97 (never the completion gate). `tests/mcxn-neutron`. (The separate 0x400C_C000 "NPX0" window is the flash-cache block, modelled register-accurate.) |
 
 ## Analog inputs (no physical stimulus in QEMU)
 
@@ -71,4 +71,5 @@ matrix/vector engine AND its scalar transcendentals/division). For
 OPERATOR-DRIVEN analog (ADC/CMP/TSI), inject inputs via QOM. **Do not trust**
 (and the control-plane can detect via QMP/log): PowerQuad *fixed-point*
 transcendentals (honest-fault), SmartDMA program output, and Neutron NPU
-inference.
+inference (FLAG-AT-OPERATOR — compute-modelled=false, jobs-started, optional
+guest error-trap).

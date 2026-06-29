@@ -450,3 +450,6 @@ config MCXN_POWERQUAD
 
 config MCXN_NPU
     bool
+
+config MCXN_NEUTRON
+    bool

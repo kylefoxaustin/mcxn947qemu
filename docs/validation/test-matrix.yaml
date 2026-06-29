@@ -53,7 +53,7 @@ compute:
   - {block: powerquad,        present: true, driver_binds: true,  class: computes,         tested_by: [mcxn-powerquad, mcxn-powerquad-coproc], result: pass}
   - {block: powerquad-fixedpt, present: true, driver_binds: true, class: flag-at-operator, tested_by: [mcxn-powerquad-coproc], result: pass}
   - {block: smartdma,         present: true, driver_binds: false, class: flag-at-operator, tested_by: [boot, corpus], result: pass}
-  - {block: neutron-npu,      present: true, driver_binds: false, class: not-modelled,     tested_by: [], result: na, note: "NPX flash-cache modelled, not Neutron compute (absent from CMSIS)"}
+  - {block: neutron-npu,      present: true, driver_binds: true,  class: flag-at-operator, tested_by: [mcxn-neutron], result: pass, note: "compute is proprietary microcode (RM: no user registers); handshake acked so no hang, result uncomputed + flagged (compute-modelled=false, jobs-started), never silent-wrong"}
 
 analog:
   - {block: adc,   present: true, driver_binds: true,  class: operator-driven, tested_by: [mcxn-adc], result: pass}

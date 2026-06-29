@@ -63,7 +63,8 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `LP_FLEXCOMM` | 10 | ✅ functional (all 10 as LPUART; cpu0+cpu1 consoles) |
 | `MAILBOX` | 1 | ✅ functional (register-accurate) |
 | `MRT` | 1 | ✅ functional (4-ch down-counter -> NVIC IRQ) |
-| `NPX` | 1 | ✅ functional (register-accurate; flash-cache obfuscation control) |
+| `NPX` | 1 | ✅ functional (register-accurate; flash-cache obfuscation control @ 0x400C_C000) |
+| `Neutron NPU` | 1 | ✅ FLAG-AT-OPERATOR (eIQ Neutron N1-16 @ 0x400B_E000, IRQ 97; proprietary microcode compute — CTRL handshake acked so no hang, result honestly uncomputed: compute-modelled=false + jobs-started; tests/mcxn-neutron) |
 | `OPAMP` | 3 | ✅ functional (register-accurate) |
 | `OSTIMER` | 1 | ✅ functional (gray-code counter + match IRQ) |
 | `OTPC` | 1 | ✅ functional (register-accurate) |
@@ -142,9 +143,13 @@ Priority order (remaining):
   client); the live 2-party pairing is the remaining integration step.
   (ENET now has full MAC frame DMA-ring + QEMU NIC - cross-board ready;
   uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request done.)
-- **Accelerators**: SmartDMA program execution, NPU. (PowerQuad compute-done
-  IRQ done; SmartDMA/NPU left register-accurate - both need coprocessor
-  firmware/compute we don't model, so a fabricated IRQ would be dishonest.)
+- **Accelerators**: PowerQuad compute-done IRQ done (+ CP0 transcendentals).
+  Neutron NPU now FLAG-AT-OPERATOR @ 0x400B_E000 (proprietary microcode: the
+  CTRL exec/done handshake is acked so eIQ inference does not hang, but the
+  result is honestly flagged uncomputed via QMP, never silently fabricated;
+  operator opt-in error-trap to the guest). SmartDMA left register-accurate
+  (also FLAG-AT-OPERATOR for program output) - the EZH coprocessor firmware
+  isn't modelled, so a fabricated result would be dishonest.
 - **IRQ wiring**: connect the per-device IRQ lines (init'd in wave 6) to the
   cpu0 NVIC as each block starts generating interrupts.
 
