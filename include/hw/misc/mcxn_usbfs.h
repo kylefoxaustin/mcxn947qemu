@@ -60,6 +60,7 @@ struct MCXNUSBFSState {
     uint8_t     odd_tx[MCXN_USBFS_NEP];  /* next ping-pong bank, IN/TX       */
 
     bool        setup_pending;      /* a SETUP awaits delivery to EP0 RX     */
+    bool        ep0_status_in;      /* consume firmware's zero-len status IN  */
     uint8_t     setup_pkt[8];
 
     MCXNUSBFSXfer ep[MCXN_USBFS_NEP];

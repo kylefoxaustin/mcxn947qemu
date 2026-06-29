@@ -52,6 +52,12 @@ counters), EMVSIM (TX-complete), I3C (transfer-complete), inter-CPU MAILBOX
 (real cross-core IRQ), **ELS** (crypto exercised by els_pkc examples; TRNG
 returns real entropy) — all compute or move real data; safe to trust.
 
+## Inter-QEMU transports (data actually crosses the wire)
+
+| Block | Status | Notes |
+|-------|--------|-------|
+| USBFS0 (KHCI) **device mode** | **COMPUTES / data-path** | Real BDT endpoint engine: guest firmware's descriptors drive a full USB enumeration to a remote USB *host* over usbredir (we play the usbredir server; the host runs stock `-device usb-redir`). EP0 control (GET_DESCRIPTOR/SET_ADDRESS/SET_CONFIGURATION) verified end-to-end in `tests/mcxn-usb`. The OBMF-ICP / i.MX-host↔MCX-device transport (mission #5). Bulk endpoints wired; HS (ChipIdea) backend is the follow-on. |
+
 ## Honest register-only (no compute expected)
 
 Security/config/cache/ID blocks: SYSCON, SPC, SCG, GDET, ITRC, TRDC, PUF, PKC,

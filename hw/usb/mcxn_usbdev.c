@@ -178,18 +178,21 @@ static void usbdev_control_packet(void *priv, uint64_t id,
             usbredirparser_send_control_packet(s->parser, id, ch, NULL, 0);
         }
     } else {
-        rc = data_len ? s->be_ops->ep_out(s->be, 0, data, data_len)
-                      : MCXN_USB_XFER_OK;
-        if (rc == MCXN_USB_XFER_ASYNC) {
-            MCXNUsbPending *p = usbdev_pending(s, 0x00);
-            p->active = true;
-            p->is_control = true;
-            p->id = id;
-            p->ep = 0x00;
-        } else {
-            ch->status = (rc == MCXN_USB_XFER_OK) ? usb_redir_success
-                                                  : usb_redir_stall;
-            usbredirparser_send_control_packet(s->parser, id, ch, NULL, 0);
+        /*
+         * Host->device control.  Do NOT ack synchronously: a control transfer
+         * only completes after its status stage, and acking early lets the host
+         * pipeline the next SETUP — which would clobber the single in-flight
+         * SETUP before firmware processes this one.  Mark it pending; the
+         * backend completes it (via complete_out) once firmware runs the
+         * zero-length status stage.
+         */
+        MCXNUsbPending *p = usbdev_pending(s, 0x00);
+        p->active = true;
+        p->is_control = true;
+        p->id = id;
+        p->ep = 0x00;
+        if (data_len) {
+            s->be_ops->ep_out(s->be, 0, data, data_len);
         }
     }
     usbredirparser_free_packet_data(s->parser, data);
@@ -283,7 +286,6 @@ static void usbdev_create_parser(MCXNUsbDevState *s)
      * `-device usb-redir` is the client.  Advertise the standard caps. */
     usbredirparser_caps_set_cap(caps, usb_redir_cap_connect_device_version);
     usbredirparser_caps_set_cap(caps, usb_redir_cap_ep_info_max_packet_size);
-    usbredirparser_caps_set_cap(caps, usb_redir_cap_64bits_ids);
 
     usbredirparser_init(p, USBDEV_VERSION, caps, USB_REDIR_CAPS_SIZE,
                         usbredirparser_fl_usb_host);

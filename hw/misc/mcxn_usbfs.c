@@ -237,6 +237,33 @@ static bool usbfs_service_out(MCXNUSBFSState *s, int ep)
     return true;
 }
 
+/*
+ * Consume the firmware's zero-length status-stage IN BD for a no-data (or OUT)
+ * control transfer.  usbredir collapses the 3-stage control handshake into one
+ * message and the core acks it directly, but real firmware still arms a status
+ * BD per stage — draining it here keeps the EP0 TX ping-pong bank in sync with
+ * firmware so the next IN reads the right bank.
+ */
+static bool usbfs_consume_status_in(MCXNUSBFSState *s)
+{
+    int odd = s->odd_tx[0] & 1;
+    uint32_t ba = bdt_base(s) + bd_off(0, true, odd);
+    uint32_t ctrl = bd_ld(ba);
+
+    if (!(ctrl & BD_OWN)) {
+        return false;                       /* firmware hasn't armed it yet */
+    }
+    bd_st(ba, (PID_IN << BD_TOKPID_SHIFT));  /* retire, zero byte count */
+    s->odd_tx[0] ^= 1;
+    s->ep0_status_in = false;
+    usbfs_tokdne(s, 0, true, odd);
+    /* The host->device control transfer is now complete (firmware saw the SETUP
+     * and ran the status stage): ack the host.  No-op if a data stage already
+     * completed it. */
+    mcxn_usbdev_complete_out(s->usbdev, 0, MCXN_USB_XFER_OK);
+    return true;
+}
+
 /* Try to make progress on one outstanding transaction. */
 static void usbfs_service(MCXNUSBFSState *s)
 {
@@ -244,6 +271,9 @@ static void usbfs_service(MCXNUSBFSState *s)
 
     if (!s->enabled || s->tokdne_busy) {
         return;                             /* wait for firmware to ack TOKDNE */
+    }
+    if (s->ep0_status_in && usbfs_consume_status_in(s)) {
+        return;
     }
     if (s->setup_pending && usbfs_deliver_setup(s)) {
         return;
@@ -282,6 +312,14 @@ static void usbfs_be_setup(void *be, const uint8_t setup[8])
 
     memcpy(s->setup_pkt, setup, 8);
     s->setup_pending = true;
+    /* Host->device control (SETUP bmRequestType bit7=0) has a zero-length IN
+     * status stage the firmware will arm; remember to drain it.  Only SET the
+     * flag (never clear it for an IN transfer) so a still-pending status from a
+     * prior OUT transfer survives — the tokdne_busy gate drains it before this
+     * SETUP is delivered. */
+    if (!(setup[0] & 0x80)) {
+        s->ep0_status_in = true;
+    }
     /* Reset EP0 transfer accumulators for the new control transaction. */
     s->ep[0].in_pending = false;
     s->ep[0].in_acc = 0;

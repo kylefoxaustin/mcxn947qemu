@@ -89,7 +89,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `TRDC` | 1 | ✅ functional (register-accurate) |
 | `TSI` | 1 | ✅ operator-driven (per-channel count via `tsi-countN` QOM prop; end-of-scan IRQ 101) |
 | `USBDCD` | 1 | ✅ functional (register-accurate) |
-| `USBFS` | 1 | ✅ functional (register-accurate; reset self-clear, W1C status) |
+| `USBFS` | 1 | ✅ functional + active **device mode** (KHCI BDT endpoint engine; enumerates end-to-end over usbredir to a remote USB host; IRQ 50; tests/mcxn-usb) |
 | `USBHS1_PHY_DCD` | 1 | ✅ functional (register-accurate; HS phy/dcd 0x800 window) |
 | `USBHS1__USBC` | 1 | ✅ functional (register-accurate; EHCI HS core 0x200 window) |
 | `USBHS1__USBNC` | 1 | ✅ functional (register-accurate; HS non-core 0xE00 window) |
@@ -132,8 +132,12 @@ Priority order (remaining):
 - **Analog results**: (RTC alarm/tick + DAC FIFO-watermark done; ADC/CMP/TSI
   are operator-driven — analog inputs exposed as QOM properties so an operator
   injects what a board pin would drive, with conversion/edge/scan IRQs wired.)
-- **Connectivity**: USBFS/USBHS endpoints (OBMF-ICP transport; register-only
-  today, no usb-bus backend - confirmed to holobench, gated until unparked).
+- **Connectivity**: USBFS device-mode endpoints now ENUMERATE over usbredir
+  (KHCI BDT engine -> shared usbredir-server core -> remote USB host; the
+  OBMF-ICP / inter-QEMU transport, mission #5). `tests/mcxn-usb` proves
+  enumeration against a self-contained usbredir host; the i.MX93-host link is
+  the next integration step. USBHS (ChipIdea) device mode is the follow-on
+  backend on the same core.
   (ENET now has full MAC frame DMA-ring + QEMU NIC - cross-board ready;
   uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request done.)
 - **Accelerators**: SmartDMA program execution, NPU. (PowerQuad compute-done
