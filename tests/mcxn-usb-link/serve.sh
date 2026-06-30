@@ -25,6 +25,12 @@ command -v "$CC" >/dev/null 2>&1 || { echo "SKIP: $CC not found"; exit 0; }
       -Wall -T "$SRC/link.ld" "$SRC/main.c" -o "$SRC/$ELF"
 rm -f "$SOCK"
 echo "MCX usbredir server ($CTRL) listening at $SOCK — connect the i.MX93 client."
-exec "$QEMU" -M frdm-mcxn947 -display none -serial mon:stdio \
+echo "(Ctrl-C to stop; the server stays up persistently, serving every (re)connect.)"
+# IMPORTANT: do NOT use '-serial mon:stdio' here.  Run non-interactively (e.g.
+# from a lab coordinator) stdin is closed, and mon:stdio quits QEMU on stdin
+# EOF — which tore the server down mid-enumeration in the first live pairing.
+# Detach from stdin and keep the console off the monitor so the server lives
+# until killed, serving the full enumeration and every reconnect.
+exec "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial null \
     -chardev "socket,id=$ID,path=$SOCK,server=on,wait=off" \
-    -kernel "$SRC/$ELF" -no-reboot
+    -kernel "$SRC/$ELF" -no-reboot </dev/null
