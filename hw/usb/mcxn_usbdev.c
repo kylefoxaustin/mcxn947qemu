@@ -361,7 +361,10 @@ void mcxn_usbdev_set_backend(MCXNUsbDevState *s,
 
 void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed)
 {
+    struct usb_redir_interface_info_header ii = { 0 };
+    struct usb_redir_ep_info_header ei = { 0 };
     struct usb_redir_device_connect_header dc = { 0 };
+    int i;
 
     s->attached = true;
     s->speed = speed;
@@ -369,9 +372,36 @@ void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed)
         return;     /* announced once the hello handshake completes */
     }
 
-    /* Descriptors are sourced from guest firmware via forwarded control
-     * transfers, so the connect header carries only the speed; the host learns
-     * class/ids/version from the real GET_DESCRIPTOR responses. */
+    /*
+     * A real usb-redir *importer* (QEMU hw/usb/redirect.c usbredir_check_filter)
+     * hard-requires interface_info to be set when device_connect is processed,
+     * and uses ep_info to set up the endpoints — so both MUST be sent before
+     * device_connect, even though the descriptors themselves still flow from
+     * firmware via the forwarded control transfers.  We advertise the vendor
+     * gadget layout: one vendor-class interface, EP0 control + EP1 bulk in/out
+     * (matches the device-mode test gadgets and the OBMF-ICP vendor stub).
+     */
+    ii.interface_count = 1;
+    ii.interface[0] = 0;
+    ii.interface_class[0] = 0xFF;   /* vendor-specific */
+    ii.interface_subclass[0] = 0;
+    ii.interface_protocol[0] = 0;
+    usbredirparser_send_interface_info(s->parser, &ii);
+
+    /* ep index = ((ep & 0x80) >> 3) | (ep & 0x0f); unused eps = invalid. */
+    for (i = 0; i < 32; i++) {
+        ei.type[i] = usb_redir_type_invalid;
+    }
+    ei.type[0]  = usb_redir_type_control; ei.max_packet_size[0]  = 64;  /* EP0 OUT */
+    ei.type[16] = usb_redir_type_control; ei.max_packet_size[16] = 64;  /* EP0 IN  */
+    ei.type[1]  = usb_redir_type_bulk;    ei.max_packet_size[1]  = 64;  /* EP1 OUT */
+    ei.type[17] = usb_redir_type_bulk;    ei.max_packet_size[17] = 64;  /* EP1 IN  */
+    ei.interface[1] = ei.interface[17] = 0;
+    usbredirparser_send_ep_info(s->parser, &ei);
+
+    /* Descriptors are sourced from firmware via forwarded control transfers, so
+     * the connect header carries only the speed; the host learns class/ids from
+     * the real GET_DESCRIPTOR responses. */
     dc.speed = speed;
     usbredirparser_send_device_connect(s->parser, &dc);
     usbredirparser_do_write(s->parser);

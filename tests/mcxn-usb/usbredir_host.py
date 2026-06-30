@@ -11,6 +11,7 @@ import socket, struct, sys, time
 
 # usb_redir_type
 HELLO, DEVICE_CONNECT = 0, 1
+INTERFACE_INFO, EP_INFO = 4, 5
 CONTROL_PACKET, BULK_PACKET = 100, 101
 SPEED_FULL = 1
 
@@ -96,14 +97,26 @@ def main(host, port):
     send_packet(HELLO, 0, ver)                # body = version[64], no caps
     print("HOST: hello exchanged")
 
-    # 2) wait for device_connect (firmware enabled the controller).
+    # 2) wait for device_connect (firmware enabled the controller).  A real
+    #    usb-redir importer (QEMU redirect.c) requires interface_info + ep_info
+    #    before device_connect; enforce that contract here too.
+    saw_ii = saw_ei = False
     deadline = time.time() + 8
     while time.time() < deadline:
         t, _, body = recv_packet()
-        if t == DEVICE_CONNECT:
-            print("HOST: device connected, speed=%d" % body[0]); break
+        if t == INTERFACE_INFO:
+            saw_ii = True
+        elif t == EP_INFO:
+            saw_ei = True
+        elif t == DEVICE_CONNECT:
+            print("HOST: device connected, speed=%d (interface_info=%s ep_info=%s)"
+                  % (body[0], saw_ii, saw_ei))
+            break
     else:
         print("HOST: no device_connect"); return 1
+    if not (saw_ii and saw_ei):
+        print("HOST: missing interface_info/ep_info before device_connect "
+              "(real importer would reject)"); return 1
 
     # 3) GET_DESCRIPTOR(device).
     st, dev = control(0x80, 6, 0x80, 0x0100, 0, 18)
