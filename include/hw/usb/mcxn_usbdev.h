@@ -83,6 +83,7 @@ struct MCXNUsbDevState {
     bool    connected;              /* hello handshake completed             */
     bool    attached;               /* device_connect sent (firmware enabled)*/
     uint8_t speed;                  /* usb_redir_speed_*                     */
+    uint8_t cur_config;             /* current SET_CONFIGURATION value       */
 
     MCXNUsbPending pending[MCXN_USB_NSLOTS];
 

@@ -125,6 +125,76 @@ static void usbdev_reset(void *priv)
 }
 
 /*
+ * SET_CONFIGURATION / GET_CONFIGURATION / SET_INTERFACE / GET_INTERFACE arrive
+ * as dedicated usbredir messages (not control_packets) from a real importer
+ * (hw/usb/redirect.c sends usbredirparser_send_set_configuration etc.).  Drive
+ * the no-data ones into the controller as a synthesized EP0 SETUP so guest
+ * firmware transitions to Configured / selects the alt setting and arms its
+ * endpoints, then reply with the matching status message.
+ */
+static void usbdev_std_setup(MCXNUsbDevState *s, uint8_t bmreq, uint8_t breq,
+                             uint16_t val, uint16_t idx)
+{
+    uint8_t setup[8] = { bmreq, breq, val & 0xff, val >> 8,
+                         idx & 0xff, idx >> 8, 0, 0 };
+    if (s->be_ops) {
+        s->be_ops->setup(s->be, setup);
+    }
+}
+
+static void usbdev_set_configuration(void *priv, uint64_t id,
+                                     struct usb_redir_set_configuration_header *h)
+{
+    MCXNUsbDevState *s = priv;
+    struct usb_redir_configuration_status_header st = { 0 };
+
+    usbdev_std_setup(s, 0x00, 9, h->configuration, 0);   /* SET_CONFIGURATION */
+    s->cur_config = h->configuration;
+    st.status = usb_redir_success;
+    st.configuration = h->configuration;
+    usbredirparser_send_configuration_status(s->parser, id, &st);
+    usbredirparser_do_write(s->parser);
+}
+
+static void usbdev_get_configuration(void *priv, uint64_t id)
+{
+    MCXNUsbDevState *s = priv;
+    struct usb_redir_configuration_status_header st = { 0 };
+
+    st.status = usb_redir_success;
+    st.configuration = s->cur_config;
+    usbredirparser_send_configuration_status(s->parser, id, &st);
+    usbredirparser_do_write(s->parser);
+}
+
+static void usbdev_set_alt_setting(void *priv, uint64_t id,
+                                   struct usb_redir_set_alt_setting_header *h)
+{
+    MCXNUsbDevState *s = priv;
+    struct usb_redir_alt_setting_status_header st = { 0 };
+
+    usbdev_std_setup(s, 0x01, 11, h->alt, h->interface);  /* SET_INTERFACE */
+    st.status = usb_redir_success;
+    st.interface = h->interface;
+    st.alt = h->alt;
+    usbredirparser_send_alt_setting_status(s->parser, id, &st);
+    usbredirparser_do_write(s->parser);
+}
+
+static void usbdev_get_alt_setting(void *priv, uint64_t id,
+                                   struct usb_redir_get_alt_setting_header *h)
+{
+    MCXNUsbDevState *s = priv;
+    struct usb_redir_alt_setting_status_header st = { 0 };
+
+    st.status = usb_redir_success;
+    st.interface = h->interface;
+    st.alt = 0;
+    usbredirparser_send_alt_setting_status(s->parser, id, &st);
+    usbredirparser_do_write(s->parser);
+}
+
+/*
  * Control transfer from the host.  Build the 8-byte SETUP, hand it to the
  * backend's EP0, then move the data stage:
  *   - IN  (requesttype bit7=1): pull up to @length bytes from EP0 IN.
@@ -281,6 +351,10 @@ static void usbdev_create_parser(MCXNUsbDevState *s)
     p->write_func = usbdev_write;
     p->hello_func = usbdev_hello;
     p->reset_func = usbdev_reset;
+    p->set_configuration_func = usbdev_set_configuration;
+    p->get_configuration_func = usbdev_get_configuration;
+    p->set_alt_setting_func = usbdev_set_alt_setting;
+    p->get_alt_setting_func = usbdev_get_alt_setting;
     p->control_packet_func = usbdev_control_packet;
     p->bulk_packet_func = usbdev_bulk_packet;
 
