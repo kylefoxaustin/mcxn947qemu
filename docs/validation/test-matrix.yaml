@@ -117,3 +117,25 @@ aggregate_harnesses:
   - {harness: qtest,       covers: "per-device register/IRQ semantics", tested_by: [mcxn-qtest], result: pass}
   - {harness: migration,   covers: "vmstate save/restore", tested_by: [mcxn-migration], result: pass}
   - {harness: soak,        covers: "stability/leak/coexistence", tested_by: [mcxn-soak], result: operator-run}
+
+# Absent silicon — blocks NOT present on MCXN947.  Chip-accuracy rule (operator):
+# absent IP is listed here, NEVER as a failing/negative row in the live matrix.
+# Kept as a present-but-empty section for structural diff against the fleet
+# (95/93/91): "checked, none" reads differently from an omitted section.
+absent: []   # none — MCXN947 is a superset MCU; every block above is present silicon
+
+# Class-axis aliases for cross-fleet diff (95emulator's canonical mapping).
+# Two-axis model: CLASS = how-well-it-WORKS (honesty); TIER = how-well-TESTED
+# (depth).  "functional" here is really a Tier-A (data-path-verified) marker and
+# maps to COMPUTES on the class axis — the reshape that splits class vs tier is
+# held until the post-93-upstream freeze lifts.
+class_aliases:
+  computes: COMPUTES
+  functional: COMPUTES                 # Tier-A on the tested axis; COMPUTES on the class axis
+  operator-driven: COMPUTES-operator-driven
+  register-only: REGISTER-ONLY
+  flag-at-operator: FLAG-AT-OPERATOR
+  not-modelled: REGISTER-ONLY          # present-but-unmodelled-but-registers; never ABSENT
+  # Neutron NPU carries a default + opt-in pair (same dual shape as 95's Neutron):
+  neutron-npu-default: FLAG-AT-OPERATOR
+  neutron-npu-optin: HONEST-FAULT      # uncomputed-errortrap -> INTR.ERRORTRAP + IRQ97
