@@ -139,7 +139,20 @@ def main(host, port):
         print("HOST: config header MISMATCH:", hdr.hex()); return 1
     st, cfg = control(0x80, 6, 0x80, 0x0200, 0, 255)
     print("HOST: GET_DESC config(255) status=%d len=%d" % (st, len(cfg)))
-    if st != 0 or cfg != EXPECT_CFG:
+    # Accept either FS (64) or HS (512) bulk wMaxPacketSize — the shared host
+    # serves both the FS (KHCI) and HS (ChipIdea) gadgets.  Compare everything
+    # except the two wMaxPacketSize fields (offsets 22-23, 29-30).
+    def cfg_ok(c):
+        if st != 0 or len(c) != 32:
+            return False
+        skip = {22, 23, 29, 30}
+        if any(c[i] != EXPECT_CFG[i] for i in range(32) if i not in skip):
+            return False
+        for o in (22, 29):                     # EP1 OUT / IN wMaxPacketSize
+            if (c[o] | (c[o + 1] << 8)) not in (64, 512):
+                return False
+        return True
+    if not cfg_ok(cfg):
         print("HOST: config descriptor MISMATCH:", cfg.hex()); return 1
 
     # 6) SET_CONFIGURATION(1).

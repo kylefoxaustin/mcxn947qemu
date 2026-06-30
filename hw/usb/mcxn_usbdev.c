@@ -23,6 +23,7 @@
 
 #define USBDEV_VERSION "qemu mcxn-usbdev " QEMU_VERSION
 
+
 /* ------------------------------------------------------------------------- *
  * chardev <-> usbredirparser bridge (mirrors hw/usb/redirect.c).
  * ------------------------------------------------------------------------- */
@@ -466,10 +467,13 @@ void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed)
     for (i = 0; i < 32; i++) {
         ei.type[i] = usb_redir_type_invalid;
     }
-    ei.type[0]  = usb_redir_type_control; ei.max_packet_size[0]  = 64;  /* EP0 OUT */
-    ei.type[16] = usb_redir_type_control; ei.max_packet_size[16] = 64;  /* EP0 IN  */
-    ei.type[1]  = usb_redir_type_bulk;    ei.max_packet_size[1]  = 64;  /* EP1 OUT */
-    ei.type[17] = usb_redir_type_bulk;    ei.max_packet_size[17] = 64;  /* EP1 IN  */
+    /* EP0 is always 64; bulk max-packet is speed-coherent: 512 at high-speed
+     * (HS-mandatory), 64 at full-speed. */
+    uint16_t bulk_mps = (speed == usb_redir_speed_high) ? 512 : 64;
+    ei.type[0]  = usb_redir_type_control; ei.max_packet_size[0]  = 64;        /* EP0 OUT */
+    ei.type[16] = usb_redir_type_control; ei.max_packet_size[16] = 64;        /* EP0 IN  */
+    ei.type[1]  = usb_redir_type_bulk;    ei.max_packet_size[1]  = bulk_mps;  /* EP1 OUT */
+    ei.type[17] = usb_redir_type_bulk;    ei.max_packet_size[17] = bulk_mps;  /* EP1 IN  */
     ei.interface[1] = ei.interface[17] = 0;
     usbredirparser_send_ep_info(s->parser, &ei);
 

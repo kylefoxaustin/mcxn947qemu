@@ -503,19 +503,16 @@ static void usbhs_core_write(void *opaque, hwaddr off, uint64_t value,
         if ((v & USBCMD_RS) &&
             (s->regs[HS_USBMODE / 4] & USBMODE_CM_MASK) == USBMODE_CM_DEVICE &&
             !s->enabled) {
-            /* Run + device mode: a device appears on the bus.  Advertise
-             * full-speed: although the ChipIdea controller is HS-capable
-             * silicon, the current gadget descriptors are full-speed-shaped
-             * (64-byte EPs, no device_qualifier).  Advertising HS to a real
-             * host (ci_hdrc) is an INVALID config — HS bulk must be 512 and a
-             * valid device_qualifier is mandatory — and made the kernel retry
-             * device_qualifier then fail to finalize.  A true-HS gadget
-             * (512-byte bulk + device_qualifier) can switch this back to
-             * usb_redir_speed_high. */
+            /* Run + device mode: a device appears on the bus.  High-speed: the
+             * ChipIdea is HS silicon and a real EHCI host (ci_hdrc) is HS-only
+             * (no companion/TT), so it rejects a full-speed device at attach.
+             * The gadget is a coherent HS device — 512-byte bulk + a valid
+             * device_qualifier (see tests/mcxn-usb-hs) — so HS attaches cleanly
+             * and the kernel finalizes enumeration. */
             s->enabled = true;
             timer_mod(s->sof,
                       qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SOF_PERIOD_NS);
-            mcxn_usbdev_attach(s->usbdev, usb_redir_speed_full);
+            mcxn_usbdev_attach(s->usbdev, usb_redir_speed_high);
         } else if (!(v & USBCMD_RS) && s->enabled) {
             s->enabled = false;
             timer_del(s->sof);

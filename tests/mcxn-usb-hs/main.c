@@ -67,8 +67,13 @@ static const uint8_t dev_desc[18] = {
 static const uint8_t cfg_desc[32] = {
     9, 2, 32, 0, 1, 1, 0, 0x80, 50,
     9, 4, 0, 0, 2, 0xFF, 0, 0, 0,
-    7, 5, 0x01, 2, 64, 0, 0,                 /* EP1 OUT bulk */
-    7, 5, 0x81, 2, 64, 0, 0,                 /* EP1 IN  bulk */
+    7, 5, 0x01, 2, 0x00, 0x02, 0,            /* EP1 OUT bulk, wMaxPacketSize=512 (HS) */
+    7, 5, 0x81, 2, 0x00, 0x02, 0,            /* EP1 IN  bulk, wMaxPacketSize=512 (HS) */
+};
+/* USB 2.0 device_qualifier (HS-mandatory): the kernel demands this on a HS
+ * device; a 0-length ack makes it retry + fail to finalize. */
+static const uint8_t devqual_desc[10] = {
+    10, 6, 0x00, 0x02, 0, 0, 0, 64, 1, 0,
 };
 
 static uint8_t setup[8];
@@ -105,6 +110,7 @@ static void handle_setup(void)
         uint8_t type = wval >> 8;
         if (type == 1) { puts_("  GET_DESC device\r\n"); ep0_send(dev_desc, 18, wlen); }
         else if (type == 2) { puts_("  GET_DESC config\r\n"); ep0_send(cfg_desc, 32, wlen); }
+        else if (type == 6) { puts_("  GET_DESC qualifier\r\n"); ep0_send(devqual_desc, 10, wlen); }
         else { ep0_send(0, 0, 0); }
     } else if (bmreq == 0x00 && breq == 5) {    /* SET_ADDRESS */
         puts_("  SET_ADDRESS\r\n");
