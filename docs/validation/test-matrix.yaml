@@ -124,18 +124,22 @@ aggregate_harnesses:
 # (95/93/91): "checked, none" reads differently from an omitted section.
 absent: []   # none — MCXN947 is a superset MCU; every block above is present silicon
 
-# Class-axis aliases for cross-fleet diff (95emulator's canonical mapping).
-# Two-axis model: CLASS = how-well-it-WORKS (honesty); TIER = how-well-TESTED
-# (depth).  "functional" here is really a Tier-A (data-path-verified) marker and
-# maps to COMPUTES on the class axis — the reshape that splits class vs tier is
-# held until the post-93-upstream freeze lifts.
+# Class-axis aliases for cross-fleet diff — blessed by holobench against the
+# canonical (validation-standard.md).  Two-axis model: CLASS = how-well-it-WORKS
+# (honesty); TIER = how-well-TESTED (depth).  Key clarifications from the
+# blessing: "functional" is NOT a class — the golden-verified-vs-merely-
+# functional distinction is the TIER axis, so functional maps to COMPUTES with
+# tier=B; "not-modelled" must never be able to return wrong-but-clean data
+# (silent-wrong) — it is REGISTER-ONLY if a present non-faulting stub, or
+# HONEST-FAULT if it visibly errors/rejects.  The reshape that splits the class
+# vs tier columns is held until the post-93-upstream freeze lifts.
 class_aliases:
   computes: COMPUTES
-  functional: COMPUTES                 # Tier-A on the tested axis; COMPUTES on the class axis
+  functional: COMPUTES                 # + tier=B (driver/functional, no golden oracle)
   operator-driven: COMPUTES-operator-driven
   register-only: REGISTER-ONLY
   flag-at-operator: FLAG-AT-OPERATOR
-  not-modelled: REGISTER-ONLY          # present-but-unmodelled-but-registers; never ABSENT
+  not-modelled: REGISTER-ONLY|HONEST-FAULT  # per block; never silent-wrong (none on MCX today)
   # Neutron NPU carries a default + opt-in pair (same dual shape as 95's Neutron):
   neutron-npu-default: FLAG-AT-OPERATOR
   neutron-npu-optin: HONEST-FAULT      # uncomputed-errortrap -> INTR.ERRORTRAP + IRQ97
