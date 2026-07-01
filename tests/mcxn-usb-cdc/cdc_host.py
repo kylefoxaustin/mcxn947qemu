@@ -6,6 +6,8 @@
 import socket, struct, sys, time
 
 HELLO, DEVICE_CONNECT, INTERFACE_INFO, EP_INFO = 0, 1, 4, 5
+SET_CONFIGURATION, CONFIGURATION_STATUS = 6, 8
+SET_ALT_SETTING, ALT_SETTING_STATUS = 9, 11
 CONTROL_PACKET, BULK_PACKET = 100, 101
 
 
@@ -56,6 +58,26 @@ def main(host, port):
                 blen = b[2] | (b[3] << 8)      # reported actual_length
                 return b[1], blen, b[8:]
 
+    # A real importer (redirect.c / the kernel) sends SET_CONFIGURATION and
+    # SET_INTERFACE as DEDICATED usbredir messages, NOT control_packets — a
+    # different core path (usbdev_set_configuration/_set_alt_setting).  Use them
+    # so the standalone test exercises exactly what cdc_acm does.
+    def set_config(cfg):
+        mid = nid[0]; nid[0] += 1
+        txpkt(SET_CONFIGURATION, mid, struct.pack("<B", cfg))
+        while True:
+            t, b = rxpkt()
+            if t == CONFIGURATION_STATUS:
+                return b[0]
+
+    def set_alt(iface, alt):
+        mid = nid[0]; nid[0] += 1
+        txpkt(SET_ALT_SETTING, mid, struct.pack("<BB", iface, alt))
+        while True:
+            t, b = rxpkt()
+            if t == ALT_SETTING_STATUS:
+                return b[0]
+
     # 1) hello.
     t, _ = rxpkt()
     if t != HELLO:
@@ -96,10 +118,14 @@ def main(host, port):
         print("HOST: missing CDC interface classes:", classes); return 1
     print("HOST: CDC interfaces present: comm(0x02) + data(0x0A)")
 
-    # 5) SET_CONFIGURATION + a CDC control request (GET_LINE_CODING).
-    st, _ = control(0x00, 9, 0x00, 1, 0, 0)
+    # 5) SET_CONFIGURATION (dedicated msg, kernel path) + SET_INTERFACE(1,0) +
+    #    the cdc_acm open sequence: GET/SET_LINE_CODING + SET_CONTROL_LINE_STATE.
+    st = set_config(1)
+    print("HOST: SET_CONFIGURATION (dedicated) status=%d" % st)
     if st != 0:
         print("HOST: SET_CONFIG failed"); return 1
+    st = set_alt(1, 0)                               # cdc_acm data interface
+    print("HOST: SET_INTERFACE(1,0) status=%d" % st)
     st, lc = control(0xA1, 0x21, 0xA1, 0, 0, 7)      # CDC GET_LINE_CODING
     print("HOST: GET_LINE_CODING status=%d len=%d (%s)" % (st, len(lc), lc.hex()))
     if st != 0 or len(lc) != 7:
@@ -113,6 +139,11 @@ def main(host, port):
     if st != 0:
         print("HOST: SET_LINE_CODING did not complete (ttyACM open would hang)")
         return 1
+    # SET_CONTROL_LINE_STATE DTR|RTS — cdc_acm asserts this on open before I/O.
+    st, _ = control(0x21, 0x22, 0x21, 0x0003, 0, 0)
+    print("HOST: SET_CONTROL_LINE_STATE status=%d" % st)
+    if st != 0:
+        print("HOST: SET_CONTROL_LINE_STATE failed"); return 1
     print("HOST: CDC ENUMERATION OK")
 
     # 6) bulk data echo on the CDC data endpoints (EP1 OUT -> EP1 IN).  The OUT

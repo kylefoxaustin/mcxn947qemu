@@ -147,14 +147,22 @@ static void usbdev_set_configuration(void *priv, uint64_t id,
                                      struct usb_redir_set_configuration_header *h)
 {
     MCXNUsbDevState *s = priv;
-    struct usb_redir_configuration_status_header st = { 0 };
+    MCXNUsbPending *p = usbdev_pending(s, 0x00);
 
-    usbdev_std_setup(s, 0x00, 9, h->configuration, 0);   /* SET_CONFIGURATION */
+    /* Defer configuration_status until firmware runs the SET_CONFIGURATION
+     * status stage (complete_out): a real importer waits for this reply before
+     * its next request, so deferring serializes the SETUPs and stops the next
+     * one clobbering EP0 before firmware arms its endpoints.  Acking early is
+     * the CDC ttyACM write-EIO / GET_LINE_CODING=0 bug — a multi-interface
+     * gadget pipelines SET_CONFIGURATION -> SET_INTERFACE and the second SETUP
+     * lands before firmware has processed the first. */
     s->cur_config = h->configuration;
-    st.status = usb_redir_success;
-    st.configuration = h->configuration;
-    usbredirparser_send_configuration_status(s->parser, id, &st);
-    usbredirparser_do_write(s->parser);
+    p->active = true;
+    p->is_control = true;
+    p->id = id;
+    p->reply_kind = MCXN_USB_REPLY_CONFIG;
+    p->arg0 = h->configuration;
+    usbdev_std_setup(s, 0x00, 9, h->configuration, 0);   /* SET_CONFIGURATION */
 }
 
 static void usbdev_get_configuration(void *priv, uint64_t id)
@@ -172,14 +180,17 @@ static void usbdev_set_alt_setting(void *priv, uint64_t id,
                                    struct usb_redir_set_alt_setting_header *h)
 {
     MCXNUsbDevState *s = priv;
-    struct usb_redir_alt_setting_status_header st = { 0 };
+    MCXNUsbPending *p = usbdev_pending(s, 0x00);
 
+    /* Same deferral as SET_CONFIGURATION: ack only after firmware's status
+     * stage, so the importer's next SETUP can't clobber EP0. */
+    p->active = true;
+    p->is_control = true;
+    p->id = id;
+    p->reply_kind = MCXN_USB_REPLY_ALT;
+    p->arg0 = h->interface;
+    p->arg1 = h->alt;
     usbdev_std_setup(s, 0x01, 11, h->alt, h->interface);  /* SET_INTERFACE */
-    st.status = usb_redir_success;
-    st.interface = h->interface;
-    st.alt = h->alt;
-    usbredirparser_send_alt_setting_status(s->parser, id, &st);
-    usbredirparser_do_write(s->parser);
 }
 
 static void usbdev_get_alt_setting(void *priv, uint64_t id,
@@ -265,6 +276,7 @@ static void usbdev_control_packet(void *priv, uint64_t id,
         p->is_control = true;
         p->id = id;
         p->ep = 0x00;
+        p->reply_kind = MCXN_USB_REPLY_XFER;   /* slot 0 is shared with set_config/alt */
         if (data_len) {
             s->be_ops->ep_out(s->be, 0, data, data_len);
         }
@@ -559,7 +571,20 @@ void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status, int len)
     if (!p->active || !s->parser) {
         return;
     }
-    if (p->is_control) {
+    if (p->reply_kind == MCXN_USB_REPLY_CONFIG) {
+        /* Deferred SET_CONFIGURATION ack — firmware just ran the status stage. */
+        struct usb_redir_configuration_status_header cs = { 0 };
+        cs.status = st;
+        cs.configuration = p->arg0;
+        usbredirparser_send_configuration_status(s->parser, p->id, &cs);
+    } else if (p->reply_kind == MCXN_USB_REPLY_ALT) {
+        /* Deferred SET_INTERFACE ack. */
+        struct usb_redir_alt_setting_status_header as = { 0 };
+        as.status = st;
+        as.interface = p->arg0;
+        as.alt = p->arg1;
+        usbredirparser_send_alt_setting_status(s->parser, p->id, &as);
+    } else if (p->is_control) {
         struct usb_redir_control_packet_header ch = { 0 };
         ch.endpoint = ep_addr;
         ch.status = st;
@@ -576,6 +601,7 @@ void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status, int len)
         usbredirparser_send_bulk_packet(s->parser, p->id, &bh, NULL, 0);
     }
     p->active = false;
+    p->reply_kind = MCXN_USB_REPLY_XFER;
     usbredirparser_do_write(s->parser);
 }
 

@@ -55,6 +55,16 @@ typedef struct MCXNUsbBackendOps {
     void (*set_config)(void *be, uint8_t config);
 } MCXNUsbBackendOps;
 
+/* What kind of usbredir reply a pending EP0 request completes into.  Dedicated
+ * SET_CONFIGURATION / SET_INTERFACE messages must NOT be acked until firmware
+ * has run their status stage — acking early lets a real importer pipeline the
+ * next SETUP, which clobbers EP0 before firmware processes the previous one. */
+enum {
+    MCXN_USB_REPLY_XFER   = 0,  /* control_packet / bulk_packet (default)     */
+    MCXN_USB_REPLY_CONFIG = 1,  /* configuration_status (arg0 = configuration)*/
+    MCXN_USB_REPLY_ALT    = 2,  /* alt_setting_status (arg0=iface, arg1=alt)  */
+};
+
 /* An in-flight host request awaiting an async backend completion.  Indexed by
  * endpoint slot = (ep & 0xf) | (IN ? 0x10 : 0); EP0 control uses slot 0/16. */
 typedef struct MCXNUsbPending {
@@ -63,6 +73,9 @@ typedef struct MCXNUsbPending {
     uint64_t id;                    /* usbredir transaction id               */
     uint16_t length;                /* host-requested length                 */
     uint8_t  ep;                    /* usbredir endpoint address             */
+    uint8_t  reply_kind;            /* MCXN_USB_REPLY_* — how to ack          */
+    uint8_t  arg0;                  /* configuration / interface             */
+    uint8_t  arg1;                  /* alt setting                           */
 } MCXNUsbPending;
 
 #define MCXN_USB_NSLOTS 32
