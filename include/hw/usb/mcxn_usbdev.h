@@ -112,6 +112,8 @@ void mcxn_usbdev_detach(MCXNUsbDevState *s);
  * answered a previously-ASYNC host request is retired by guest firmware. */
 void mcxn_usbdev_complete_in(MCXNUsbDevState *s, int ep,
                              const uint8_t *buf, int len);
-void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status);
+/* @len is the number of bytes actually transferred (reported as the usbredir
+ * actual_length — a real host driver reads it, e.g. a tty write's byte count). */
+void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status, int len);
 
 #endif /* HW_USB_MCXN_USBDEV_H */

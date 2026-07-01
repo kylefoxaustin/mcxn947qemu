@@ -549,7 +549,7 @@ void mcxn_usbdev_complete_in(MCXNUsbDevState *s, int ep,
 }
 
 /* Backend retired a primed OUT descriptor that answers a pending host OUT. */
-void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status)
+void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status, int len)
 {
     uint8_t ep_addr = ep & 0x0f;
     MCXNUsbPending *p = usbdev_pending(s, ep_addr);
@@ -563,11 +563,16 @@ void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status)
         struct usb_redir_control_packet_header ch = { 0 };
         ch.endpoint = ep_addr;
         ch.status = st;
+        ch.length = len & 0xffff;
         usbredirparser_send_control_packet(s->parser, p->id, &ch, NULL, 0);
     } else {
         struct usb_redir_bulk_packet_header bh = { 0 };
         bh.endpoint = ep_addr;
         bh.status = st;
+        /* Report the actual transferred byte count: a real OUT-endpoint driver
+         * (e.g. cdc_acm's tty write) reads this and treats 0 as a short write. */
+        bh.length = len & 0xffff;
+        bh.length_high = (len >> 16) & 0xffff;
         usbredirparser_send_bulk_packet(s->parser, p->id, &bh, NULL, 0);
     }
     p->active = false;

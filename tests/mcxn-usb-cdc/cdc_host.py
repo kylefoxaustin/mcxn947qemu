@@ -53,7 +53,8 @@ def main(host, port):
         while True:
             t, b = rxpkt()
             if t == BULK_PACKET:
-                return b[1], b[8:]
+                blen = b[2] | (b[3] << 8)      # reported actual_length
+                return b[1], blen, b[8:]
 
     # 1) hello.
     t, _ = rxpkt()
@@ -114,16 +115,19 @@ def main(host, port):
         return 1
     print("HOST: CDC ENUMERATION OK")
 
-    # 6) bulk data echo on the CDC data endpoints (EP1 OUT -> EP1 IN).
+    # 6) bulk data echo on the CDC data endpoints (EP1 OUT -> EP1 IN).  The OUT
+    #    completion MUST report actual_length == bytes written — cdc_acm's tty
+    #    write reads it and treats 0 as a short write (the ttyACM write-fail bug).
     for n in (1, 64, 512):
         payload = bytes((i * 5 + 1) & 0xFF for i in range(n))
-        st, _ = bulk(0x01, n, payload)
-        if st != 0:
-            print("HOST: bulk OUT %d fail" % n); return 1
-        st, echo = bulk(0x81, 512)
+        st, wlen_out, _ = bulk(0x01, n, payload)
+        if st != 0 or wlen_out != n:
+            print("HOST: bulk OUT %d fail (status=%d actual_length=%d)"
+                  % (n, st, wlen_out)); return 1
+        st, _, echo = bulk(0x81, 512)
         if st != 0 or echo != payload:
             print("HOST: bulk echo MISMATCH at %d: %s" % (n, echo[:16].hex())); return 1
-        print("HOST: CDC DATA echo %d bytes OK" % n)
+        print("HOST: CDC DATA echo %d bytes OK (OUT actual_length=%d)" % (n, wlen_out))
 
     print("HOST: CDC DATA OK")
     return 0

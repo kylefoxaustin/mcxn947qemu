@@ -232,7 +232,7 @@ static bool usbfs_service_out(MCXNUSBFSState *s, int ep)
 
     if (x->out_off >= x->out_len || chunk < MCXN_USBFS_MPS) {
         x->out_pending = false;
-        mcxn_usbdev_complete_out(s->usbdev, ep, MCXN_USB_XFER_OK);
+        mcxn_usbdev_complete_out(s->usbdev, ep, MCXN_USB_XFER_OK, x->out_len);
     }
     return true;
 }
@@ -260,7 +260,7 @@ static bool usbfs_consume_status_in(MCXNUSBFSState *s)
     /* The host->device control transfer is now complete (firmware saw the SETUP
      * and ran the status stage): ack the host.  No-op if a data stage already
      * completed it. */
-    mcxn_usbdev_complete_out(s->usbdev, 0, MCXN_USB_XFER_OK);
+    mcxn_usbdev_complete_out(s->usbdev, 0, MCXN_USB_XFER_OK, 0);
     return true;
 }
 

@@ -315,7 +315,7 @@ static bool usbhs_service_out(MCXNUSBHSCoreState *s, int ep)
     s->regs[HS_ENDPTCOMPLETE / 4] |= (1u << ep);          /* RX complete */
     usbhs_ui(s);
     x->out_pending = false;
-    mcxn_usbdev_complete_out(s->usbdev, ep, MCXN_USB_XFER_OK);
+    mcxn_usbdev_complete_out(s->usbdev, ep, MCXN_USB_XFER_OK, n);
     return true;
 }
 
@@ -331,7 +331,7 @@ static bool usbhs_consume_status_in(MCXNUSBHSCoreState *s)
     s->regs[HS_ENDPTCOMPLETE / 4] |= (1u << 16);          /* EP0 TX complete */
     usbhs_ui(s);
     s->ep0_status_in = false;
-    mcxn_usbdev_complete_out(s->usbdev, 0, MCXN_USB_XFER_OK);
+    mcxn_usbdev_complete_out(s->usbdev, 0, MCXN_USB_XFER_OK, 0);
     return true;
 }
 
