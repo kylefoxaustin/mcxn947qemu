@@ -571,6 +571,11 @@ void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status, int len)
     if (!p->active || !s->parser) {
         return;
     }
+    qemu_log_mask(LOG_GUEST_ERROR, "USBTRACE complete_out ep=%d reply_kind=%d "
+                  "len=%d status=%d (%s)\n", ep_addr, p->reply_kind, len, status,
+                  p->reply_kind == MCXN_USB_REPLY_CONFIG ? "SET_CONFIG status retires"
+                  : p->reply_kind == MCXN_USB_REPLY_ALT ? "SET_INTERFACE status retires"
+                  : "bulk/control OUT done");
     if (p->reply_kind == MCXN_USB_REPLY_CONFIG) {
         /* Deferred SET_CONFIGURATION ack — firmware just ran the status stage. */
         struct usb_redir_configuration_status_header cs = { 0 };

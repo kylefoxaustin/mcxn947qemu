@@ -299,7 +299,16 @@ static bool usbhs_service_out(MCXNUSBHSCoreState *s, int ep)
     int cap, n;
 
     if (!dtd) {
+        if (ep != 0) {
+            qemu_log_mask(LOG_GUEST_ERROR, "USBTRACE service_out ep=%d NO-DTD "
+                          "(host OUT waiting, firmware hasn't armed EP%d-OUT) "
+                          "out_len=%d\n", ep, ep, x->out_len);
+        }
         return false;
+    }
+    if (ep != 0) {
+        qemu_log_mask(LOG_GUEST_ERROR, "USBTRACE service_out ep=%d DELIVER "
+                      "out_len=%d\n", ep, x->out_len);
     }
     token = hs_ld(dtd + 4);
     cap = (token >> DTD_TOTBYTES_SHIFT) & DTD_TOTBYTES_MASK;
@@ -401,6 +410,10 @@ static int usbhs_be_ep_out(void *be, int ep, const uint8_t *buf, int len)
     MCXNUSBHSCoreState *s = be;
     MCXNUSBHSXfer *x = &s->ep[ep & 7];
 
+    if (ep != 0) {
+        qemu_log_mask(LOG_GUEST_ERROR, "USBTRACE ep_out ep=%d len=%d "
+                      "(host bulk OUT arrived)\n", ep, len);
+    }
     if (len > MCXN_USBHS_XFERMAX) {
         len = MCXN_USBHS_XFERMAX;
     }
@@ -535,6 +548,14 @@ static void usbhs_core_write(void *opaque, hwaddr off, uint64_t value,
         return;
     case HS_ENDPTPRIME:
         /* Firmware primed dTD(s): note ready endpoints, then service. */
+        if (v & ~1u) {   /* anything past EP0-OUT */
+            qemu_log_mask(LOG_GUEST_ERROR, "USBTRACE prime mask=0x%x "
+                          "(firmware armed: %s%s%s%s)\n", v,
+                          (v & (1u << 1)) ? "EP1-OUT " : "",
+                          (v & (1u << 17)) ? "EP1-IN " : "",
+                          (v & (1u << 18)) ? "EP2-IN " : "",
+                          (v & (1u << 16)) ? "EP0-IN " : "");
+        }
         s->regs[HS_ENDPTSTAT / 4] |= v;
         usbhs_service(s);
         return;
