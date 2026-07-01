@@ -84,6 +84,8 @@ struct MCXNUsbDevState {
     bool    attached;               /* device_connect sent (firmware enabled)*/
     uint8_t speed;                  /* usb_redir_speed_*                     */
     uint8_t cur_config;             /* current SET_CONFIGURATION value       */
+    char   *gadget_profile;         /* "vendor" (default) | "cdc" — selects  */
+                                    /* the interface_info/ep_info advertised */
 
     MCXNUsbPending pending[MCXN_USB_NSLOTS];
 

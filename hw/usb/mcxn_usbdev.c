@@ -452,29 +452,48 @@ void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed)
      * hard-requires interface_info to be set when device_connect is processed,
      * and uses ep_info to set up the endpoints — so both MUST be sent before
      * device_connect, even though the descriptors themselves still flow from
-     * firmware via the forwarded control transfers.  We advertise the vendor
-     * gadget layout: one vendor-class interface, EP0 control + EP1 bulk in/out
-     * (matches the device-mode test gadgets and the OBMF-ICP vendor stub).
+     * firmware via the forwarded control transfers.  The layout must match the
+     * gadget firmware's config descriptor; gadget-profile selects it.  (A future
+     * cleanup could derive this from the firmware's config descriptor.)
      */
-    ii.interface_count = 1;
-    ii.interface[0] = 0;
-    ii.interface_class[0] = 0xFF;   /* vendor-specific */
-    ii.interface_subclass[0] = 0;
-    ii.interface_protocol[0] = 0;
-    usbredirparser_send_interface_info(s->parser, &ii);
-
-    /* ep index = ((ep & 0x80) >> 3) | (ep & 0x0f); unused eps = invalid. */
     for (i = 0; i < 32; i++) {
         ei.type[i] = usb_redir_type_invalid;
     }
-    /* EP0 is always 64; bulk max-packet is speed-coherent: 512 at high-speed
-     * (HS-mandatory), 64 at full-speed. */
+    /* EP0 is always control/64; bulk max-packet is speed-coherent (HS=512). */
     uint16_t bulk_mps = (speed == usb_redir_speed_high) ? 512 : 64;
-    ei.type[0]  = usb_redir_type_control; ei.max_packet_size[0]  = 64;        /* EP0 OUT */
-    ei.type[16] = usb_redir_type_control; ei.max_packet_size[16] = 64;        /* EP0 IN  */
-    ei.type[1]  = usb_redir_type_bulk;    ei.max_packet_size[1]  = bulk_mps;  /* EP1 OUT */
-    ei.type[17] = usb_redir_type_bulk;    ei.max_packet_size[17] = bulk_mps;  /* EP1 IN  */
-    ei.interface[1] = ei.interface[17] = 0;
+    ei.type[0]  = usb_redir_type_control; ei.max_packet_size[0]  = 64;   /* EP0 OUT */
+    ei.type[16] = usb_redir_type_control; ei.max_packet_size[16] = 64;   /* EP0 IN  */
+
+    if (s->gadget_profile && !strcmp(s->gadget_profile, "cdc")) {
+        /* CDC-ACM: interface 0 Communications/ACM + EP2-IN interrupt notify;
+         * interface 1 Data + EP1 bulk in/out.  Binds Linux cdc_acm. */
+        ii.interface_count = 2;
+        ii.interface[0] = 0;
+        ii.interface_class[0] = 0x02;      /* Communications */
+        ii.interface_subclass[0] = 0x02;   /* Abstract Control Model */
+        ii.interface_protocol[0] = 0x01;   /* AT commands (V.25ter) */
+        ii.interface[1] = 1;
+        ii.interface_class[1] = 0x0A;      /* CDC Data */
+        ii.interface_subclass[1] = 0;
+        ii.interface_protocol[1] = 0;
+        ei.type[18] = usb_redir_type_interrupt;  /* EP2 IN (0x82) notify */
+        ei.max_packet_size[18] = 16; ei.interval[18] = 9; ei.interface[18] = 0;
+        ei.type[1]  = usb_redir_type_bulk;       /* EP1 OUT data */
+        ei.max_packet_size[1] = bulk_mps; ei.interface[1] = 1;
+        ei.type[17] = usb_redir_type_bulk;       /* EP1 IN  data */
+        ei.max_packet_size[17] = bulk_mps; ei.interface[17] = 1;
+    } else {
+        /* Vendor: one vendor-class interface, EP0 control + EP1 bulk in/out. */
+        ii.interface_count = 1;
+        ii.interface[0] = 0;
+        ii.interface_class[0] = 0xFF;      /* vendor-specific */
+        ii.interface_subclass[0] = 0;
+        ii.interface_protocol[0] = 0;
+        ei.type[1]  = usb_redir_type_bulk; ei.max_packet_size[1]  = bulk_mps;
+        ei.type[17] = usb_redir_type_bulk; ei.max_packet_size[17] = bulk_mps;
+        ei.interface[1] = ei.interface[17] = 0;
+    }
+    usbredirparser_send_interface_info(s->parser, &ii);
     usbredirparser_send_ep_info(s->parser, &ei);
 
     /* Descriptors are sourced from firmware via forwarded control transfers, so
@@ -578,6 +597,7 @@ static void mcxn_usbdev_unrealize(DeviceState *dev)
 
 static const Property mcxn_usbdev_props[] = {
     DEFINE_PROP_CHR("chardev", MCXNUsbDevState, cs),
+    DEFINE_PROP_STRING("gadget-profile", MCXNUsbDevState, gadget_profile),
 };
 
 static void mcxn_usbdev_class_init(ObjectClass *klass, const void *data)

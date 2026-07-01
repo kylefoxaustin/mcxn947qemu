@@ -14,10 +14,13 @@ QEMU="${QEMU:-$HERE/../../build/qemu-system-arm}"
 CC="${CC:-arm-none-eabi-gcc}"
 CTRL="${1:-hs}"
 SOCK="${USB_SOCK:-/tmp/holo-usb-imx93-mcx.sock}"
+PROFILE=""
 case "$CTRL" in
-    hs) ID=mcxn-usbhs; SRC=$HERE/../mcxn-usb-hs; ELF=usbhs.elf;;
-    fs) ID=mcxn-usbfs; SRC=$HERE/../mcxn-usb;    ELF=usb.elf;;
-    *)  echo "usage: $0 [hs|fs]"; exit 2;;
+    hs)  ID=mcxn-usbhs; SRC=$HERE/../mcxn-usb-hs;  ELF=usbhs.elf;;
+    fs)  ID=mcxn-usbfs; SRC=$HERE/../mcxn-usb;     ELF=usb.elf;;
+    cdc) ID=mcxn-usbhs; SRC=$HERE/../mcxn-usb-cdc; ELF=cdc.elf;   # CDC-ACM on HS
+         PROFILE="-global mcxn-usbdev.gadget-profile=cdc";;
+    *)   echo "usage: $0 [hs|fs|cdc]"; exit 2;;
 esac
 command -v "$CC" >/dev/null 2>&1 || { echo "SKIP: $CC not found"; exit 0; }
 [ -x "$QEMU" ] || { echo "SKIP: qemu not built"; exit 0; }
@@ -32,5 +35,5 @@ echo "(Ctrl-C to stop; the server stays up persistently, serving every (re)conne
 # Detach from stdin and keep the console off the monitor so the server lives
 # until killed, serving the full enumeration and every reconnect.
 exec "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial null \
-    -chardev "socket,id=$ID,path=$SOCK,server=on,wait=off" \
+    -chardev "socket,id=$ID,path=$SOCK,server=on,wait=off" $PROFILE \
     -kernel "$SRC/$ELF" -no-reboot </dev/null
