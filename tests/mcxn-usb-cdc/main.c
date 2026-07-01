@@ -119,8 +119,11 @@ static void handle_setup(void)
         R(DEVICEADDR) = ((uint32_t)(wval & 0x7F) << 25) | (1u << 24);
         ep0_send(0, 0, 0);
     } else if (bmreq == 0x00 && breq == 9) {       /* SET_CONFIGURATION */
-        ep0_send(0, 0, 0);
-        prime(1, 0, EP1OUT_DTD, EP1OUT_BUF, EP1_CAP);   /* arm EP1 bulk OUT */
+        /* Arm EP1 bulk OUT BEFORE the status stage: the status-IN is what makes
+         * the host see the config as done, so arming the data EP first closes
+         * the window where the host could write into an un-armed EP1-OUT. */
+        prime(1, 0, EP1OUT_DTD, EP1OUT_BUF, EP1_CAP);   /* arm EP1 bulk OUT first */
+        ep0_send(0, 0, 0);                              /* then status stage */
         enum_done = 1;
     } else if (bmreq == 0xA1 && breq == 0x21) {    /* CDC GET_LINE_CODING */
         ep0_send(line_coding, 7, wlen);
