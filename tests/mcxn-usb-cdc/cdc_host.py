@@ -37,10 +37,10 @@ def main(host, port):
 
     nid = [1]
 
-    def control(ep, req, rt, val, idx, length):
+    def control(ep, req, rt, val, idx, length, data=b""):
         h = struct.pack("<BBBBHHH", ep, req, rt, 0, val, idx, length)
         mid = nid[0]; nid[0] += 1
-        txpkt(CONTROL_PACKET, mid, h)
+        txpkt(CONTROL_PACKET, mid, h + data)
         while True:
             t, b = rxpkt()
             if t == CONTROL_PACKET:
@@ -103,6 +103,15 @@ def main(host, port):
     print("HOST: GET_LINE_CODING status=%d len=%d (%s)" % (st, len(lc), lc.hex()))
     if st != 0 or len(lc) != 7:
         print("HOST: GET_LINE_CODING bad"); return 1
+    # CDC SET_LINE_CODING — a control-OUT WITH a 7-byte data stage (this is what
+    # cdc_acm sends on /dev/ttyACM open; the gadget must consume the OUT data
+    # and complete the status stage, or the open hangs).
+    st, _ = control(0x21, 0x20, 0x21, 0, 0, 7,
+                    bytes([0x80, 0x25, 0x00, 0x00, 0, 0, 8]))  # 9600 8N1
+    print("HOST: SET_LINE_CODING status=%d" % st)
+    if st != 0:
+        print("HOST: SET_LINE_CODING did not complete (ttyACM open would hang)")
+        return 1
     print("HOST: CDC ENUMERATION OK")
 
     # 6) bulk data echo on the CDC data endpoints (EP1 OUT -> EP1 IN).

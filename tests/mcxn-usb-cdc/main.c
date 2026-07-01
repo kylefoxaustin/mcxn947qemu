@@ -44,11 +44,13 @@ static void puts_(const char *s) { while (*s) { putc_(*s++); } }
 #define DQH_BASE  0x20003000u
 #define DTD(n)    (0x20004000u + (n) * 32u)
 #define EP0IN_DTD   DTD(0)
+#define EP0OUT_DTD  DTD(1)
 #define EP1IN_DTD   DTD(2)
 #define EP1OUT_DTD  DTD(3)
 #define EP0IN_BUF   0x20005000u
 #define EP1IN_BUF   0x20005400u
 #define EP1OUT_BUF  0x20005800u
+#define EP0OUT_BUF  0x20005C00u   /* scratch for control-OUT data (SET_LINE_CODING) */
 #define EP1_CAP     512
 
 #define DQH(ep, in)  (DQH_BASE + ((ep) * 2 + (in)) * 64u)
@@ -79,6 +81,7 @@ static const uint8_t line_coding[7] = { 0x00, 0xC2, 0x01, 0x00, 0, 0, 8 };
 
 static uint8_t setup[8];
 static volatile int enum_done;
+static volatile int ep0_out_status;   /* a control-OUT data stage is pending its status */
 
 static void prime(int ep, int in, uint32_t dtd, uint32_t buf, int len)
 {
@@ -108,32 +111,36 @@ static void handle_setup(void)
 
     if (bmreq == 0x80 && breq == 6) {              /* GET_DESCRIPTOR */
         uint8_t type = wval >> 8;
-        if (type == 1) { puts_("  GET_DESC device\r\n"); ep0_send(dev_desc, 18, wlen); }
-        else if (type == 2) { puts_("  GET_DESC config\r\n"); ep0_send(cfg_desc, 67, wlen); }
-        else if (type == 6) { puts_("  GET_DESC qualifier\r\n"); ep0_send(devqual_desc, 10, wlen); }
-        else { ep0_send(0, 0, 0); }
+        if (type == 1)      { ep0_send(dev_desc, 18, wlen); }
+        else if (type == 2) { ep0_send(cfg_desc, 67, wlen); }
+        else if (type == 6) { ep0_send(devqual_desc, 10, wlen); }
+        else                { ep0_send(0, 0, 0); }
     } else if (bmreq == 0x00 && breq == 5) {       /* SET_ADDRESS */
-        puts_("  SET_ADDRESS\r\n");
         R(DEVICEADDR) = ((uint32_t)(wval & 0x7F) << 25) | (1u << 24);
         ep0_send(0, 0, 0);
     } else if (bmreq == 0x00 && breq == 9) {       /* SET_CONFIGURATION */
-        puts_("  SET_CONFIG\r\n");
         ep0_send(0, 0, 0);
         prime(1, 0, EP1OUT_DTD, EP1OUT_BUF, EP1_CAP);   /* arm EP1 bulk OUT */
         enum_done = 1;
     } else if (bmreq == 0xA1 && breq == 0x21) {    /* CDC GET_LINE_CODING */
-        puts_("  CDC GET_LINE_CODING\r\n");
         ep0_send(line_coding, 7, wlen);
     } else if (bmreq == 0x21 && breq == 0x22) {    /* CDC SET_CONTROL_LINE_STATE */
-        puts_("  CDC SET_CONTROL_LINE_STATE\r\n");
         ep0_send(0, 0, 0);
+    } else if (bmreq == 0x21 && breq == 0x20) {    /* CDC SET_LINE_CODING (7B OUT) */
+        /* Control-OUT with a data stage: arm EP0 OUT to receive the 7 bytes;
+         * the status IN is sent once they arrive (see the ISR). */
+        prime(0, 0, EP0OUT_DTD, EP0OUT_BUF, wlen ? wlen : 7);
+        ep0_out_status = 1;
     } else if ((bmreq & 0x80) && breq == 0) {      /* GET_STATUS */
         static const uint8_t st[2] = { 0, 0 };
         ep0_send(st, 2, wlen);
-    } else {
-        /* SET_LINE_CODING (0x21/0x20) etc.: ack.  (Full EP0-OUT data handling
-         * for SET_LINE_CODING is the /dev/ttyACM step, validated with the host.) */
+    } else if (bmreq & 0x80) {                     /* other IN requests: short */
         ep0_send(0, 0, 0);
+    } else if (wlen) {                             /* other no-model OUT w/ data */
+        prime(0, 0, EP0OUT_DTD, EP0OUT_BUF, wlen);
+        ep0_out_status = 1;
+    } else {
+        ep0_send(0, 0, 0);                         /* no-data OUT: status IN */
     }
 }
 
@@ -156,6 +163,10 @@ void usb_isr(void)
     uint32_t cmpl = R(ENDPTCOMPLETE);
     if (cmpl) {
         R(ENDPTCOMPLETE) = cmpl;
+        if ((cmpl & (1u << 0)) && ep0_out_status) { /* EP0 OUT data received */
+            ep0_out_status = 0;
+            ep0_send(0, 0, 0);                      /* zero-length status IN */
+        }
         if (cmpl & (1u << 1)) {                    /* EP1 OUT complete -> echo */
             uint32_t tok = M(EP1OUT_DTD + 4);
             int recv = EP1_CAP - ((tok >> 16) & 0x7FFF);
