@@ -168,20 +168,23 @@ def main(host, port):
         print("HOST: GET_STATUS bad:", status.hex()); return 1
     print("HOST: ENUMERATION OK")
 
-    # 7) M2 — bulk data both directions: write to EP1 OUT, read the echo on
-    #    EP1 IN, verify the round-trip byte-for-byte.
-    payload = bytes((i * 7 + 3) & 0xFF for i in range(32))
-    st, _ = bulk(0x01, len(payload), payload)
-    print("HOST: BULK OUT status=%d len=%d" % (st, len(payload)))
-    if st != 0:
-        return 1
-    st, echo = bulk(0x81, 64)
-    print("HOST: BULK IN  status=%d len=%d" % (st, len(echo)))
-    if st != 0 or echo != payload:
-        print("HOST: bulk echo MISMATCH: sent", payload.hex(),
-              "got", echo.hex()); return 1
+    # 7) M2 — bulk data both directions at the endpoint's REAL max packet size:
+    #    write to EP1 OUT, read the echo on EP1 IN, verify byte-for-byte.  The
+    #    payload sizes are derived from EP1 wMaxPacketSize (cfg offset 22-23) so
+    #    the FS gadget (64) and the HS gadget (512) each get a full-packet test.
+    ep_mps = cfg[22] | (cfg[23] << 8)
+    for n in sorted({1, 64, ep_mps}):
+        payload = bytes((i * 7 + 3) & 0xFF for i in range(n))
+        st, _ = bulk(0x01, n, payload)
+        if st != 0:
+            print("HOST: BULK OUT %d bytes status=%d" % (n, st)); return 1
+        st, echo = bulk(0x81, ep_mps)
+        if st != 0 or echo != payload:
+            print("HOST: bulk echo MISMATCH at %d bytes: got %d (%s)"
+                  % (n, len(echo), echo[:16].hex())); return 1
+        print("HOST: BULK ECHO %d bytes OK" % n)
 
-    print("HOST: BULK ECHO OK")
+    print("HOST: BULK ECHO OK (max packet %d)" % ep_mps)
     return 0
 
 

@@ -53,9 +53,9 @@ static void puts_(const char *s) { while (*s) { putc_(*s++); } }
 #define EP1IN_DTD   DTD(2)
 #define EP1OUT_DTD  DTD(3)
 #define EP0IN_BUF   0x20005000u
-#define EP1IN_BUF   0x20005100u
-#define EP1OUT_BUF  0x20005200u
-#define EP1_CAP     64
+#define EP1IN_BUF   0x20005400u   /* 1 KiB apart so 512-byte buffers don't overlap */
+#define EP1OUT_BUF  0x20005800u
+#define EP1_CAP     512           /* HS bulk max packet size */
 
 #define DQH(ep, in)  (DQH_BASE + ((ep) * 2 + (in)) * 64u)
 #define M(a)  (*(volatile uint32_t *)(uintptr_t)(a))
