@@ -138,9 +138,15 @@ Priority order (remaining):
   KHCI BDT engine; `tests/mcxn-usb`) and USBHS1 (high-speed, ChipIdea dQH/dTD
   engine; `tests/mcxn-usb-hs`), each on its own usbredir core/socket. Enumeration
   (incl. Linux-style partial+full config reads + GET_STATUS) + bulk echo proven
-  against a self-contained host. The i.MX93-host link harness is
-  `tests/mcxn-usb-link/` (MCX = server; i.MX93 = stock `-device usb-redir`
-  client); the live 2-party pairing is the remaining integration step.
+  against a self-contained host. **✅ M4 done: the live i.MX93↔MCX USB link is
+  verified end-to-end** — a real i.MX93 stock-BSP Linux kernel enumerates and
+  configures the MCX coherent HS gadget at high-speed (480 Mb/s) over a unix
+  socket (`tests/mcxn-usb-link/`; MCX = server, i.MX93 = stock `-device
+  usb-redir`). Getting there peeled off four real-kernel-only bugs on the MCX
+  side (interface_info/ep_info at connect, server persistence, the dedicated
+  set_configuration message, a coherent HS descriptor set + device_qualifier)
+  and one on the i.MX93 side (ChipIdea PORTSC.PSPD). Remaining: an optional
+  userspace-libusb bulk-echo data test over the live link.
   (ENET now has full MAC frame DMA-ring + QEMU NIC - cross-board ready;
   uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request done.)
 - **Accelerators**: PowerQuad compute-done IRQ done (+ CP0 transcendentals).

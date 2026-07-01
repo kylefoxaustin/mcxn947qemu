@@ -4,6 +4,14 @@ The MCX is the USB **device**; the i.MX93 is the USB **host** running stock
 Linux. They connect over a usbredir socket — **zero model coupling** on the
 i.MX side (stock `-device usb-redir`).
 
+**Status: ✅ enumeration verified end-to-end (2026-06-30).** A real i.MX93
+stock-BSP Linux kernel (6.12) enumerated + configured the MCX HS gadget at
+high-speed (480 Mb/s) over `/tmp/holo-usb-imx93-mcx.sock`, three-way confirmed
+(MCX firmware `USB ENUM OK`, QEMU `info usb` 480 Mb/s, kernel `new high-speed
+USB device ... ci_hdrc`). Requires the i.MX93 ChipIdea PORTSC.PSPD fix host-side.
+Bring the MCX server up as a **detached daemon** (`setsid nohup … &`), not a
+session-tracked task — a tracked task gets reaped mid-link.
+
 ## Roles (locked with 93emulator + holobench)
 
 - **MCX = usbredir server / listener** (this repo).
