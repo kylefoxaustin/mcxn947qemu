@@ -416,12 +416,30 @@ static int usbhs_be_ep_out(void *be, int ep, const uint8_t *buf, int len)
 static void usbhs_be_set_address(void *be, uint8_t addr) { /* firmware writes DEVICEADDR */ }
 static void usbhs_be_set_config(void *be, uint8_t cfg)   { /* firmware handles */ }
 
+/* Host USB bus reset: drop transient transfer state and post USBSTS.URI + IRQ
+ * so guest firmware re-inits its endpoints for a fresh enumeration (a reused
+ * usbredir server can then re-enumerate a new client). */
+static void usbhs_be_bus_reset(void *be)
+{
+    MCXNUSBHSCoreState *s = be;
+    int ep;
+
+    for (ep = 0; ep < MCXN_USBHS_NEP; ep++) {
+        s->ep[ep].in_pending = false;
+        s->ep[ep].out_pending = false;
+    }
+    s->ep0_status_in = false;
+    s->regs[HS_USBSTS / 4] |= USBSTS_URI;   /* USB reset received */
+    usbhs_core_update_irq(s);               /* fires if firmware enabled URE */
+}
+
 static const MCXNUsbBackendOps usbhs_be_ops = {
     .setup       = usbhs_be_setup,
     .ep_in       = usbhs_be_ep_in,
     .ep_out      = usbhs_be_ep_out,
     .set_address = usbhs_be_set_address,
     .set_config  = usbhs_be_set_config,
+    .bus_reset   = usbhs_be_bus_reset,
 };
 
 /* ---- MMIO --------------------------------------------------------------- */

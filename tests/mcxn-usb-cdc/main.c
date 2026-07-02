@@ -38,7 +38,9 @@ static void puts_(const char *s) { while (*s) { putc_(*s++); } }
 #define ENDPTCTRL2 0x1C8
 #define CMD_RS (1u << 0)
 #define STS_UI (1u << 0)
+#define STS_URI (1u << 6)         /* USB reset received */
 #define INTR_UE (1u << 0)
+#define INTR_URE (1u << 6)        /* USB reset interrupt enable */
 #define MODE_CM_DEVICE 0x2
 
 #define DQH_BASE  0x20003000u
@@ -147,9 +149,23 @@ static void handle_setup(void)
     }
 }
 
+static void ep_config(void);            /* defined below; used on bus reset */
+
 void usb_isr(void)
 {
     uint32_t sts = R(USBSTS);
+
+    if (sts & STS_URI) {                 /* USB bus reset — re-init for a fresh
+                                          * enumeration (lets a reused server
+                                          * re-enumerate a new client). */
+        R(USBSTS) = STS_URI;             /* W1C */
+        R(DEVICEADDR) = 0;
+        R(ENDPTSETUPSTAT) = R(ENDPTSETUPSTAT);   /* clear stale setup */
+        R(ENDPTCOMPLETE) = R(ENDPTCOMPLETE);     /* clear stale complete */
+        ep0_out_status = 0;
+        ep_config();
+        /* enum_done stays as-is; the ISR services the new SETUPs regardless. */
+    }
 
     if (!(sts & STS_UI)) { return; }
     R(USBSTS) = STS_UI;
@@ -191,14 +207,11 @@ static void dqh_init(int ep, int in, int mps, int ios)
     M(DQH(ep, in) + 0x0C) = 0;
 }
 
-void cpu0_main(void)
+/* (Re)initialise the device Queue Heads + endpoint controls.  Run at boot and
+ * again on every USB bus reset so a reconnecting host re-enumerates cleanly. */
+static void ep_config(void)
 {
-    LP_CTRL = CTRL_TE;
-    puts_("USBHS CDC-ACM test\r\n");
-
-    R(USBMODE) = MODE_CM_DEVICE;
     R(ENDPTLISTADDR) = DQH_BASE;
-
     dqh_init(0, 0, 64, 1);                  /* EP0 OUT (IOS) */
     dqh_init(0, 1, 64, 0);                  /* EP0 IN */
     dqh_init(1, 0, 512, 0);                 /* EP1 OUT data bulk */
@@ -207,8 +220,17 @@ void cpu0_main(void)
     R(ENDPTCTRL0) = (1u << 23) | (1u << 7);                          /* EP0 control */
     R(ENDPTCTRL1) = (1u << 23) | (2u << 17) | (1u << 7) | (2u << 2); /* EP1 bulk */
     R(ENDPTCTRL2) = (1u << 23) | (3u << 17);                         /* EP2 IN interrupt */
+}
 
-    R(USBINTR) = INTR_UE;
+void cpu0_main(void)
+{
+    LP_CTRL = CTRL_TE;
+    puts_("USBHS CDC-ACM test\r\n");
+
+    R(USBMODE) = MODE_CM_DEVICE;
+    ep_config();
+
+    R(USBINTR) = INTR_UE | INTR_URE;        /* xfer/setup + USB-reset interrupts */
     *(volatile uint32_t *)0xE000E108u = (1u << (67 - 64));  /* NVIC ISER2: IRQ 67 */
     __asm__ volatile ("cpsie i");
     R(USBCMD) = CMD_RS;

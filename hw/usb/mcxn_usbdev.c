@@ -120,8 +120,12 @@ static void usbdev_reset(void *priv)
     MCXNUsbDevState *s = priv;
 
     memset(s->pending, 0, sizeof(s->pending));
-    /* A USB bus reset reverts the device to the default (addr 0) state; let the
-     * backend re-arm EP0 as firmware re-runs its reset ISR. */
+    /* A USB bus reset reverts the device to the default (addr 0) state.  Signal
+     * it to the backend so guest firmware re-inits its endpoints — required for
+     * a reused server to re-enumerate a fresh client. */
+    if (s->be_ops && s->be_ops->bus_reset) {
+        s->be_ops->bus_reset(s->be);
+    }
     qemu_log_mask(LOG_GUEST_ERROR, "mcxn-usbdev: host bus reset\n");
 }
 

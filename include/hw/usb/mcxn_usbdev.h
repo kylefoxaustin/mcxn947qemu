@@ -53,6 +53,12 @@ typedef struct MCXNUsbBackendOps {
     /* Host set the device address / configuration (post-enumeration). */
     void (*set_address)(void *be, uint8_t addr);
     void (*set_config)(void *be, uint8_t config);
+    /* Optional: the host issued a USB bus reset (usbredir reset — a new client
+     * connecting re-enumerates).  Drop transient transfer state AND signal the
+     * reset to guest firmware (e.g. ChipIdea USBSTS.URI + IRQ) so it re-inits
+     * its endpoints for a fresh enumeration; without this a reused server can't
+     * re-enumerate (stale endpoint state answers the new session's requests). */
+    void (*bus_reset)(void *be);
 } MCXNUsbBackendOps;
 
 /* What kind of usbredir reply a pending EP0 request completes into.  Dedicated

@@ -58,6 +58,29 @@ def main(host, port):
                 blen = b[2] | (b[3] << 8)      # reported actual_length
                 return b[1], blen, b[8:]
 
+    # Async bulk (cdc_acm-faithful): submit without waiting, collect by id.  A
+    # real tty keeps read URBs (bulk IN) outstanding, then issues the write (bulk
+    # OUT) — the write must complete even with reads pending.
+    rxq = {}   # id -> (status, actual_length, data)
+
+    def rxpkt_full():
+        t, l, i = struct.unpack("<III", rx(12))
+        return t, i, (rx(l) if l else b"")
+
+    def submit_bulk(ep, length, data=b""):
+        h = struct.pack("<BBHI", ep, 0, length & 0xFFFF, 0)
+        mid = nid[0]; nid[0] += 1
+        txpkt(BULK_PACKET, mid, h + data)
+        return mid
+
+    def collect_bulk(want_id, timeout_s=6):
+        s.settimeout(timeout_s)
+        while want_id not in rxq:
+            t, i, b = rxpkt_full()
+            if t == BULK_PACKET:
+                rxq[i] = (b[1], b[2] | (b[3] << 8), b[8:])
+        return rxq.pop(want_id)
+
     # A real importer (redirect.c / the kernel) sends SET_CONFIGURATION and
     # SET_INTERFACE as DEDICATED usbredir messages, NOT control_packets — a
     # different core path (usbdev_set_configuration/_set_alt_setting).  Use them
@@ -95,6 +118,12 @@ def main(host, port):
             print("HOST: device connected speed=%d ii=%s" % (b[0], saw_ii)); break
     else:
         print("HOST: no device_connect"); return 1
+
+    # Bus reset (usb_redir_reset, type 3) — a real host resets the bus before
+    # enumerating; this drives the gadget's URI re-init, so a reused/persistent
+    # server re-enumerates cleanly (exercises re-enumerability).
+    txpkt(3, nid[0], b""); nid[0] += 1
+    time.sleep(0.05)
 
     # 3) device descriptor: expect bDeviceClass = 0x02 (Communications).
     st, dev = control(0x80, 6, 0x80, 0x0100, 0, 18)
@@ -146,19 +175,23 @@ def main(host, port):
         print("HOST: SET_CONTROL_LINE_STATE failed"); return 1
     print("HOST: CDC ENUMERATION OK")
 
-    # 6) bulk data echo on the CDC data endpoints (EP1 OUT -> EP1 IN).  The OUT
-    #    completion MUST report actual_length == bytes written — cdc_acm's tty
-    #    write reads it and treats 0 as a short write (the ttyACM write-fail bug).
+    # 6) bulk data — cdc_acm-FAITHFUL: keep bulk-IN read URBs OUTSTANDING first
+    #    (a tty always has reads posted), THEN issue the bulk-OUT write.  The
+    #    write must complete even with reads pending.  This mirrors what the real
+    #    kernel does (91's write-EIO repro) — a plain write-then-read did not.
     for n in (1, 64, 512):
         payload = bytes((i * 5 + 1) & 0xFF for i in range(n))
-        st, wlen_out, _ = bulk(0x01, n, payload)
-        if st != 0 or wlen_out != n:
-            print("HOST: bulk OUT %d fail (status=%d actual_length=%d)"
-                  % (n, st, wlen_out)); return 1
-        st, _, echo = bulk(0x81, 512)
-        if st != 0 or echo != payload:
-            print("HOST: bulk echo MISMATCH at %d: %s" % (n, echo[:16].hex())); return 1
-        print("HOST: CDC DATA echo %d bytes OK (OUT actual_length=%d)" % (n, wlen_out))
+        rid = submit_bulk(0x81, 512)          # read URB pending, like cdc_acm
+        wid = submit_bulk(0x01, n, payload)   # now write
+        w_status, w_len, _ = collect_bulk(wid)
+        if w_status != 0 or w_len != n:
+            print("HOST: bulk WRITE %d fail (status=%d actual_length=%d) = EIO repro"
+                  % (n, w_status, w_len)); return 1
+        r_status, _, echo = collect_bulk(rid)
+        if r_status != 0 or echo != payload:
+            print("HOST: bulk read echo MISMATCH at %d: %s" % (n, echo[:16].hex()))
+            return 1
+        print("HOST: CDC DATA (read-pending) write+echo %d OK (wlen=%d)" % (n, w_len))
 
     print("HOST: CDC DATA OK")
     return 0
