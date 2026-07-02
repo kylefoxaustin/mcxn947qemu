@@ -368,12 +368,34 @@ static int usbfs_be_ep_out(void *be, int ep, const uint8_t *buf, int len)
 static void usbfs_be_set_address(void *be, uint8_t addr) { /* firmware writes ADDR */ }
 static void usbfs_be_set_config(void *be, uint8_t cfg)   { /* firmware handles */ }
 
+/* Host USB bus reset: drop transient transfer state and post ISTAT.USBRST + IRQ
+ * so guest firmware re-inits its BDT/endpoints for a fresh enumeration (lets a
+ * reused usbredir server re-enumerate a new client). */
+static void usbfs_be_bus_reset(void *be)
+{
+    MCXNUSBFSState *s = be;
+    int ep;
+
+    for (ep = 0; ep < MCXN_USBFS_NEP; ep++) {
+        s->ep[ep].in_pending = false;
+        s->ep[ep].in_acc = 0;
+        s->ep[ep].out_pending = false;
+        s->ep[ep].out_off = 0;
+    }
+    s->ep0_status_in = false;
+    memset(s->odd_rx, 0, sizeof(s->odd_rx));  /* ping-pong banks back to even, */
+    memset(s->odd_tx, 0, sizeof(s->odd_tx));  /* matching firmware's re-arm     */
+    s->regs[R_ISTAT / 4] |= ISTAT_USBRST;   /* USB reset flag */
+    usbfs_update_irq(s);                     /* fires if firmware enabled USBRST */
+}
+
 static const MCXNUsbBackendOps usbfs_be_ops = {
     .setup       = usbfs_be_setup,
     .ep_in       = usbfs_be_ep_in,
     .ep_out      = usbfs_be_ep_out,
     .set_address = usbfs_be_set_address,
     .set_config  = usbfs_be_set_config,
+    .bus_reset   = usbfs_be_bus_reset,
 };
 
 /* ------------------------------------------------------------------------- *

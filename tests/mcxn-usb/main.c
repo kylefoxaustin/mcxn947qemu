@@ -154,12 +154,18 @@ static void handle_setup(void)
     }
 }
 
+static void ep_config(void);            /* defined below; used on bus reset */
+
 void usb_isr(void)
 {
     uint8_t istat = U8(R_ISTAT);
 
-    if (istat & ISTAT_USBRST) {
-        U8(R_ISTAT) = ISTAT_USBRST;
+    if (istat & ISTAT_USBRST) {          /* USB bus reset — re-init for a fresh
+                                          * enumeration (lets a reused server
+                                          * re-enumerate a new client). */
+        U8(R_ISTAT) = ISTAT_USBRST;      /* W1C */
+        U8(R_ADDR) = 0;                  /* revert to default address */
+        ep_config();
     }
     if (istat & ISTAT_TOKDNE) {
         uint8_t stat = U8(R_STAT);
@@ -189,11 +195,11 @@ void usb_isr(void)
     }
 }
 
-void cpu0_main(void)
+/* (Re)initialise the BDT pointer + EP0/EP1 buffer descriptors and endpoint
+ * enables.  Run at boot and again on every USB bus reset so a reconnecting host
+ * re-enumerates cleanly. */
+static void ep_config(void)
 {
-    LP_CTRL = CTRL_TE;
-    puts_("USB enum test\r\n");
-
     /* Point the controller at the BDT. */
     U8(R_BDTPAGE1) = (BDT_ADDR >> 8)  & 0xFF;
     U8(R_BDTPAGE2) = (BDT_ADDR >> 16) & 0xFF;
@@ -210,6 +216,14 @@ void cpu0_main(void)
     ep1_tx_odd = 0;
     arm_rx(1, 0, ep1out_buf, 64, 0);
     U8(R_ENDPT(1)) = ENDPT_EPHSHK | ENDPT_EPTXEN | ENDPT_EPRXEN;
+}
+
+void cpu0_main(void)
+{
+    LP_CTRL = CTRL_TE;
+    puts_("USB enum test\r\n");
+
+    ep_config();
 
     /* Enable TOKDNE + USBRST interrupts, NVIC IRQ 50, then enable the device. */
     U8(R_INTEN) = ISTAT_TOKDNE | ISTAT_USBRST;

@@ -10,7 +10,7 @@
 import socket, struct, sys, time
 
 # usb_redir_type
-HELLO, DEVICE_CONNECT = 0, 1
+HELLO, DEVICE_CONNECT, RESET = 0, 1, 3
 INTERFACE_INFO, EP_INFO = 4, 5
 CONTROL_PACKET, BULK_PACKET = 100, 101
 SPEED_FULL = 1
@@ -117,6 +117,12 @@ def main(host, port):
     if not (saw_ii and saw_ei):
         print("HOST: missing interface_info/ep_info before device_connect "
               "(real importer would reject)"); return 1
+
+    # Bus reset (usb_redir_reset) — a real host resets the bus before enumerating;
+    # drives the gadget's USBRST re-init so a reused/persistent server
+    # re-enumerates cleanly (exercises re-enumerability).
+    send_packet(RESET, nxid[0], b""); nxid[0] += 1
+    time.sleep(0.05)
 
     # 3) GET_DESCRIPTOR(device).
     st, dev = control(0x80, 6, 0x80, 0x0100, 0, 18)
