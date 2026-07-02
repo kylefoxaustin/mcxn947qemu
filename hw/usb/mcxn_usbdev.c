@@ -345,6 +345,67 @@ static void usbdev_bulk_packet(void *priv, uint64_t id,
     usbredirparser_free_packet_data(s->parser, data);
 }
 
+/*
+ * A real importer streams interrupt-IN endpoints via start/stop_interrupt_
+ * receiving (NOT interrupt_packet).  The CDC gadget's notification endpoint
+ * (EP2 IN) triggers this; we MUST register handlers or libusbredirparser
+ * dispatches the message to a NULL callback and crashes.  Our gadget has no
+ * notifications to report, so we just ack the (re)start and stay quiet.
+ */
+static void usbdev_start_interrupt_receiving(void *priv, uint64_t id,
+    struct usb_redir_start_interrupt_receiving_header *h)
+{
+    MCXNUsbDevState *s = priv;
+    struct usb_redir_interrupt_receiving_status_header st = { 0 };
+
+    st.status = usb_redir_success;
+    st.endpoint = h->endpoint;
+    usbredirparser_send_interrupt_receiving_status(s->parser, id, &st);
+    usbredirparser_do_write(s->parser);
+}
+
+static void usbdev_stop_interrupt_receiving(void *priv, uint64_t id,
+    struct usb_redir_stop_interrupt_receiving_header *h)
+{
+    MCXNUsbDevState *s = priv;
+    struct usb_redir_interrupt_receiving_status_header st = { 0 };
+
+    st.status = usb_redir_success;
+    st.endpoint = h->endpoint;
+    usbredirparser_send_interrupt_receiving_status(s->parser, id, &st);
+    usbredirparser_do_write(s->parser);
+}
+
+/* Interrupt OUT (host->device) — our gadgets have no interrupt-OUT endpoint;
+ * release the buffer so the parser doesn't leak. */
+static void usbdev_interrupt_packet(void *priv, uint64_t id,
+    struct usb_redir_interrupt_packet_header *h, uint8_t *data, int data_len)
+{
+    MCXNUsbDevState *s = priv;
+
+    usbredirparser_free_packet_data(s->parser, data);
+}
+
+/* The importer cancels an outstanding transfer (e.g. cdc_acm unlinking its read
+ * URB on close): drop the matching pending so a late completion can't answer a
+ * cancelled request. */
+static void usbdev_cancel_data_packet(void *priv, uint64_t id)
+{
+    MCXNUsbDevState *s = priv;
+    int i;
+
+    for (i = 0; i < MCXN_USB_NSLOTS; i++) {
+        if (s->pending[i].active && s->pending[i].id == id) {
+            s->pending[i].active = false;
+        }
+    }
+}
+
+static void usbdev_device_disconnect_ack(void *priv)
+{
+    /* Ack of our device_disconnect; nothing to do. */
+}
+
 /* ------------------------------------------------------------------------- *
  * Parser lifecycle.
  * ------------------------------------------------------------------------- */
@@ -370,6 +431,13 @@ static void usbdev_create_parser(MCXNUsbDevState *s)
     p->get_alt_setting_func = usbdev_get_alt_setting;
     p->control_packet_func = usbdev_control_packet;
     p->bulk_packet_func = usbdev_bulk_packet;
+    /* Interrupt-IN streaming (CDC notification EP) + cancel/disconnect — MUST be
+     * set: libusbredirparser calls the cb unconditionally (NULL => crash). */
+    p->start_interrupt_receiving_func = usbdev_start_interrupt_receiving;
+    p->stop_interrupt_receiving_func = usbdev_stop_interrupt_receiving;
+    p->interrupt_packet_func = usbdev_interrupt_packet;
+    p->cancel_data_packet_func = usbdev_cancel_data_packet;
+    p->device_disconnect_ack_func = usbdev_device_disconnect_ack;
 
     /* We export a (virtual) device, i.e. we play the usb-host role; the remote
      * `-device usb-redir` is the client.  Advertise the standard caps. */
