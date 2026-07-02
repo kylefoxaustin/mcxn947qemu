@@ -4,13 +4,25 @@ The MCX is the USB **device**; the i.MX93 is the USB **host** running stock
 Linux. They connect over a usbredir socket — **zero model coupling** on the
 i.MX side (stock `-device usb-redir`).
 
-**Status: ✅ enumeration verified end-to-end (2026-06-30).** A real i.MX93
-stock-BSP Linux kernel (6.12) enumerated + configured the MCX HS gadget at
-high-speed (480 Mb/s) over `/tmp/holo-usb-imx93-mcx.sock`, three-way confirmed
-(MCX firmware `USB ENUM OK`, QEMU `info usb` 480 Mb/s, kernel `new high-speed
-USB device ... ci_hdrc`). Requires the i.MX93 ChipIdea PORTSC.PSPD fix host-side.
-Bring the MCX server up as a **detached daemon** (`setsid nohup … &`), not a
-session-tracked task — a tracked task gets reaped mid-link.
+**Status: ✅ CDC-ACM /dev/ttyACM serial link PROVEN end-to-end on TWO hosts
+(2026-07-01).** Beyond enumeration + vendor bulk-echo (M4), the MCX now presents
+a real USB **CDC-ACM serial device** (`tests/mcxn-usb-cdc`, `gadget-profile=cdc`):
+a real i.MX93 **and** i.MX91 stock-BSP Linux kernel each enumerate it, bind
+`cdc_acm` → `/dev/ttyACM0`, and **round-trip bytes byte-exact** (guest write →
+ci_hdrc/EHCI → usb-redir → socket → MCX EP1-OUT → echo → EP1-IN → read).  The
+gadget-side chain took: SET_LINE_CODING control-OUT data stage, bulk-OUT
+`actual_length`, EP1-OUT arm-before-status-stage, and registering the
+usbredir interrupt-receiving/cancel callbacks (a real importer NULL-crashes the
+gadget on the CDC notification EP otherwise).
+
+Earlier milestone: **enumeration + vendor bulk-echo (2026-06-30)** — HS gadget
+at 480 Mb/s, three-way confirmed; requires the i.MX93 ChipIdea PORTSC.PSPD fix
+host-side.
+
+Known quirk (host-maskable, not a blocker): a **first-write-after-bind timing
+race** — the host tool needs a ~50 ms settle or retry-on-EIO before the first
+`/dev/ttyACM0` write. Bring the MCX server up as a **detached daemon**
+(`setsid nohup … &`), not a session-tracked task — a tracked task gets reaped.
 
 ## Roles (locked with 93emulator + holobench)
 

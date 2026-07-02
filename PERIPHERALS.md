@@ -145,8 +145,16 @@ Priority order (remaining):
   usb-redir`). Getting there peeled off four real-kernel-only bugs on the MCX
   side (interface_info/ep_info at connect, server persistence, the dedicated
   set_configuration message, a coherent HS descriptor set + device_qualifier)
-  and one on the i.MX93 side (ChipIdea PORTSC.PSPD). Remaining: an optional
-  userspace-libusb bulk-echo data test over the live link.
+  and one on the i.MX93 side (ChipIdea PORTSC.PSPD). **✅ CDC-ACM serial link
+  DONE — proven on TWO hosts (i.MX93 + i.MX91):** the MCX also presents a real
+  USB CDC-ACM device (`tests/mcxn-usb-cdc`, `gadget-profile=cdc`); both stock-BSP
+  Linux kernels bind `cdc_acm` → `/dev/ttyACM0` and round-trip bytes byte-exact
+  over the live link. Needed the CDC control path (SET_LINE_CODING control-OUT
+  data stage; bulk-OUT `actual_length`; EP1-OUT armed before the SET_CONFIG
+  status stage) and the usbredir interrupt-receiving/cancel callbacks (a real
+  importer NULL-crashes the gadget on the CDC notification EP otherwise). Known
+  host-maskable quirk: a first-write-after-bind timing race (host settles ~50 ms
+  or retries on EIO).
   (ENET now has full MAC frame DMA-ring + QEMU NIC - cross-board ready;
   uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request done.)
 - **Accelerators**: PowerQuad compute-done IRQ done (+ CP0 transcendentals).
