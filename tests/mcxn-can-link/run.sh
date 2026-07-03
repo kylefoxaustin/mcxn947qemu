@@ -14,10 +14,12 @@ command -v "$PY" >/dev/null 2>&1 || { echo "SKIP: python3 not found"; exit 0; }
 "$CC" -mcpu=cortex-m33 -mthumb -nostdlib -nostartfiles -ffreestanding -O2 -Wall \
       -T "$HERE/link.ld" "$HERE/main.c" -o "$ELF"
 CONSOLE="$(mktemp)"
+# Fleet-standard wiring: -object can-bus,id=cb -machine canbus0=cb (same shape
+# as i.MX 91/93/95 + the holobench CAN labs).
 "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial "file:$CONSOLE" \
-    -object can-bus,id=canbus0 \
+    -object can-bus,id=cb -machine canbus0=cb \
     -chardev "socket,id=canl,host=127.0.0.1,port=$PORT,server=on,wait=off" \
-    -object can-host-chardev,id=h0,canbus=canbus0,chardev=canl \
+    -object can-host-chardev,id=h0,canbus=cb,chardev=canl \
     -kernel "$ELF" -no-reboot &
 QPID=$!
 sleep 0.5
