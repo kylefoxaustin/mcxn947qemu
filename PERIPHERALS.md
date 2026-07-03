@@ -107,6 +107,20 @@ blocks whose behaviour real firmware/tests can observe. Each register-accurate
 model already keeps polled firmware unblocked; the next step adds the data path
 + IRQ generation (and a per-block bare-metal test, the way CTIMER/DMA/FMU have).
 
+### eDMA byte-access audit (fleet lesson: silent-drop of narrow DMA bursts)
+A peripheral driven by BOTH the CPU (32-bit) and eDMA (byte/halfword bursts to a
+FIFO data register) MUST accept sub-word MMIO, or the memory core silently drops
+the DMA bytes (transfer "completes", no data moves) — a top-class silent-wrong
+bug (origin: 95emulator's LPSPI-over-eDMA case).
+- ✅ **FlexComm (LPUART/LPSPI/LPI2C)** — fixed (`.valid/.impl min_access_size=1`);
+  proven a 1-byte write to LPSPI TDR now transfers. Handlers dispatch to specific
+  registers, no corrupting generic default.
+- ✅ **SAI, ADC** — already accept byte access.
+- ⏳ **DAC, PDM, SINC** — still 4-byte-only AND use a generic
+  `default: regs[offset/4] = value`, which would *corrupt* a config register on
+  an aligned sub-word write. Before relaxing to byte access, give the default a
+  sub-word read-modify-merge + add a byte/halfword-DMA test per block.
+
 Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **ADC** — SW-trigger conversion -> RESFIFO valid result + EOC IRQ (45/46). `tests/mcxn-adc`.
 - [x] **FlexCAN** — loopback TX MB -> RX MB + IFLAG IRQ (62/63). `tests/mcxn-flexcan`.
