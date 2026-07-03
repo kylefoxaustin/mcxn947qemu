@@ -769,6 +769,7 @@ config MCXN_SOC
     select MCXN_I3C
     select MCXN_FLEXIO
     select MCXN_FLEXCAN
+    select CAN_BUS
     select MCXN_ENET
     select MCXN_ADC
     select MCXN_RTC

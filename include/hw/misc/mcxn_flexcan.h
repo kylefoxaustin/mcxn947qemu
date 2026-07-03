@@ -14,6 +14,7 @@
 #define HW_MISC_MCXN_FLEXCAN_H
 
 #include "hw/core/sysbus.h"
+#include "net/can_emu.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_FLEXCAN "mcxn-flexcan"
@@ -34,6 +35,12 @@ struct MCXNFlexCanState {
     MemoryRegion iomem;
     qemu_irq irq;
     uint32_t regs[MCXN_FLEXCAN_SIZE / 4];
+
+    /* Board-to-board CAN: when `canbus` is linked, TX message buffers put
+     * frames onto the emulated CAN bus (a can-host-chardev then bridges it to a
+     * socket) and bus frames land in RX message buffers.  NULL = loopback-only. */
+    CanBusState       *canbus;
+    CanBusClientState  bus_client;
 };
 
 #endif /* HW_MISC_MCXN_FLEXCAN_H */

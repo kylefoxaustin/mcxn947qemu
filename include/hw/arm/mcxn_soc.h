@@ -28,6 +28,7 @@
 #include "hw/misc/mcxn_tsi.h"
 #include "hw/misc/mcxn_emvsim.h"
 #include "hw/misc/mcxn_flexcan.h"
+#include "net/can_emu.h"
 #include "hw/misc/mcxn_enet.h"
 #include "hw/misc/mcxn_mailbox.h"
 #include "hw/misc/mcxn_rtc.h"
@@ -114,6 +115,7 @@ struct MCXNState {
     MCXNTSIState    tsi[MCXN_NUM_TSI];           /* TSI0 (touch sense) */
     MCXNEMVSIMState emvsim[MCXN_NUM_EMVSIM];      /* EMVSIM0..1 (smartcard) */
     MCXNFlexCanState flexcan[MCXN_NUM_FLEXCAN];   /* CAN0..1 (FlexCAN) */
+    CanBusState     *canbus[MCXN_NUM_FLEXCAN];    /* optional b2b CAN buses */
     MCXNEnetState   enet0;                        /* ENET (Ethernet QoS) */
     MCXNMailboxState mailbox;                      /* Inter-CPU mailbox */
     MCXNRTCState    rtc0;                          /* RTC (calendar) */

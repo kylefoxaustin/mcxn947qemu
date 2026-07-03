@@ -27,8 +27,10 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+#include "qapi/error.h"
 #include "hw/misc/mcxn_flexcan.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 
 /* Control register offsets (CAN_Type). */
@@ -61,6 +63,12 @@
 #define CODE_RX_EMPTY  0x4   /* MB configured to receive, currently empty */
 #define CODE_RX_FULL   0x2   /* MB holds a received frame */
 #define CODE_TX_DATA   0xC   /* MB armed to transmit a data frame */
+
+/* CS control bits (classic frame): SRR[22], IDE[21], RTR[20], DLC[19:16]. */
+#define MB_SRR    (1u << 22)
+#define MB_IDE    (1u << 21)
+#define MB_RTR    (1u << 20)
+#define MB_DLC(cs)  (((cs) >> 16) & 0xF)
 
 /* MCR bit positions (CAN_MCR_*_SHIFT). */
 #define MCR_LPMACK   (1u << 20)
@@ -109,13 +117,93 @@ static void flexcan_update_irq(MCXNFlexCanState *s)
  * ID).  The receiving MB is filled (CODE=FULL, ID/DLC/data copied) and its
  * IFLAG1 bit set; the transmitting MB also raises its IFLAG1 (transmit done).
  */
+/* Build a classic qemu_can_frame from TX message buffer "tx" and put it on the
+ * emulated CAN bus (a can-host-chardev bridges the bus to a socket peer). */
+static void flexcan_send_to_bus(MCXNFlexCanState *s, unsigned tx)
+{
+    uint32_t t = (MB_BASE + tx * MB_STRIDE) >> 2;
+    uint32_t cs = s->regs[t], id = s->regs[t + 1];
+    qemu_can_frame f = { 0 };
+    uint8_t len = MB_DLC(cs), i;
+
+    if (len > 8) {
+        len = 8;
+    }
+    if (cs & MB_IDE) {
+        f.can_id = (id & QEMU_CAN_EFF_MASK) | QEMU_CAN_EFF_FLAG;
+    } else {
+        f.can_id = (id >> 18) & QEMU_CAN_SFF_MASK;
+    }
+    if (cs & MB_RTR) {
+        f.can_id |= QEMU_CAN_RTR_FLAG;
+    }
+    f.can_dlc = len;
+    for (i = 0; i < len; i++) {
+        f.data[i] = (s->regs[t + 2 + i / 4] >> (24 - 8 * (i % 4))) & 0xFF;
+    }
+    can_bus_client_send(&s->bus_client, &f, 1);
+}
+
+/* A frame arrived from the CAN bus: land it in the first RX-empty message
+ * buffer (RXMGMASK=0 => any ID; the guest filters in software), set its flag. */
+static ssize_t flexcan_bus_receive(CanBusClientState *client,
+                                   const qemu_can_frame *frames,
+                                   size_t frames_cnt)
+{
+    MCXNFlexCanState *s = container_of(client, MCXNFlexCanState, bus_client);
+    const qemu_can_frame *f = frames;
+    bool eff, rtr;
+    unsigned rx;
+    uint8_t len, i;
+
+    if (!frames_cnt || (f->can_id & QEMU_CAN_ERR_FLAG)) {
+        return frames_cnt;
+    }
+    eff = f->can_id & QEMU_CAN_EFF_FLAG;
+    rtr = f->can_id & QEMU_CAN_RTR_FLAG;
+    len = f->can_dlc > 8 ? 8 : f->can_dlc;
+
+    for (rx = 0; rx < MB_COUNT; rx++) {
+        uint32_t r = (MB_BASE + rx * MB_STRIDE) >> 2;
+
+        if (((s->regs[r] >> MB_CODE_SHIFT) & MB_CODE_MASK) != CODE_RX_EMPTY) {
+            continue;
+        }
+        s->regs[r + 1] = eff ? (f->can_id & QEMU_CAN_EFF_MASK)
+                             : ((f->can_id & QEMU_CAN_SFF_MASK) << 18);
+        s->regs[r + 2] = s->regs[r + 3] = 0;
+        for (i = 0; i < len; i++) {
+            s->regs[r + 2 + i / 4] |= (uint32_t)f->data[i] << (24 - 8 * (i % 4));
+        }
+        s->regs[r] = (CODE_RX_FULL << MB_CODE_SHIFT) | ((uint32_t)len << 16) |
+                     (eff ? (MB_IDE | MB_SRR) : 0) | (rtr ? MB_RTR : 0);
+        s->regs[R_IFLAG1 >> 2] |= (1u << rx);
+        flexcan_update_irq(s);
+        return 1;
+    }
+    return 1;   /* no free RX MB: drop (a real device flags overrun) */
+}
+
+static bool flexcan_bus_can_receive(CanBusClientState *client)
+{
+    return true;
+}
+
+static CanBusClientInfo flexcan_bus_client_info = {
+    .can_receive = flexcan_bus_can_receive,
+    .receive     = flexcan_bus_receive,
+};
+
 static void flexcan_transmit(MCXNFlexCanState *s, unsigned tx)
 {
     uint32_t t = (MB_BASE + tx * MB_STRIDE) >> 2;
     uint32_t tcs = s->regs[t];
     uint32_t tid = s->regs[t + 1];
 
-    if (s->regs[R_CTRL1 >> 2] & CTRL1_LPB) {
+    if (s->canbus && !(s->regs[R_CTRL1 >> 2] & CTRL1_LPB)) {
+        /* Board-to-board: put the frame on the real CAN bus. */
+        flexcan_send_to_bus(s, tx);
+    } else if (s->regs[R_CTRL1 >> 2] & CTRL1_LPB) {
         uint32_t mask = s->regs[R_RXMGMASK >> 2];
         unsigned rx;
 
@@ -258,6 +346,15 @@ static void mcxn_flexcan_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_FLEXCAN, MCXN_FLEXCAN_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+
+    /* Board-to-board CAN: join the emulated bus if one was linked. */
+    if (s->canbus) {
+        s->bus_client.info = &flexcan_bus_client_info;
+        if (can_bus_insert_client(s->canbus, &s->bus_client) < 0) {
+            error_setg(errp, "failed to join CAN bus");
+            return;
+        }
+    }
 }
 
 static const VMStateDescription vmstate_mcxn_flexcan = {
@@ -270,6 +367,11 @@ static const VMStateDescription vmstate_mcxn_flexcan = {
     },
 };
 
+static const Property mcxn_flexcan_properties[] = {
+    DEFINE_PROP_LINK("canbus", MCXNFlexCanState, canbus, TYPE_CAN_BUS,
+                     CanBusState *),
+};
+
 static void mcxn_flexcan_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
@@ -277,6 +379,7 @@ static void mcxn_flexcan_class_init(ObjectClass *klass, const void *data)
     dc->realize = mcxn_flexcan_realize;
     device_class_set_legacy_reset(dc, mcxn_flexcan_reset);
     dc->vmsd = &vmstate_mcxn_flexcan;
+    device_class_set_props(dc, mcxn_flexcan_properties);
 }
 
 static const TypeInfo mcxn_flexcan_types[] = {

@@ -42,6 +42,19 @@ static void frdm_mcxn947_init(MachineState *machine)
     qdev_prop_set_string(dev, "part", "MCXN947");
     qdev_connect_clock_in(dev, "sysclk", sysclk);
     qdev_connect_clock_in(dev, "refclk", refclk);
+
+    /* Optional board-to-board CAN: link any command-line CAN-bus objects named
+     * `canbus0` / `canbus1` (`-object can-bus,id=canbus0`) to the FlexCAN
+     * controllers, so a `can-host-chardev` on that bus bridges CAN0/CAN1 to a
+     * socket peer.  Absent = the FlexCAN stays loopback-only. */
+    for (int i = 0; i < MCXN_NUM_FLEXCAN; i++) {
+        g_autofree char *id = g_strdup_printf("canbus%d", i);
+        Object *cb = object_resolve_path_component(object_get_objects_root(), id);
+        if (cb) {
+            object_property_set_link(OBJECT(soc), id, cb, &error_fatal);
+        }
+    }
+
     sysbus_realize(SYS_BUS_DEVICE(soc), &error_fatal);
 
     /* Load firmware into the code-flash region. cfg is valid post-realize. */

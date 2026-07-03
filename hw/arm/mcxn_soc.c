@@ -744,6 +744,12 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         can_cfg[MCXN_NUM_FLEXCAN] = { { 0x400D4000, 62 }, { 0x400D8000, 63 } };
         g_autofree char *aname = g_strdup_printf("mcxn.flexcan%d.s", i);
 
+        /* Board-to-board CAN: forward the per-controller canbus link (set from
+         * `-machine canbus0=...,canbus1=...`) to the FlexCAN before realize. */
+        if (s->canbus[i]) {
+            object_property_set_link(OBJECT(&s->flexcan[i]), "canbus",
+                                     OBJECT(s->canbus[i]), &error_abort);
+        }
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->flexcan[i]), errp)) {
             return;
         }
@@ -1058,6 +1064,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
 
 static const Property mcxn_soc_properties[] = {
     DEFINE_PROP_STRING("part", MCXNState, part),
+    DEFINE_PROP_LINK("canbus0", MCXNState, canbus[0], TYPE_CAN_BUS,
+                     CanBusState *),
+    DEFINE_PROP_LINK("canbus1", MCXNState, canbus[1], TYPE_CAN_BUS,
+                     CanBusState *),
 };
 
 static void mcxn_soc_class_init(ObjectClass *klass, const void *data)
