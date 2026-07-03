@@ -320,7 +320,14 @@ static void mcxn_lpspi_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
                 uint32_t framesz = (s->spi_tcr & LPSPI_TCR_FRAMESZ) + 1; /* bits */
                 uint32_t mask = (framesz >= 32) ? 0xFFFFFFFFu
                                                 : ((1u << framesz) - 1);
-                s->spi_rdr = value & mask;
+                if (s->spi_bus) {
+                    /* Board-to-board: shift the word out over the SSI bus (to a
+                     * spi-link -> socket -> peer); MISO comes back from the bus. */
+                    s->spi_rdr = ssi_transfer(s->spi_bus, value & mask) & mask;
+                } else {
+                    /* Self-contained loopback (MOSI->MISO jumper). */
+                    s->spi_rdr = value & mask;
+                }
                 s->spi_rx_full = true;
             }
             s->spi_sr |= LPSPI_SR_WCF | LPSPI_SR_FCF | LPSPI_SR_TCF;
@@ -713,6 +720,12 @@ static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
 
     qemu_chr_fe_set_handlers(&s->chr, mcxn_lpuart_can_rx, mcxn_lpuart_rx,
                              NULL, NULL, s, NULL, true);
+
+    /* Board-to-board LPSPI node: expose a named SSI bus so a `spi-link`
+     * peripheral can bridge this FlexComm's LPSPI to a chardev socket. */
+    if (s->spi_bus_name) {
+        s->spi_bus = ssi_create_bus(dev, s->spi_bus_name);
+    }
 }
 
 static const VMStateDescription vmstate_mcxn_lpuart = {
@@ -763,6 +776,7 @@ static const VMStateDescription vmstate_mcxn_lpuart = {
 
 static const Property mcxn_lpuart_properties[] = {
     DEFINE_PROP_CHR("chardev", MCXNLPUARTState, chr),
+    DEFINE_PROP_STRING("spi-bus-name", MCXNLPUARTState, spi_bus_name),
 };
 
 static void mcxn_lpuart_class_init(ObjectClass *klass, const void *data)

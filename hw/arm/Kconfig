@@ -724,6 +724,8 @@ config MCXN_SOC
     select ARM_V7M
     select UNIMP
     select MCXN_LPUART
+    select SSI
+    select SPI_LINK
     select MCXN_SCG
     select MCXN_SYSCON
     select MCXN_SPC

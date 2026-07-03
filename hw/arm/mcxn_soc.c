@@ -479,6 +479,12 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         if (chr) {
             qdev_prop_set_chr(fc, "chardev", chr);
         }
+        /* FlexComm5 is the LPSPI board-to-board node: expose a named SSI bus so
+         * a `-device spi-link,bus=mcxn-lpspi,chardev=...` bridges it to a socket
+         * (inter-QEMU SPI link, like the UART/USB b2b links). */
+        if (i == 5) {
+            qdev_prop_set_string(fc, "spi-bus-name", "mcxn-lpspi");
+        }
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->flexcomm[i]), errp)) {
             return;
         }

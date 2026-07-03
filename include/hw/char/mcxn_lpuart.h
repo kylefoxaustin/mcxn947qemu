@@ -16,6 +16,7 @@
 
 #include "hw/core/sysbus.h"
 #include "chardev/char-fe.h"
+#include "hw/ssi/ssi.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_LPUART "mcxn-lpuart"
@@ -29,6 +30,13 @@ struct MCXNLPUARTState {
     MemoryRegion iomem;
     qemu_irq     irq;
     CharFrontend  chr;
+
+    /* When this FlexComm is used as an LPSPI board-to-board node, spi_bus_name
+     * is set and an SSI bus is created so a `spi-link` peripheral can bridge it
+     * to a chardev socket; LPSPI-mode TDR writes then shift over that bus
+     * instead of the internal loopback.  NULL for console/loopback instances. */
+    char    *spi_bus_name;
+    SSIBus  *spi_bus;
 
     /* Register state (only what the console path needs is meaningful). */
     uint32_t global;
