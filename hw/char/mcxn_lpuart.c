@@ -499,6 +499,10 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
         if (offset == LPUART_DATA && s->rx_full) {
             s->rx_full = false;
             mcxn_flexcomm_update_irq(s);
+            /* The holding register is free again — tell the chardev to resume
+             * delivering buffered input, or a continuous RX stream stalls after
+             * one byte (can_rx returned 0 under flow control). */
+            qemu_chr_fe_accept_input(&s->chr);
         }
         break;
     case LPUART_MATCH:
