@@ -1,125 +1,180 @@
-# NXP MCX N QEMU machine model (scaffold)
+# qemu-mcxn947
 
-A part-agnostic QEMU machine model for NXP's MCX N-series (Arm Cortex-M33)
-microcontrollers, kept self-contained (all logic in new `mcxn_*` files, no
-edits to generic QEMU). The first
-target board is `frdm-mcxn947`, but the SoC is driven by a per-SKU config table
-so other MCX N (and, with a different `cpu_type`/core count, MCX A/W) parts drop
-in as additional table entries.
+A QEMU machine type for the NXP **MCX N947** microcontroller — a **dual Arm
+Cortex-M33** MCU — targeting the **FRDM-MCXN947** board. Machine name:
+`frdm-mcxn947`.
 
-## Status
+> **This is a fork of QEMU mainline.** The MCX N work lives on the `mcxn947`
+> branch; the vast majority of the history is inherited from upstream QEMU. The
+> upstream QEMU README is preserved at [`README.rst`](README.rst) — this file
+> describes the MCX N-specific work. All model logic is self-contained in new
+> `mcxn_*` files (no edits to generic QEMU), with the long-term aim of being
+> upstream-mergeable.
 
-This is a **boot scaffold**, not a finished model. What's here:
+qemu-mcxn947 is a QEMU model of the NXP MCXN947. Unlike the sibling i.MX 9x
+ports, this is a **microcontroller, not an applications processor**: there is no
+Linux and no MMU-class OS. You run the same firmware you would flash to the
+silicon — **bare-metal, Zephyr, or the MCUXpresso SDK** — against a
+register-accurate model of the whole chip, so you can develop, debug, and
+CI-test MCX N firmware without hardware.
 
-- `MCXN_SOC` container: Cortex-M33 + NVIC + SysTick via the `ARMV7M` object,
-  code-flash + SRAM regions, and a single catch-all `unimplemented` region over
-  the whole peripheral window (both secure + non-secure aliases).
-- `frdm-mcxn947` board: source clocks, SoC instantiation, firmware load.
-- Config-table architecture so adding a SKU = adding a struct.
+It boots the Zephyr **`frdm_mcxn947`** target and passes the upstream Zephyr
+**`ztest`** suite (kernel + IPC + the userspace/MPU/SAU TrustZone-M path). Every
+peripheral base on the chip has a register-accurate functional model, and the
+blocks whose behaviour firmware can actually observe have live data paths and
+NVIC interrupts on top. Highlights:
 
-The MCXN947 config is now populated with **CMSIS-verified values** (see below).
+- **Dual Cortex-M33** — cpu0 boots and releases cpu1 (SYSCON `CPUCTRL`/`CPBOOT`),
+  with a working **inter-core MAILBOX** and an **OpenAMP/RPMsg-style** shared-
+  memory ring transport (real message data cpu0↔cpu1, not just a doorbell).
+- **USB device mode** — both controllers (USBFS/KHCI and USBHS/ChipIdea) present
+  real USB devices over the `usbredir` protocol to a remote USB *host*. A
+  **CDC-ACM serial gadget** enumerates on stock Linux (`cdc_acm` → `/dev/ttyACM0`)
+  and round-trips bytes — proven against real i.MX 93 **and** i.MX 91 QEMU hosts.
+- **Board-to-board / inter-QEMU links** — the MCX is a drop-in node on
+  **ENET, UART, USB, and SPI** links over a chardev socket, so it pairs with the
+  i.MX 91/93 QEMU models (and a lab coordinator) over a real bus.
+- **DSP / accelerators** — PowerQuad (matrix/vector engine + CP0 scalar
+  transcendentals, computing real results) and the eIQ **Neutron NPU** (modelled
+  honestly: the compute handshake is acked so firmware never hangs, but the
+  proprietary-microcode result is flagged uncomputed via QMP rather than
+  silently fabricated).
+- **XIP boot** — the FlexSPI AHB NOR window is real executable memory; code
+  linked there runs in place.
+- **Networking** — ENET with a descriptor-ring MAC path over a QEMU NIC backend
+  (Zephyr's stack gets a DHCP lease and completes a TCP echo).
 
-What's intentionally **not** here yet:
+Intended use cases: firmware and peripheral-driver development, multicore /
+RPMsg bring-up, board-to-board interconnect development, and CI. It is **not
+cycle-accurate** — it models register and data-path behaviour, not timing.
 
-- Most peripheral models (GPIO/PORT, timers, FlexCAN, NPU...).
-- cpu1 (second M33). MVP runs cpu0 only — matching the Zephyr port, which also
-  only runs cpu0 standalone by default.
+**Maintainer:** Kyle Fox ([@kylefoxaustin](https://github.com/kylefoxaustin))
 
-Modelled so far: Cortex-M33 core, flash/SRAM, FlexComm4/LPUART4 console (TX/RX/
-IRQ), SCG0 clock-generator stub, and a catch-all over the rest of the peripheral
-window. Console and SCG0 are mapped at both the non-secure (`0x400x`) and secure
-(`0x500x`) TrustZone-M aliases.
+## Building
+
+```sh
+./configure --target-list=arm-softmmu
+make -j"$(nproc)"          # or: ninja -C build qemu-system-arm
+```
+
+## Running your firmware
+
+```sh
+./build/qemu-system-arm \
+    -M frdm-mcxn947 \
+    -kernel your-firmware.elf \
+    -nographic \
+    -serial mon:stdio
+```
+
+- **`-kernel`** takes an ELF (or raw binary). Code linked at flash `0x0000_0000`
+  runs from there; code linked into the FlexSPI XIP window at `0x8000_0000`
+  (secure `0x9000_0000`) runs in place.
+- **Console:** the FRDM debug console is **FlexComm4 / LPUART4** = `serial_hd(0)`,
+  so `-serial mon:stdio` gives you console + the QEMU monitor. The second core's
+  console (**FlexComm2 / LPUART2**) is `serial_hd(1)` — add a second `-serial`
+  for it.
+- **Early output before any UART is set up:** semihosting works from the first
+  instruction: `-semihosting-config enable=on,target=native`.
+- **See any access into unmodelled space** (rare — the whole peripheral window is
+  modelled): `-d unimp,guest_errors`. The peripheral map is
+  highest-priority-wins: register-accurate models sit over a catch-all backstop.
+
+A Zephyr `hello_world` built for `frdm_mcxn947/mcxn947/cpu0` is the quickest
+"it works" image; the console prints over FlexComm4.
+
+## Inter-QEMU / board-to-board links
+
+The MCX plugs into the fleet's link fabric over a chardev socket — one QEMU per
+"board", byte-exact — so you can wire an MCX to an i.MX 91/93 (or another MCX)
+over a real transport:
+
+| Link | MCX side | How it attaches |
+|------|----------|-----------------|
+| **USB** | USBFS/USBHS device gadget over `usbredir` | a stock `-device usb-redir` client on the host QEMU |
+| **UART** | FlexComm2/LPUART2 on a socket chardev | `-serial chardev:<sock>` on each side |
+| **SPI**  | FlexComm5 LPSPI as an SSI-bus master | `-device spi-link,bus=mcxn-lpspi,chardev=<sock>` |
+| **ENET** | descriptor-ring MAC over a QEMU NIC | `-nic socket,...` / a QEMU netdev between the two |
+
+See `tests/mcxn-usb-*`, `tests/mcxn-uart-link`, and `tests/mcxn-spi-link` for
+runnable examples of each.
+
+## Testing
+
+Each modelled peripheral has a small **bare-metal test** under `tests/mcxn-*`
+(build a tiny firmware, run it, assert the console output). For example:
+
+```sh
+tests/mcxn-rpmsg/run.sh       # dual-core shared-memory IPC
+tests/mcxn-usb-cdc/run.sh     # USB CDC-ACM enumerate + bulk echo
+tests/mcxn-spi-link/run.sh    # SPI board-to-board
+```
+
+Full firmware coverage comes from the Zephyr **`frdm_mcxn947`** port and its
+`ztest` suite. `PERIPHERALS.md` tracks per-peripheral coverage and status.
 
 ## MCXN947 — verified facts (CMSIS `MCXN947_cm33_core0.h`)
 
 | Property            | Value                                              |
 |---------------------|----------------------------------------------------|
-| Core                | dual Arm Cortex-M33 @ up to 150 MHz (cpu0 in MVP)  |
+| Cores               | dual Arm Cortex-M33 @ up to 150 MHz               |
 | Core features       | FPU, DSP, MPU, SAU / TrustZone-M                    |
 | NVIC external IRQs  | **156** (highest `CTI0_IRQn` = 155)                |
 | `__NVIC_PRIO_BITS`  | **3**                                              |
 | Flash               | 2 MiB @ `0x0000_0000`                              |
 | SRAM                | 512 KiB @ `0x2000_0000` (banked RAMA..H, contig.)  |
-| Console UART        | FlexComm4 / LPUART4 @ `0x400B_4000` (NS)            |
-| FlexCAN             | CAN0 @ `0x400D_4000`, CAN1 @ `0x400D_8000`         |
-| eIQ Neutron NPU     | IRQ 97; base from RM (absent from CMSIS header)     |
+| Console UART        | FlexComm4 / LPUART4 @ `0x400B_4000`, IRQ 39        |
+| Inter-CPU mailbox   | `0x400B_2000`, MAILBOX IRQ 54 (per-core)           |
 
 **TrustZone-M aliasing:** every peripheral is mapped twice — non-secure at
-`0x400x_xxxx` and secure at `0x500x_xxxx`. The catch-all spans
-`0x4000_0000..0x5FFF_FFFF` to cover both.
+`0x400x_xxxx` and secure at `0x500x_xxxx`. Firmware may use either alias.
 
-## Bring-up methodology
+## Memory map
 
-The catch-all peripheral stub is the whole point. Run real firmware with:
+| Region            | Base          | Size    | Notes                              |
+|-------------------|---------------|---------|------------------------------------|
+| Code flash        | `0x0000_0000` | 2 MiB   | RAM-backed; `-kernel` loads here   |
+| SRAM              | `0x2000_0000` | 512 KiB | banked, mapped contiguous          |
+| Peripherals (NS)  | `0x4000_0000` | —       | register-accurate models           |
+| Peripherals (S)   | `0x5000_0000` | —       | secure TrustZone-M alias           |
+| FlexSPI NOR (NS)  | `0x8000_0000` | 8 MiB   | AHB-mapped external flash (XIP)    |
+| FlexSPI NOR (S)   | `0x9000_0000` | 8 MiB   | secure alias of the XIP window     |
+| PPB (NVIC/SysTick)| `0xE000_0000` | —       | handled by the `ARMV7M` container  |
 
-```
--d unimp,guest_errors
-```
+## What is *not* modelled (honestly)
 
-and every MMIO access into unmodelled space is logged with its address. That
-log *is* your prioritised peripheral to-do list — you implement the device the
-firmware actually touches next, in the order it touches it, instead of guessing
-from the RM. Replace a slice of the catch-all with a real `SysBusDevice`, repeat.
+The goal is real-silicon fidelity for arbitrary firmware, and **silent wrong
+answers are treated as the worst class of bug**. Where a block cannot be
+computed faithfully, it is register-accurate and flags the gap rather than
+fabricating a result:
 
-Recommended first milestone: get a banner out over **semihosting**
-(`-semihosting-config enable=on,target=native`) so you have console before
-writing any UART model. The first *real* peripheral to model is then FlexComm0
-in USART mode, which gives you a hardware-accurate console.
+- **Neutron NPU** and **SmartDMA** run proprietary microcode that isn't
+  modelled — the control handshake completes (no hang) but the result is flagged
+  *uncomputed* via QMP `qom-get`, never silently wrong.
+- Timing is not modelled (not cycle-accurate).
+- Pure-config / analog-trim / security blocks (GDET, ITRC, TRDC, ELS, PUF, PKC,
+  CDOG, VBAT, SPC trims, INPUTMUX, EVTG, …) are register-accurate.
 
-## Memory map (MCXN947 — CMSIS-verified)
+## Repository layout
 
-| Region            | Base          | Size        | Notes                         |
-|-------------------|---------------|-------------|-------------------------------|
-| Code flash        | `0x0000_0000` | 2 MiB       | RAM-backed for bring-up       |
-| SRAM              | `0x2000_0000` | 512 KiB     | RAM (banked, mapped contig.)  |
-| Peripherals (NS)  | `0x4000_0000` | —           | catch-all `unimplemented`     |
-| Peripherals (S)   | `0x5000_0000` | —           | secure alias, same catch-all  |
-| FlexSPI NOR (NS)  | `0x8000_0000` | 8 MiB       | AHB-mapped ext flash (XIP)    |
-| FlexSPI NOR (S)   | `0x9000_0000` | 8 MiB       | secure alias of the XIP window|
-| PPB (NVIC/SysTick)| `0xE000_0000` | —           | handled by `ARMV7M` container |
+The model lives in the standard QEMU tree under `mcxn_*`-prefixed files:
 
-## Next step: FlexComm4 / LPUART4 console
+| Area | Files |
+|------|-------|
+| SoC + board | `hw/arm/mcxn_soc.c`, `hw/arm/mcxn_frdm.c`, `include/hw/arm/mcxn_soc.h` |
+| Console / FlexComm (UART/SPI/I2C) | `hw/char/mcxn_lpuart.c` |
+| USB device core + engines | `hw/usb/mcxn_usbdev.c`, `hw/misc/mcxn_usbfs.c`, `hw/misc/mcxn_usbhs.c` |
+| Clocks / SYSCON / accelerators / … | `hw/misc/mcxn_*.c` |
+| Per-peripheral bare-metal tests | `tests/mcxn-*/` |
+| Coverage + status tracker | `PERIPHERALS.md` |
 
-The first real peripheral to model. The win here is reuse: MCX N's console runs
-the **standard NXP LPUART** register block (`VERID/PARAM/BAUD/STAT/CTRL/DATA/
-FIFO/WATER`, base offsets `0x0/0x4/0x10/0x14/0x18/0x1C/0x28/0x2C`) — the *same
-IP* as the i.MX 93/95 LPUART. An existing i.MX LPUART model should port over
-almost unchanged. The only MCX-specific wrinkle is the `LP_FLEXCOMM` wrapper at
-the same base, which function-selects USART vs SPI vs I2C; for console you model
-the LPUART registers at `0x400B_4000` and stub the function-select to "USART".
+## Building against a different QEMU base
 
-Until then, `-semihosting-config enable=on,target=native` gives console output
-without any UART model.
+Written against current QEMU mainline. On an older tree, check:
 
-## Build & run
-
-```sh
-# from the QEMU tree, after applying QEMU-INTEGRATION.md
-./configure --target-list=arm-softmmu
-make -j"$(nproc)"
-
-./build/qemu-system-arm \
-    -M frdm-mcxn947 \
-    -kernel firmware.elf \
-    -nographic \
-    -semihosting-config enable=on,target=native \
-    -d unimp,guest_errors
-```
-
-## Files
-
-| File                          | Role                                            |
-|-------------------------------|-------------------------------------------------|
-| `include/hw/arm/mcxn_soc.h`   | SoC type + `MCXNConfig` per-SKU struct          |
-| `hw/arm/mcxn_soc.c`           | config table, memories, M33 core, periph stub   |
-| `hw/arm/mcxn_frdm.c`          | `frdm-mcxn947` board                            |
-| `QEMU-INTEGRATION.md`         | Kconfig + meson.build edits, file placement     |
-
-## Version-sensitive touchpoints
-
-Written against current QEMU mainline. If building against an older tree, check:
-
-- `ARMV7M` clock inputs are named `cpuclk` / `refclk` (confirmed on master).
-- `armv7m_load_kernel()` takes `(cpu, filename, mem_base, mem_size)` — the
-  `mem_base` argument was added relatively recently.
-- `device_class_set_props()` / `DEFINE_TYPES()` are the current idioms.
+- `serial_hd` lives in `system/system.h` (older: `sysemu/sysemu.h`).
+- `ARMV7M` clock inputs are `cpuclk` / `refclk`.
+- `armv7m_load_kernel(cpu, filename, mem_base, mem_size)` — the `mem_base` arg
+  is relatively recent.
+- `device_class_set_props()` / `DEFINE_TYPES()` are the current idioms;
+  `Property[]` arrays no longer need `DEFINE_PROP_END_OF_LIST()`.
