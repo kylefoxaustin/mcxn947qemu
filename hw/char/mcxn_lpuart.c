@@ -660,9 +660,20 @@ static const MemoryRegionOps mcxn_lpuart_ops = {
     .read = mcxn_lpuart_read,
     .write = mcxn_lpuart_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .valid.min_access_size = 4,
+    /*
+     * Accept 1/2/4-byte access.  A real driver moving data over eDMA bursts the
+     * FIFO data registers (LPUART DATA, LPSPI TDR/RDR) one byte at a time; an
+     * over-strict 4-byte-only window would make the memory core SILENTLY DROP
+     * those byte writes (transfer "completes" but no data reaches the wire) — a
+     * silent-wrong-answer bug (fleet lesson from the i.MX95 LPSPI-over-eDMA
+     * case).  impl.min=1 routes each byte straight to the handler (no
+     * read-modify-write, so the DATA-read RX side effect is not spuriously
+     * triggered by a byte write); the data registers hold their value in the
+     * low byte, so aligned byte access is handled correctly.
+     */
+    .valid.min_access_size = 1,
     .valid.max_access_size = 4,
-    .impl.min_access_size = 4,
+    .impl.min_access_size = 1,
     .impl.max_access_size = 4,
 };
 

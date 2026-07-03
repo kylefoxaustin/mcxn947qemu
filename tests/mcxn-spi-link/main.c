@@ -107,6 +107,17 @@ void cpu0_main(void)
 
     if (got == N) {
         c_puts("SPI LINK PASS "); c_putdec(got); c_puts("\r\n");
+        /*
+         * Keep clocking after PASS so a peer that busy-loops sending frames
+         * always drains: the spi-link RX FIFO is finite (256 deep), and if we
+         * stopped popping it, backpressure would block the peer's chardev write
+         * -> its LPSPI TDR write -> a hung spidev ioctl (fleet lesson from the
+         * imx93<->MCX SPI lab).  A bounded byte count keeps the link re-runnable.
+         */
+        for (;;) {
+            spi_xfer(MOSI_BYTE);
+            delay(2000);
+        }
     } else {
         c_puts("SPI LINK FAIL state="); c_putdec((uint32_t)state);
         c_puts(" clocks="); c_putdec(clocks); c_puts("\r\n");
