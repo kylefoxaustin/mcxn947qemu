@@ -1,180 +1,255 @@
 # qemu-mcxn947
 
 A QEMU machine type for the NXP **MCX N947** microcontroller — a **dual Arm
-Cortex-M33** MCU — targeting the **FRDM-MCXN947** board. Machine name:
-`frdm-mcxn947`.
+Cortex-M33** MCU — targeting the **FRDM-MCXN947** board. Machine: `frdm-mcxn947`.
 
 > **This is a fork of QEMU mainline.** The MCX N work lives on the `mcxn947`
-> branch; the vast majority of the history is inherited from upstream QEMU. The
-> upstream QEMU README is preserved at [`README.rst`](README.rst) — this file
-> describes the MCX N-specific work. All model logic is self-contained in new
-> `mcxn_*` files (no edits to generic QEMU), with the long-term aim of being
-> upstream-mergeable.
+> branch; the bulk of the history is upstream QEMU. The upstream QEMU README is
+> preserved at [`README.rst`](README.rst) — this file describes the MCX N-specific
+> work. All model logic is self-contained in new `mcxn_*` files (no edits to
+> generic QEMU), with the long-term aim of upstream-mergeability.
 
-qemu-mcxn947 is a QEMU model of the NXP MCXN947. Unlike the sibling i.MX 9x
-ports, this is a **microcontroller, not an applications processor**: there is no
-Linux and no MMU-class OS. You run the same firmware you would flash to the
-silicon — **bare-metal, Zephyr, or the MCUXpresso SDK** — against a
-register-accurate model of the whole chip, so you can develop, debug, and
-CI-test MCX N firmware without hardware.
+qemu-mcxn947 is a QEMU model of the NXP MCXN947, and one node in a fleet of NXP
+QEMU ports (i.MX 91 / 93 / 95 and this MCXN947 microcontroller) that share device
+models and a validation standard. Unlike the i.MX 9x siblings, this is a
+**microcontroller, not an applications processor**: there is no Linux and no
+MMU-class OS. You run the same firmware you would flash to the silicon —
+**bare-metal, Zephyr, or the MCUXpresso SDK** — against a register-accurate model
+of the whole chip. It is not cycle-accurate.
 
 It boots the Zephyr **`frdm_mcxn947`** target and passes the upstream Zephyr
-**`ztest`** suite (kernel + IPC + the userspace/MPU/SAU TrustZone-M path). Every
-peripheral base on the chip has a register-accurate functional model, and the
-blocks whose behaviour firmware can actually observe have live data paths and
-NVIC interrupts on top. Highlights:
-
-- **Dual Cortex-M33** — cpu0 boots and releases cpu1 (SYSCON `CPUCTRL`/`CPBOOT`),
-  with a working **inter-core MAILBOX** and an **OpenAMP/RPMsg-style** shared-
-  memory ring transport (real message data cpu0↔cpu1, not just a doorbell).
-- **USB device mode** — both controllers (USBFS/KHCI and USBHS/ChipIdea) present
-  real USB devices over the `usbredir` protocol to a remote USB *host*. A
-  **CDC-ACM serial gadget** enumerates on stock Linux (`cdc_acm` → `/dev/ttyACM0`)
-  and round-trips bytes — proven against real i.MX 93 **and** i.MX 91 QEMU hosts.
-- **Board-to-board / inter-QEMU links** — the MCX is a drop-in node on
-  **ENET, UART, USB, and SPI** links over a chardev socket, so it pairs with the
-  i.MX 91/93 QEMU models (and a lab coordinator) over a real bus.
-- **DSP / accelerators** — PowerQuad (matrix/vector engine + CP0 scalar
-  transcendentals, computing real results) and the eIQ **Neutron NPU** (modelled
-  honestly: the compute handshake is acked so firmware never hangs, but the
-  proprietary-microcode result is flagged uncomputed via QMP rather than
-  silently fabricated).
-- **XIP boot** — the FlexSPI AHB NOR window is real executable memory; code
-  linked there runs in place.
-- **Networking** — ENET with a descriptor-ring MAC path over a QEMU NIC backend
-  (Zephyr's stack gets a DHCP lease and completes a TCP echo).
-
-Intended use cases: firmware and peripheral-driver development, multicore /
-RPMsg bring-up, board-to-board interconnect development, and CI. It is **not
-cycle-accurate** — it models register and data-path behaviour, not timing.
+**`ztest`** suite (kernel + IPC + the userspace / MPU / SAU TrustZone-M path).
+Every peripheral base on the chip has a register-accurate model; the blocks whose
+behaviour firmware can observe have live data paths and NVIC interrupts on top.
+Beyond running on one board, it passes real data between instances over five board
+buses (see [Interconnect](#interconnect--board-to-board-mission-5)). Intended use:
+firmware and peripheral-driver development, multicore / RPMsg bring-up, multi-board
+lab work, and CI; the long-term aim is upstream-mergeability into QEMU mainline.
 
 **Maintainer:** Kyle Fox ([@kylefoxaustin](https://github.com/kylefoxaustin))
 
-## Building
+![qemu-mcxn947 — dual Cortex-M33 MCU, the fleet's real-time node](docs/images/mcxn947-hero.png)
 
-```sh
-./configure --target-list=arm-softmmu
-make -j"$(nproc)"          # or: ninja -C build qemu-system-arm
-```
+*Part of a consistent hero-image family across the QEMU fleet — solid silicon for
+the emulator repos, one accent per node (MCXN947 cobalt-blue). The two glowing
+dies are the dual Cortex-M33 cores; the USB connector is the CDC-ACM gadget that
+pairs with the Linux boards.*
 
-## Running your firmware
+## Quickstart
 
-```sh
-./build/qemu-system-arm \
-    -M frdm-mcxn947 \
-    -kernel your-firmware.elf \
-    -nographic \
-    -serial mon:stdio
-```
+This fork **builds and runs as-is** — a plain clone lands on `mcxn947`.
 
-- **`-kernel`** takes an ELF (or raw binary). Code linked at flash `0x0000_0000`
-  runs from there; code linked into the FlexSPI XIP window at `0x8000_0000`
-  (secure `0x9000_0000`) runs in place.
-- **Console:** the FRDM debug console is **FlexComm4 / LPUART4** = `serial_hd(0)`,
-  so `-serial mon:stdio` gives you console + the QEMU monitor. The second core's
-  console (**FlexComm2 / LPUART2**) is `serial_hd(1)` — add a second `-serial`
-  for it.
-- **Early output before any UART is set up:** semihosting works from the first
-  instruction: `-semihosting-config enable=on,target=native`.
-- **See any access into unmodelled space** (rare — the whole peripheral window is
-  modelled): `-d unimp,guest_errors`. The peripheral map is
-  highest-priority-wins: register-accurate models sit over a catch-all backstop.
+**1. Clone and build** (host packages under [Building](#building)):
+
+    git clone https://github.com/kylefoxaustin/mcxn947qemu.git
+    cd mcxn947qemu
+    ./configure --target-list=arm-softmmu
+    make -j"$(nproc)"                                  # or: ninja -C build qemu-system-arm
+    ./build/qemu-system-arm -M help | grep frdm-mcxn947   # -> frdm-mcxn947
+
+**2. Run your firmware.** The MCX is bare-metal — you supply a `-kernel` ELF (no
+Linux, no DTB), exactly the image you would flash to the board:
+
+    ./build/qemu-system-arm -M frdm-mcxn947 -kernel your-firmware.elf \
+        -nographic -serial mon:stdio
+
+Three details are load-bearing:
+
+- **Console = FlexComm4 / LPUART4** is `serial_hd(0)`, so `-serial mon:stdio` gives
+  you console + the QEMU monitor. The second core's console (FlexComm2 / LPUART2)
+  is `serial_hd(1)`.
+- **Semihosting works from the first instruction**, before any UART is set up:
+  add `-semihosting-config enable=on,target=native` for early output.
+- **`-kernel` runs code linked at flash `0x0000_0000`**; code linked into the
+  FlexSPI XIP window at `0x8000_0000` (secure `0x9000_0000`) runs in place.
 
 A Zephyr `hello_world` built for `frdm_mcxn947/mcxn947/cpu0` is the quickest
-"it works" image; the console prints over FlexComm4.
+"it works" image; the console prints over FlexComm4. `-d unimp,guest_errors`
+surfaces any access into unmodelled space (rare — the whole peripheral window is
+modelled; register-accurate models sit over a catch-all backstop).
 
-## Inter-QEMU / board-to-board links
+## What runs today
 
-The MCX plugs into the fleet's link fabric over a chardev socket — one QEMU per
-"board", byte-exact — so you can wire an MCX to an i.MX 91/93 (or another MCX)
-over a real transport:
+The Zephyr **`frdm_mcxn947`** target boots and the **`ztest`** suite passes on the
+dual Cortex-M33. Every peripheral base is register-accurate; this table is the
+condensed capability view, with the per-IP-block evidence and the detailed class
+language in
+[`docs/validation/test-result-matrix.md`](docs/validation/test-result-matrix.md)
+(one source of truth, `test-matrix.yaml`, two renderings). Tiers: **A** data-path
+verified (real data moves / real math, integrity-checked) · **B** register-accurate
+bring-up (binds, registers / IRQ / timing correct; analog inputs operator-driven;
+proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 
-| Link | MCX side | How it attaches |
-|------|----------|-----------------|
-| **USB** | USBFS/USBHS device gadget over `usbredir` | a stock `-device usb-redir` client on the host QEMU |
-| **UART** | FlexComm2/LPUART2 on a socket chardev | `-serial chardev:<sock>` on each side |
-| **SPI**  | FlexComm5 LPSPI as an SSI-bus master | `-device spi-link,bus=mcxn-lpspi,chardev=<sock>` |
-| **ENET** | descriptor-ring MAC over a QEMU NIC | `-nic socket,...` / a QEMU netdev between the two |
+| Subsystem | Tier | Evidence |
+|---|:--:|---|
+| Dual Cortex-M33 (cpu0 boot + cpu1 release), NVIC/SysTick | A | cpu0 releases cpu1 via SYSCON CPUCTRL/CPBOOT; both run (`tests/mcxn-dualcore`) |
+| Inter-core MAILBOX + RPMsg-style shared-memory ring | A | Real message data cpu0↔cpu1, byte-exact (`tests/mcxn-mailbox`, `tests/mcxn-rpmsg`) |
+| Console — FlexComm4 / LPUART4 (TX/RX/IRQ) | A | Zephyr console; streaming RX flow-controlled (`tests/mcxn-flexcomm`) |
+| USB device — USBFS/KHCI + USBHS/ChipIdea, CDC-ACM | A | Enumerates on stock Linux `cdc_acm` → `/dev/ttyACM0`, bulk byte-exact (`tests/mcxn-usb-cdc`) |
+| Networking — ENET (descriptor-ring MAC) | A | Zephyr stack: DHCP lease + TCP echo over a QEMU NIC (`tests/mcxn-enet*`) |
+| FlexCAN ×2 | A | Loopback + **board-to-board** frame round-trip (`tests/mcxn-can-link`) |
+| LPSPI (FlexComm) | A | 8-bit master; loopback + **board-to-board**; eDMA byte-access (`tests/mcxn-spi-link`) |
+| LPI2C (FlexComm), LPUART b2b | A | Master echo; UART socket link byte-exact (`tests/mcxn-uart-link`) |
+| eDMA, CTIMER, SCT, eFlexPWM, LPTMR, MRT, OSTIMER, WWDT | A/B | Timer/PWM data paths + IRQs (`tests/mcxn-{dma,ctimer,timers,ostimer}`) |
+| uSDHC (SD/MMC), FlexSPI NOR (XIP-executable) | A | ADMA block data; code runs in place from the XIP window |
+| PowerQuad DSP (matrix/vector + CP0 transcendentals) | A | Computes real results — matrix ops + scalar sin/cos/ln/divide |
+| ADC, DAC, CMP, TSI, SAI, PDM/SINC, VREF, OPAMP | B | Register-accurate; analog inputs operator-driven via QOM property (no silent-wrong) |
+| eIQ Neutron NPU, SmartDMA | B | Handshake acked (no hang); proprietary-microcode result flagged uncomputed via QMP |
+| SCG/SYSCON/SPC clocks, RTC, security (ELS/PUF/PKC/…) | B | Drivers bind; registers / reset values / IRQ / W1C semantics correct |
 
-See `tests/mcxn-usb-*`, `tests/mcxn-uart-link`, and `tests/mcxn-spi-link` for
-runnable examples of each.
+**Absent on MCXN947 silicon — N/A (never a failure):**
 
-## Testing
+| Block | Why absent |
+|---|---|
+| Cortex-A55 · Linux-capable MMU · apps-processor OS | It's an MCU — real-time, bare-metal / RTOS / Zephyr, no Linux |
+| LCDIF · MIPI-DSI · HDMI bridge · camera ISI/CSI | No display/camera pipeline on this MCU |
+| System Manager (SM/SCMI) | MCU has none; firmware programs SCG/SYSCON clocks directly |
+| Ethos-U65 NPU | The MCX carries the eIQ **Neutron** NPU instead (flagged, honest) |
+| External DDR controller | On-chip SRAM (512 KiB) + FlexSPI NOR (XIP); no DRAM |
 
-Each modelled peripheral has a small **bare-metal test** under `tests/mcxn-*`
-(build a tiny firmware, run it, assert the console output). For example:
+**TrustZone-M** — every peripheral is mapped twice: non-secure `0x400x_xxxx` and
+secure `0x500x_xxxx`. Firmware may use either alias.
 
-```sh
-tests/mcxn-rpmsg/run.sh       # dual-core shared-memory IPC
-tests/mcxn-usb-cdc/run.sh     # USB CDC-ACM enumerate + bulk echo
-tests/mcxn-spi-link/run.sh    # SPI board-to-board
-```
+## Interconnect — board-to-board (mission #5)
 
-Full firmware coverage comes from the Zephyr **`frdm_mcxn947`** port and its
-`ztest` suite. `PERIPHERALS.md` tracks per-peripheral coverage and status.
+Beyond running on one board, the MCX **passes real data between QEMU instances**
+over its buses, in the per-link socket shape a lab coordinator
+([holobench](https://github.com/kylefoxaustin/holobench)) wires — so two emulated
+boards hook up over a stock QEMU socket, no host kernel/root. Every link has a
+byte-exact oracle, and each has been cross-validated against a **real** i.MX
+sibling (Linux master ↔ bare-metal M33). Harnesses: `tests/mcxn-*-link`.
 
-## MCXN947 — verified facts (CMSIS `MCXN947_cm33_core0.h`)
+| Transport | Shape | Status |
+|---|---|:--:|
+| **Ethernet** | ENET descriptor-ring MAC over a QEMU NIC / socket netdev | PASS |
+| **UART** | FlexComm2/LPUART2 on a `-chardev socket` | PASS |
+| **USB** | USBFS/USBHS gadget over `usbredir` (bulk + CDC-ACM `/dev/ttyACM0`) | PASS (2 hosts) |
+| **SPI** | FlexComm5 LPSPI via the **`spi-link`** device (91's) over `-chardev socket` | PASS (vs imx91/93 Linux `fsl-lpspi`) |
+| **CAN** | FlexCAN via **`can-host-chardev`** (95's), `-machine canbus0=cb` | PASS (vs imx95 Linux SocketCAN) |
 
-| Property            | Value                                              |
-|---------------------|----------------------------------------------------|
-| Cores               | dual Arm Cortex-M33 @ up to 150 MHz               |
-| Core features       | FPU, DSP, MPU, SAU / TrustZone-M                    |
-| NVIC external IRQs  | **156** (highest `CTI0_IRQn` = 155)                |
-| `__NVIC_PRIO_BITS`  | **3**                                              |
-| Flash               | 2 MiB @ `0x0000_0000`                              |
-| SRAM                | 512 KiB @ `0x2000_0000` (banked RAMA..H, contig.)  |
-| Console UART        | FlexComm4 / LPUART4 @ `0x400B_4000`, IRQ 39        |
-| Inter-CPU mailbox   | `0x400B_2000`, MAILBOX IRQ 54 (per-core)           |
+The shared bridge devices — `spi-link` (i.MX 91), `can-host-chardev` (i.MX 95) —
+are carried verbatim, so the MCX wires into a mixed lab with the **identical
+incantation** as the Linux boards; the CAN wiring uses the fleet-standard
+`-machine canbus0=cb,canbus1=cb`.
 
-**TrustZone-M aliasing:** every peripheral is mapped twice — non-secure at
-`0x400x_xxxx` and secure at `0x500x_xxxx`. Firmware may use either alias.
+## Validation
 
-## Memory map
+Correctness rests on **five independent gates**, not one:
 
-| Region            | Base          | Size    | Notes                              |
-|-------------------|---------------|---------|------------------------------------|
-| Code flash        | `0x0000_0000` | 2 MiB   | RAM-backed; `-kernel` loads here   |
-| SRAM              | `0x2000_0000` | 512 KiB | banked, mapped contiguous          |
-| Peripherals (NS)  | `0x4000_0000` | —       | register-accurate models           |
-| Peripherals (S)   | `0x5000_0000` | —       | secure TrustZone-M alias           |
-| FlexSPI NOR (NS)  | `0x8000_0000` | 8 MiB   | AHB-mapped external flash (XIP)    |
-| FlexSPI NOR (S)   | `0x9000_0000` | 8 MiB   | secure alias of the XIP window     |
-| PPB (NVIC/SysTick)| `0xE000_0000` | —       | handled by the `ARMV7M` container  |
+1. **Zephyr `ztest`** on `frdm_mcxn947` — 24 suites (~409 cases): functional
+   kernel + IPC + the userspace / MPU / SAU secure path (incl. `stack_random`
+   exercising the ELS TRNG entropy). The primary firmware-driven gate.
+2. **Per-peripheral bare-metal tests** (`tests/mcxn-*`) — each modelled block has a
+   tiny firmware that drives it and asserts console output (data-path + IRQ).
+3. **MCUXpresso example corpus** — NXP's stock SDK examples build and run against
+   the model (the PORT sub-word-MMIO bug that killed every `BOARD_InitPins` was
+   found this way).
+4. **Interconnect + cross-SoC** — byte-exact board-to-board over five transports,
+   each cross-validated against the **real** i.MX 91 / 93 / 95 nodes (Linux master
+   ↔ bare-metal M33).
+5. **Boot + machine smoke** — machine registration, semihosting, and console
+   over FlexComm4 from a bare-metal image.
 
-## What is *not* modelled (honestly)
+The recurring lesson mirrors the fleet's: a green deterministic test is not
+validation for a data path a real driver exercises differently — the streaming-RX
+LPUART fix and the eDMA byte-access (`min_access_size`) fix only surfaced against
+real-driver / cross-SoC repros. Fidelity judgments live in
+[`docs/validation/fidelity-audit.md`](docs/validation/fidelity-audit.md); overall
+coverage in [`PERIPHERALS.md`](PERIPHERALS.md).
 
-The goal is real-silicon fidelity for arbitrary firmware, and **silent wrong
-answers are treated as the worst class of bug**. Where a block cannot be
-computed faithfully, it is register-accurate and flags the gap rather than
-fabricating a result:
+## Required artifacts
 
-- **Neutron NPU** and **SmartDMA** run proprietary microcode that isn't
-  modelled — the control handshake completes (no hang) but the result is flagged
-  *uncomputed* via QMP `qom-get`, never silently wrong.
-- Timing is not modelled (not cycle-accurate).
-- Pure-config / analog-trim / security blocks (GDET, ITRC, TRDC, ELS, PUF, PKC,
-  CDOG, VBAT, SPC trims, INPUTMUX, EVTG, …) are register-accurate.
+The MCX is a microcontroller — it runs **firmware**, not a Linux stack, so the
+Linux/DTB/rootfs artifacts the i.MX siblings need are **N/A** here:
 
-## Repository layout
+| Artifact | Where from |
+| --- | --- |
+| **Firmware ELF** (bare-metal) | any Arm bare-metal toolchain (`arm-none-eabi-gcc`); see `tests/mcxn-*` |
+| **Zephyr image** (optional) | Zephyr `frdm_mcxn947` board (`west build -b frdm_mcxn947/mcxn947/cpu0`) |
+| **MCUXpresso SDK image** (optional) | NXP MCUXpresso SDK for MCXN947 |
+| ~~Linux `Image`~~ | N/A — no Linux on this MCU |
+| ~~Device tree (`.dtb`)~~ | N/A — bare-metal, no DTB |
+| ~~rootfs / initramfs~~ | N/A — no userspace OS |
 
-The model lives in the standard QEMU tree under `mcxn_*`-prefixed files:
+The `tests/*/run.sh` scripts build their firmware with `arm-none-eabi-gcc` and take
+`QEMU=`/`CC=` env vars; they `SKIP` cleanly if the toolchain is absent.
 
-| Area | Files |
-|------|-------|
-| SoC + board | `hw/arm/mcxn_soc.c`, `hw/arm/mcxn_frdm.c`, `include/hw/arm/mcxn_soc.h` |
-| Console / FlexComm (UART/SPI/I2C) | `hw/char/mcxn_lpuart.c` |
-| USB device core + engines | `hw/usb/mcxn_usbdev.c`, `hw/misc/mcxn_usbfs.c`, `hw/misc/mcxn_usbhs.c` |
-| Clocks / SYSCON / accelerators / … | `hw/misc/mcxn_*.c` |
-| Per-peripheral bare-metal tests | `tests/mcxn-*/` |
-| Coverage + status tracker | `PERIPHERALS.md` |
+## Building
 
-## Building against a different QEMU base
+    ./configure --target-list=arm-softmmu
+    make -j"$(nproc)"                     # or: ninja -C build qemu-system-arm
 
-Written against current QEMU mainline. On an older tree, check:
+**Host packages (Ubuntu 22.04+):**
 
-- `serial_hd` lives in `system/system.h` (older: `sysemu/sysemu.h`).
-- `ARMV7M` clock inputs are `cpuclk` / `refclk`.
-- `armv7m_load_kernel(cpu, filename, mem_base, mem_size)` — the `mem_base` arg
-  is relatively recent.
-- `device_class_set_props()` / `DEFINE_TYPES()` are the current idioms;
-  `Property[]` arrays no longer need `DEFINE_PROP_END_OF_LIST()`.
+    sudo apt install -y \
+        meson ninja-build python3 python3-venv python3-tomli \
+        gcc libc6-dev pkg-config libglib2.0-dev libpixman-1-dev \
+        gcc-arm-none-eabi          # for building the bare-metal test firmware
+
+## Architecture overview
+
+- **2× Cortex-M33** (FPU, DSP, MPU, SAU/TrustZone-M) via the `ARMV7M` object —
+  cpu0 boots and releases cpu1 (SYSCON CPUCTRL/CPBOOT). NVIC: 156 external IRQs,
+  3 priority bits. No Cortex-A55, no MMU-class OS — it is an MCU.
+- **Memory:** 2 MiB code flash @ `0x0000_0000` (RAM-backed for bring-up), 512 KiB
+  SRAM @ `0x2000_0000` (banked RAMA..H, mapped contiguous), FlexSPI NOR XIP window
+  @ `0x8000_0000` (secure `0x9000_0000`). Peripherals `0x4000_0000` (NS) /
+  `0x5000_0000` (secure TrustZone-M alias); PPB (NVIC/SysTick) handled by `ARMV7M`.
+- Real device models for everything firmware exercises — the FlexComm block
+  (LPUART/LPSPI/LPI2C function-select), USB device engines (KHCI + ChipIdea),
+  ENET, FlexCAN, eDMA, timers (CTIMER/SCT/eFlexPWM/LPTMR/MRT/OSTIMER), uSDHC,
+  FlexSPI, the analog blocks (ADC/DAC/CMP/TSI/SAI/PDM/SINC), PowerQuad DSP, the
+  Neutron NPU + SmartDMA (honest), SCG/SYSCON/SPC clocks, MAILBOX, RTC, and the
+  security cluster — plus the `spi-link` / `can-host-chardev` interconnect devices.
+- **Source of truth:** every base address, IRQ number, and bit mask comes from the
+  MCXN947 CMSIS header (`MCXN947_cm33_core0.h`) and the MCX N Reference Manual,
+  never guessed — a wrong offset is a silent firmware hang. Structural conventions
+  follow the i.MX LPUART model (the console is the same NXP LPUART IP as i.MX 93/95).
+
+## Repository tour
+
+| Path | Purpose |
+| --- | --- |
+| `hw/arm/mcxn_soc.c`, `include/hw/arm/mcxn_soc.h` | SoC realization: dual M33, memories, device wiring, per-SKU config table |
+| `hw/arm/mcxn_frdm.c` | `frdm-mcxn947` board (custom machine type; clocks, kernel load, `canbus0/1` links) |
+| `hw/char/mcxn_lpuart.c` | FlexComm — LPUART/LPSPI/LPI2C function-select console + master engines |
+| `hw/usb/mcxn_usbdev.c`, `hw/misc/mcxn_usbfs.c`, `hw/misc/mcxn_usbhs.c` | USB device core + KHCI/ChipIdea engines (usbredir gadget) |
+| `hw/misc/mcxn_*.c` | clocks, SYSCON/SPC, timers, analog, PowerQuad, Neutron/SmartDMA, security, MAILBOX, FlexCAN |
+| `hw/ssi/spi_link.c`, `net/can/can_host_chardev.c` | the board-to-board **interconnect** transports (SPI + CAN chardev bridges) |
+| `hw/arm/Kconfig`, `hw/*/meson.build` | `MCXN_SOC` config + build wiring |
+| `tests/mcxn-*/` | per-peripheral bare-metal tests; `mcxn-{uart,spi,can}-link` + `mcxn-usb-cdc` are the board-to-board harnesses |
+| `docs/validation/` | the test-result matrix, fidelity audit, and `test-matrix.yaml` (class source of truth) |
+| `PERIPHERALS.md` | full per-peripheral coverage + the depth program + the eDMA byte-access audit |
+
+## Known limitations
+
+- **DAC / PDM / SINC are 4-byte-only MMIO** — an eDMA byte/halfword burst to their
+  data registers is currently rejected, and their generic write default would
+  corrupt a config register on a sub-word write, so relaxing them needs a
+  sub-word-merge + a DMA test first (fixed already for FlexComm; tracked in
+  `PERIPHERALS.md`). A gap only for a driver that DMAs those blocks byte-wise.
+- **Neutron NPU / SmartDMA run proprietary microcode that is not modelled** — the
+  control handshake completes (firmware never hangs) but the result is flagged
+  *uncomputed* via QMP, never silently fabricated.
+- **LPSPI reports 4 chip-selects but does not decode `TCR.PCS`** to select among
+  multiple slaves on one bus — fine for one-slave-per-controller and the b2b link.
+- Analog inputs (ADC/CMP/TSI/DAC/…) have no physical stimulus in QEMU; values are
+  operator-driven via QOM properties (honest, never a fabricated reading).
+- Not cycle-accurate (TCG); no silicon timing is implied by any throughput.
+
+## Roadmap & milestone history
+
+The model is **breadth-complete** — every peripheral base is register-accurate and
+real firmware (Zephyr + `ztest`, the MCUXpresso corpus) runs without an unmodelled
+hang — extended this cycle with the **board-to-board interconnect** (five
+transports, cross-SoC validated against real i.MX 91/93/95) and the fleet's
+**eDMA byte-access fidelity fix**. What remains is **depth** (active data paths on
+the analog/audio blocks a workload can observe; the DAC/PDM/SINC byte-access
+follow-up) and **upstream submission** (the machine + board + the `mcxn_*` device
+models). A behavioural Neutron NPU command-stream executor (bit-exact int8, the way
+the i.MX 93/95 Ethos-U65 is modelled) is the largest open depth item.
+
+## License
+
+GPL-2.0-or-later, matching upstream QEMU. See [`README.rst`](README.rst) and
+[`LICENSE`](LICENSE) for the upstream QEMU licensing.
