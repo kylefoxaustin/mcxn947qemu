@@ -113,9 +113,20 @@ static void mcxn_dac_write(void *opaque, hwaddr offset, uint64_t value,
         s->regs[DAC_IER / 4] = value;
         mcxn_dac_update_irq(s);
         return;
-    default:
-        s->regs[offset / 4] = value;
+    default: {
+        /*
+         * Merge sub-word writes into the 32-bit register instead of
+         * overwriting it — a byte/halfword access must not clobber the other
+         * bytes of a config register (see the access-size note on the ops).
+         */
+        uint32_t idx = offset / 4;
+        uint32_t shift = (offset & 3) * 8;
+        uint32_t mask = (size >= 4) ? 0xFFFFFFFFu
+                                    : (((1u << (size * 8)) - 1) << shift);
+        s->regs[idx] = (s->regs[idx] & ~mask) |
+                       ((uint32_t)(value << shift) & mask);
         return;
+    }
     }
 }
 
@@ -123,9 +134,16 @@ static const MemoryRegionOps mcxn_dac_ops = {
     .read = mcxn_dac_read,
     .write = mcxn_dac_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .valid.min_access_size = 4,
+    /*
+     * Accept 1/2/4-byte access: a DAC output driven over eDMA bursts 12-bit
+     * samples to DATA as halfwords, and a 4-byte-only window would silently
+     * drop them (fleet eDMA byte-access lesson).  impl.min=1 routes each access
+     * straight to the handler (DATA already masks `value`; the default merges
+     * sub-word, so no config register is corrupted).
+     */
+    .valid.min_access_size = 1,
     .valid.max_access_size = 4,
-    .impl.min_access_size = 4,
+    .impl.min_access_size = 1,
     .impl.max_access_size = 4,
 };
 

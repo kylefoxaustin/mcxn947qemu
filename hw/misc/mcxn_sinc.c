@@ -119,16 +119,31 @@ static void mcxn_sinc_write(void *opaque, hwaddr offset, uint64_t value,
         }
     }
 
-    s->regs[offset / 4] = value;
+    /* Merge sub-word writes so a byte/halfword access can't clobber the other
+     * bytes of a config register (see the access-size note on the ops). */
+    {
+        uint32_t idx = offset / 4;
+        uint32_t shift = (offset & 3) * 8;
+        uint32_t mask = (size >= 4) ? 0xFFFFFFFFu
+                                    : (((1u << (size * 8)) - 1) << shift);
+        s->regs[idx] = (s->regs[idx] & ~mask) |
+                       ((uint32_t)(value << shift) & mask);
+    }
 }
 
 static const MemoryRegionOps mcxn_sinc_ops = {
     .read = mcxn_sinc_read,
     .write = mcxn_sinc_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .valid.min_access_size = 4,
+    /*
+     * Accept 1/2/4-byte access: SINC result channels are drained over eDMA,
+     * which can burst sub-word reads; a 4-byte-only window would reject them
+     * (fleet eDMA byte-access lesson).  Result/debug regs are RO (read 0); the
+     * write default merges sub-word so no config register is corrupted.
+     */
+    .valid.min_access_size = 1,
     .valid.max_access_size = 4,
-    .impl.min_access_size = 4,
+    .impl.min_access_size = 1,
     .impl.max_access_size = 4,
 };
 

@@ -116,10 +116,14 @@ bug (origin: 95emulator's LPSPI-over-eDMA case).
   proven a 1-byte write to LPSPI TDR now transfers. Handlers dispatch to specific
   registers, no corrupting generic default.
 - ✅ **SAI, ADC** — already accept byte access.
-- ⏳ **DAC, PDM, SINC** — still 4-byte-only AND use a generic
-  `default: regs[offset/4] = value`, which would *corrupt* a config register on
-  an aligned sub-word write. Before relaxing to byte access, give the default a
-  sub-word read-modify-merge + add a byte/halfword-DMA test per block.
+- ✅ **DAC, PDM, SINC** — fixed. Each now accepts 1/2/4-byte access
+  (`.valid/.impl min_access_size = 1`) and its generic write default does a
+  sub-word read-modify-merge instead of overwriting, so a byte/halfword access
+  can't corrupt a config register. DAC DATA is a halfword eDMA write-target;
+  PDM/SINC result channels are eDMA read-targets (RO, read 0 — no synthesized
+  audio). Verified: a DAC config-reg byte-overwrite merges (`0xAABBCCDD` →
+  `0xAABBCC11`), and sub-word access to all three data paths is accepted with no
+  fault/rejection.
 
 Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **ADC** — SW-trigger conversion -> RESFIFO valid result + EOC IRQ (45/46). `tests/mcxn-adc`.
