@@ -71,6 +71,85 @@ operator-driven≈HONEST-PARAMETERIZABLE, flag-at-operator≈FAULTS-ABSENT,
 register-only≈registration/Tier-C.
 """
 
+# yaml class -> condensed README tier.  A = real data/math verified (data-path);
+# B = register-accurate bring-up (operator-driven analog, honest-flagged accels,
+# config/security/clock registers).  The README table renders these; the detailed
+# matrix renders the full class.  One source of truth, two renderings.
+CLASS_TIER = {
+    "computes": "A", "functional": "A",
+    "operator-driven": "B", "register-only": "B",
+    "flag-at-operator": "B", "not-modelled": "B",
+}
+
+README = os.path.join(ROOT, "README.md")
+README_BEGIN = "<!-- BEGIN capability-table (generated from test-matrix.yaml) -->"
+README_END = "<!-- END capability-table (generated from test-matrix.yaml) -->"
+
+
+def present_tiers(doc):
+    """Flatten every present block across the block sections -> {block: tier}."""
+    out = {}
+    for key in SECTION_TITLES:
+        for b in doc.get(key) or []:
+            if b.get("present", True):
+                cls = b.get("class")
+                if cls not in CLASS_TIER:
+                    raise SystemExit(f"block '{b['block']}': unknown class '{cls}'")
+                out[b["block"]] = CLASS_TIER[cls]
+    return out
+
+
+def verify_groups(doc):
+    """Anti-drift guard: every present block is grouped into exactly one
+    single-tier readme_group whose tier matches the block's class-derived tier.
+    So the condensed README table and the detailed matrix physically cannot
+    diverge — a block added / removed / re-classed in the YAML fails generation
+    until its readme_group is updated too."""
+    present = present_tiers(doc)
+    seen, errs = [], []
+    for g in doc.get("readme_groups", []):
+        for b in g["blocks"]:
+            seen.append(b)
+            if b not in present:
+                errs.append(f"readme_group '{g['label']}' lists unknown/absent block {b}")
+            elif present[b] != g["tier"]:
+                errs.append(f"'{b}' is tier {present[b]} but group "
+                            f"'{g['label']}' is tier {g['tier']}")
+    for b in present:
+        n = seen.count(b)
+        if n != 1:
+            errs.append(f"present block '{b}' grouped {n}x (want exactly 1)")
+    if errs:
+        raise SystemExit("readme_group drift:\n  " + "\n  ".join(errs))
+
+
+def render_readme_capability(doc):
+    out = ["| Subsystem | Tier | Evidence |", "|---|:--:|---|"]
+    for g in doc.get("readme_groups", []):
+        out.append(f"| {g['label']} | {g['tier']} | {g.get('evidence', '')} |")
+    out += ["", "**Absent on MCXN947 silicon — N/A (never a failure):**", "",
+            "| Block | Why absent |", "|---|---|"]
+    for g in doc.get("readme_absent", []):
+        out.append(f"| {g['label']} | {g['reason']} |")
+    return "\n".join(out)
+
+
+def inject_readme(doc, path):
+    verify_groups(doc)
+    text = open(path).read()
+    if README_BEGIN not in text or README_END not in text:
+        raise SystemExit(f"{path}: missing capability-table markers")
+    head, rest = text.split(README_BEGIN, 1)
+    _, tail = rest.split(README_END, 1)
+    block = f"{README_BEGIN}\n{render_readme_capability(doc)}\n{README_END}"
+    new = head + block + tail
+    if new != text:
+        open(path, "w").write(new)
+        sys.stderr.write(f"updated {path} capability table from test-matrix.yaml\n")
+        return 1
+    sys.stderr.write(f"{path} capability table already in sync\n")
+    return 0
+
 
 def real_tests(doc):
     """Unique mcxn-* suites referenced by any tested_by (pseudo mapped)."""
@@ -181,9 +260,15 @@ def main():
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--with-slow", action="store_true",
                     help="also run heavy meta-suites (ztest) inline")
+    ap.add_argument("--inject-readme", nargs="?", const=README,
+                    help="regenerate the README capability table from the YAML "
+                         "(between the capability-table markers) and exit")
     a = ap.parse_args()
 
     doc = yaml.safe_load(open(YAML))
+    verify_groups(doc)   # structural anti-drift: always, cheap
+    if a.inject_readme is not None:
+        sys.exit(inject_readme(doc, a.inject_readme))
     tests = real_tests(doc)
     run = {}
     if not a.no_run:

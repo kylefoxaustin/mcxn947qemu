@@ -80,22 +80,31 @@ verified (real data moves / real math, integrity-checked) · **B** register-accu
 bring-up (binds, registers / IRQ / timing correct; analog inputs operator-driven;
 proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 
+<!-- BEGIN capability-table (generated from test-matrix.yaml) -->
 | Subsystem | Tier | Evidence |
 |---|:--:|---|
-| Dual Cortex-M33 (cpu0 boot + cpu1 release), NVIC/SysTick | A | cpu0 releases cpu1 via SYSCON CPUCTRL/CPBOOT; both run (`tests/mcxn-dualcore`) |
-| Inter-core MAILBOX + RPMsg-style shared-memory ring | A | Real message data cpu0↔cpu1, byte-exact (`tests/mcxn-mailbox`, `tests/mcxn-rpmsg`) |
-| Console — FlexComm4 / LPUART4 (TX/RX/IRQ) | A | Zephyr console; streaming RX flow-controlled (`tests/mcxn-flexcomm`) |
-| USB device — USBFS/KHCI + USBHS/ChipIdea, CDC-ACM | A | Enumerates on stock Linux `cdc_acm` → `/dev/ttyACM0`, bulk byte-exact (`tests/mcxn-usb-cdc`) |
-| Networking — ENET (descriptor-ring MAC) | A | Zephyr stack: DHCP lease + TCP echo over a QEMU NIC (`tests/mcxn-enet*`) |
-| FlexCAN ×2 | A | Loopback + **board-to-board** frame round-trip (`tests/mcxn-can-link`) |
-| LPSPI (FlexComm) | A | 8-bit master; loopback + **board-to-board**; eDMA byte-access (`tests/mcxn-spi-link`) |
-| LPI2C (FlexComm), LPUART b2b | A | Master echo; UART socket link byte-exact (`tests/mcxn-uart-link`) |
-| eDMA, CTIMER, SCT, eFlexPWM, LPTMR, MRT, OSTIMER, WWDT | A/B | Timer/PWM data paths + IRQs (`tests/mcxn-{dma,ctimer,timers,ostimer}`) |
-| uSDHC (SD/MMC), FlexSPI NOR (XIP-executable) | A | ADMA block data; code runs in place from the XIP window |
-| PowerQuad DSP (matrix/vector + CP0 transcendentals) | A | Computes real results — matrix ops + scalar sin/cos/ln/divide |
-| ADC, DAC, CMP, TSI, SAI, PDM/SINC, VREF, OPAMP | B | Register-accurate; analog inputs operator-driven via QOM property (no silent-wrong) |
-| eIQ Neutron NPU, SmartDMA | B | Handshake acked (no hang); proprietary-microcode result flagged uncomputed via QMP |
-| SCG/SYSCON/SPC clocks, RTC, security (ELS/PUF/PKC/…) | B | Drivers bind; registers / reset values / IRQ / W1C semantics correct |
+| Dual Cortex-M33 (cpu0 boot + cpu1 release), NVIC/SysTick | A | cpu0 releases cpu1 via SYSCON CPUCTRL/CPBOOT; both run (tests/mcxn-dualcore) |
+| Inter-core MAILBOX + RPMsg-style shared-memory ring | A | Real message data cpu0<->cpu1, byte-exact (tests/mcxn-mailbox, mcxn-rpmsg) |
+| Console + FlexComm (LPUART / LPSPI / LPI2C) | A | Zephyr console; SPI/I2C master + board-to-board links (tests/mcxn-flexcomm, mcxn-spi-link, mcxn-uart-link) |
+| USB device — USBFS/KHCI + USBHS/ChipIdea, CDC-ACM | A | Enumerates on stock Linux cdc_acm -> /dev/ttyACM0, bulk byte-exact (tests/mcxn-usb-cdc) |
+| Networking — ENET (descriptor-ring MAC) | A | Zephyr stack: DHCP lease + TCP echo over a QEMU NIC (tests/mcxn-enet*) |
+| FlexCAN x2 | A | Loopback + board-to-board frame round-trip (tests/mcxn-can-link) |
+| I3C + EMVSIM (smartcard) | A | I3C master transfer + completion; EMVSIM smartcard transfer (tests/mcxn-i3c, mcxn-emvsim) |
+| Storage / XIP — uSDHC + FlexSPI NOR | A | ADMA block data; code runs in place from the XIP window (tests/mcxn-usdhc, mcxn-flexspi, mcxn-xip) |
+| Timers / PWM — CTIMER, MRT, LPTMR, OSTIMER, SCT, eFlexPWM, RTC | A | Timer/PWM data paths + IRQs (tests/mcxn-ctimer, mcxn-timers, mcxn-ostimer, mcxn-sct, mcxn-pwm, mcxn-rtc) |
+| GPIO + eDMA | A | GPIO toggles; eDMA TCD transfers (tests/mcxn-gpio, mcxn-dma) |
+| PowerQuad DSP (matrix/vector + CP0 transcendentals) | A | Computes real results — matrix/vector ops + scalar sin/cos/ln/divide |
+| Audio out — SAI + DAC | A | SAI FIFO data path; DAC accepts eDMA halfword samples (tests/mcxn-sai) |
+| Flash program — FMU | A | Flash program/erase state machine (tests/mcxn-fmu) |
+| Security — ELS (crypto + TRNG) | A | ELS TRNG entropy drives Zephyr stack_random (ztest userspace path) |
+| Watchdogs + micro-tick — WWDT, EWM, UTICK | B | Register-accurate; reset/refresh/timeout semantics |
+| Accelerators (honest) — Neutron NPU, SmartDMA, PowerQuad fixed-point | B | Handshake acked (no hang); proprietary-microcode result flagged uncomputed via QMP |
+| Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM, SINC | B | Register-accurate; analog inputs operator-driven via QOM property (no silent-wrong); eDMA byte-access |
+| Pin / IRQ / GPIO infra — PORT, INPUTMUX, PINT, INTM, EVTG, FLEXIO, QDC, PLU | B | Drivers bind; pin-mux / IRQ routing registers correct (sub-word MMIO) |
+| Memory / cache / CRC — CACHE64, NPX, CRC, SEMA42, OTPC | B | Register-accurate; CRC compute, cache/ID/fuse config |
+| Clocks / power / system — SCG, SYSCON, SPC, CMC, VBAT, WUU, FREQME, AHBSC | B | Clock/power config; firmware programs directly (no System Manager) |
+| Security / crypto / tamper — PKC, PUF, CDOG, GDET, ITRC, TRDC, TDET | B | Drivers bind; registers / reset values / W1C semantics correct |
+| USB support — USBDCD, USBPHY, USBHS-NC | B | Charger-detect / PHY / non-core config registers |
 
 **Absent on MCXN947 silicon — N/A (never a failure):**
 
@@ -104,8 +113,9 @@ proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 | Cortex-A55 · Linux-capable MMU · apps-processor OS | It's an MCU — real-time, bare-metal / RTOS / Zephyr, no Linux |
 | LCDIF · MIPI-DSI · HDMI bridge · camera ISI/CSI | No display/camera pipeline on this MCU |
 | System Manager (SM/SCMI) | MCU has none; firmware programs SCG/SYSCON clocks directly |
-| Ethos-U65 NPU | The MCX carries the eIQ **Neutron** NPU instead (flagged, honest) |
+| Ethos-U65 NPU | The MCX carries the eIQ Neutron NPU instead (flagged, honest) |
 | External DDR controller | On-chip SRAM (512 KiB) + FlexSPI NOR (XIP); no DRAM |
+<!-- END capability-table (generated from test-matrix.yaml) -->
 
 **TrustZone-M** — every peripheral is mapped twice: non-secure `0x400x_xxxx` and
 secure `0x500x_xxxx`. Firmware may use either alias.

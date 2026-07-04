@@ -143,3 +143,112 @@ class_aliases:
   # Neutron NPU carries a default + opt-in pair (same dual shape as 95's Neutron):
   neutron-npu-default: FLAG-AT-OPERATOR
   neutron-npu-optin: HONEST-FAULT      # uncomputed-errortrap -> INTR.ERRORTRAP + IRQ97
+
+# --- README condensed capability table (second rendering of the SAME blocks) --
+# Groups every present block into one condensed "What runs today" row.  Single-
+# tier per group; gen-test-matrix.py verify_groups() fails the build if any
+# present block is un-grouped, double-grouped, or a group tier disagrees with the
+# block's class-derived tier (A = computes/functional, B = the rest).
+readme_groups:
+  - label: "Dual Cortex-M33 (cpu0 boot + cpu1 release), NVIC/SysTick"
+    tier: A
+    evidence: "cpu0 releases cpu1 via SYSCON CPUCTRL/CPBOOT; both run (tests/mcxn-dualcore)"
+    blocks: [cortex-m33-cpu0, cortex-m33-cpu1, wfi-idle]
+  - label: "Inter-core MAILBOX + RPMsg-style shared-memory ring"
+    tier: A
+    evidence: "Real message data cpu0<->cpu1, byte-exact (tests/mcxn-mailbox, mcxn-rpmsg)"
+    blocks: [mailbox]
+  - label: "Console + FlexComm (LPUART / LPSPI / LPI2C)"
+    tier: A
+    evidence: "Zephyr console; SPI/I2C master + board-to-board links (tests/mcxn-flexcomm, mcxn-spi-link, mcxn-uart-link)"
+    blocks: [lpuart, lpspi, lpi2c]
+  - label: "USB device — USBFS/KHCI + USBHS/ChipIdea, CDC-ACM"
+    tier: A
+    evidence: "Enumerates on stock Linux cdc_acm -> /dev/ttyACM0, bulk byte-exact (tests/mcxn-usb-cdc)"
+    blocks: [usbfs0, usbhs1]
+  - label: "Networking — ENET (descriptor-ring MAC)"
+    tier: A
+    evidence: "Zephyr stack: DHCP lease + TCP echo over a QEMU NIC (tests/mcxn-enet*)"
+    blocks: [enet]
+  - label: "FlexCAN x2"
+    tier: A
+    evidence: "Loopback + board-to-board frame round-trip (tests/mcxn-can-link)"
+    blocks: [flexcan]
+  - label: "I3C + EMVSIM (smartcard)"
+    tier: A
+    evidence: "I3C master transfer + completion; EMVSIM smartcard transfer (tests/mcxn-i3c, mcxn-emvsim)"
+    blocks: [i3c, emvsim]
+  - label: "Storage / XIP — uSDHC + FlexSPI NOR"
+    tier: A
+    evidence: "ADMA block data; code runs in place from the XIP window (tests/mcxn-usdhc, mcxn-flexspi, mcxn-xip)"
+    blocks: [usdhc, flexspi]
+  - label: "Timers / PWM — CTIMER, MRT, LPTMR, OSTIMER, SCT, eFlexPWM, RTC"
+    tier: A
+    evidence: "Timer/PWM data paths + IRQs (tests/mcxn-ctimer, mcxn-timers, mcxn-ostimer, mcxn-sct, mcxn-pwm, mcxn-rtc)"
+    blocks: [ctimer, mrt, lptmr, ostimer, sct, pwm, rtc]
+  - label: "GPIO + eDMA"
+    tier: A
+    evidence: "GPIO toggles; eDMA TCD transfers (tests/mcxn-gpio, mcxn-dma)"
+    blocks: [gpio, edma]
+  - label: "PowerQuad DSP (matrix/vector + CP0 transcendentals)"
+    tier: A
+    evidence: "Computes real results — matrix/vector ops + scalar sin/cos/ln/divide"
+    blocks: [powerquad]
+  - label: "Audio out — SAI + DAC"
+    tier: A
+    evidence: "SAI FIFO data path; DAC accepts eDMA halfword samples (tests/mcxn-sai)"
+    blocks: [sai, dac]
+  - label: "Flash program — FMU"
+    tier: A
+    evidence: "Flash program/erase state machine (tests/mcxn-fmu)"
+    blocks: [fmu]
+  - label: "Security — ELS (crypto + TRNG)"
+    tier: A
+    evidence: "ELS TRNG entropy drives Zephyr stack_random (ztest userspace path)"
+    blocks: [els]
+  - label: "Watchdogs + micro-tick — WWDT, EWM, UTICK"
+    tier: B
+    evidence: "Register-accurate; reset/refresh/timeout semantics"
+    blocks: [wwdt, ewm, utick]
+  - label: "Accelerators (honest) — Neutron NPU, SmartDMA, PowerQuad fixed-point"
+    tier: B
+    evidence: "Handshake acked (no hang); proprietary-microcode result flagged uncomputed via QMP"
+    blocks: [neutron-npu, smartdma, powerquad-fixedpt]
+  - label: "Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM, SINC"
+    tier: B
+    evidence: "Register-accurate; analog inputs operator-driven via QOM property (no silent-wrong); eDMA byte-access"
+    blocks: [adc, cmp, tsi, opamp, vref, pdm, sinc]
+  - label: "Pin / IRQ / GPIO infra — PORT, INPUTMUX, PINT, INTM, EVTG, FLEXIO, QDC, PLU"
+    tier: B
+    evidence: "Drivers bind; pin-mux / IRQ routing registers correct (sub-word MMIO)"
+    blocks: [port, inputmux, pint, intm, evtg, flexio, qdc, plu]
+  - label: "Memory / cache / CRC — CACHE64, NPX, CRC, SEMA42, OTPC"
+    tier: B
+    evidence: "Register-accurate; CRC compute, cache/ID/fuse config"
+    blocks: [cache64, npx, crc, sema42, otpc]
+  - label: "Clocks / power / system — SCG, SYSCON, SPC, CMC, VBAT, WUU, FREQME, AHBSC"
+    tier: B
+    evidence: "Clock/power config; firmware programs directly (no System Manager)"
+    blocks: [scg, syscon, spc, cmc, vbat, wuu, freqme, ahbsc]
+  - label: "Security / crypto / tamper — PKC, PUF, CDOG, GDET, ITRC, TRDC, TDET"
+    tier: B
+    evidence: "Drivers bind; registers / reset values / W1C semantics correct"
+    blocks: [pkc, puf, cdog, gdet, itrc, trdc, tdet]
+  - label: "USB support — USBDCD, USBPHY, USBHS-NC"
+    tier: B
+    evidence: "Charger-detect / PHY / non-core config registers"
+    blocks: [usbdcd, usbphy, usbhs1-usbnc]
+
+# Absent on MCXN947 silicon — N/A rows (authored: the MCU's deltas are not chip
+# blocks in the matrix, they are whole subsystems the i.MX AP siblings have).
+readme_absent:
+  - label: "Cortex-A55 · Linux-capable MMU · apps-processor OS"
+    reason: "It's an MCU — real-time, bare-metal / RTOS / Zephyr, no Linux"
+  - label: "LCDIF · MIPI-DSI · HDMI bridge · camera ISI/CSI"
+    reason: "No display/camera pipeline on this MCU"
+  - label: "System Manager (SM/SCMI)"
+    reason: "MCU has none; firmware programs SCG/SYSCON clocks directly"
+  - label: "Ethos-U65 NPU"
+    reason: "The MCX carries the eIQ Neutron NPU instead (flagged, honest)"
+  - label: "External DDR controller"
+    reason: "On-chip SRAM (512 KiB) + FlexSPI NOR (XIP); no DRAM"
