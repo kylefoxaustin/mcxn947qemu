@@ -91,9 +91,12 @@ void cpu0_main(void)
     NVIC_ISER1 = (1u << (CAN0_IRQ - 32));
     __asm__ volatile ("cpsie i");
 
-    /* Transmit our frame + wait for the peer's reply; resend across the window
-     * (the peer may connect after we boot; a frame sent to an empty bus drops). */
-    for (uint32_t tries = 0; !got_reply && tries < 4000; tries++) {
+    /* Transmit our frame + wait for the peer's reply; RESEND FOREVER until it
+     * arrives.  In a co-launched holobench lab both nodes start together, but a
+     * full-distro Linux peer can take minutes to boot + bring up can0, so there
+     * is deliberately no reply-timeout — only a wrong payload (bad_reply) is a
+     * hard failure.  (A frame sent before the peer is up simply drops.) */
+    while (!got_reply && !bad_reply) {
         MB_W0(TX_MB) = TXD0;
         MB_W1(TX_MB) = TXD1;
         MB_ID(TX_MB) = TX_ID_STD << 18;
