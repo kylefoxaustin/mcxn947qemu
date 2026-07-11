@@ -95,7 +95,7 @@ proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 | GPIO + eDMA | A | GPIO toggles; eDMA TCD transfers (tests/mcxn-gpio, mcxn-dma) |
 | PowerQuad DSP (matrix/vector + CP0 transcendentals) | A | Computes real results — matrix/vector ops + scalar sin/cos/ln/divide |
 | Audio out — SAI + DAC | A | SAI FIFO data path; DAC accepts eDMA halfword samples (tests/mcxn-sai) |
-| Flash program — FMU | A | Flash program/erase state machine (tests/mcxn-fmu) |
+| Flash program — FMU (storage-write-verified) | A | Byte-exact erase -> program -> read-back round-trip driven through the RM PEWEN/PERDY sequence; flash is a ROM device, so stores outside a program window are refused and cumulative programming fails verify (tests/mcxn-fmu) |
 | Security — ELS (crypto + TRNG) | A | ELS TRNG entropy drives Zephyr stack_random (ztest userspace path) |
 | Watchdogs + micro-tick — WWDT, EWM, UTICK | B | Register-accurate; reset/refresh/timeout semantics |
 | Accelerators (honest) — Neutron NPU, SmartDMA, PowerQuad fixed-point | B | Handshake acked (no hang); proprietary-microcode result flagged uncomputed via QMP |

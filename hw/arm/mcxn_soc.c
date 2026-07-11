@@ -373,12 +373,17 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
 
     /* --- On-chip memories (RM Table 16) ---------------------------------- *
      * Flash, boot ROM, SRAM and SRAMX, each reachable via a non-secure base
-     * and a secure-alias base (TZ-M).  Flash and ROM are RAM-backed during
-     * bring-up (the -kernel loader and, later, the FMU write them); swap flash
-     * to ROM + FMU program/erase once that path is exercised.
+     * and a secure-alias base (TZ-M).
+     *
+     * Flash is a ROM *device* owned by the FMU, not RAM: reads and instruction
+     * fetch are direct (so XIP and the -kernel ROM loader are unaffected), but
+     * guest stores are routed into the FMU, which only honours them inside an
+     * open PEWEN program/erase window.  Making it plain RAM would let firmware
+     * scribble at flash addresses and appear to work, which silicon would not
+     * do — see hw/misc/mcxn_fmu.c.
      */
-    memory_region_init_ram(&s->flash, OBJECT(dev), "mcxn.flash",
-                           cfg->flash_size, &error_fatal);
+    mcxn_fmu_init_flash(&s->fmu0, OBJECT(dev), &s->flash, cfg->flash_size,
+                        &error_fatal);
     memory_region_add_subregion(system_memory, MCXN_FLASH_NS, &s->flash);
     memory_region_init_alias(&s->flash_alias, OBJECT(dev), "mcxn.flash.s",
                              &s->flash, 0, cfg->flash_size);
@@ -1006,10 +1011,9 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, 0x40049000 + MCXN_SECURE_ALIAS,
                                 &s->ostimer0_s_alias);
 
-    /* FMU flash controller: knows the flash backing so erase/verify work;
-     * IRQ to cpu0 NVIC. */
-    s->fmu0.flash = &s->flash;
-    s->fmu0.flash_size = cfg->flash_size;
+    /* FMU flash controller.  The flash backing was handed to it above (it owns
+     * the ROM-device region, so guest stores land in its program/erase state
+     * machine); here we just map its registers and IRQ to the cpu0 NVIC. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->fmu0), errp)) {
         return;
     }

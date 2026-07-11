@@ -198,9 +198,9 @@ readme_groups:
     tier: A
     evidence: "SAI FIFO data path; DAC accepts eDMA halfword samples (tests/mcxn-sai)"
     blocks: [sai, dac]
-  - label: "Flash program — FMU"
+  - label: "Flash program — FMU (storage-write-verified)"
     tier: A
-    evidence: "Flash program/erase state machine (tests/mcxn-fmu)"
+    evidence: "Byte-exact erase -> program -> read-back round-trip driven through the RM PEWEN/PERDY sequence; flash is a ROM device, so stores outside a program window are refused and cumulative programming fails verify (tests/mcxn-fmu)"
     blocks: [fmu]
   - label: "Security — ELS (crypto + TRNG)"
     tier: A

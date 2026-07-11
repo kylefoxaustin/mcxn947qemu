@@ -71,7 +71,9 @@ static inline uint32_t pq_div(uint32_t x1, uint32_t x2)
     return o;
 }
 
-static int checks_ok = 1;
+/* Zero-init (.bss) and seeded in cpu0_main: there is no startup .data copy, so
+ * an initialised writable global would read as zero.  See link.ld. */
+static int checks_ok;
 
 static void check(const char *name, uint32_t got, uint32_t want)
 {
@@ -95,6 +97,8 @@ static void check(const char *name, uint32_t got, uint32_t want)
 
 void cpu0_main(void)
 {
+    checks_ok = 1;
+
     LP_CTRL = CTRL_TE;
     puts_("PQCP test\r\n");
 

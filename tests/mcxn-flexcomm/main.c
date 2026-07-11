@@ -94,7 +94,9 @@ static void puts_(const char *s)
 }
 
 static volatile uint32_t spi_irq, i2c_irq;
-static volatile uint32_t spi_rx = 0xFFFF, i2c_rx = 0xFFFF;
+/* Zero-init (.bss) and seeded in cpu0_main: there is no startup .data copy, so
+ * an initialised writable global would read as zero.  See link.ld. */
+static volatile uint32_t spi_rx, i2c_rx;
 
 /* FlexComm3 shared IRQ — LPSPI transfer complete + RX data. */
 void fc3_handler(void)
@@ -155,6 +157,9 @@ static void i2c_test(void)
 
 void cpu0_main(void)
 {
+    spi_rx = 0xFFFF;
+    i2c_rx = 0xFFFF;
+
     LP_CTRL = CTRL_TE;
     puts_("FLEXCOMM test\r\n");
 
