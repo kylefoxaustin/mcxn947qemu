@@ -46,6 +46,17 @@ static void puts_(const char *s)
  * Application routine placed in the FlexSPI AHB window.  `noinline`/`used` keep
  * it a real out-of-line call (executed in place), and the loop is genuine work
  * the compiler cannot fold into the caller: sum of squares 1..n.
+ *
+ * The iteration count is load-bearing.  QEMU *can* fetch instructions from an
+ * MMIO region — it simply refuses to cache the translation block
+ * (accel/tcg/translator.c: "If the second page is MMIO ... we do not cache the
+ * TB"), so every instruction becomes a fresh translation and XIP runs ~100x
+ * slower.  The failure signature is therefore a WALL CLOCK, not a crash: with a
+ * ten-iteration loop this test would sail through a window that had regressed to
+ * memory_region_init_io() and never notice.  Millions of iterations make the
+ * difference impossible to miss, and run.sh enforces the time budget.
+ * (Mechanism established by rt1180emulator, who measured 116x on the same class
+ * of window; my own 10-iteration loop was blind to it.)
  */
 __attribute__((section(".xip"), noinline, used))
 static uint32_t xip_compute(uint32_t n)
@@ -68,9 +79,14 @@ void cpu0_main(void)
 
     /* Indirect call -> BLX to the absolute QSPI address: runs in place. */
     uint32_t (*volatile fp)(uint32_t) = xip_compute;
-    uint32_t r = fp(10);   /* sum of squares 1..10 = 385 */
+    uint32_t r = fp(3000000);   /* sum of squares 1..3e6, mod 2^32 */
 
-    puts_((in_xip && r == 385u) ? "XIP PASS\r\n" : "XIP FAIL\r\n");
+    puts_((in_xip && r == 0x9F726920u) ? "XIP PASS\r\n" : "XIP FAIL\r\n");
+
+    /* Exit so the harness can time the run: an XIP window that regressed to
+     * MMIO still prints PASS, just ~100x later, and only a wall clock sees it.
+     * AIRCR[SYSRESETREQ] with -no-reboot terminates QEMU. */
+    *(volatile uint32_t *)0xE000ED0Cu = 0x05FA0004u;
     for (;;) {
     }
 }
