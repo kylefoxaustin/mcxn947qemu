@@ -90,7 +90,7 @@ proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 | Networking — ENET (descriptor-ring MAC) | A | Zephyr stack: DHCP lease + TCP echo over a QEMU NIC (tests/mcxn-enet*) |
 | FlexCAN x2 | A | Loopback + board-to-board frame round-trip (tests/mcxn-can-link) |
 | I3C + EMVSIM (smartcard) | A | I3C master transfer + completion; EMVSIM smartcard transfer (tests/mcxn-i3c, mcxn-emvsim) |
-| Storage / XIP — uSDHC + FlexSPI NOR | A | ADMA block data; code runs in place from the XIP window (tests/mcxn-usdhc, mcxn-flexspi, mcxn-xip) |
+| Storage / XIP — uSDHC + FlexSPI NOR | A | uSDHC ADMA block data; FlexSPI drives a real SPI-NOR (LUT/IP commands: WREN + erase + page program, bits only 1->0) with a byte-exact erase -> program -> read-back round trip, and code runs in place from the same array via the XIP window, which refuses CPU stores (tests/mcxn-usdhc, mcxn-flexspi-nor, mcxn-xip) |
 | Timers / PWM — CTIMER, MRT, LPTMR, OSTIMER, SCT, eFlexPWM, RTC | A | Timer/PWM data paths + IRQs (tests/mcxn-ctimer, mcxn-timers, mcxn-ostimer, mcxn-sct, mcxn-pwm, mcxn-rtc) |
 | GPIO + eDMA | A | GPIO toggles; eDMA TCD transfers (tests/mcxn-gpio, mcxn-dma) |
 | PowerQuad DSP (matrix/vector + CP0 transcendentals) | A | Computes real results — matrix/vector ops + scalar sin/cos/ln/divide |

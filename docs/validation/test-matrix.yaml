@@ -32,7 +32,7 @@ connectivity:
   - {block: lpi2c,     present: true, driver_binds: true, class: functional, tested_by: [mcxn-flexcomm], result: pass}
   - {block: i3c,       present: true, driver_binds: true, class: functional, tested_by: [mcxn-i3c], result: pass}
   - {block: usdhc,     present: true, driver_binds: true, class: functional, tested_by: [mcxn-usdhc], result: pass}
-  - {block: flexspi,   present: true, driver_binds: true, class: functional, tested_by: [mcxn-flexspi, mcxn-xip], result: pass}
+  - {block: flexspi,   present: true, driver_binds: true, class: functional, tested_by: [mcxn-flexspi, mcxn-flexspi-nor, mcxn-xip], result: pass}
   - {block: sai,       present: true, driver_binds: true, class: functional, tested_by: [mcxn-sai], result: pass}
   - {block: emvsim,    present: true, driver_binds: true, class: functional, tested_by: [mcxn-emvsim], result: pass}
   - {block: mailbox,   present: true, driver_binds: true, class: functional, tested_by: [mcxn-mailbox, mcxn-dualcore], result: pass}
@@ -180,7 +180,7 @@ readme_groups:
     blocks: [i3c, emvsim]
   - label: "Storage / XIP — uSDHC + FlexSPI NOR"
     tier: A
-    evidence: "ADMA block data; code runs in place from the XIP window (tests/mcxn-usdhc, mcxn-flexspi, mcxn-xip)"
+    evidence: "uSDHC ADMA block data; FlexSPI drives a real SPI-NOR (LUT/IP commands: WREN + erase + page program, bits only 1->0) with a byte-exact erase -> program -> read-back round trip, and code runs in place from the same array via the XIP window, which refuses CPU stores (tests/mcxn-usdhc, mcxn-flexspi-nor, mcxn-xip)"
     blocks: [usdhc, flexspi]
   - label: "Timers / PWM — CTIMER, MRT, LPTMR, OSTIMER, SCT, eFlexPWM, RTC"
     tier: A
