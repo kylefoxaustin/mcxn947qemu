@@ -339,9 +339,18 @@ static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
     case FLEXSPI_AHBSPNDSTS:
         return 0;
     case FLEXSPI_IPRXFSTS:
-        /* FILL is in 64-bit entries. */
+        /*
+         * FILL counts 64-bit FIFO entries, and it must ROUND UP: a partially
+         * filled entry still holds readable bytes.  The stock SDK's small-read
+         * path spins on `size > FILL * 8` (fsl_flexspi.c, FLEXSPI_ReadBlocking),
+         * so rounding down reports FILL = 0 for anything under 8 bytes — a
+         * 3-byte JEDEC ID read then never satisfies the loop and the real driver
+         * hangs forever.  Model what the driver polls, not just what the RM
+         * lists.  (Found by rt1180emulator, who hit it porting a sibling's
+         * FlexSPI.)
+         */
         avail = s->rx_len - s->rx_pos;
-        return (avail / 8) & 0xFF;
+        return ((avail + 7) / 8) & 0xFF;
     case FLEXSPI_IPTXFSTS:
         return 0;
     default:

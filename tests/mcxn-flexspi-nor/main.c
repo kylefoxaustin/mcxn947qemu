@@ -34,15 +34,18 @@ static void putc_(char c){ while(!(LP_STAT&(1u<<23))){} LP_DATA=(uint8_t)c; }
 static void puts_(const char*s){ while(*s) putc_(*s++); }
 
 #define FSPI 0x400C8000u
-#define FSPI_INTR    (*(volatile uint32_t*)(FSPI+0x14))
-#define FSPI_IPCR0   (*(volatile uint32_t*)(FSPI+0xA0))
-#define FSPI_IPCR1   (*(volatile uint32_t*)(FSPI+0xA4))
-#define FSPI_IPCMD   (*(volatile uint32_t*)(FSPI+0xB0))
-#define FSPI_IPRXFCR (*(volatile uint32_t*)(FSPI+0xB8))
-#define FSPI_IPTXFCR (*(volatile uint32_t*)(FSPI+0xBC))
-#define FSPI_RFDR(i) (*(volatile uint32_t*)(FSPI+0x100+(i)*4))
-#define FSPI_TFDR(i) (*(volatile uint32_t*)(FSPI+0x180+(i)*4))
-#define FSPI_LUT(i)  (*(volatile uint32_t*)(FSPI+0x200+(i)*4))
+#define FSPI_INTR     (*(volatile uint32_t*)(FSPI+0x14))
+#define FSPI_IPCR0    (*(volatile uint32_t*)(FSPI+0xA0))
+#define FSPI_IPCR1    (*(volatile uint32_t*)(FSPI+0xA4))
+#define FSPI_IPCMD    (*(volatile uint32_t*)(FSPI+0xB0))
+#define FSPI_IPRXFCR  (*(volatile uint32_t*)(FSPI+0xB8))
+#define FSPI_IPTXFCR  (*(volatile uint32_t*)(FSPI+0xBC))
+#define FSPI_IPRXFSTS (*(volatile uint32_t*)(FSPI+0xF0))
+#define FSPI_RFDR(i)  (*(volatile uint32_t*)(FSPI+0x100+(i)*4))
+#define FSPI_TFDR(i)  (*(volatile uint32_t*)(FSPI+0x180+(i)*4))
+#define FSPI_LUT(i)   (*(volatile uint32_t*)(FSPI+0x200+(i)*4))
+
+#define IPRXFSTS_FILL(v) ((v) & 0xFF)
 
 #define INTR_IPCMDDONE (1u << 0)
 #define INTR_IPCMDERR  (1u << 3)
@@ -92,6 +95,35 @@ static int ip_wait(void)
     return !(FSPI_INTR & INTR_IPCMDERR);
 }
 
+/*
+ * Drain a read the way the stock MCUXpresso driver does.  fsl_flexspi's
+ * FLEXSPI_ReadBlocking() takes one of two paths, and a small read (below the RX
+ * watermark) spins on the FIFO fill level:
+ *
+ *     while (size > ((IPRXFSTS & FILL_MASK) >> FILL_SHIFT) * 8U)
+ *
+ * FILL counts 64-bit entries, so it has to ROUND UP — a 3-byte JEDEC ID lives in
+ * one partially-filled entry.  A model that rounds down reports FILL = 0 and the
+ * real driver hangs here forever.  Polling it exactly as the driver does is the
+ * point: reading RFDR blindly would pass against a model that can't run the
+ * actual SDK.
+ */
+static int ip_drain(uint32_t *dst, uint32_t nwords)
+{
+    uint32_t size = nwords * 4;
+    uint32_t spins = 0;
+
+    while (size > IPRXFSTS_FILL(FSPI_IPRXFSTS) * 8u) {
+        if (++spins > 100000u) {
+            return 0;          /* the driver would have hung here */
+        }
+    }
+    for (uint32_t i = 0; i < nwords; i++) {
+        dst[i] = FSPI_RFDR(i);
+    }
+    return 1;
+}
+
 static int nor_wren(void)
 {
     ip_run(SEQ_WREN, 0, 0);
@@ -106,7 +138,7 @@ void cpu0_main(void)
     /* Asks for 1-bits where pat has 0-bits: a NOR cannot set them back. */
     static const uint32_t pat2[4] =
         { 0xFFFFFFFFu, 0xF0F0F0F0u, 0xFFFFFFFFu, 0xFFFFFFFFu };
-    uint32_t id;
+    uint32_t id, back[4];
     int ok = 1;
 
     LP_CTRL = (1u << 19);
@@ -126,11 +158,13 @@ void cpu0_main(void)
 
     FSPI_LUT(SEQ_RDID * 4) = LUT_SEQ(OP_CMD, PAD1, 0x9F, OP_READ, PAD1, 0x04);
 
-    /* --- NEG2: the IP path must actually reach a NOR --------------------- */
+    /* --- NEG2: the IP path must reach a NOR, drained as the SDK drains it -- */
     ip_run(SEQ_RDID, 0, 3);
     ok &= ip_wait();
-    id = FSPI_RFDR(0) & 0xFFFFFFu;
-    ok &= (id == 0x1740EFu);            /* EF 40 17, little-endian in the FIFO */
+    /* A 3-byte read is the small-read path: the driver spins on IPRXFSTS[FILL],
+     * which must round up to 1 entry.  If it rounds down, this never returns. */
+    ok &= ip_drain(&id, 1);
+    ok &= ((id & 0xFFFFFFu) == 0x1740EFu);   /* EF 40 17, LE in the FIFO */
 
     /* --- erase the test sector ------------------------------------------- */
     ok &= nor_wren();
@@ -154,11 +188,12 @@ void cpu0_main(void)
     }
     ok &= ip_wait();
 
-    /* read back through the IP path... */
+    /* read back through the IP path, polling the fill level like the driver... */
     ip_run(SEQ_READ, TEST_OFF, sizeof(pat));
     ok &= ip_wait();
+    ok &= ip_drain(back, 4);
     for (int i = 0; i < 4; i++) {
-        ok &= (FSPI_RFDR(i) == pat[i]);
+        ok &= (back[i] == pat[i]);
     }
     /* ...and through the AHB/XIP window: the same array, so XIP sees it too. */
     for (int i = 0; i < 4; i++) {
