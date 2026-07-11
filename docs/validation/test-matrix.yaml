@@ -63,7 +63,7 @@ analog:
   - {block: opamp, present: true, driver_binds: false, class: register-only,   tested_by: [boot, corpus], result: pass}
   - {block: vref,  present: true, driver_binds: false, class: register-only,   tested_by: [boot, corpus], result: pass}
   - {block: pdm,   present: true, driver_binds: false, class: register-only,   tested_by: [boot, corpus], result: pass}
-  - {block: sinc,  present: true, driver_binds: false, class: register-only,   tested_by: [boot, corpus], result: pass}
+  - {block: sinc,  present: true, driver_binds: true,  class: functional,      tested_by: [mcxn-sinc], result: pass}
 
 gpio_dma_irq:
   - {block: gpio,     present: true, driver_binds: true,  class: functional,    tested_by: [mcxn-gpio], result: pass}
@@ -194,10 +194,14 @@ readme_groups:
     tier: A
     evidence: "Computes real results — matrix/vector ops + scalar sin/cos/ln/divide"
     blocks: [powerquad]
-  - label: "Audio out — SAI + DAC"
+  - label: "Audio out — SAI + DAC output FIFO"
     tier: A
-    evidence: "SAI FIFO data path; DAC accepts eDMA halfword samples (tests/mcxn-sai)"
+    evidence: "SAI FIFO data path; DAC drives a real output FIFO — occupancy, FULL/EMPTY/watermark, overflow drops the sample, underflow holds the output, and a level IRQ deasserts on refill (tests/mcxn-sai, mcxn-dac)"
     blocks: [sai, dac]
+  - label: "SINC sigma-delta filter (computes)"
+    tier: A
+    evidence: "Real CIC: the RM's H(z) = ((1-z^-OSR)/(1-z^-1))^ORD decimates a register-fed (PM/SM) modulator bitstream to a 24-bit result, checked against the filter maths (tests/mcxn-sinc)"
+    blocks: [sinc]
   - label: "Flash program — FMU (storage-write-verified)"
     tier: A
     evidence: "Byte-exact erase -> program -> read-back round-trip driven through the RM PEWEN/PERDY sequence; flash is a ROM device, so stores outside a program window are refused and cumulative programming fails verify (tests/mcxn-fmu)"
@@ -214,10 +218,10 @@ readme_groups:
     tier: B
     evidence: "Handshake acked (no hang); proprietary-microcode result flagged uncomputed via QMP"
     blocks: [neutron-npu, smartdma, powerquad-fixedpt]
-  - label: "Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM, SINC"
+  - label: "Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM"
     tier: B
-    evidence: "Register-accurate; analog inputs operator-driven via QOM property (no silent-wrong); eDMA byte-access"
-    blocks: [adc, cmp, tsi, opamp, vref, pdm, sinc]
+    evidence: "Register-accurate; analog inputs operator-driven via QOM property. PDM has no bitstream source in emulation and says so: it produces NO samples and flags FIFO underflow rather than fabricating silence firmware cannot tell from real audio"
+    blocks: [adc, cmp, tsi, opamp, vref, pdm]
   - label: "Pin / IRQ / GPIO infra — PORT, INPUTMUX, PINT, INTM, EVTG, FLEXIO, QDC, PLU"
     tier: B
     evidence: "Drivers bind; pin-mux / IRQ routing registers correct (sub-word MMIO)"

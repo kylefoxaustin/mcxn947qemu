@@ -23,6 +23,8 @@
 #include "hw/timer/mcxn_ostimer.h"
 #include "hw/dma/mcxn_edma.h"
 #include "hw/misc/mcxn_fmu.h"
+#include "hw/misc/mcxn_sinc.h"
+#include "hw/misc/mcxn_pdm.h"
 #include "hw/misc/mcxn_adc.h"
 #include "hw/misc/mcxn_cmp.h"
 #include "hw/misc/mcxn_tsi.h"
@@ -123,6 +125,8 @@ struct MCXNState {
     MCXNFlexSPIState flexspi0;                     /* FlexSPI (ext flash ctrl) */
     MCXNSAIState    sai[MCXN_NUM_SAI];             /* SAI0..1 (audio) */
     MCXNDACState    dac[MCXN_NUM_DAC];             /* DAC0..2 */
+    MCXNSINCState   sinc0;                        /* SINC sigma-delta filter */
+    MCXNPDMState    pdm0;                         /* PDM / MICFIL (digital mic) */
     MCXNPowerQuadState powerquad0;                 /* PowerQuad DSP coproc */
     MCXNPWMState    pwm[MCXN_NUM_PWM];             /* eFlexPWM0..1 */
     MCXNSCTState    sct0;                          /* SCTimer/PWM */
@@ -167,6 +171,8 @@ struct MCXNState {
     MemoryRegion flexspi0_nor_s_alias;             /* secure alias of FlexSPI NOR (XIP) */
     MemoryRegion sai_s_alias[MCXN_NUM_SAI];        /* secure aliases of SAI0..1 */
     MemoryRegion dac_s_alias[MCXN_NUM_DAC];        /* secure aliases of DAC0..2 */
+    MemoryRegion sinc0_s_alias;                    /* secure alias of SINC */
+    MemoryRegion pdm0_s_alias;                     /* secure alias of PDM */
     MemoryRegion powerquad0_s_alias;               /* secure alias of PowerQuad */
     MemoryRegion pwm_s_alias[MCXN_NUM_PWM];        /* secure aliases of PWM0..1 */
     MemoryRegion sct0_s_alias;                     /* secure alias of SCT */

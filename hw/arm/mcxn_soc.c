@@ -226,9 +226,7 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_PUF,      0x4002C000 },
     { TYPE_MCXN_PKC,      0x4002B000 },
     { TYPE_MCXN_TRDC,     0x400C7000 },
-    /* Analog/audio: SINC, PDM.  (DAC0..2 + EMVSIM0/1 below — IRQs wired.) */
-    { TYPE_MCXN_SINC,     0x40108000 },
-    { TYPE_MCXN_PDM,      0x4010C000 },
+    /* (Analog/audio: SINC + PDM + DAC0..2 + EMVSIM0/1 below — IRQs wired.) */
     /* Comm/serial: FlexIO.  (I3C0/1 instantiated below — IRQs wired.) */
     { TYPE_MCXN_FLEXIO,   0x40105000 },
     /* Connectivity: FlexCAN0/1 and ENET instantiated below (IRQs wired). */
@@ -295,6 +293,8 @@ static void mcxn_soc_instance_init(Object *obj)
         object_initialize_child(obj, name, &s->lptmr[i], TYPE_MCXN_LPTMR);
     }
     object_initialize_child(obj, "fmu0", &s->fmu0, TYPE_MCXN_FMU);
+    object_initialize_child(obj, "sinc0", &s->sinc0, TYPE_MCXN_SINC);
+    object_initialize_child(obj, "pdm0", &s->pdm0, TYPE_MCXN_PDM);
     object_initialize_child(obj, "ostimer0", &s->ostimer0, TYPE_MCXN_OSTIMER);
     for (i = 0; i < MCXN_NUM_EDMA; i++) {
         g_autofree char *name = g_strdup_printf("edma%d", i);
@@ -920,6 +920,9 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                   { 0x40114000, 108 } };
         g_autofree char *aname = g_strdup_printf("mcxn.dac%d.s", i);
 
+        /* DAC2 is the HPDAC: 14-bit samples and a 32-deep FIFO, where DAC0/1
+         * are 12-bit with a 16-deep one. */
+        qdev_prop_set_bit(DEVICE(&s->dac[i]), "hpdac", i == 2);
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->dac[i]), errp)) {
             return;
         }
@@ -933,6 +936,32 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      dac_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->dac_s_alias[i]);
     }
+
+    /* SINC sigma-delta filter: conversion-complete / FIFO-watermark interrupt
+     * to cpu0 NVIC (SINC_FILTER_IRQn = 142). */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->sinc0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->sinc0), 0, 0x40108000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->sinc0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 142));
+    memory_region_init_alias(&s->sinc0_s_alias, OBJECT(dev), "mcxn.sinc0.s",
+                             &s->sinc0.iomem, 0, MCXN_SINC_SIZE);
+    memory_region_add_subregion(system_memory, 0x40108000 + MCXN_SECURE_ALIAS,
+                                &s->sinc0_s_alias);
+
+    /* PDM / MICFIL (digital microphone): FIFO/error interrupt to cpu0 NVIC
+     * (PDM_EVENT_IRQn = 48). */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->pdm0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->pdm0), 0, 0x4010C000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->pdm0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 48));
+    memory_region_init_alias(&s->pdm0_s_alias, OBJECT(dev), "mcxn.pdm0.s",
+                             &s->pdm0.iomem, 0, MCXN_PDM_SIZE);
+    memory_region_add_subregion(system_memory, 0x4010C000 + MCXN_SECURE_ALIAS,
+                                &s->pdm0_s_alias);
 
     /* PowerQuad (DSP coprocessor): compute-complete interrupt to cpu0 NVIC. */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->powerquad0), errp)) {

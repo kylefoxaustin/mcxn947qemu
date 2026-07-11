@@ -1,18 +1,14 @@
 /*
- * NXP MCX N DAC (12-bit DAC with output FIFO) — bring-up model.
- *
- * One shared type for DAC0/DAC1 (LPDAC) and DAC2 (HPDAC): all three expose an
- * identical register map.  The data path is simplified to "no real analog":
- * DATA writes are accepted (and remembered as the modelled output) and the FIFO
- * status (FSR) reports a ready/empty FIFO so firmware that polls for room never
- * spins.  Bit masks and offsets taken verbatim from the MCXN947 CMSIS header
- * (LPDAC_Type / HPDAC_Type).
+ * NXP MCX N DAC (LPDAC 12-bit / HPDAC 14-bit) — functional output-FIFO model.
+ * See header for the data path and the silent-wrong-answers it exists to kill.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "qemu/osdep.h"
+#include "qemu/log.h"
 #include "hw/misc/mcxn_dac.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 
 /* --- Register offsets ------------------------------------------------------ */
@@ -22,69 +18,149 @@
 #define DAC_GCR     0x0C
 #define DAC_FCR     0x10
 #define DAC_FPR     0x14  /* RO */
-#define DAC_FSR     0x18  /* W1C status bits */
+#define DAC_FSR     0x18  /* status; OF/UF/SWBK/PTGCOCO are W1C */
 #define DAC_IER     0x1C
 #define DAC_DER     0x20
 #define DAC_RCR     0x24
 #define DAC_TCR     0x28  /* WO */
 #define DAC_PCR     0x2C
 
-/* --- FSR (FIFO Status) bit masks (CMSIS) ----------------------------------- */
-#define FSR_FULL    0x00000001u
-#define FSR_EMPTY   0x00000002u
-#define FSR_WM      0x00000004u  /* watermark: room available */
-#define FSR_SWBK    0x00000008u
-#define FSR_OF      0x00000040u  /* overflow, W1C */
-#define FSR_UF      0x00000080u  /* underflow, W1C */
+/* --- GCR ------------------------------------------------------------------- */
+#define GCR_DACEN   (1u << 0)
+#define GCR_FIFOEN  (1u << 3)
+#define GCR_SWMD    (1u << 4)
+#define GCR_PTGEN   (1u << 6)
 
-#define FSR_W1C_MASK   (FSR_OF | FSR_UF)
+/* --- FSR (CMSIS LPDAC_FSR_*) ----------------------------------------------- */
+#define FSR_FULL    (1u << 0)
+#define FSR_EMPTY   (1u << 1)
+#define FSR_WM      (1u << 2)   /* occupancy <= FCR[WML] */
+#define FSR_SWBK    (1u << 3)
+#define FSR_OF      (1u << 6)   /* overflow,  W1C */
+#define FSR_UF      (1u << 7)   /* underflow, W1C */
+#define FSR_PTGCOCO (1u << 8)   /* periodic-trigger queue complete, W1C */
 
-/*
- * VERID/PARAM are read by some HALs to size the FIFO.  Values are plausible
- * MCX-class constants; refine against the RM if a HAL depends on them.
- */
-#define DAC_VERID_VALUE  0x01000000u
-#define DAC_PARAM_VALUE  0x00000004u  /* FIFOSZ field */
+/* FULL/EMPTY/WM are computed from occupancy; the rest latch until cleared. */
+#define FSR_W1C_MASK (FSR_SWBK | FSR_OF | FSR_UF | FSR_PTGCOCO)
 
-/*
- * IER (0x1C) interrupt-enable bits align one-to-one with the FSR flags
- * (FULL_IE@0, EMPTY_IE@1, WM_IE@2, ..., OF_IE@6, UF_IE@7).  The FIFO is always
- * drained, so EMPTY and WM (room available) are effectively asserted; plus any
- * latched overflow/underflow.  An interrupt is requested when an effective
- * flag and its enable are both set.
- */
-static void mcxn_dac_update_irq(MCXNDACState *s)
+/* --- RCR / TCR ------------------------------------------------------------- */
+#define RCR_SWRST   (1u << 0)
+#define RCR_FIFORST (1u << 1)
+#define TCR_SWTRG   (1u << 0)
+
+#define DAC_VERID_VALUE 0x01000000u
+
+static uint32_t dac_depth(MCXNDACState *s)
 {
-    uint32_t fsr = (s->regs[DAC_FSR / 4] & FSR_W1C_MASK) | FSR_EMPTY | FSR_WM;
-    uint32_t ier = s->regs[DAC_IER / 4];
+    return s->hpdac ? 32 : 16;
+}
 
-    qemu_set_irq(s->irq, (fsr & ier) != 0);
+static uint32_t dac_data_mask(MCXNDACState *s)
+{
+    return s->hpdac ? 0x3FFFu : 0x0FFFu;   /* 14-bit HPDAC / 12-bit LPDAC */
+}
+
+/* PARAM[FIFOSZ]: depth = 2^(FIFOSZ+1) (RM §42.7.1.2). */
+static uint32_t dac_param(MCXNDACState *s)
+{
+    return s->hpdac ? 4u : 3u;
+}
+
+/* FSR is mostly computed: only the latched flags live in regs[]. */
+static uint32_t dac_fsr(MCXNDACState *s)
+{
+    uint32_t fsr = s->regs[DAC_FSR / 4] & FSR_W1C_MASK;
+    uint32_t wml = s->regs[DAC_FCR / 4] &
+                   (s->hpdac ? 0x1Fu : 0x0Fu);
+
+    if (s->count == 0) {
+        fsr |= FSR_EMPTY;
+    }
+    if (s->count >= dac_depth(s)) {
+        fsr |= FSR_FULL;
+    }
+    if (s->count <= wml) {
+        fsr |= FSR_WM;
+    }
+    return fsr;
+}
+
+static void dac_update_irq(MCXNDACState *s)
+{
+    /* IER's bits line up one-to-one with the FSR flags. */
+    qemu_set_irq(s->irq, (dac_fsr(s) & s->regs[DAC_IER / 4]) != 0);
+}
+
+static void dac_fifo_reset(MCXNDACState *s)
+{
+    s->wptr = s->rptr = s->count = 0;
+    s->regs[DAC_FSR / 4] &= ~FSR_W1C_MASK;
+}
+
+/* A DATA write: push a sample (or, with the FIFO off, drive the output). */
+static void dac_push(MCXNDACState *s, uint32_t value)
+{
+    uint32_t v = value & dac_data_mask(s);
+
+    if (!(s->regs[DAC_GCR / 4] & GCR_FIFOEN)) {
+        s->out = v;          /* buffer mode: DATA goes straight to the output */
+        return;
+    }
+
+    if (s->count >= dac_depth(s)) {
+        /* Full: the sample is dropped and the write pointer does NOT advance
+         * (RM §42.3.4).  Saying "accepted" here is how a 64-sample burst into a
+         * 16-deep FIFO looks perfect in emulation and clips on the bench. */
+        s->regs[DAC_FSR / 4] |= FSR_OF;
+        dac_update_irq(s);
+        return;
+    }
+
+    s->fifo[s->wptr] = v;
+    s->wptr = (s->wptr + 1) % dac_depth(s);
+    s->count++;
+    dac_update_irq(s);
+}
+
+/* A trigger: pop one sample to the output. */
+static void dac_trigger(MCXNDACState *s)
+{
+    if (!(s->regs[DAC_GCR / 4] & GCR_DACEN)) {
+        return;
+    }
+    if (!(s->regs[DAC_GCR / 4] & GCR_FIFOEN)) {
+        return;              /* buffer mode converts on the DATA write */
+    }
+
+    if (s->count == 0) {
+        /* Underflow: the analog output holds its last value (RM §42.3.4). */
+        s->regs[DAC_FSR / 4] |= FSR_UF;
+        dac_update_irq(s);
+        return;
+    }
+
+    s->out = s->fifo[s->rptr];
+    s->rptr = (s->rptr + 1) % dac_depth(s);
+    s->count--;
+    dac_update_irq(s);
 }
 
 static uint64_t mcxn_dac_read(void *opaque, hwaddr offset, unsigned size)
 {
     MCXNDACState *s = MCXN_DAC(opaque);
-    uint32_t r;
 
     switch (offset) {
     case DAC_VERID:
         return DAC_VERID_VALUE;
     case DAC_PARAM:
-        return DAC_PARAM_VALUE;
+        return dac_param(s);
     case DAC_DATA:
     case DAC_TCR:
-        return 0;  /* write-only */
+        return 0;            /* write-only */
     case DAC_FPR:
-        return 0;  /* FIFO pointers: empty FIFO */
+        return (s->wptr << 16) | s->rptr;
     case DAC_FSR:
-        /*
-         * No real analog: the FIFO is always drained.  Report EMPTY and
-         * watermark (room available) so writers are accepted and never full.
-         * Preserve any latched (W1C) overflow/underflow flags software set.
-         */
-        r = s->regs[DAC_FSR / 4] & FSR_W1C_MASK;
-        r |= FSR_EMPTY | FSR_WM;
-        return r;
+        return dac_fsr(s);
     default:
         return s->regs[offset / 4];
     }
@@ -94,25 +170,66 @@ static void mcxn_dac_write(void *opaque, hwaddr offset, uint64_t value,
                            unsigned size)
 {
     MCXNDACState *s = MCXN_DAC(opaque);
+    uint32_t v = value;
 
     switch (offset) {
     case DAC_VERID:
     case DAC_PARAM:
     case DAC_FPR:
-        return;  /* read-only */
+        return;              /* read-only */
+
     case DAC_DATA:
-        /* Accept the sample: this is the modelled DAC output. */
-        s->data = value & 0xFFFFu;
+        dac_push(s, v);
         return;
+
+    case DAC_TCR:
+        if (v & TCR_SWTRG) {
+            dac_trigger(s);
+        }
+        return;
+
     case DAC_FSR:
-        /* W1C overflow/underflow; other bits are status (ignore writes). */
-        s->regs[DAC_FSR / 4] &= ~(value & FSR_W1C_MASK);
-        mcxn_dac_update_irq(s);
+        s->regs[DAC_FSR / 4] &= ~(v & FSR_W1C_MASK);
+        dac_update_irq(s);
         return;
+
     case DAC_IER:
-        s->regs[DAC_IER / 4] = value;
-        mcxn_dac_update_irq(s);
+        s->regs[DAC_IER / 4] = v;
+        dac_update_irq(s);
         return;
+
+    case DAC_RCR:
+        if (v & RCR_SWRST) {
+            /* Full reset: registers, FIFO and the held output. */
+            memset(s->regs, 0, sizeof(s->regs));
+            dac_fifo_reset(s);
+            s->out = 0;
+        } else if (v & RCR_FIFORST) {
+            /* FIFO only: pointers and the FIFO status flags. */
+            dac_fifo_reset(s);
+        }
+        s->regs[DAC_RCR / 4] = 0;   /* both bits self-clear */
+        dac_update_irq(s);
+        return;
+
+    case DAC_GCR:
+        s->regs[DAC_GCR / 4] = v;
+        if ((v & GCR_PTGEN) && !s->warned_ptg) {
+            s->warned_ptg = true;
+            qemu_log_mask(LOG_UNIMP,
+                "mcxn-dac: GCR[PTGEN] periodic-trigger mode is not modelled; "
+                "no internal triggers will be generated and FSR[PTGCOCO] will "
+                "not set.  Drive the FIFO with TCR[SWTRG] instead.\n");
+        }
+        if ((v & GCR_SWMD) && !s->warned_swmd) {
+            s->warned_swmd = true;
+            qemu_log_mask(LOG_UNIMP,
+                "mcxn-dac: GCR[SWMD] swing-back mode is not modelled; the read "
+                "pointer will not oscillate and FSR[SWBK] will not set.\n");
+        }
+        dac_update_irq(s);
+        return;
+
     default: {
         /*
          * Merge sub-word writes into the 32-bit register instead of
@@ -125,6 +242,7 @@ static void mcxn_dac_write(void *opaque, hwaddr offset, uint64_t value,
                                     : (((1u << (size * 8)) - 1) << shift);
         s->regs[idx] = (s->regs[idx] & ~mask) |
                        ((uint32_t)(value << shift) & mask);
+        dac_update_irq(s);
         return;
     }
     }
@@ -138,8 +256,8 @@ static const MemoryRegionOps mcxn_dac_ops = {
      * Accept 1/2/4-byte access: a DAC output driven over eDMA bursts 12-bit
      * samples to DATA as halfwords, and a 4-byte-only window would silently
      * drop them (fleet eDMA byte-access lesson).  impl.min=1 routes each access
-     * straight to the handler (DATA already masks `value`; the default merges
-     * sub-word, so no config register is corrupted).
+     * straight to the handler (DATA masks `value`; the default merges sub-word,
+     * so no config register is corrupted).
      */
     .valid.min_access_size = 1,
     .valid.max_access_size = 4,
@@ -152,7 +270,11 @@ static void mcxn_dac_reset(DeviceState *dev)
     MCXNDACState *s = MCXN_DAC(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
-    s->data = 0;
+    memset(s->fifo, 0, sizeof(s->fifo));
+    dac_fifo_reset(s);
+    s->out = 0;
+    s->warned_ptg = false;
+    s->warned_swmd = false;
     qemu_set_irq(s->irq, 0);
 }
 
@@ -166,13 +288,22 @@ static void mcxn_dac_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
 
+static const Property mcxn_dac_properties[] = {
+    /* DAC2 is the high-performance part: 14-bit samples, 32-deep FIFO. */
+    DEFINE_PROP_BOOL("hpdac", MCXNDACState, hpdac, false),
+};
+
 static const VMStateDescription vmstate_mcxn_dac = {
     .name = TYPE_MCXN_DAC,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNDACState, MCXN_DAC_SIZE / 4),
-        VMSTATE_UINT32(data, MCXNDACState),
+        VMSTATE_UINT16_ARRAY(fifo, MCXNDACState, MCXN_DAC_FIFO_MAX),
+        VMSTATE_UINT32(wptr, MCXNDACState),
+        VMSTATE_UINT32(rptr, MCXNDACState),
+        VMSTATE_UINT32(count, MCXNDACState),
+        VMSTATE_UINT32(out, MCXNDACState),
         VMSTATE_END_OF_LIST()
     },
 };
@@ -184,6 +315,7 @@ static void mcxn_dac_class_init(ObjectClass *klass, const void *data)
     dc->realize = mcxn_dac_realize;
     device_class_set_legacy_reset(dc, mcxn_dac_reset);
     dc->vmsd = &vmstate_mcxn_dac;
+    device_class_set_props(dc, mcxn_dac_properties);
 }
 
 static const TypeInfo mcxn_dac_types[] = {

@@ -94,12 +94,13 @@ proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 | Timers / PWM — CTIMER, MRT, LPTMR, OSTIMER, SCT, eFlexPWM, RTC | A | Timer/PWM data paths + IRQs (tests/mcxn-ctimer, mcxn-timers, mcxn-ostimer, mcxn-sct, mcxn-pwm, mcxn-rtc) |
 | GPIO + eDMA | A | GPIO toggles; eDMA TCD transfers (tests/mcxn-gpio, mcxn-dma) |
 | PowerQuad DSP (matrix/vector + CP0 transcendentals) | A | Computes real results — matrix/vector ops + scalar sin/cos/ln/divide |
-| Audio out — SAI + DAC | A | SAI FIFO data path; DAC accepts eDMA halfword samples (tests/mcxn-sai) |
+| Audio out — SAI + DAC output FIFO | A | SAI FIFO data path; DAC drives a real output FIFO — occupancy, FULL/EMPTY/watermark, overflow drops the sample, underflow holds the output, and a level IRQ deasserts on refill (tests/mcxn-sai, mcxn-dac) |
+| SINC sigma-delta filter (computes) | A | Real CIC: the RM's H(z) = ((1-z^-OSR)/(1-z^-1))^ORD decimates a register-fed (PM/SM) modulator bitstream to a 24-bit result, checked against the filter maths (tests/mcxn-sinc) |
 | Flash program — FMU (storage-write-verified) | A | Byte-exact erase -> program -> read-back round-trip driven through the RM PEWEN/PERDY sequence; flash is a ROM device, so stores outside a program window are refused and cumulative programming fails verify (tests/mcxn-fmu) |
 | Security — ELS (crypto + TRNG) | A | ELS TRNG entropy drives Zephyr stack_random (ztest userspace path) |
 | Watchdogs + micro-tick — WWDT, EWM, UTICK | B | Register-accurate; reset/refresh/timeout semantics |
 | Accelerators (honest) — Neutron NPU, SmartDMA, PowerQuad fixed-point | B | Handshake acked (no hang); proprietary-microcode result flagged uncomputed via QMP |
-| Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM, SINC | B | Register-accurate; analog inputs operator-driven via QOM property (no silent-wrong); eDMA byte-access |
+| Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM | B | Register-accurate; analog inputs operator-driven via QOM property. PDM has no bitstream source in emulation and says so: it produces NO samples and flags FIFO underflow rather than fabricating silence firmware cannot tell from real audio |
 | Pin / IRQ / GPIO infra — PORT, INPUTMUX, PINT, INTM, EVTG, FLEXIO, QDC, PLU | B | Drivers bind; pin-mux / IRQ routing registers correct (sub-word MMIO) |
 | Memory / cache / CRC — CACHE64, NPX, CRC, SEMA42, OTPC | B | Register-accurate; CRC compute, cache/ID/fuse config |
 | Clocks / power / system — SCG, SYSCON, SPC, CMC, VBAT, WUU, FREQME, AHBSC | B | Clock/power config; firmware programs directly (no System Manager) |
@@ -233,11 +234,19 @@ The `tests/*/run.sh` scripts build their firmware with `arm-none-eabi-gcc` and t
 
 ## Known limitations
 
-- **DAC / PDM / SINC are 4-byte-only MMIO** — an eDMA byte/halfword burst to their
-  data registers is currently rejected, and their generic write default would
-  corrupt a config register on a sub-word write, so relaxing them needs a
-  sub-word-merge + a DMA test first (fixed already for FlexComm; tracked in
-  `PERIPHERALS.md`). A gap only for a driver that DMAs those blocks byte-wise.
+- **PDM/MICFIL has no microphone** — a PDM bitstream has no source in emulation and,
+  unlike the SINC, the RM gives MICFIL no register-fed input. The model therefore
+  produces **no samples at all** and flags `FIFO_STAT[FIFOUNDn]` on a read, rather
+  than handing back an endless zero-stream firmware could not tell apart from real
+  audio. Enabling it logs `LOG_UNIMP`. Driving it from an operator-supplied PCM
+  source is roadmap; the FIFO/watermark/IRQ machinery is already in place.
+- **DAC periodic-trigger (`GCR[PTGEN]`) and swing-back (`GCR[SWMD]`) are not
+  modelled** — enabling either logs `LOG_UNIMP`; drive the FIFO with `TCR[SWTRG]`.
+  Everything else about the DAC (occupancy, FULL/EMPTY/watermark, overflow drop,
+  underflow hold, read/write pointers) is real.
+- **SINC's external modulator pins (MBIT/INP) have no source** — selecting them logs
+  `LOG_UNIMP` and yields no samples. The RM's register-fed **PM/SM** modes
+  (`CnCFR[IBFMT] = 10b/11b`) drive the real CIC, and are what the model computes with.
 - **Neutron NPU / SmartDMA run proprietary microcode that is not modelled** — the
   control handshake completes (firmware never hangs) but the result is flagged
   *uncomputed* via QMP, never silently fabricated.
