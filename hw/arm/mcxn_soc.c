@@ -964,6 +964,13 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->dac[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             dac_cfg[i].irq));
+
+        /* DMA request line into DMA0: DAC0/1/2 are request-mux sources 25/26/27
+         * (CMSIS dma_request_source_t).  A stock DAC driver streams a waveform
+         * by letting the FIFO watermark ask the eDMA for the next samples. */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->dac[i]), 1,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_DAC0_FIFO + i));
         memory_region_init_alias(&s->dac_s_alias[i], OBJECT(dev), aname,
                                  &s->dac[i].iomem, 0, MCXN_DAC_SIZE);
         memory_region_add_subregion(system_memory,

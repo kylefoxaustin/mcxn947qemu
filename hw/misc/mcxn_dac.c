@@ -10,6 +10,8 @@
 #include "hw/core/irq.h"
 #include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
+#include "qapi/visitor.h"
+#include "qom/object.h"
 
 /* --- Register offsets ------------------------------------------------------ */
 #define DAC_VERID   0x00  /* RO */
@@ -85,10 +87,33 @@ static uint32_t dac_fsr(MCXNDACState *s)
     return fsr;
 }
 
+/* LPDAC_DER (CMSIS): the DMA-enable bits, which line up with the FSR flags. */
+#define DER_EMPTY_DMAEN  (1u << 1)   /* LPDAC_DER_EMPTY_DMAEN_MASK */
+#define DER_WM_DMAEN     (1u << 2)   /* LPDAC_DER_WM_DMAEN_MASK    */
+
 static void dac_update_irq(MCXNDACState *s)
 {
+    uint32_t fsr = dac_fsr(s);
+    uint32_t der = s->regs[DAC_DER / 4];
+    bool req;
+
     /* IER's bits line up one-to-one with the FSR flags. */
-    qemu_set_irq(s->irq, (dac_fsr(s) & s->regs[DAC_IER / 4]) != 0);
+    qemu_set_irq(s->irq, (fsr & s->regs[DAC_IER / 4]) != 0);
+
+    /*
+     * THE DMA REQUEST LINE (mux source 25/26/27).  The FIFO asks the eDMA for
+     * more samples when it has drained to the watermark (or gone empty) and the
+     * matching DER bit is set — this is how a stock DAC driver streams a
+     * waveform.  Without it, ERQ was a dead bit and DMA-driven DAC output could
+     * not run at all.  Level-driven and edge-suppressed: a qemu_irq handler runs
+     * on every qemu_set_irq call, and the eDMA re-enters us as it fills.
+     */
+    req = ((fsr & FSR_WM)    && (der & DER_WM_DMAEN)) ||
+          ((fsr & FSR_EMPTY) && (der & DER_EMPTY_DMAEN));
+    if (req != s->dma_req_level) {
+        s->dma_req_level = req;
+        qemu_set_irq(s->dma_req, req);
+    }
 }
 
 static void dac_fifo_reset(MCXNDACState *s)
@@ -198,6 +223,17 @@ static void mcxn_dac_write(void *opaque, hwaddr offset, uint64_t value,
         dac_update_irq(s);
         return;
 
+    case DAC_DER:
+    case DAC_FCR:
+        /* Arming a DMA enable, or moving the watermark, changes whether the
+         * FIFO is asking the eDMA for samples — so the request line has to be
+         * re-evaluated here.  These used to fall through to a plain store, and
+         * a driver that armed DER last (as a stock driver does) would never
+         * raise a request at all. */
+        s->regs[offset / 4] = v;
+        dac_update_irq(s);
+        return;
+
     case DAC_RCR:
         if (v & RCR_SWRST) {
             /* Full reset: registers, FIFO and the held output. */
@@ -278,6 +314,28 @@ static void mcxn_dac_reset(DeviceState *dev)
     qemu_set_irq(s->irq, 0);
 }
 
+/*
+ * The analog output pin, exposed to the OPERATOR (QMP qom-get), because that is
+ * the only place a DAC's answer is observable — the guest cannot read back what
+ * it converted.  This is the seam a bench engineer probes with a scope, and it
+ * is how a DAC data path is verified without inventing a peer.  Read-only: the
+ * operator observes, the guest drives.
+ */
+static void dac_get_output(Object *obj, Visitor *v, const char *name,
+                           void *opaque, Error **errp)
+{
+    MCXNDACState *s = MCXN_DAC(obj);
+    uint32_t out = s->out;
+
+    visit_type_uint32(v, name, &out, errp);
+}
+
+static void mcxn_dac_init(Object *obj)
+{
+    object_property_add(obj, "analog-output", "uint32",
+                        dac_get_output, NULL, NULL, NULL);
+}
+
 static void mcxn_dac_realize(DeviceState *dev, Error **errp)
 {
     MCXNDACState *s = MCXN_DAC(dev);
@@ -286,6 +344,7 @@ static void mcxn_dac_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_DAC, MCXN_DAC_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req);   /* -> eDMA src 25+i */
 }
 
 static const Property mcxn_dac_properties[] = {
@@ -323,6 +382,7 @@ static const TypeInfo mcxn_dac_types[] = {
         .name          = TYPE_MCXN_DAC,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNDACState),
+        .instance_init = mcxn_dac_init,
         .class_init    = mcxn_dac_class_init,
     },
 };

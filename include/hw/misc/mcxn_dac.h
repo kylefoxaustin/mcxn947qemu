@@ -59,6 +59,11 @@ struct MCXNDACState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq irq;
+
+    /* DMA request line into the eDMA (DAC0/1/2 = mux source 25/26/27), driven
+     * by the FIFO watermark/empty condition gated by DER. */
+    qemu_irq dma_req;
+    bool     dma_req_level;
     uint32_t regs[MCXN_DAC_SIZE / 4];
 
     /* "hpdac" property: DAC2 is the 14-bit part with the deeper FIFO. */
