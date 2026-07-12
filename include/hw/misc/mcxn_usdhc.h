@@ -13,6 +13,7 @@
 #define HW_MISC_MCXN_USDHC_H
 
 #include "hw/core/sysbus.h"
+#include "hw/sd/sd.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_USDHC "mcxn-usdhc"
@@ -29,6 +30,15 @@ struct MCXNUSDHCState {
     MemoryRegion iomem;
     qemu_irq irq;
     uint32_t regs[MCXN_USDHC_SIZE / 4];
+
+    /* The SD bus this controller drives.  The card is attached by the board or
+     * the operator (-device sd-card,...) — the model never invents one. */
+    SDBus    sdbus;
+
+    /* PIO data phase armed by a command with DPSEL set and DMA disabled. */
+    uint32_t data_len;
+    uint32_t data_pos;
+    bool     data_read;
 };
 
 #endif /* HW_MISC_MCXN_USDHC_H */

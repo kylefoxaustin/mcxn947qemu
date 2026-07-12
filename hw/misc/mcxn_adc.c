@@ -4,8 +4,13 @@
  * The blocking sequence for firmware is "configure a command, fire a software
  * trigger, poll the result FIFO, read the result".  This model presents a
  * completed conversion the instant a trigger is observed: STAT[RDY0] sets,
- * FCTRL0[FCOUNT] reads one entry, and reading RESFIFO[0] returns a plausible
- * 16-bit result with the VALID bit set.  CTRL[RST]/CTRL[RSTFIFOn] and the
+ * FCTRL0[FCOUNT] reads one entry, and reading RESFIFO[0] returns the
+ * OPERATOR-SET 16-bit result with the VALID bit set.  The sample is NOT invented
+ * here: an ADC's answer is whatever voltage is on the pin, so the pin is the
+ * seam and the operator drives it (QOM property).  A model that made up a
+ * "plausible" reading would be a silent-wrong-answer generator — this comment
+ * used to say exactly that, and it was describing the code before the seam was
+ * exposed.  CTRL[RST]/CTRL[RSTFIFOn] and the
  * STAT W1C flags self-clear so reset and fifo-flush sequences complete.  All
  * other registers are permissively backed.  Offsets/bits from the MCXN947
  * CMSIS header (ADC_Type).

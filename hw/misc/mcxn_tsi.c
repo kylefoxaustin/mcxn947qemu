@@ -5,7 +5,9 @@
  * GENCS[SWTS], or periodic via GENCS[STM]) and polls the end-of-scan flag
  * DATA[EOSF] before reading the conversion counter DATA[TSICNT].  This model
  * completes a scan the instant a software trigger is observed: DATA[EOSF] sets
- * and DATA[TSICNT] reads a plausible count.  EOSF and the overrun/out-of-range
+ * and DATA[TSICNT] reads the OPERATOR-SET count for the selected channel — the
+ * value a real electrode's capacitance would drive.  The count is NOT invented
+ * here; the electrode is the seam and the operator drives it (QOM property).  EOSF and the overrun/out-of-range
  * flags are write-1-to-clear, so the scan-complete handshake finishes.  All
  * other registers are permissively backed.  Offsets/bits from the MCXN947
  * CMSIS header (TSI_Type).

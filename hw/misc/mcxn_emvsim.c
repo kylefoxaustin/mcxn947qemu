@@ -14,6 +14,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "qemu/osdep.h"
+#include "qemu/log.h"
 #include "hw/misc/mcxn_emvsim.h"
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
@@ -61,11 +62,33 @@
 #define INT_MASK_RX_DATA_IM 0x00004000u  /* gates RX_STATUS.RX_DATA   */
 
 /*
- * VER_ID/PARAM are read-only identity registers.  Plausible MCX-class
- * constants; refine against the RM if a HAL depends on them.
+ * VER_ID/PARAM are read-only identity registers.  Both used to be invented —
+ * the comment here literally read "plausible MCX-class constants", which is the
+ * word I use when I mean FABRICATED.  Firmware can size buffers off PARAM, so a
+ * made-up depth is a silent-wrong-answer generator, not a cosmetic detail.
+ *
+ * PARAM: from the RM rev 7 reset value (§69.7.1.3) — bit 12 and bit 4 set, and
+ * the fields are TX_FIFO_DEPTH[15:8] / RX_FIFO_DEPTH[7:0], so both depths read
+ * 16 bytes.  It was 0x0404 (4/4) here, a number that appears NOWHERE in the RM.
+ *
+ * ⚠ The RM contradicts ITSELF: the EMVSIM feature list says "transmit FIFO of 8
+ * words ... receive FIFO of 8 words", while this register's reset value says 16.
+ * We report what the REGISTER says, because that is the value silicon hands
+ * firmware and the one a driver would size against — and we disclose the
+ * conflict here rather than silently picking a side.  If anyone gets real MCX N
+ * silicon, read PARAM and settle it.
  */
-#define EMVSIM_VER_ID_VALUE  0x00000100u
-#define EMVSIM_PARAM_VALUE   0x00000404u  /* RX/TX FIFO depth fields */
+#define EMVSIM_PARAM_VALUE   0x00001010u  /* TX depth 16, RX depth 16 */
+
+/*
+ * VER_ID: the RM does NOT publish this.  Its reset row is all zeros and the
+ * field text offers only "example: 01.00" — so there is no authoritative value
+ * to model, and 0x00000100 was pure invention on my part.  We return the
+ * documented reset (0) and TELL THE OPERATOR when firmware consumes it, rather
+ * than shipping a version number that looks real enough to be gated on.  A
+ * stated gap beats a plausible lie.
+ */
+#define EMVSIM_VER_ID_VALUE  0x00000000u
 
 /*
  * The single EMVSIM interrupt is the OR of the enabled, latched status flags.
@@ -96,6 +119,13 @@ static uint64_t mcxn_emvsim_read(void *opaque, hwaddr offset, unsigned size)
 
     switch (offset) {
     case EMVSIM_VER_ID:
+        /* Not published by the RM (see above).  If firmware gates on it, the
+         * operator needs to know the value it is gating on is not authoritative
+         * — we cannot fault the guest through an identity register, but we can
+         * refuse to let this pass silently. */
+        qemu_log_mask(LOG_UNIMP, "mcxn-emvsim: firmware read VER_ID, which the "
+                      "MCX N RM does not publish; returning 0. Any version gate "
+                      "on this value is NOT trustworthy.\n");
         return EMVSIM_VER_ID_VALUE;
     case EMVSIM_PARAM:
         return EMVSIM_PARAM_VALUE;
