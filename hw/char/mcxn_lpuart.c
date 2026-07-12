@@ -19,6 +19,11 @@
 #define LPUART_PARAM    0x04  /* RO */
 #define LPUART_GLOBAL   0x08
 #define LPUART_PINCFG   0x0C
+#define LPUART_MCR      0x40   /* Modem Control -- the STOCK EDMA driver reads
+                                * AND writes this; it was unhandled and showed up
+                                * only when a REAL driver was run against the
+                                * model, never in firmware I wrote myself. */
+#define LPUART_MSR      0x44   /* Modem Status */
 #define LPUART_BAUD     0x10
 #define LPUART_STAT     0x14
 #define LPUART_CTRL     0x18
@@ -562,6 +567,13 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
     case LPUART_BAUD:
         r = s->baud;
         break;
+    case LPUART_MCR:
+        r = s->mcr;
+        break;
+    case LPUART_MSR:
+        /* No modem lines are wired on this board: CTS/DSR/RI/DCD all deasserted. */
+        r = 0;
+        break;
     case LPUART_STAT:
         /* TX always ready; RDRF reflects the 1-byte rx holding register. */
         r = STAT_TDRE | STAT_TC;
@@ -664,6 +676,11 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
     case LPUART_PINCFG:
         s->pincfg = value;
         break;
+    case LPUART_MCR:
+        s->mcr = value;
+        break;
+    case LPUART_MSR:
+        break;                    /* status: W1C bits, none modelled */
     case LPUART_BAUD:
         /* BAUD carries TDMAE/RDMAE — arming a DMA-enable bit changes whether the
          * transmitter/receiver is ASKING the eDMA for service, so the request

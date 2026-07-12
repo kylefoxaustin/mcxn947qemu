@@ -55,6 +55,7 @@ struct MCXNLPUARTState {
     uint32_t fifo;
     uint32_t water;
     uint32_t pselid;     /* LP_FLEXCOMM peripheral-select */
+    uint32_t mcr;        /* Modem Control @0x40 (the stock EDMA driver uses it) */
 
     /* Extended/timeout registers the SDK driver zeroes during init (0x48..0x6C). */
     uint32_t reir;       /* Receiver Extended Idle    @0x48 */
