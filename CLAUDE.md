@@ -22,55 +22,42 @@ LPUART IP** as i.MX 93/95.
 - Code is written against **current QEMU mainline** idioms. If the local tree is
   older, see "Version touchpoints" below.
 
-## Files in this drop
+## Layout
+
+The model is **in-tree**: this repo *is* a QEMU checkout. ~75 `mcxn_*` device
+models under `hw/`, the SoC in `hw/arm/mcxn_soc.c`, the board in
+`hw/arm/mcxn_frdm.c`, and 58 test suites under `tests/mcxn-*/`, each with a
+self-contained `run.sh` that builds its own firmware and asserts on the output.
 
 ```
-include/hw/arm/mcxn_soc.h       SoC type + per-SKU MCXNConfig table struct
-include/hw/char/mcxn_lpuart.h   LPUART/FlexComm console device
-include/hw/misc/mcxn_scg.h      SCG clock-generator stub
-hw/arm/mcxn_soc.c               config table, memories, M33 core, periph stub, console+SCG wiring
-hw/arm/mcxn_frdm.c              frdm-mcxn947 board
-hw/char/mcxn_lpuart.c           LPUART console model (CMSIS-exact bit semantics)
-hw/misc/mcxn_scg.c              SCG clock-generator stub (reports clocks ready)
-QEMU-INTEGRATION.md             exact Kconfig / meson.build edits + file placement
-README.md                       design notes, memory map, verified facts
+hw/arm/mcxn_soc.c            SoC: cores, memories, every peripheral + its secure alias
+hw/arm/mcxn_frdm.c           frdm-mcxn947 board (sysclk 150 MHz, canbus/ENET/SPI links)
+hw/*/mcxn_*.c                the peripheral models
+tests/mcxn-*/                one directory per suite: main.c + link.ld + run.sh
+tests/mutate.sh              ⭐ mutation harness — break the model, prove the test notices
+tests/gen-test-matrix.py     generates the README capability table from test-matrix.yaml
+tests/check-matrix-drift.sh  CI gate: the table must match the yaml
+docs/validation/             test-matrix.yaml = SOURCE OF TRUTH for capability claims
+PERIPHERALS.md               per-block status
 ```
 
-## Build steps
-
-1. Copy the five source files into the QEMU tree per `QEMU-INTEGRATION.md`.
-2. Apply the `Kconfig` and `meson.build` additions from the same doc
-   (`hw/arm/Kconfig`, `hw/char/Kconfig`, `hw/arm/meson.build`, `hw/char/meson.build`).
-3. Configure and build only the arm-softmmu target:
-   ```sh
-   ./configure --target-list=arm-softmmu
-   make -j"$(nproc)"
-   ```
-4. Confirm the machine registered:
-   ```sh
-   ./build/qemu-system-arm -M help | grep frdm-mcxn947
-   ```
-
-## Smoke test (first milestone)
-
-No firmware needed to prove the machine builds and the core boots. With a tiny
-bare-metal or Zephyr `hello_world` ELF:
+## Build + run
 
 ```sh
-./build/qemu-system-arm \
-    -M frdm-mcxn947 \
-    -kernel hello.elf \
-    -nographic \
-    -serial mon:stdio \
-    -semihosting-config enable=on,target=native \
-    -d unimp,guest_errors
+./configure --target-list=arm-softmmu     # first time only
+ninja -C build                            # ~seconds after the first build
+bash tests/mcxn-gpio/run.sh               # any single suite
+for d in tests/mcxn-*/; do bash "$d/run.sh"; done   # the lot (~20 min)
+bash tests/mcxn-ztest/run.sh              # 24 Zephyr ztest suites (needs staged ELFs)
 ```
 
-Two valid "it works" outcomes:
-- Output via **semihosting** (works before any UART): proves CPU + memory + boot.
-- Output via the **FlexComm4 console** (`-serial mon:stdio`): proves the LPUART
-  model. The Zephyr `frdm_mcxn947` console is FlexComm4 — a Zephyr `hello_world`
-  built for `frdm_mcxn947/mcxn947/cpu0` is the ideal test image.
+⚠ **Do not rebuild while a suite is running.** `ninja` replaces the binary
+underneath it and the results are garbage — this has invalidated three separate
+"definitive" runs. Hash the binary before and after if the numbers matter.
+
+⚠ **Any timing measurement needs `-icount shift=3`.** Without it virtual time
+tracks *host* time and a golden compared against a noisy measurement gives a
+confident, reproducible-looking, WRONG answer.
 
 ## Bring-up iteration loop
 
@@ -120,23 +107,76 @@ Written for current mainline. On an older QEMU tree, adjust:
    (3rd) arg is relatively recent. Older signature drops it. (in `hw/arm/mcxn_frdm.c`)
 5. **`ARMV7M` clock inputs** are `cpuclk` / `refclk` on mainline (confirmed).
 
-## Status / next work (priority order)
+## Status
 
-- [x] SoC scaffold: M33 core, flash/SRAM, catch-all peripheral stub.
-- [x] `frdm-mcxn947` board, clocks, kernel load.
-- [x] FlexComm4 / LPUART4 console (TX + RX + IRQ), NS + secure alias.
-- [x] SCG0 clock-generator stub (oscillators/PLLs report ready), NS + secure alias.
-- [ ] **Build + smoke test** ← start here.
-- [ ] PORT/GPIO0..5 (pin mux + basic GPIO).
-- [ ] cpu1 (second M33) — see README; mirrors the Zephyr dual-core enable.
-- [ ] FlexCAN (CAN0/1) — likely portable from the i.MX FlexCAN model.
-- [ ] eIQ Neutron NPU — behavioural SysBusDevice; reuse the i.MX 95 / ZV3400
-      approach; needs the NPU base from the RM.
+**The bring-up phase is long over.** Both M33s boot, Zephyr runs (ztest 25/25,
+409 cases), the stock MCUXpresso example corpus runs, and the board is a live node
+on five board-to-board transports (ethernet / UART / USB / SPI / CAN). The
+**3-node L2 lab passes**: MCX (M33/ENET-QoS) + i.MX RT1180 (M33/NETC) + i.MX 95
+(A55, real Linux, ENETC) exchanging raw frames on one wire.
+
+**The capability table in `README.md` is GENERATED from
+`docs/validation/test-matrix.yaml` and gated by `tests/check-matrix-drift.sh`.
+That table is the status. Read it, and do not hand-edit it.**
+
+### Real open items (stated, not papered over)
+
+- **DMA request lines are wired for SAI and DAC only.** ADC, PDM, SINC and the
+  LPFlexcomm serials have **none**, so their DMA-driven stock drivers would hang.
+  Sources are in `include/hw/dma/mcxn_edma.h` (`MCXN_DMA_REQ_*`).
+- **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
+  `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is
+  roadmap. A stated gap is honest; a badge over one is a bug.
+- **The clock tree is not modelled.** Peripheral base rates are *documented
+  assumptions* tied to the SoC sysclk (150 MHz), not derived. Ratios (prescalers,
+  dividers) are exact; absolute frequencies are an assumption. Say so.
+
+### What "done" means here (learned the hard way)
+
+A block is not done when it acks. It is done when a test **can fail** in the
+dimension it claims. **Run `tests/mutate.sh` on any claim you add** — it breaks the
+model on purpose and refuses to score a mutation that did not compile. Claims that
+looked solid and were **decoration**: uSDHC "ADMA block data" (it had no DMA at all
+and conjured its own SD card), the eFlexPWM carrier (the prescaler was *not
+modelled* — a driver asking for an 8× slower carrier got the same one), the SAI
+word rate (ignoring `TCR2[DIV]` left the suite green). Every one passed review by
+reading.
 
 ## Guardrails
 
-- Never fabricate register offsets, base addresses, or IRQ numbers — derive them
-  from the CMSIS header or the RM. A wrong offset = a silent firmware hang.
-- Keep cpu0-only until single-core boot is solid.
-- Report the unimp log back after the first firmware run so the peripheral order
-  is driven by real firmware behaviour, not guesswork.
+**North star: real-silicon fidelity for arbitrary developer code (a 10k-developer
+virtual board farm). A SILENT WRONG ANSWER IS THE TOP-TIER BUG.** A model that
+hangs gets diagnosed in an hour. A model that returns a confident, plausible,
+wrong number ships into somebody's product.
+
+- **Never fabricate a register value, offset, base or IRQ.** Derive it from the
+  CMSIS header or the RM. ⚠ And watch your own vocabulary: **"plausible",
+  "nominal", "reasonable", "best-effort" are the words you use when you mean
+  FABRICATED.** Grepping the tree for them found a made-up FIFO depth, an invented
+  version register, and a PWM tick rate that appears nowhere in the RM.
+- **Never invent a peer.** No device on the other end? Expose the **seam** and let
+  the operator wire it — an attachable bus (I3C supplies the I2C bus, the *test*
+  attaches the EEPROM; FlexSPI drives a real `m25p80`; uSDHC drives a real
+  `sd-card`), a board-level property (SAI's TXD→RXD jumper), or an operator-driven
+  QOM input (ADC/DAC/CMP/TSI). **Do NOT conjure a peer and call the result a data
+  path** — uSDHC did, and its test passed the mutation audit because *the model was
+  its own oracle*. **But first check whether the peer already exists:** `-device
+  help`. "No peer" is a conclusion, not a starting assumption.
+- **Fail to the GUEST, not just the log.** QMP and `qemu_log` reach the *operator*;
+  the firmware under test cannot see them. **Being honest to the host while lying
+  to the guest is not being honest.** Fault through the block's own documented,
+  **non-gating** error channel (never the completion gate — that hangs the driver
+  instead of informing it).
+- **A test is not done when it passes. It is done when it CAN FAIL.** Run
+  `tests/mutate.sh`. Reading a test tells you what it *checks*, never what it can
+  *catch*.
+- **Sweep every axis you claim.** One shape is a collapsed oracle: a 2×2·2×2 matrix
+  hides a dimension swap; a fixed word length hides an ignored `W0W`; an
+  un-prescaled PWM hides a prescaler that isn't modelled at all.
+- **A screen is not a verdict.** Greps proposed; only *reading the code* disposed —
+  five times in one session, every one of my sweeps produced false positives.
+- **Verify, don't infer.** Check the build's *exit status*, not its output. Assert
+  your edit anchor matched (`str.replace` silently no-ops). An **empty result is
+  not a pass**, and a **killed run is not a caught bug**.
+- Report the unimp log back after a firmware run so the peripheral order is driven
+  by real firmware behaviour, not guesswork.
