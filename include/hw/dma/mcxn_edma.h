@@ -27,6 +27,10 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNEDMAState, MCXN_EDMA)
  * drive one GPIO input per source; a channel consumes the one its CH_MUX[SRC]
  * selects.  Highest source in the enum is 121, so 128 covers the 7-bit field.
  */
+/* Widest single source/destination transfer the engine will do (ATTR SSIZE/DSIZE
+ * encode up to 64-byte bursts on MCX N).  A TCD asking for more is CH_ES[NCE]. */
+#define MCXN_EDMA_MAX_XFER     64
+
 #define MCXN_EDMA_REQ_SOURCES  128
 #define CH_MUX_SRC_MASK        0x7Fu    /* CMSIS DMA_CH_MUX_SRC_MASK */
 #define MCXN_EDMA_MAX_LOOPS    0x100000 /* backstop: a peripheral that never

@@ -100,6 +100,16 @@ static void putdec(uint32_t v)
 #define ES_ERR (1u << 31)
 
 #define CHAN 0
+
+/* SAI0 TX FIFO — a REAL MMIO register, where the WRITE WIDTH actually matters.
+ * One 32-bit write pushes ONE word; four byte writes push FOUR.  Memory cannot
+ * tell those apart; a FIFO occupancy counter can. */
+#define SAI0 0x40106000u
+#define SAI_TCSR (*(volatile uint32_t *)(SAI0 + 0x08))
+#define SAI_TDR0_ADDR            (SAI0 + 0x20)
+#define SAI_TFR0 (*(volatile uint32_t *)(SAI0 + 0x40))
+#define SAI_FR   (1u << 25)                     /* FIFO reset */
+#define TFR_COUNT(v) (((v) >> 16) & 0xF)
 #define NBUF 16
 
 static volatile uint8_t src[NBUF];
@@ -239,6 +249,68 @@ void cpu0_main(void)
             puts_(" -> refused\r\n");
             ok &= this_ok;
         }
+    }
+
+    /* --- THE JOINT AXIS: SSIZE x DSIZE, which was NEVER VARIED TOGETHER -------
+     *
+     * SSIZE and DSIZE are SEPARATE fields and the engine used SSIZE for BOTH the
+     * read and the write -- so SSIZE=1/DSIZE=4 issued FOUR BYTE WRITES where the
+     * TCD asked for ONE 32-BIT WRITE.  To a MEMORY destination that is the same
+     * bytes and the bug is INVISIBLE.  To an MMIO REGISTER it is a different
+     * transaction entirely.
+     *
+     * Every ATTR in this tree set SSIZE == DSIZE.  Each field was swept ALONE and
+     * each was individually correct, so the per-axis tests did not merely MISS this
+     * -- THEY CERTIFIED IT.  (ollama_95_neutron: "an independent per-axis whitelist
+     * does not merely miss the bug -- IT CERTIFIES IT.")
+     *
+     * The destination here is the SAI TX FIFO -- a real MMIO register with real
+     * FIFO semantics -- because that is where the width actually matters.  One
+     * 32-bit write pushes ONE word; four byte writes push FOUR.  TFR0's occupancy
+     * counter tells them apart, and memory never could.
+     */
+    {
+        static const uint8_t ss[3] = { 2, 0, 1 };   /* SSIZE: 4B, 1B, 2B      */
+        static const uint8_t ds[3] = { 2, 2, 2 };   /* DSIZE: always 4B (MMIO) */
+        int k;
+
+        for (k = 0; k < 3; k++) {
+            int this_ok = 1;
+            uint32_t before, after;
+
+            SAI_TCSR = SAI_FR;                       /* flush the TX FIFO      */
+            before = TFR_COUNT(SAI_TFR0);
+            this_ok &= (before == 0);
+
+            CH_ES(CHAN)      = 0xFFFFFFFFu;
+            CH_CSR(CHAN)     = 0;
+            TCD_SADDR(CHAN)  = (uint32_t)(uintptr_t)src;
+            TCD_SOFF(CHAN)   = (uint16_t)(1u << ss[k]);   /* walk the source   */
+            TCD_ATTR(CHAN)   = (uint16_t)((ss[k] << 8) | ds[k]);
+            TCD_NBYTES(CHAN) = 4;                    /* ONE 32-bit destination */
+            TCD_SLAST(CHAN)  = 0;
+            TCD_DADDR(CHAN)  = SAI_TDR0_ADDR;        /* an MMIO FIFO port      */
+            TCD_DOFF(CHAN)   = 0;                    /* the FIFO does not move */
+            TCD_DLAST(CHAN)  = 0;
+            TCD_CITER(CHAN)  = 1;
+            TCD_BITER(CHAN)  = 1;
+            TCD_CSR(CHAN)    = TCD_START;
+
+            after = TFR_COUNT(SAI_TFR0);
+
+            /* NBYTES=4 into a 4-byte destination must be exactly ONE FIFO push,
+             * whatever width the SOURCE was read in. */
+            this_ok &= !(CH_ES(CHAN) & ES_ERR);
+            this_ok &= (after == 1);
+
+            puts_(this_ok ? "  ok   " : "  FAIL ");
+            puts_("SSIZE="); putdec(1u << ss[k]);
+            puts_("B DSIZE="); putdec(1u << ds[k]);
+            puts_("B -> FIFO pushes="); putdec(after);
+            puts_(" (want 1)\r\n");
+            ok &= this_ok;
+        }
+        SAI_TCSR = 0;
     }
 
     puts_(ok ? "DMANB PASS\r\n" : "DMANB FAIL\r\n");

@@ -86,8 +86,8 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
     int16_t soff = (int16_t)c->tcd_soff;
     int16_t doff = (int16_t)c->tcd_doff;
     uint32_t saddr = c->tcd_saddr, daddr = c->tcd_daddr;
-    uint8_t buf[32];
-    uint32_t step = ssize ? ssize : 1;
+    uint8_t buf[MCXN_EDMA_MAX_XFER];
+    uint32_t chunk;
     uint32_t err;
     uint32_t b;
 
@@ -100,9 +100,6 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
             edma_update_irq(s, n);
         }
         return true;
-    }
-    if (step > sizeof(buf)) {
-        step = sizeof(buf);
     }
 
     /*
@@ -155,6 +152,9 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
     if (nbytes % ssize || nbytes % dsize) {
         err |= CH_ES_NCE;                 /* NBYTES not a multiple           */
     }
+    if (ssize > MCXN_EDMA_MAX_XFER || dsize > MCXN_EDMA_MAX_XFER) {
+        err |= CH_ES_NCE;                 /* burst wider than the engine     */
+    }
 
     if (err) {
         c->es |= err | CH_ES_ERR;
@@ -174,13 +174,48 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
         return true;                      /* aborted: no DONE, no data moved */
     }
 
-    for (b = 0; b + step <= nbytes; b += step) {
-        address_space_read(&address_space_memory, saddr,
-                           MEMTXATTRS_UNSPECIFIED, buf, step);
-        address_space_write(&address_space_memory, daddr,
-                            MEMTXATTRS_UNSPECIFIED, buf, step);
-        saddr += soff;
-        daddr += doff;
+    /*
+     * ⚠ SSIZE AND DSIZE ARE SEPARATE FIELDS, AND THIS USED TO IGNORE DSIZE
+     * ENTIRELY.  The loop was `read(saddr, buf, step); write(daddr, buf, step);`
+     * with step = SSIZE -- so the WRITE used the SOURCE width.  With SSIZE = 1 and
+     * DSIZE = 4 the engine issued FOUR SEPARATE BYTE WRITES where the TCD asked
+     * for ONE 32-BIT WRITE.
+     *
+     * To a MEMORY destination that is the same bytes and the bug is INVISIBLE.
+     * To an MMIO PERIPHERAL REGISTER it is a completely different transaction:
+     * four byte-pokes at a data register is not one word write -- a FIFO gets four
+     * pushes instead of one, and a register with min_access_size = 4 rejects them
+     * outright.  That is exactly the DMA-to-peripheral path this model now serves.
+     *
+     * ⭐ AND EVERY TEST IN THIS TREE SET SSIZE == DSIZE.  Each field was swept
+     * ALONE and each was individually "correct"; the PAIR was never varied, so the
+     * per-axis tests did not merely MISS this -- THEY CERTIFIED IT.
+     * ollama_95_neutron, on exactly this shape: "An independent per-axis whitelist
+     * will pass a shape that is garbage, with full confidence, because each axis is
+     * individually safe.  That is the worst failure a gate can have.  It does not
+     * merely MISS the bug -- IT CERTIFIES IT."
+     *
+     * Correct semantics: the minor loop moves NBYTES.  READS happen in SSIZE
+     * chunks (SADDR advances by SOFF each), WRITES in DSIZE chunks (DADDR advances
+     * by DOFF each) -- two independent strides.  Both sizes are powers of two, so
+     * lcm(ssize, dsize) = max(ssize, dsize), and NBYTES is validated above to be a
+     * multiple of both.
+     */
+    chunk = ssize > dsize ? ssize : dsize;
+
+    for (b = 0; b < nbytes; b += chunk) {
+        uint32_t k;
+
+        for (k = 0; k < chunk; k += ssize) {
+            address_space_read(&address_space_memory, saddr,
+                               MEMTXATTRS_UNSPECIFIED, buf + k, ssize);
+            saddr += soff;
+        }
+        for (k = 0; k < chunk; k += dsize) {
+            address_space_write(&address_space_memory, daddr,
+                                MEMTXATTRS_UNSPECIFIED, buf + k, dsize);
+            daddr += doff;
+        }
     }
     c->tcd_saddr = saddr;
     c->tcd_daddr = daddr;
