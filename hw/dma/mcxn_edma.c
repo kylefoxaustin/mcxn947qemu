@@ -322,12 +322,25 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
     citer--;
     c->tcd_citer = (c->tcd_citer & ~cmask) | citer;
 
-    /* MINOR-loop channel link: kick the linked channel after every minor loop. */
-    if (elink) {
-        edma_link_channel(s, CITER_LINKCH(c->tcd_citer));
-    }
-
+    /*
+     * MINOR-loop channel link -- but NOT on the LAST minor loop.
+     *
+     * ⚠ Per the RM the minor link fires at the end of each minor loop EXCEPT the
+     * final one; when CITER reaches 0 the MAJOR loop completes and MAJORELINK
+     * fires INSTEAD.  Firing both meant the linked channel ran ONE TIME TOO MANY,
+     * and on its extra pass its destination address had already been advanced --
+     * so it wrote PAST THE END of its buffer and corrupted the next object in
+     * memory.  In the stock channel_link example that object was the driver's own
+     * `g_Transfer_Done` flag: the ISR set it true, the spurious extra transfer
+     * stamped it back to false, and main waited forever on a flag that HAD been
+     * set.  The interrupt fired, the ISR ran, the CPU took exception 19 and
+     * returned cleanly -- and the machine still hung, because the DMA was
+     * overwriting the very variable the guest was polling.
+     */
     if (citer != 0) {
+        if (elink) {
+            edma_link_channel(s, CITER_LINKCH(c->tcd_citer));
+        }
         return false;                     /* major loop still running */
     }
 
@@ -393,16 +406,35 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
     return true;
 }
 
-/* Run a software-triggered channel transfer to completion. */
+/*
+ * A SERVICE REQUEST: run ONE MINOR LOOP.
+ *
+ * ⚠ THIS USED TO RUN THE ENTIRE MAJOR LOOP, AND THAT IS A CORE SEMANTICS BUG.
+ * TCD_CSR[START] is a software-initiated SERVICE REQUEST -- exactly like a
+ * peripheral DMA request -- and one request moves ONE MINOR LOOP (NBYTES), not
+ * the whole major loop.  The engine then clears START.
+ *
+ * The stock channel_link example proves it: it calls EDMA_TriggerChannelStart
+ * TWICE, because its channel has CITER = 2.  Two minor loops, two service
+ * requests.  My model completed the WHOLE transfer on the first trigger, so the
+ * second trigger RAN EVERYTHING AGAIN -- and by then the linked channels' SADDR
+ * and DADDR had already advanced past their buffers:
+ *
+ *     1st trigger:  ch1 saddr=0x20000064 daddr=0x2000014c   correct
+ *     2nd trigger:  ch1 saddr=0x20000074 daddr=0x2000015c   walked into destAddr2
+ *                   ch2 saddr=0x20000074 daddr=0x2000016c   past the end entirely
+ *
+ * It wrote past the buffers, corrupted the guest's memory, and the CPU took a
+ * HARD FAULT (CFSR = INVSTATE, HFSR = FORCED).  The "hang" I had been chasing was
+ * never a hang: THE GUEST HAD CRASHED, and HardFault_Handler is a while(1).  An
+ * exit-1 crash and an exit-1 refusal, one more time.
+ *
+ * A channel LINK is also a service request, so it moves one minor loop too.
+ */
 static void edma_run(MCXNEDMAState *s, int n)
 {
-    int guard = 0;
-
-    while (!edma_minor_loop(s, n)) {
-        if (++guard > MCXN_EDMA_MAX_LOOPS) {
-            break;
-        }
-    }
+    edma_minor_loop(s, n);
+    s->ch[n].tcd_csr &= ~TCD_CSR_START;   /* the engine clears START */
 }
 
 static uint64_t edma_read(void *opaque, hwaddr off, unsigned size)

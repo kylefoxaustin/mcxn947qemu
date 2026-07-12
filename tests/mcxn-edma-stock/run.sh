@@ -31,10 +31,15 @@
 #                                        was not needed, that broke a working case --
 #                                        and only breaking it on purpose showed me.
 #
-# ⚠ KNOWN GAP, STATED RATHER THAN PAPERED OVER: channel_link still HANGS.  The
-# transfers DO run and CH2's INTMAJOR interrupt IS raised (traced), but the guest's
-# ISR is not entered, so it waits forever on its done flag.  I have not isolated it
-# and will not pretend I have.  It is excluded below and is the next thing to fix.
+# ⭐ AND THE LAST ONE WAS A CORE SEMANTICS BUG: TCD_CSR[START] is a SERVICE REQUEST --
+# it runs ONE MINOR LOOP, not the whole major loop.  channel_link calls
+# EDMA_TriggerChannelStart TWICE precisely because its channel has CITER = 2.  My
+# model finished the entire transfer on the first trigger, so the second trigger RAN
+# EVERYTHING AGAIN with the linked channels' addresses already advanced -- writing
+# PAST their buffers, corrupting guest memory, and HARD-FAULTING the CPU (CFSR =
+# INVSTATE, HFSR = FORCED).  The "hang" was never a hang: THE GUEST HAD CRASHED, and
+# HardFault_Handler is a while(1).  Only gdb showed it -- every trace I had said the
+# transfer worked and the interrupt fired, and both were TRUE.
 #
 # SKIPs (does not fail) when the MCUXpresso workspace is not staged.
 set -uo pipefail
@@ -72,6 +77,7 @@ check interleave_transfer '^1[[:space:]]+0[[:space:]]+2[[:space:]]+0'  || fail=1
 check scatter_gather      '^1[[:space:]]+2[[:space:]]+3[[:space:]]+4[[:space:]]+5[[:space:]]+6[[:space:]]+7[[:space:]]+8' || fail=1
 check wrap_transfer       '^1[[:space:]]+2[[:space:]]+3[[:space:]]+4[[:space:]]+1[[:space:]]+2[[:space:]]+3[[:space:]]+4' || fail=1
 check ping_pong_transfer  '^1[[:space:]]+2[[:space:]]+3[[:space:]]+4[[:space:]]+5[[:space:]]+6[[:space:]]+7[[:space:]]+8' || fail=1
+check channel_link        '^1[[:space:]]+2[[:space:]]+3[[:space:]]+4' || fail=1
 
 [ $fail -eq 0 ] && { echo "PASS: the stock NXP eDMA examples move the RIGHT DATA"; exit 0; }
 echo "FAIL"; exit 1
