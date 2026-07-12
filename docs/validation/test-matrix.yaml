@@ -201,7 +201,7 @@ readme_groups:
     blocks: [dac]
   - label: "SINC sigma-delta filter (computes)"
     tier: A
-    evidence: "Real CIC: the RM's H(z) = ((1-z^-OSR)/(1-z^-1))^ORD decimates a register-fed (PM/SM) modulator bitstream to a 24-bit result, checked against the filter maths (tests/mcxn-sinc)"
+    evidence: "Real CIC: the RM's H(z) = ((1-z^-OSR)/(1-z^-1))^ORD decimates a register-fed (PM/SM) modulator bitstream to a 24-bit result. SWEPT ACROSS SHAPES, not stamped at one: an all-ones bitstream must settle to the CIC's DC gain OSR^ORD — a closed-form golden independent of the implementation — at (ORD,OSR) = (1,16) (2,16) (3,8) (2,32) (1,4). Negative-tested with a shape-dependent bug that is correct at ORD=1 and wrong above it: the single-shape check passes it, the sweep catches it (tests/mcxn-sinc)"
     blocks: [sinc]
   - label: "Flash program — FMU (storage-write-verified)"
     tier: A

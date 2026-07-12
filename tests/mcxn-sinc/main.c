@@ -81,6 +81,48 @@ static uint32_t pop16(uint32_t v)
     return n;
 }
 
+/*
+ * Run one (ORD, OSR) shape with an all-ones bitstream and require the settled
+ * output to equal the CIC's DC gain, OSR^ORD.  Returns 1 on match.
+ *
+ * Feeds SETTLE_WINDOWS decimation windows (comfortably more than ORD+1, so the
+ * comb section has settled) and checks the LAST result.  16 bits arrive per PM
+ * write, so a window needs OSR/16 writes when OSR > 16, and one write covers
+ * 16/OSR windows when OSR < 16.
+ */
+#define SETTLE_WINDOWS 6
+
+static int sweep_shape(uint32_t ord, uint32_t osr, uint32_t expect)
+{
+    uint32_t bits_needed = SETTLE_WINDOWS * osr;
+    uint32_t words = (bits_needed + 15) / 16;
+    uint32_t got = 0;
+    uint32_t n;
+
+    /* Reconfigure the channel for this shape. */
+    C0_CCR   = 0;                          /* disable: resets the filter state */
+    SINC_NIS = 0xFFFFFFFFu;                /* clear stale flags               */
+    C0_CDR   = (osr - 1u) | (ord << 11) | (1u << 14);   /* PFOSR, PFORD, cont */
+    C0_CCFR  = CCFR_RDFMT | CCFR_IBFMT_PM | (0u << 10);
+    C0_CBIAS = 0;
+    C0_CCR   = CCR_CHEN | CCR_PFEN | CCR_FIFOEN;
+
+    SINC_MCR = MCR_MEN | MCR_STRIG0;       /* trigger */
+
+    for (n = 0; n < words; n++) {
+        while (!(C0_CSR & CSR_PSRDY)) {
+        }
+        C0_CMPDATA = 0xFFFFu;              /* all ones: DC input */
+        /* Drain as we go so the 8-deep FIFO cannot overflow. */
+        while (!(SINC_SR & SR_FIFOEMPTY0)) {
+            got = C0_CRDATA >> 8;
+        }
+    }
+
+    /* The settled output of a CIC fed a constant 1 is its DC gain, OSR^ORD. */
+    return got == expect;
+}
+
 void cpu0_main(void)
 {
     /* Three 16-bit modulator words -> three decimated results. */
@@ -133,6 +175,28 @@ void cpu0_main(void)
 
         ok &= (got == pop16(stream[i]));  /* ORD=1, OSR=16 => popcount   */
     }
+
+    /*
+     * --- SHAPE SWEEP: one shape is not a golden ---------------------------
+     *
+     * The checks above validate the filter at ORD=1, OSR=16 and nowhere else.
+     * A defect that is order- or rate-dependent would sail straight through
+     * them, which is exactly how a shape-dependent bug survives a green suite.
+     * (ollama_95_neutron measured NXP's shipped Neutron computing correctly at
+     * one shape and writing garbage at another; rt1180emulator hit the same
+     * class one commit after believing he had fixed it.)
+     *
+     * The golden here is closed-form and independent of this implementation: the
+     * DC gain of a CIC is H(1) = OSR^ORD.  So an all-ones bitstream, once the
+     * transient has settled, MUST decimate to exactly OSR^ORD at every order and
+     * every oversampling ratio.  That number comes from the transfer function,
+     * not from the model.
+     */
+    ok &= sweep_shape(1, 16, 16u);          /* 16^1 */
+    ok &= sweep_shape(2, 16, 256u);         /* 16^2 */
+    ok &= sweep_shape(3, 8,  512u);         /* 8^3  */
+    ok &= sweep_shape(2, 32, 1024u);        /* 32^2 */
+    ok &= sweep_shape(1, 4,  4u);           /* 4^1  */
 
     /* Drained: EMPTY again. */
     ok &= !!(SINC_SR & SR_FIFOEMPTY0);
