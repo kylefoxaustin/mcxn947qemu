@@ -3,7 +3,10 @@
 # HAS; columns block/present/driver_binds/class/tested_by/result.
 # Chip-accuracy rule: absent silicon gets NO row (never a false negative).
 # class: computes | functional | operator-driven | register-only |
-#        flag-at-operator | not-modelled
+#        not-modelled
+#        (flag-at-operator: DEPRECATED -- it defined "op acked + truth via QMP" as
+#         safe, but QMP reaches the OPERATOR, not the guest.  It authorised four
+#         real bugs here.  Anything a guest reads must be honest-fault.)
 # result is from an actual run; class/driver_binds are human fidelity judgments.
 
 meta:
@@ -143,9 +146,11 @@ class_aliases:
   honest-fault: HONEST-FAULT
   flag-at-operator: FLAG-AT-OPERATOR (deprecated)
   not-modelled: REGISTER-ONLY|HONEST-FAULT  # per block; never silent-wrong (none on MCX today)
-  # Neutron NPU carries a default + opt-in pair (same dual shape as 95's Neutron):
-  neutron-npu-default: FLAG-AT-OPERATOR
-  neutron-npu-optin: HONEST-FAULT      # uncomputed-errortrap -> INTR.ERRORTRAP + IRQ97
+  # Neutron NPU: the errortrap is ON BY DEFAULT.  It used to be OPT-IN, which meant
+  # the DEFAULT behaviour was to say NOTHING to the guest -- flag-at-operator, i.e.
+  # honest to the operator via QMP and silent to the firmware that actually reads
+  # the result.  That is the retired class, and it was the bug.
+  neutron-npu-default: HONEST-FAULT    # uncomputed-errortrap -> INTR[ERRORTRAP] + IRQ97
 
 # --- README condensed capability table (second rendering of the SAME blocks) --
 # Groups every present block into one condensed "What runs today" row.  Single-

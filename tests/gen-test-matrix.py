@@ -119,6 +119,41 @@ CLASS_TIER = {
     "honest-fault": "B", "flag-at-operator": "B", "not-modelled": "B",
 }
 
+
+def _reject_flag_at_operator(doc):
+    """⛔ flag-at-operator is DEPRECATED AND WAS ITSELF THE BUG.
+
+    It was defined as a safe endpoint -- "op acked + truth exposed via QMP (no
+    silent-wrong)" -- but QMP and the host log reach the OPERATOR.  THE FIRMWARE
+    UNDER TEST CANNOT SEE THEM.  From inside the guest, an acked op with an
+    untouched result buffer IS a silent wrong answer.  Being honest to the host
+    while lying to the guest is not being honest.
+
+    That sentence, written down as policy, authorised FOUR real bugs in this tree
+    (Neutron, ELS, SmartDMA, PowerQuad).  Deprecating it in prose is not enough --
+    a rule you merely DOCUMENT as retired is still loaded.  REFUSE IT.
+
+    Anything a guest reads must be `honest-fault`: fail through the block's own
+    documented, NON-GATING error channel (never the completion gate, which hangs
+    the driver instead of informing it).
+    """
+    bad = [b["block"]
+           for k, v in doc.items() if isinstance(v, list)
+           for b in v
+           if isinstance(b, dict) and b.get("class") == "flag-at-operator"]
+    if bad:
+        raise SystemExit(
+            "test-matrix.yaml: class 'flag-at-operator' is DEPRECATED and REFUSED "
+            "-- used by: %s.\n"
+            "  It means 'the op is acked and the truth goes to QMP'.  QMP reaches "
+            "the OPERATOR;\n"
+            "  the FIRMWARE cannot see it.  From inside the guest that IS a silent "
+            "wrong answer,\n"
+            "  and this rule already authorised four real bugs here.\n"
+            "  Use 'honest-fault': fail to the GUEST through the block's own "
+            "non-gating error channel."
+            % ", ".join(sorted(bad)))
+
 README = os.path.join(ROOT, "README.md")
 README_BEGIN = "<!-- BEGIN capability-table (generated from test-matrix.yaml) -->"
 README_END = "<!-- END capability-table (generated from test-matrix.yaml) -->"
@@ -305,6 +340,7 @@ def main():
 
     doc = yaml.safe_load(open(YAML))
     _reject_unknown_sections(doc)
+    _reject_flag_at_operator(doc)
     verify_groups(doc)   # structural anti-drift: always, cheap
     if a.inject_readme is not None:
         sys.exit(inject_readme(doc, a.inject_readme))

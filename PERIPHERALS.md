@@ -28,7 +28,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `BSP32` | 1 | ✅ functional (register-accurate) |
 | `CACHE64_CTRL` | 1 | ✅ functional (register-accurate) |
 | `CACHE64_POLSEL` | 1 | ✅ functional (register-accurate) |
-| `CAN` | 2 | ✅ functional + active (FlexCAN loopback TX->RX MB + IFLAG IRQ to NVIC; tests/mcxn-flexcan) |
+| `CAN` | 2 | ✅ **real RX matching + b2b** — the board-to-board path did NO ID MATCHING (a driver trusting its own filter read another node's frame) and SILENTLY DROPPED a frame when no mailbox was free; per the RM a frame landing on an unserviced MB now OVERWRITES it and sets CODE=OVERRUN, so the data moves AND the guest is told. A disabled module (MCR[MDIS]) no longer receives OR transmits. Live board-to-board link; tests/mcxn-flexcan, mcxn-flexcan-rx, mcxn-can-link |
 | `CDOG` | 2 | ✅ functional (register-accurate) |
 | `CMC` | 1 | ✅ functional (register-accurate) |
 | `CMP` | 3 | ✅ operator-driven (output via `comparator-output` QOM prop; edge-flag IRQ 109/110/111) |
@@ -37,10 +37,10 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
 | `DAC` | 3 | ✅ functional + active (FIFO watermark/empty/error interrupt -> IRQ 106/107/108 to NVIC; tests/mcxn-dac) |
 | `DM` | 1 | ✅ functional (register-accurate) |
-| `DMA` | 2 | ✅ functional (16-channel TCD engine, software-triggered transfers -> NVIC IRQ) |
+| `DMA` | 2 | ✅ **software AND peripheral-triggered** — 16-channel TCD engine; CH_CSR[ERQ] used to be a DEAD BIT so DMA-driven audio/ADC/UART could not run at all. Peripherals now drive one request line per CMSIS mux source, one MINOR LOOP per request, serviced in a bottom half (servicing inline is a re-entrant MMIO access QEMU SILENTLY DROPS). ⚠ Wired for SAI + DAC only — ADC/PDM/SINC/LPFlexcomm still have none; tests/mcxn-dma, mcxn-sai-dma, mcxn-dac-dma |
 | `EIM` | 1 | ✅ functional (register-accurate) |
-| `ELS` | 1 | ✅ functional (register-accurate) |
-| `EMVSIM` | 2 | ✅ functional (register-accurate) |
+| `ELS` | 1 | ⚠️ **HONEST-FAULT** — was the worst bug in the tree: every crypto command DMA'd its result to a buffer that was NEVER WRITTEN, so firmware read UNINITIALISED MEMORY as its signature/digest/session key and an ECDSA verify would "succeed" on garbage. Now every unmodelled crypto op FAULTS to the guest (`ELS_STATUS[ELS_ERR]` + `ELS_ERR_STATUS[OPN_ERR]`), result buffer untouched, BUSY still clears so no hang. RND_REQ is real (PRNG DMA'd); tests/mcxn-els |
+| `EMVSIM` | 2 | ⚠️ **RETRACTED to registers/IRQs only** — NO DATA PATH. A smartcard interface needs a card and there is no card model upstream (unlike sd-card/m25p80/at24c). A stated gap is honest; a badge over one is a bug |
 | `ENET` | 1 | ✅ functional + active + REAL TCP/IP (descriptor DMA TX/RX over QEMU NIC; Zephyr stack: DHCP lease + TCP echo round-trip; MAC loopback; IRQ 139; tests/mcxn-enet*) |
 | `ERM` | 1 | ✅ functional (register-accurate) |
 | `EVTG` | 1 | ✅ functional (register-accurate) |
@@ -64,7 +64,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `MAILBOX` | 1 | ✅ functional (register-accurate) |
 | `MRT` | 1 | ✅ functional (4-ch down-counter -> NVIC IRQ) |
 | `NPX` | 1 | ✅ functional (register-accurate; flash-cache obfuscation control @ 0x400C_C000) |
-| `Neutron NPU` | 1 | ✅ FLAG-AT-OPERATOR (eIQ Neutron N1-16 @ 0x400B_E000, IRQ 97; proprietary microcode compute — CTRL handshake acked so no hang, result honestly uncomputed: compute-modelled=false + jobs-started; tests/mcxn-neutron) |
+| `Neutron NPU` | 1 | ⚠️ **HONEST-FAULT** (eIQ Neutron N1-16 @ 0x400B_E000, IRQ 97). Compute is proprietary microcode with no user registers, so the result is UNCOMPUTED — and that is surfaced **to the GUEST** via the non-gating `INTR[ERRORTRAP]` + IRQ 97, not merely to the operator via QMP (which the firmware under test cannot see). The old "flag-at-operator" class was a LICENCE TO LIE TO THE GUEST and is retired. ⚠ Note the emulator is DELIBERATELY MORE HONEST THAN THE SILICON: real Neutron does NOT refuse work it cannot do — it CLAIMS the op and returns garbage (measured: 8-bit MatMulNBits, rel-L2 103%, cosine −0.0019, i.e. orthogonal to the truth) and is NON-DETERMINISTIC, so no golden-image test can pass against it. A clean ERRORTRAP here is NOT a promise that silicon will fault; tests/mcxn-neutron |
 | `OPAMP` | 3 | ✅ functional (register-accurate) |
 | `OSTIMER` | 1 | ✅ functional (gray-code counter + match IRQ) |
 | `OTPC` | 1 | ✅ functional (register-accurate) |
@@ -75,15 +75,15 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `PORT` | 6 | ◐ pin-mux stub (adequate) |
 | `POWERQUAD` | 1 | ✅ functional + active (compute-launch -> completion IRQ 76 to NVIC; tests/mcxn-powerquad) |
 | `PUF` | 1 | ✅ functional (register-accurate) |
-| `PWM` | 2 | ✅ functional + active (submodule-0 counter -> periodic reload IRQ 114/120 to NVIC; tests/mcxn-pwm) |
+| `PWM` | 2 | ✅ **carrier verified** — period from INIT/VAL1 and **CTRL[PRSC]** (the prescaler was NOT MODELLED AT ALL: an 8× slower carrier request produced the same frequency, and carrier frequency IS motor control), measured against SysTick under -icount and swept across prescalers; tests/mcxn-pwm |
 | `QDC` | 2 | ✅ functional (register-accurate; quadrature decoder) |
 | `RTC` | 1 | ✅ functional + active (live 1 Hz calendar tick + alarm match -> IRQ 52 to NVIC; tests/mcxn-rtc) |
-| `SAI` | 2 | ✅ functional + active (TX FIFO-request interrupt FRF&FRIE -> IRQ 59/60 to NVIC; tests/mcxn-sai) |
+| `SAI` | 2 | ✅ **real data path** — 8-word TX/RX FIFOs, byte-exact audio over the board-level TXD→RXD jumper, real overrun/underrun, and a WORD RATE verified against SysTick and swept on BOTH axes (TCR2[DIV] and TCR5[W0W]). Drives eDMA request source 100/99; tests/mcxn-sai, mcxn-sai-dma |
 | `SCG` | 1 | ✅ functional |
 | `SCT` | 1 | ✅ functional + active (running counter -> periodic match/limit event IRQ 33 to NVIC; tests/mcxn-sct) |
 | `SEMA42` | 1 | ✅ functional (register-accurate) |
-| `SINC` | 1 | ✅ functional (register-accurate) |
-| `SMARTDMA` | 1 | ✅ functional (register-accurate; busy reads idle) |
+| `SINC` | 1 | ✅ **computes** — a real CIC filter (H(z) = ((1−z^−OSR)/(1−z^−1))^ORD), verified against the closed-form DC gain OSR^ORD across a shape sweep. `SR` used to be hardwired 0x1F00, which hung the stock SDK (MCLKRDY=0) and faked an endless zero-stream (FIFOEMPTY=0); IRQ 142; tests/mcxn-sinc |
+| `SMARTDMA` | 1 | ⚠️ **HONEST-FAULT** — the EZH core is not modelled, so the program never runs and NOTHING IS MOVED. `CTRL[START]` therefore stays SET (a dead coprocessor) instead of self-clearing, which used to tell a polling guest its transfer had COMPLETED while the destination buffer was untouched |
 | `SPC` | 1 | ✅ functional |
 | `SYSCON` | 1 | ✅ functional |
 | `TDET` | 1 | ✅ functional (register-accurate) |
@@ -95,17 +95,53 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `USBHS1__USBC` | 1 | ✅ functional + active **device mode** (ChipIdea dQH/dTD endpoint engine; enumerates + bulk data both ways at high-speed over usbredir; IRQ 67; tests/mcxn-usb-hs) |
 | `USBHS1__USBNC` | 1 | ✅ functional (register-accurate; HS non-core 0xE00 window) |
 | `USBPHY` | 1 | ✅ functional (register-accurate; CLKGATE/SFTRST clear, SET/CLR/TOG) |
-| `USDHC` | 1 | ✅ functional + active (SD command/response CMD8/CMD3/ACMD41 + CC IRQ 61 to NVIC; tests/mcxn-usdhc) |
+| `USDHC` | 1 | ✅ **real data path** — drives a genuine QEMU `sd-card` on an sd-bus; real ADMA2 descriptor walk + SDMA + PIO; an EMPTY SLOT TIMES OUT (CTOE) instead of the host answering for it. (It previously CONJURED ITS OWN CARD — invented CMD8/CMD3/ACMD41 responses — and claimed "ADMA block data" with no DMA at all; tests/mcxn-usdhc) |
 | `UTICK` | 1 | ✅ functional (register-accurate) |
 | `VBAT` | 1 | ✅ functional (register-accurate) |
 | `VREF` | 1 | ✅ functional (register-accurate) |
 | `WUU` | 1 | ✅ functional (register-accurate) |
 | `WWDT` | 2 | ✅ functional (register-accurate) |
-## Depth phase: active behaviour to layer on the register-accurate models
-Breadth is done — every base is modelled. What remains is *dynamics* on the
-blocks whose behaviour real firmware/tests can observe. Each register-accurate
-model already keeps polled firmware unblocked; the next step adds the data path
-+ IRQ generation (and a per-block bare-metal test, the way CTIMER/DMA/FMU have).
+## Depth phase: active behaviour on top of the register-accurate models
+
+Breadth is done — every base is modelled. **Depth is well under way, and it is the
+phase that matters**, because:
+
+> ⚠ **"REGISTER-ACCURATE" IS NOT THE SAME AS CORRECT, AND IT IS NOT EVEN SAFE.**
+> A register-accurate model can hold every offset, reset value and W1C bit exactly
+> right *and still lie to firmware*. Ours did, repeatedly. Every one of these
+> passed review by reading, and every one was caught only by breaking the model on
+> purpose (`tests/mutate.sh`):
+>
+> - **uSDHC** advertised "ADMA block data" with **no DMA, no descriptor walk and no
+>   storage** — it could not move one byte — and it **conjured its own SD card**.
+>   Its test passed the mutation audit because *the model was its own oracle*.
+> - **eFlexPWM** never modelled `CTRL[PRSC]` at all: a driver asking for an 8×
+>   slower carrier got the same one. **Carrier frequency *is* motor control.**
+> - **FlexCAN** did no ID matching on the board-to-board path (a driver trusting
+>   its own filter read *another node's frame*) and **silently dropped** a frame
+>   when no mailbox was free.
+> - **eDMA's `CH_CSR[ERQ]` was a dead bit** — peripheral-triggered DMA, how nearly
+>   all real audio/ADC/UART transfer works, **did not exist**.
+> - **SAI** claimed a word rate "derived from `TCR2[DIV]`" that **nothing tested**.
+>
+> **A block is done when its test CAN FAIL in the dimension it claims** — not when
+> firmware stops hanging. See the Guardrails in `CLAUDE.md`.
+
+The **generated capability table in `README.md`** (from
+`docs/validation/test-matrix.yaml`, gated by `tests/check-matrix-drift.sh`) is the
+authority on what is actually proven. **Read that, not this heading.**
+
+### Known gaps, stated rather than papered over
+
+- **DMA request lines exist for SAI and DAC only.** ADC, PDM, SINC and the
+  LPFlexcomm serials have **none**, so their DMA-driven stock drivers would hang.
+  Request-mux sources are in `include/hw/dma/mcxn_edma.h` (`MCXN_DMA_REQ_*`).
+- **EMVSIM is retracted** (registers/IRQs only): a smartcard interface needs a
+  card, and unlike `sd-card` / `m25p80` / `at24c` there is no card model upstream.
+- **The clock tree is not modelled.** Peripheral base rates are *documented
+  assumptions* tied to sysclk (150 MHz). **Ratios — prescalers, dividers — are
+  exact; absolute frequencies are not.** Prefer tests that check a ratio, in which
+  the assumed clock cancels.
 
 ### eDMA byte-access audit (fleet lesson: silent-drop of narrow DMA bursts)
 A peripheral driven by BOTH the CPU (32-bit) and eDMA (byte/halfword bursts to a
@@ -181,13 +217,16 @@ Priority order (remaining):
   or retries on EIO).
   (ENET now has full MAC frame DMA-ring + QEMU NIC - cross-board ready;
   uSDHC command/response, FlexSPI IP-cmd-done, SAI TX-request done.)
-- **Accelerators**: PowerQuad compute-done IRQ done (+ CP0 transcendentals).
-  Neutron NPU now FLAG-AT-OPERATOR @ 0x400B_E000 (proprietary microcode: the
-  CTRL exec/done handshake is acked so eIQ inference does not hang, but the
-  result is honestly flagged uncomputed via QMP, never silently fabricated;
-  operator opt-in error-trap to the guest). SmartDMA left register-accurate
-  (also FLAG-AT-OPERATOR for program output) - the EZH coprocessor firmware
-  isn't modelled, so a fabricated result would be dishonest.
+- **Accelerators**: PowerQuad computes real results (matrix/vector + CP0
+  transcendentals); unmodelled `CP_MTX` opcodes FAIL to the guest via
+  `ERRSTAT[BUSERROR]` instead of leaving a stale result buffer.
+  Neutron NPU and SmartDMA are **HONEST-FAULT** — not "flag-at-operator", which
+  is DEPRECATED and was the bug: it defined "op acked + truth exposed via QMP"
+  as a safe endpoint, and **QMP reaches the OPERATOR, not the firmware under
+  test**. Being honest to the host while lying to the guest is not being honest,
+  and that rule had already authorised four real bugs here (Neutron, ELS,
+  SmartDMA, PowerQuad). Both blocks now fail through their own documented,
+  NON-GATING error channel — the guest is told, and is never hung.
 - **IRQ wiring**: connect the per-device IRQ lines (init'd in wave 6) to the
   cpu0 NVIC as each block starts generating interrupts.
 
