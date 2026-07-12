@@ -89,12 +89,12 @@ proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 | USB device — USBFS/KHCI + USBHS/ChipIdea, CDC-ACM | A | Enumerates on stock Linux cdc_acm -> /dev/ttyACM0, bulk byte-exact (tests/mcxn-usb-cdc) |
 | Networking — ENET (descriptor-ring MAC) | A | Zephyr stack: DHCP lease + TCP echo over a QEMU NIC (tests/mcxn-enet*) |
 | FlexCAN x2 | A | Loopback + board-to-board frame round-trip (tests/mcxn-can-link) |
-| I3C + EMVSIM (smartcard) | A | I3C master transfer + completion; EMVSIM smartcard transfer (tests/mcxn-i3c, mcxn-emvsim) |
+| SAI + I3C + EMVSIM — registers/IRQs only, NO DATA PATH YET | B | RETRACTED from tier A on 2026-07-12: mutation-testing showed these three move no data at all (SAI RDR/TDR, I3C MRDATAB, EMVSIM RX_BUF are stubs), and their tests asserted only that an interrupt fired — so a corrupted-data mutation could not fail them. Drivers bind and IRQs are correct; a data path is roadmap |
 | Storage / XIP — uSDHC + FlexSPI NOR | A | uSDHC ADMA block data; FlexSPI drives a real SPI-NOR (LUT/IP commands: WREN + erase + page program, bits only 1->0) with a byte-exact erase -> program -> read-back round trip, and code runs in place from the same array via the XIP window, which refuses CPU stores (tests/mcxn-usdhc, mcxn-flexspi-nor, mcxn-xip) |
 | Timers / PWM — CTIMER, MRT, LPTMR, OSTIMER, SCT, eFlexPWM, RTC | A | Timer/PWM data paths + IRQs (tests/mcxn-ctimer, mcxn-timers, mcxn-ostimer, mcxn-sct, mcxn-pwm, mcxn-rtc) |
 | GPIO + eDMA | A | GPIO toggles; eDMA TCD transfers (tests/mcxn-gpio, mcxn-dma) |
 | PowerQuad DSP (matrix/vector + CP0 transcendentals) | A | Computes real results — matrix/vector ops + scalar sin/cos/ln/divide |
-| Audio out — SAI + DAC output FIFO | A | SAI FIFO data path; DAC drives a real output FIFO — occupancy, FULL/EMPTY/watermark, overflow drops the sample, underflow holds the output, and a level IRQ deasserts on refill (tests/mcxn-sai, mcxn-dac) |
+| Audio out — DAC output FIFO | A | DAC drives a real output FIFO — occupancy, FULL/EMPTY/watermark, overflow drops the sample, underflow holds the output, and a level IRQ deasserts on refill (tests/mcxn-dac) |
 | SINC sigma-delta filter (computes) | A | Real CIC: the RM's H(z) = ((1-z^-OSR)/(1-z^-1))^ORD decimates a register-fed (PM/SM) modulator bitstream to a 24-bit result, checked against the filter maths (tests/mcxn-sinc) |
 | Flash program — FMU (storage-write-verified) | A | Byte-exact erase -> program -> read-back round-trip driven through the RM PEWEN/PERDY sequence; flash is a ROM device, so stores outside a program window are refused and cumulative programming fails verify (tests/mcxn-fmu) |
 | Security — ELS (crypto + TRNG) | A | ELS TRNG entropy drives Zephyr stack_random (ztest userspace path) |

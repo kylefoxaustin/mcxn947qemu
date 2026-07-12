@@ -30,11 +30,11 @@ connectivity:
   - {block: lpuart,    present: true, driver_binds: true, class: functional, tested_by: [mcxn-multiuart, mcxn-flexcomm], result: pass}
   - {block: lpspi,     present: true, driver_binds: true, class: functional, tested_by: [mcxn-flexcomm], result: pass}
   - {block: lpi2c,     present: true, driver_binds: true, class: functional, tested_by: [mcxn-flexcomm], result: pass}
-  - {block: i3c,       present: true, driver_binds: true, class: functional, tested_by: [mcxn-i3c], result: pass}
+  - {block: i3c,       present: true, driver_binds: true, class: register-only, tested_by: [mcxn-i3c], result: pass}
   - {block: usdhc,     present: true, driver_binds: true, class: functional, tested_by: [mcxn-usdhc], result: pass}
   - {block: flexspi,   present: true, driver_binds: true, class: functional, tested_by: [mcxn-flexspi, mcxn-flexspi-nor, mcxn-xip], result: pass}
-  - {block: sai,       present: true, driver_binds: true, class: functional, tested_by: [mcxn-sai], result: pass}
-  - {block: emvsim,    present: true, driver_binds: true, class: functional, tested_by: [mcxn-emvsim], result: pass}
+  - {block: sai,       present: true, driver_binds: true, class: register-only, tested_by: [mcxn-sai], result: pass}
+  - {block: emvsim,    present: true, driver_binds: true, class: register-only, tested_by: [mcxn-emvsim], result: pass}
   - {block: mailbox,   present: true, driver_binds: true, class: functional, tested_by: [mcxn-mailbox, mcxn-dualcore], result: pass}
 
 timers:
@@ -174,10 +174,10 @@ readme_groups:
     tier: A
     evidence: "Loopback + board-to-board frame round-trip (tests/mcxn-can-link)"
     blocks: [flexcan]
-  - label: "I3C + EMVSIM (smartcard)"
-    tier: A
-    evidence: "I3C master transfer + completion; EMVSIM smartcard transfer (tests/mcxn-i3c, mcxn-emvsim)"
-    blocks: [i3c, emvsim]
+  - label: "SAI + I3C + EMVSIM — registers/IRQs only, NO DATA PATH YET"
+    tier: B
+    evidence: "RETRACTED from tier A on 2026-07-12: mutation-testing showed these three move no data at all (SAI RDR/TDR, I3C MRDATAB, EMVSIM RX_BUF are stubs), and their tests asserted only that an interrupt fired — so a corrupted-data mutation could not fail them. Drivers bind and IRQs are correct; a data path is roadmap"
+    blocks: [sai, i3c, emvsim]
   - label: "Storage / XIP — uSDHC + FlexSPI NOR"
     tier: A
     evidence: "uSDHC ADMA block data; FlexSPI drives a real SPI-NOR (LUT/IP commands: WREN + erase + page program, bits only 1->0) with a byte-exact erase -> program -> read-back round trip, and code runs in place from the same array via the XIP window, which refuses CPU stores (tests/mcxn-usdhc, mcxn-flexspi-nor, mcxn-xip)"
@@ -194,10 +194,10 @@ readme_groups:
     tier: A
     evidence: "Computes real results — matrix/vector ops + scalar sin/cos/ln/divide"
     blocks: [powerquad]
-  - label: "Audio out — SAI + DAC output FIFO"
+  - label: "Audio out — DAC output FIFO"
     tier: A
-    evidence: "SAI FIFO data path; DAC drives a real output FIFO — occupancy, FULL/EMPTY/watermark, overflow drops the sample, underflow holds the output, and a level IRQ deasserts on refill (tests/mcxn-sai, mcxn-dac)"
-    blocks: [sai, dac]
+    evidence: "DAC drives a real output FIFO — occupancy, FULL/EMPTY/watermark, overflow drops the sample, underflow holds the output, and a level IRQ deasserts on refill (tests/mcxn-dac)"
+    blocks: [dac]
   - label: "SINC sigma-delta filter (computes)"
     tier: A
     evidence: "Real CIC: the RM's H(z) = ((1-z^-OSR)/(1-z^-1))^ORD decimates a register-fed (PM/SM) modulator bitstream to a 24-bit result, checked against the filter maths (tests/mcxn-sinc)"
