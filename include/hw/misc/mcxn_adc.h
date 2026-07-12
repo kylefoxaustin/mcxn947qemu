@@ -26,6 +26,11 @@ struct MCXNADCState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq irq;
+
+    /* DMA request lines into the eDMA: ADC{n} FIFO A/B = mux sources 21+2n / 22+2n.
+     * Without these the stock LPADC EDMA driver waits forever. */
+    qemu_irq dma_req[2];
+    bool     dma_req_level[2];
     uint32_t regs[MCXN_ADC_SIZE / 4];
 
     /* Operator-driven analog inputs: the conversion result is the value of the

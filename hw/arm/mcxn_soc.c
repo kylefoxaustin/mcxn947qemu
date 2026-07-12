@@ -664,32 +664,6 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      &s->edma_s_alias[i]);
     }
 
-    /*
-     * PERIPHERAL DMA REQUEST LINES — wired HERE, in one place, AFTER the eDMA has
-     * been realized.
-     *
-     * ⚠ qdev_get_gpio_in() only works once the target device is REALIZED and has
-     * created its GPIO inputs.  The FlexComm block realizes BEFORE the eDMA, so
-     * wiring it inside its own loop silently connected NOTHING — SAI and DAC only
-     * worked because they happen to be declared AFTER the eDMA.  A latent
-     * ordering dependency I got away with by accident.  Doing every peripheral's
-     * request-line wiring in ONE place, after the mover exists, removes the
-     * dependency instead of tiptoeing around it.
-     *
-     * CMSIS dma_request_source_t: LpFlexcomm{n} Rx = 69 + 2n, Tx = 70 + 2n.
-     * Without these, every stock LPUART/LPSPI/LPI2C EDMA driver
-     * (LPUART_TransferSendEDMA, LPSPI_MasterTransferEDMA,
-     * LPI2C_MasterTransferEDMA) arms a channel, sets the peripheral's DMA-enable
-     * bit, and waits FOREVER for a request nothing could raise.
-     */
-    for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {
-        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
-                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
-                                            MCXN_DMA_REQ_LPFLEXCOMM0_TX + 2 * i));
-        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 2,
-                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
-                                            MCXN_DMA_REQ_LPFLEXCOMM0_RX + 2 * i));
-    }
 
     /* ADC0..1 (LPADC): conversion-complete IRQ to cpu0 NVIC. */
     for (i = 0; i < MCXN_NUM_ADC; i++) {
@@ -953,21 +927,6 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->sai[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             sai_cfg[i].irq));
-
-        /*
-         * The SAI's DMA request lines into DMA0.  This is how a stock driver
-         * moves audio: the FIFO watermark asks the eDMA for service, one minor
-         * loop per request.  Request-mux source numbers are CMSIS-exact
-         * (dma_request_source_t): SAI0 Rx = 99 / Tx = 100, SAI1 Rx = 101 /
-         * Tx = 102.  Without these, ERQ was a dead bit and DMA-driven audio
-         * could not run at all.
-         */
-        sysbus_connect_irq(SYS_BUS_DEVICE(&s->sai[i]), 1,
-                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
-                                            MCXN_DMA_REQ_SAI0_TX + 2 * i));
-        sysbus_connect_irq(SYS_BUS_DEVICE(&s->sai[i]), 2,
-                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
-                                            MCXN_DMA_REQ_SAI0_RX + 2 * i));
         memory_region_init_alias(&s->sai_s_alias[i], OBJECT(dev), aname,
                                  &s->sai[i].iomem, 0, MCXN_SAI_SIZE);
         memory_region_add_subregion(system_memory,
@@ -992,13 +951,6 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->dac[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             dac_cfg[i].irq));
-
-        /* DMA request line into DMA0: DAC0/1/2 are request-mux sources 25/26/27
-         * (CMSIS dma_request_source_t).  A stock DAC driver streams a waveform
-         * by letting the FIFO watermark ask the eDMA for the next samples. */
-        sysbus_connect_irq(SYS_BUS_DEVICE(&s->dac[i]), 1,
-                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
-                                            MCXN_DMA_REQ_DAC0_FIFO + i));
         memory_region_init_alias(&s->dac_s_alias[i], OBJECT(dev), aname,
                                  &s->dac[i].iomem, 0, MCXN_DAC_SIZE);
         memory_region_add_subregion(system_memory,
@@ -1161,6 +1113,56 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                  0, d->size);
         memory_region_add_subregion(system_memory,
                                      d->base + MCXN_SECURE_ALIAS, salias);
+    }
+
+    /*
+     * ═══ PERIPHERAL DMA REQUEST LINES — ALL OF THEM, HERE, LAST ═══
+     *
+     * ⚠ qdev_get_gpio_in() only works once the target is REALIZED, and
+     * sysbus_connect_irq() only works once the SOURCE is realized.  So this
+     * wiring is order-dependent in BOTH directions, and I got burned BOTH ways:
+     *
+     *   - FlexComm realizes BEFORE the eDMA, so wiring it in its own loop
+     *     silently connected NOTHING (SAI and DAC only worked by accident, being
+     *     declared after the eDMA);
+     *   - then I moved the wiring to just after the eDMA -- and the ADC realizes
+     *     AFTER that, so QEMU aborted outright:
+     *         "Property 'mcxn-adc.sysbus-irq[1]' not found".
+     *
+     * Two opposite failures from the same cause.  Doing every request line HERE,
+     * at the END, after EVERY peripheral exists, removes the dependency instead of
+     * tiptoeing around it.  Add new request lines to THIS block and nowhere else.
+     *
+     * Source numbers are CMSIS dma_request_source_t.
+     */
+    for (i = 0; i < MCXN_NUM_ADC; i++) {                  /* FIFO A/B = 21+2n, 22+2n */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->adc[i]), 1,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_ADC0_FIFO_A + 2 * i));
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->adc[i]), 2,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_ADC0_FIFO_B + 2 * i));
+    }
+    for (i = 0; i < MCXN_NUM_DAC; i++) {                  /* DAC0/1/2 = 25/26/27 */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->dac[i]), 1,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_DAC0_FIFO + i));
+    }
+    for (i = 0; i < MCXN_NUM_SAI; i++) {                  /* SAI Tx=100+2n, Rx=99+2n */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->sai[i]), 1,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_SAI0_TX + 2 * i));
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->sai[i]), 2,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_SAI0_RX + 2 * i));
+    }
+    for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_LPFLEXCOMM0_TX + 2 * i));
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 2,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_LPFLEXCOMM0_RX + 2 * i));
     }
 }
 

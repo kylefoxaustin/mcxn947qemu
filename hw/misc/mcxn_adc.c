@@ -37,6 +37,12 @@
 #define R_TSTAT    0x038
 #define R_OFSTRIM  0x040
 #define R_TCTRL0   0x0A0   /* TCTRL0..3 @0xA0..0xAC */
+#define R_GCC0     0x0F0   /* Gain Calibration Control 0..1 (RO) */
+#define R_GCC1     0x0F4
+#define R_GCR0     0x0F8   /* Gain Calculation Result 0..1 */
+#define R_GCR1     0x0FC
+#define GCC_RDY    (1u << 24)   /* CMSIS ADC_GCC_RDY_MASK */
+
 #define R_FCTRL0   0x0E0   /* FCTRL0..1 @0xE0..0xE4 */
 #define R_FCTRL1   0x0E4
 #define R_GCC0     0x0F0   /* GCC0..1   @0xF0..0xF4 (RO) */
@@ -64,6 +70,11 @@
 #define STAT_RDY1      (1u << 2)
 #define STAT_FOF1      (1u << 3)
 #define STAT_TEXC_INT  (1u << 8)
+#define STAT_CAL_RDY   (1u << 10)  /* CMSIS ADC_STAT_CAL_RDY_MASK */
+
+/* CTRL calibration bits (CMSIS ADC_CTRL_*). */
+#define CTRL_CAL_REQ   (1u << 3)   /* auto-calibration request   */
+#define CTRL_CALOFS    (1u << 4)   /* offset-calibration enable  */
 #define STAT_TCOMP_INT (1u << 9)
 #define STAT_CAL_RDY   (1u << 10)
 #define STAT_ADC_ACTIVE (1u << 11)
@@ -101,10 +112,50 @@
 #define RESFIFO_CMDSRC_SHIFT 24
 #define RESFIFO_CMDSRC_MASK  0xFu
 
+/* DE (DMA Enable) — the stock LPADC EDMA driver arms these (CMSIS ADC_DE_*). */
+#define DE_FWMDE0   0x1u        /* FIFO 0 watermark DMA enable */
+#define DE_FWMDE1   0x2u        /* FIFO 1 watermark DMA enable */
+#define FCTRL_FCOUNT_MASK  0x1Fu
+#define FCTRL_FWMARK_SHIFT 16
+#define FCTRL_FWMARK_MASK  0xFu
+
 static void mcxn_adc_update_irq(MCXNADCState *s)
 {
     bool active = (s->regs[R_STAT / 4] & s->regs[R_IE / 4] & STAT_W1C_MASK) != 0;
+    uint32_t de = s->regs[R_DE / 4];
+    int f;
+
     qemu_set_irq(s->irq, active);
+
+    /*
+     * THE DMA REQUEST LINES (ADC0 FIFO A/B = mux sources 21/22, ADC1 = 23/24).
+     *
+     * ⚠ These did not exist, and DE -- the register the stock LPADC EDMA driver
+     * writes to arm them -- was stored and IGNORED.  So the stock
+     * driver_examples/lpadc/edma hung at "Configuring LPADC...": it armed an eDMA
+     * channel at RESFIFO, set DE[FWMDE0], and waited for a request NOTHING COULD
+     * RAISE.
+     *
+     * The FIFO asks for service when its occupancy EXCEEDS the watermark
+     * (FCTRL[FWMARK]), which is exactly the condition the RM gives.
+     */
+    for (f = 0; f < 2; f++) {
+        uint32_t fctrl = s->regs[(f ? R_FCTRL1 : R_FCTRL0) / 4];
+        /*
+         * ⚠ FCOUNT IS NOT IN regs[].  It is COMPUTED ON READ from s->fifo_valid
+         * (see mcxn_adc_read), so reading it back out of the register array gives
+         * ZERO, ALWAYS -- and the request would never fire.  The state lives in
+         * fifo_valid; the register array is only the shadow.  Read the state.
+         */
+        uint32_t count = (f == 0 && s->fifo_valid) ? 1 : 0;
+        uint32_t wm = (fctrl >> FCTRL_FWMARK_SHIFT) & FCTRL_FWMARK_MASK;
+        bool req = (de & (f ? DE_FWMDE1 : DE_FWMDE0)) && count > wm;
+
+        if (req != s->dma_req_level[f]) {
+            s->dma_req_level[f] = req;
+            qemu_set_irq(s->dma_req[f], req);
+        }
+    }
 }
 
 /*
@@ -150,6 +201,23 @@ static uint64_t mcxn_adc_read(void *opaque, hwaddr offset, unsigned size)
     uint32_t val;
 
     switch (offset) {
+    case R_GCC0:
+    case R_GCC1:
+        /*
+         * Gain calibration.  LPADC_FinishAutoCalibration() SPINS on GCC[n][RDY]:
+         *     while (!(base->GCC[0] & ADC_GCC_RDY_MASK) ||
+         *            !(base->GCC[1] & ADC_GCC_RDY_MASK)) { }
+         * and these registers were not modelled at all, so it hung forever -- the
+         * second half of the SDK's standard ADC init.
+         *
+         * GAIN_CAL = 0 is the honest value: the driver computes
+         * GCR = 131072 / (131072 - GAIN_CAL), which for 0 gives UNITY GAIN.  There
+         * is no analog gain error to correct in a model, and inventing a non-zero
+         * trim would make the guest apply a correction for a distortion that does
+         * not exist.
+         */
+        return GCC_RDY;
+
     case R_VERID:
         return ADC_VERID_VALUE;
     case R_PARAM:
@@ -189,7 +257,48 @@ static void mcxn_adc_write(void *opaque, hwaddr offset, uint64_t value,
     case R_VERID:
     case R_PARAM:
         return;   /* read-only */
+    case R_DE:
+    case R_FCTRL0:
+    case R_FCTRL1:
+        /*
+         * ⚠ ARMING A DMA-ENABLE MUST RE-EVALUATE THE REQUEST LINE.
+         *
+         * DE carries FWMDE0/FWMDE1 -- the bits the stock LPADC EDMA driver sets to
+         * ask the eDMA for service -- and FCTRL carries the watermark.  These fell
+         * through to a PLAIN STORE, so a driver that armed DE last (as they all do)
+         * never raised a request at all.
+         *
+         * ⭐ THIS IS THE THIRD TIME TODAY: the DAC's DER, the LPUART's BAUD[TDMAE],
+         * and now the ADC's DE.  Identical bug, three peripherals.  A FIX APPLIED IN
+         * ONE PLACE IS NOT A FIX -- I wrote that sentence this morning and then made
+         * the same mistake twice more.  Any register that gates a request line must
+         * call the update function on write.  Check that FIRST when adding one.
+         */
+        s->regs[offset / 4] = v;
+        mcxn_adc_update_irq(s);
+        return;
+
     case R_CTRL:
+        /*
+         * ⚠ CALIBRATION MUST COMPLETE, OR THE STOCK DRIVER HANGS ON ITS FIRST STEP.
+         *
+         * LPADC_DoOffsetCalibration() sets CTRL[CALOFS] and then spins:
+         *     while (!(base->STAT & ADC_STAT_CAL_RDY_MASK)) { }
+         * and LPADC_DoAutoCalibration() does the same with CTRL[CAL_REQ].  This is
+         * what the SDK's STANDARD ADC INIT does, so ANY firmware using the stock
+         * LPADC driver hung here forever -- STAT[CAL_RDY] was never set.
+         *
+         * My hand-written ADC test passed the whole time, because I never called
+         * calibration.  The stock driver hangs on its very first step.  (Found by
+         * running the real driver and then asking gdb WHERE THE CPU WAS, rather
+         * than interrogating the subsystem I suspected.)
+         *
+         * There is no analog trim to model, so calibration completes immediately.
+         */
+        if (v & (CTRL_CALOFS | CTRL_CAL_REQ)) {
+            s->regs[R_STAT / 4] |= STAT_CAL_RDY;
+        }
+
         /* RST and RSTFIFOn are self-clearing soft resets. */
         if (v & CTRL_RST) {
             s->regs[R_STAT / 4] = 0;
@@ -286,6 +395,8 @@ static void mcxn_adc_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_ADC, MCXN_ADC_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[0]);  /* -> eDMA 21/23 */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);  /* -> eDMA 22/24 */
 }
 
 static const VMStateDescription vmstate_mcxn_adc = {

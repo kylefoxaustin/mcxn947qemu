@@ -89,7 +89,7 @@ register-only≈registration/Tier-C.
 
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
-| adc | ✓ | ✓ | operator-driven | mcxn-adc | SKIP |
+| adc | ✓ | ✓ | operator-driven | mcxn-adc, mcxn-adc-dma | SKIP |
 | cmp | ✓ | ✓ | operator-driven | mcxn-cmp | SKIP |
 | tsi | ✓ | ✓ | operator-driven | mcxn-tsi | SKIP |
 | dac | ✓ | ✓ | functional | mcxn-dac, mcxn-dac-dma | SKIP |
@@ -104,7 +104,7 @@ register-only≈registration/Tier-C.
 |-------|:---:|:---:|-------|-----------|:---:|
 | gpio | ✓ | ✓ | functional | mcxn-gpio | SKIP |
 | port | ✓ | ✓ | register-only | mcxn-gpio, mcxn-mcuxpresso | SKIP |
-| edma | ✓ | ✓ | functional | mcxn-dma, mcxn-dma-nbytes, mcxn-sai-dma, mcxn-dac-dma, mcxn-uart-dma, mcxn-lpuart-edma-stock, mcxn-edma-stock | SKIP |
+| edma | ✓ | ✓ | functional | mcxn-dma, mcxn-dma-nbytes, mcxn-sai-dma, mcxn-dac-dma, mcxn-uart-dma, mcxn-adc-dma, mcxn-lpuart-edma-stock, mcxn-edma-stock | SKIP |
 | inputmux | ✓ | ✓ | register-only | boot, corpus | SKIP |
 | pint | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | intm | ✓ | ◐ | register-only | boot, corpus | SKIP |
