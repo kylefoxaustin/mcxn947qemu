@@ -18,6 +18,7 @@
 #include "qemu/log.h"
 #include "hw/misc/mcxn_i3c.h"
 #include "hw/core/irq.h"
+#include "hw/i2c/i2c.h"
 #include "migration/vmstate.h"
 
 /* Register offsets (CMSIS I3C_Type). */
@@ -105,6 +106,8 @@ static void mcxn_i3c_reset(DeviceState *dev)
     MCXNI3CState *s = MCXN_I3C(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+    s->xfer_active = false;
+    s->rx_count = s->rx_pos = 0;
     s->regs[R_SCONFIG / 4]        = I3C_SCONFIG_RST;
     s->regs[R_SSTATUS / 4]        = I3C_SSTATUS_RST;
     s->regs[R_SDMACTRL / 4]       = I3C_SDMACTRL_RST;
@@ -127,6 +130,25 @@ static void mcxn_i3c_reset(DeviceState *dev)
 #define I3C_MCTRL_REQUEST    0x7u
 #define I3C_MSTATUS_MCTRLDONE 0x200u
 #define I3C_MSTATUS_COMPLETE  0x400u
+#define I3C_MSTATUS_RXPEND    0x800u
+#define I3C_MSTATUS_TXNOTFULL 0x1000u
+
+/* MCTRL fields (CMSIS I3C_MCTRL_*). */
+#define MCTRL_DIR(v)     (((v) >> 8) & 0x1)      /* 0 = write, 1 = read     */
+#define MCTRL_ADDR(v)    (((v) >> 9) & 0x7F)     /* 7-bit target address    */
+#define MCTRL_RDTERM(v)  (((v) >> 16) & 0xFF)    /* bytes to read           */
+
+/* MCTRL[REQUEST] values. */
+#define REQ_NONE           0u
+#define REQ_EMITSTARTADDR  1u
+#define REQ_EMITSTOP       2u
+
+/* MERRWARN: the target did not acknowledge its address. */
+#define I3C_MERRWARN_NACK  (1u << 2)
+
+/* MDATACTRL count fields. */
+#define DATACTRL_RXCOUNT_SHIFT 24
+#define DATACTRL_TXCOUNT_SHIFT 16
 
 /*
  * Controller interrupt: MINTMASKED = MSTATUS & enabled (MINTSET holds the
@@ -174,10 +196,33 @@ static uint64_t mcxn_i3c_read(void *opaque, hwaddr off, unsigned size)
     }
     reg = s->regs[idx >> 2];
 
-    /* Keep the FIFO status bits pinned to the idle state so polled firmware
-     * (RXEMPTY=1, TXFULL=0) always sees room to write and a "done" on read. */
-    if (idx == R_SDATACTRL || idx == R_MDATACTRL) {
+    /* The target-side FIFO is still a stub; the CONTROLLER side is real. */
+    if (idx == R_SDATACTRL) {
         reg = (reg & ~I3C_DATACTRL_FIFO_MASK) | I3C_DATACTRL_RXEMPTY;
+    }
+    if (idx == R_MDATACTRL) {
+        uint32_t avail = s->rx_count - s->rx_pos;
+
+        reg &= ~(I3C_DATACTRL_FIFO_MASK |
+                 (0x1Fu << DATACTRL_RXCOUNT_SHIFT) |
+                 (0x1Fu << DATACTRL_TXCOUNT_SHIFT));
+        reg |= (avail & 0x1F) << DATACTRL_RXCOUNT_SHIFT;
+        if (avail == 0) {
+            reg |= I3C_DATACTRL_RXEMPTY;      /* REAL: empty when it is empty */
+        }
+        /* The transmit path goes straight onto the bus, so it is never full. */
+    }
+
+    /* MRDATAB pops a byte the target actually sent. */
+    if (idx == R_MRDATAB || idx == R_MRDATAH) {
+        if (s->rx_pos < s->rx_count) {
+            reg = s->rx_fifo[s->rx_pos++];
+            if (s->rx_pos >= s->rx_count) {
+                s->regs[R_MSTATUS / 4] &= ~I3C_MSTATUS_RXPEND;
+            }
+        } else {
+            reg = 0;
+        }
     }
 
     shift = (off & 0x3u) * 8;
@@ -241,15 +286,92 @@ static void mcxn_i3c_write(void *opaque, hwaddr off, uint64_t value,
         return;
     }
 
-    /* Issuing a controller request (MCTRL.REQUEST != 0) completes the message
-     * immediately: raise MCTRLDONE + COMPLETE so a polled or interrupt-driven
-     * transfer resolves. */
+    /*
+     * A controller request DRIVES THE BUS.  This used to just raise
+     * MCTRLDONE|COMPLETE and move no data at all, so firmware saw a transfer
+     * "succeed" against a device that was never addressed.
+     */
     if (idx == R_MCTRL) {
+        uint32_t req = v & I3C_MCTRL_REQUEST;
+
         s->regs[idx >> 2] = v;
-        if (v & I3C_MCTRL_REQUEST) {
+
+        switch (req) {
+        case REQ_EMITSTARTADDR: {
+            uint8_t addr = MCTRL_ADDR(v);
+            bool is_read = MCTRL_DIR(v);
+            uint32_t n = MCTRL_RDTERM(v);
+
+            s->rx_count = s->rx_pos = 0;
+
+            if (i2c_start_transfer(s->bus, addr, is_read)) {
+                /* Nobody there: the address was NOT acknowledged.  Saying
+                 * "complete" here is how a model reports a successful transfer
+                 * to a device that does not exist. */
+                s->regs[R_MERRWARN / 4] |= I3C_MERRWARN_NACK;
+                s->xfer_active = false;
+                s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE;
+                mcxn_i3c_update_irq(s);
+                return;
+            }
+            s->xfer_active = true;
+
+            if (is_read) {
+                /* Clock RDTERM bytes out of the target into the RX FIFO. */
+                if (n > MCXN_I3C_RX_FIFO) {
+                    n = MCXN_I3C_RX_FIFO;
+                }
+                for (uint32_t i = 0; i < n; i++) {
+                    s->rx_fifo[s->rx_count++] = i2c_recv(s->bus);
+                }
+                if (s->rx_count) {
+                    s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_RXPEND;
+                }
+            }
             s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE | I3C_MSTATUS_COMPLETE;
             mcxn_i3c_update_irq(s);
+            return;
         }
+
+        case REQ_EMITSTOP:
+            if (s->xfer_active) {
+                i2c_end_transfer(s->bus);
+                s->xfer_active = false;
+            }
+            s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE | I3C_MSTATUS_COMPLETE;
+            mcxn_i3c_update_irq(s);
+            return;
+
+        case REQ_NONE:
+            return;
+
+        default:
+            /* DAA / IBI and friends are not modelled; do not claim they ran. */
+            qemu_log_mask(LOG_UNIMP,
+                          "%s: MCTRL request %u not modelled\n", __func__, req);
+            s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE;
+            mcxn_i3c_update_irq(s);
+            return;
+        }
+    }
+
+    /* Writing MWDATAB / MWDATABE puts a byte ON THE BUS. */
+    if (idx == R_MWDATAB || idx == R_MWDATABE || idx == R_MWDATAB1) {
+        uint8_t byte = (uint8_t)(value >> shift);
+
+        if (s->xfer_active) {
+            i2c_send(s->bus, byte);
+            if (idx == R_MWDATABE) {
+                i2c_end_transfer(s->bus);      /* "byte + end" */
+                s->xfer_active = false;
+            }
+        } else {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "%s: data written with no transfer in progress\n",
+                          __func__);
+        }
+        s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_COMPLETE;
+        mcxn_i3c_update_irq(s);
         return;
     }
 
@@ -279,6 +401,14 @@ static void mcxn_i3c_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_I3C, MCXN_I3C_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+
+    /* Expose the bus the controller drives.  I3C is I2C-compatible in legacy
+     * mode; the board (or the operator, with -device ...,bus=...) attaches
+     * whatever is actually wired to these pins.  The model supplies the BUS, as
+     * the silicon does — it does not invent a device onto it. */
+    /* NULL: QEMU auto-names the bus uniquely per instance (i2c-bus.0, .1), so a
+     * device can be attached to a specific I3C with -device ...,bus=i2c-bus.N */
+    s->bus = i2c_init_bus(dev, NULL);
 }
 
 static const VMStateDescription vmstate_mcxn_i3c = {
@@ -287,6 +417,10 @@ static const VMStateDescription vmstate_mcxn_i3c = {
     .minimum_version_id = 1,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNI3CState, MCXN_I3C_SIZE / 4),
+        VMSTATE_BOOL(xfer_active, MCXNI3CState),
+        VMSTATE_UINT8_ARRAY(rx_fifo, MCXNI3CState, MCXN_I3C_RX_FIFO),
+        VMSTATE_UINT32(rx_count, MCXNI3CState),
+        VMSTATE_UINT32(rx_pos, MCXNI3CState),
         VMSTATE_END_OF_LIST()
     },
 };

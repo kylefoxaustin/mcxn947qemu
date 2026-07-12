@@ -13,12 +13,15 @@
 #define HW_MISC_MCXN_I3C_H
 
 #include "hw/core/sysbus.h"
+#include "hw/i2c/i2c.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_I3C "mcxn-i3c"
 OBJECT_DECLARE_SIMPLE_TYPE(MCXNI3CState, MCXN_I3C)
 
 #define MCXN_I3C_SIZE 0x1000
+
+#define MCXN_I3C_RX_FIFO 32
 
 struct MCXNI3CState {
     /*< private >*/
@@ -28,6 +31,18 @@ struct MCXNI3CState {
     MemoryRegion iomem;
     qemu_irq irq;
     uint32_t regs[MCXN_I3C_SIZE / 4];
+
+    /*
+     * The controller drives a real bus.  I3C is I2C-compatible in legacy mode,
+     * so the SoC exposes an I2C bus and the BOARD (or the operator, with
+     * -device ...,bus=...) attaches whatever is wired to it.  The model supplies
+     * the bus, exactly as the silicon does; it does not invent a device onto it.
+     */
+    I2CBus  *bus;
+    bool     xfer_active;
+    uint8_t  rx_fifo[MCXN_I3C_RX_FIFO];
+    uint32_t rx_count;
+    uint32_t rx_pos;
 };
 
 #endif /* HW_MISC_MCXN_I3C_H */
