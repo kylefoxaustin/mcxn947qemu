@@ -42,6 +42,26 @@ SECTION_TITLES = {
     "security_crypto_tamper": "Security / crypto / tamper",
     "usb_support": "USB support blocks",
 }
+
+def _reject_unknown_sections(doc):
+    """An unknown section key used to be SILENTLY DROPPED — so a typo deleted a
+    whole block from the capability table and the anti-drift gate stayed GREEN.
+    That is a no-op edit in the tooling itself, which is the one class this
+    project keeps getting bitten by.  Refuse it loudly instead."""
+    # Non-block schema keys that legitimately live at top level.
+    known = set(SECTION_TITLES) | {
+        "meta", "absent", "aggregate_harnesses", "class_aliases",
+        "readme_absent", "readme_groups",
+    }
+    unknown = [k for k in doc if k not in known]
+    if unknown:
+        raise SystemExit(
+            "test-matrix.yaml: unknown section key(s) %s.\n"
+            "  These would be SILENTLY DROPPED from the capability table and the\n"
+            "  drift gate would still pass.  Known sections: %s"
+            % (", ".join(sorted(unknown)), ", ".join(sorted(SECTION_TITLES))))
+
+
 # Pseudo tested-by tokens that map to a covering boot/corpus suite.
 PSEUDO = {"boot": "mcxn-zephyr", "corpus": "mcxn-mcuxpresso"}
 
@@ -284,6 +304,7 @@ def main():
     a = ap.parse_args()
 
     doc = yaml.safe_load(open(YAML))
+    _reject_unknown_sections(doc)
     verify_groups(doc)   # structural anti-drift: always, cheap
     if a.inject_readme is not None:
         sys.exit(inject_readme(doc, a.inject_readme))
