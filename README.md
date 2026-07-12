@@ -99,7 +99,7 @@ proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 | Flash program — FMU (storage-write-verified) | A | Byte-exact erase -> program -> read-back round-trip driven through the RM PEWEN/PERDY sequence; flash is a ROM device, so stores outside a program window are refused and cumulative programming fails verify (tests/mcxn-fmu) |
 | Security — ELS (crypto + TRNG) | A | ELS TRNG entropy drives Zephyr stack_random (ztest userspace path) |
 | Watchdogs + micro-tick — WWDT, EWM, UTICK | B | Register-accurate; reset/refresh/timeout semantics |
-| Accelerators (honest) — Neutron NPU, SmartDMA, PowerQuad fixed-point | B | Handshake acked (no hang); proprietary-microcode result flagged uncomputed via QMP |
+| Accelerators (honest) — Neutron NPU, SmartDMA, PowerQuad fixed-point | B | Handshake acked (no hang); the proprietary-microcode result is flagged UNCOMPUTED to the GUEST by default, via the non-gating INTR[ERRORTRAP] channel — firmware can detect it, not just the host (tests/mcxn-neutron) |
 | Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM | B | Register-accurate; analog inputs operator-driven via QOM property. PDM has no bitstream source in emulation and says so: it produces NO samples and flags FIFO underflow rather than fabricating silence firmware cannot tell from real audio |
 | Pin / IRQ / GPIO infra — PORT, INPUTMUX, PINT, INTM, EVTG, FLEXIO, QDC, PLU | B | Drivers bind; pin-mux / IRQ routing registers correct (sub-word MMIO) |
 | Memory / cache / CRC — CACHE64, NPX, CRC, SEMA42, OTPC | B | Register-accurate; CRC compute, cache/ID/fuse config |

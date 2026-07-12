@@ -216,7 +216,7 @@ readme_groups:
     blocks: [wwdt, ewm, utick]
   - label: "Accelerators (honest) — Neutron NPU, SmartDMA, PowerQuad fixed-point"
     tier: B
-    evidence: "Handshake acked (no hang); proprietary-microcode result flagged uncomputed via QMP"
+    evidence: "Handshake acked (no hang); the proprietary-microcode result is flagged UNCOMPUTED to the GUEST by default, via the non-gating INTR[ERRORTRAP] channel — firmware can detect it, not just the host (tests/mcxn-neutron)"
     blocks: [neutron-npu, smartdma, powerquad-fixedpt]
   - label: "Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM"
     tier: B

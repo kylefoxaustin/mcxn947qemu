@@ -156,11 +156,30 @@ static const VMStateDescription vmstate_mcxn_neutron = {
 };
 
 static const Property mcxn_neutron_props[] = {
-    /* Operator opt-in: surface "uncomputed" to the guest via INTR.ERRORTRAP +
-     * NPU IRQ 97 (non-gating).  Default off = faithful-ack (firmware runs to
-     * completion; the uncomputed result is flagged only via QMP/log). */
+    /*
+     * Surface "uncomputed" to the GUEST via INTR.ERRORTRAP + NPU IRQ 97, on by
+     * default.
+     *
+     * This used to default off ("faithful-ack": firmware runs to completion and
+     * the uncomputed result is flagged only via QMP/log).  That is a silent
+     * wrong answer, and it is the exact class this project exists to kill: the
+     * guest kicks an inference, we ack DONE, we never write the output buffer,
+     * and firmware reads whatever was there — plausible-looking zeros — with no
+     * way to tell.  The truth existed only on the HOST side, where the firmware
+     * under test cannot see it.  An accelerator that acks DONE without computing
+     * is a lie told to the guest (fleet position, ratified by 95emulator, who
+     * flipped the same default for the same reason).
+     *
+     * Set uncomputed-errortrap=false only if you knowingly want the old
+     * ack-and-say-nothing behaviour.
+     *
+     * The channel matters as much as the flag: this is the NON-GATING error trap,
+     * never the completion gate.  Faulting an NXP accelerator through its
+     * completion retcode hangs the driver instead of informing it (fleet finding;
+     * see the Neutron honest-fault recipe).
+     */
     DEFINE_PROP_BOOL("uncomputed-errortrap", MCXNNeutronState,
-                     uncomputed_errortrap, false),
+                     uncomputed_errortrap, true),
 };
 
 static void mcxn_neutron_class_init(ObjectClass *klass, const void *data)
