@@ -143,7 +143,11 @@ static void mcxn_rtc_tick(void *opaque)
     }
 
     mcxn_rtc_update_irq(s);
-    timer_mod(&s->tick, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + NANOSECONDS_PER_SECOND);
+    /* Re-arm from the previous DEADLINE, never from "now".  Re-adding the
+     * callback's dispatch latency every second makes the error accumulate: a
+     * real-time clock that drifts is the one thing an RTC must never be. */
+    s->next_tick_ns += NANOSECONDS_PER_SECOND;
+    timer_mod(&s->tick, s->next_tick_ns);
 }
 
 static uint64_t mcxn_rtc_read(void *opaque, hwaddr offset, unsigned size)
@@ -252,8 +256,9 @@ static void mcxn_rtc_realize(DeviceState *dev, Error **errp)
 
     /* The RTC oscillator runs free: start the 1 Hz calendar tick. */
     timer_init_ns(&s->tick, QEMU_CLOCK_VIRTUAL, mcxn_rtc_tick, s);
-    timer_mod(&s->tick, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                        NANOSECONDS_PER_SECOND);
+    s->next_tick_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                      NANOSECONDS_PER_SECOND;
+    timer_mod(&s->tick, s->next_tick_ns);
 }
 
 static const VMStateDescription vmstate_mcxn_rtc = {

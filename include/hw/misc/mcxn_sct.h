@@ -30,7 +30,8 @@ struct MCXNSCTState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq     irq;           /* SCT0_IRQn */
-    QEMUTimer    event_timer;   /* periodic match/limit event 0 */
+    QEMUTimer    event_timer;
+    int64_t next_event_ns; /* deadline: periodic timers must not drift */   /* periodic match/limit event 0 */
 
     uint8_t regs[MCXN_SCT_SIZE];
 };

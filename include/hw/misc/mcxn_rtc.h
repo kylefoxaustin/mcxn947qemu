@@ -27,7 +27,8 @@ struct MCXNRTCState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq irq;
-    QEMUTimer tick;       /* 1 Hz calendar tick */
+    QEMUTimer tick;
+    int64_t   next_tick_ns;  /* deadline: the calendar must not drift */       /* 1 Hz calendar tick */
     uint32_t regs[MCXN_RTC_SIZE / 4];
 };
 

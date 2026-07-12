@@ -66,6 +66,7 @@ struct MCXNUSBHSCoreState {
 
     MCXNUsbDevState *usbdev;        /* shared usbredir device core (link)    */
     QEMUTimer   *sof;               /* token-retry backstop tick             */
+    int64_t     next_sof_ns;        /* deadline: the frame rate must not drift */
     bool         enabled;           /* RS + device mode seen                 */
     bool         ep0_status_in;     /* drain a zero-length status-IN dTD     */
     MCXNUSBHSXfer ep[MCXN_USBHS_NEP];

@@ -93,15 +93,25 @@ static int64_t mcxn_pwm_period_ns(MCXNPWMState *s)
     return ns < 1000 ? 1000 : ns;                 /* floor to keep it sane */
 }
 
-/* One submodule-0 reload: set the reload flag and re-arm. */
+/*
+ * One submodule-0 reload: set the reload flag and re-arm.
+ *
+ * The next deadline is computed from the PREVIOUS DEADLINE, not from "now".
+ * Re-arming from the current time re-adds the callback's dispatch latency every
+ * single period, so the error ACCUMULATES and the carrier runs systematically
+ * slow and drifts — a real PWM carrier does not.  Measuring the period against
+ * SysTick (an independent clock) showed the old code running ~8.6% slow; counting
+ * interrupts, as this block's test used to, could never have seen it.
+ */
 static void mcxn_pwm_reload_tick(void *opaque)
 {
     MCXNPWMState *s = opaque;
 
     pwm_st16(s, PWM_SM_STS, pwm_ld16(s, PWM_SM_STS) | PWM_STS_RF);
     mcxn_pwm_update_irq(s);
-    timer_mod(&s->reload_timer,
-              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + mcxn_pwm_period_ns(s));
+
+    s->next_reload_ns += mcxn_pwm_period_ns(s);
+    timer_mod(&s->reload_timer, s->next_reload_ns);
 }
 
 static uint64_t mcxn_pwm_read(void *opaque, hwaddr offset, unsigned size)
@@ -139,10 +149,13 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
         uint16_t cldok = (mctrl & PWM_MCTRL_CLDOK_MASK) >> 4;
         (void)cldok;   /* load is instantaneous, so LDOK is already cleared */
         pwm_st16(s, PWM_MCTRL, run);
-        /* Submodule-0 RUN gates the periodic reload timer. */
+        /* Submodule-0 RUN gates the periodic reload timer.  Anchor the first
+         * deadline here; every later one is derived from it, so the carrier
+         * cannot drift (see mcxn_pwm_reload_tick). */
         if (run & PWM_MCTRL_RUN_SM0) {
-            timer_mod(&s->reload_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                        mcxn_pwm_period_ns(s));
+            s->next_reload_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                                mcxn_pwm_period_ns(s);
+            timer_mod(&s->reload_timer, s->next_reload_ns);
         } else {
             timer_del(&s->reload_timer);
         }
@@ -222,6 +235,7 @@ static const VMStateDescription vmstate_mcxn_pwm = {
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNPWMState, MCXN_PWM_SIZE),
         VMSTATE_TIMER(reload_timer, MCXNPWMState),
+        VMSTATE_INT64(next_reload_ns, MCXNPWMState),
         VMSTATE_END_OF_LIST()
     },
 };

@@ -31,6 +31,7 @@ struct MCXNPWMState {
     MemoryRegion iomem;
     qemu_irq     irq;           /* main submodule-0 capture/compare/reload line */
     QEMUTimer    reload_timer;  /* submodule-0 periodic reload */
+    int64_t      next_reload_ns; /* the reload DEADLINE, so the carrier cannot drift */
 
     uint8_t regs[MCXN_PWM_SIZE];
 };

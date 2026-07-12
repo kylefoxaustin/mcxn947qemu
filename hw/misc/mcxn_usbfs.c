@@ -299,7 +299,11 @@ static void usbfs_sof(void *opaque)
     s->regs[R_ISTAT / 4] |= ISTAT_SOFTOK;
     usbfs_update_irq(s);
     usbfs_service(s);
-    timer_mod(s->sof, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SOF_PERIOD_NS);
+    /* Re-arm from the previous DEADLINE, never from "now": re-adding the
+     * callback's dispatch latency every frame makes the error accumulate, and
+     * the USB frame rate is a timing contract, not a suggestion. */
+    s->next_sof_ns += SOF_PERIOD_NS;
+    timer_mod(s->sof, s->next_sof_ns);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -462,8 +466,9 @@ static void mcxn_usbfs_write(void *opaque, hwaddr off, uint64_t value,
         if ((v & CTL_USBENSOFEN) && !(v & CTL_HOSTMODEEN) && !s->enabled) {
             /* Device mode enabled + pull-up: a device appears on the bus. */
             s->enabled = true;
-            timer_mod(s->sof,
-                      qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SOF_PERIOD_NS);
+            s->next_sof_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                             SOF_PERIOD_NS;
+            timer_mod(s->sof, s->next_sof_ns);
             mcxn_usbdev_attach(s->usbdev, usb_redir_speed_full);
         } else if (!(v & CTL_USBENSOFEN) && s->enabled) {
             s->enabled = false;

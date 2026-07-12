@@ -185,7 +185,7 @@ readme_groups:
     blocks: [usdhc, flexspi]
   - label: "Timers / PWM — CTIMER, MRT, LPTMR, OSTIMER, SCT, eFlexPWM, RTC"
     tier: A
-    evidence: "Timer/PWM data paths + IRQs (tests/mcxn-ctimer, mcxn-timers, mcxn-ostimer, mcxn-sct, mcxn-pwm, mcxn-rtc)"
+    evidence: "Timer/PWM data paths + IRQs. The eFlexPWM CARRIER PERIOD is measured against SysTick — an Arm core timer, independent of every peripheral model — and matched to the period predicted from configuration (49168 vs 49164 ticks, 0.008%), under -icount so the measurement is deterministic. Counting interrupts is not enough: a 3x-wrong carrier still fires them (tests/mcxn-pwm, mcxn-ctimer, mcxn-timers, mcxn-ostimer, mcxn-sct, mcxn-rtc)"
     blocks: [ctimer, mrt, lptmr, ostimer, sct, pwm, rtc]
   - label: "GPIO + eDMA"
     tier: A

@@ -364,7 +364,11 @@ static void usbhs_sof(void *opaque)
         return;
     }
     usbhs_service(s);
-    timer_mod(s->sof, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SOF_PERIOD_NS);
+    /* Re-arm from the previous DEADLINE, never from "now": re-adding the
+     * callback's dispatch latency every frame makes the error accumulate, and
+     * the USB frame rate is a timing contract, not a suggestion. */
+    s->next_sof_ns += SOF_PERIOD_NS;
+    timer_mod(s->sof, s->next_sof_ns);
 }
 
 /* ---- usbredir backend ops ----------------------------------------------- */
@@ -528,8 +532,9 @@ static void usbhs_core_write(void *opaque, hwaddr off, uint64_t value,
              * device_qualifier (see tests/mcxn-usb-hs) — so HS attaches cleanly
              * and the kernel finalizes enumeration. */
             s->enabled = true;
-            timer_mod(s->sof,
-                      qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + SOF_PERIOD_NS);
+            s->next_sof_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                             SOF_PERIOD_NS;
+            timer_mod(s->sof, s->next_sof_ns);
             mcxn_usbdev_attach(s->usbdev, usb_redir_speed_high);
         } else if (!(v & USBCMD_RS) && s->enabled) {
             s->enabled = false;

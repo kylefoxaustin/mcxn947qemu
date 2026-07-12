@@ -53,6 +53,7 @@ struct MCXNUSBFSState {
 
     MCXNUsbDevState *usbdev;        /* shared usbredir device core (link)    */
     QEMUTimer   *sof;               /* 1 ms SOF / token-retry tick           */
+    int64_t     next_sof_ns;        /* deadline: the frame rate must not drift */
 
     bool        enabled;            /* CTL.USBENSOFEN seen                   */
     bool        tokdne_busy;        /* a TOKDNE is awaiting firmware ack     */

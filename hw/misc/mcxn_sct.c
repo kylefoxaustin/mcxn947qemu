@@ -74,8 +74,11 @@ static void mcxn_sct_event_tick(void *opaque)
 
     sct_st32(s, SCT_EVFLAG, sct_ld32(s, SCT_EVFLAG) | SCT_EV0);
     mcxn_sct_update_irq(s);
-    timer_mod(&s->event_timer,
-              qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + mcxn_sct_period_ns(s));
+    /* Re-arm from the previous DEADLINE, never from "now": re-adding the
+     * callback's dispatch latency every period makes the error accumulate, so the
+     * event rate runs systematically slow and drifts without bound. */
+    s->next_event_ns += mcxn_sct_period_ns(s);
+    timer_mod(&s->event_timer, s->next_event_ns);
 }
 
 static uint64_t mcxn_sct_read(void *opaque, hwaddr offset, unsigned size)
@@ -116,8 +119,11 @@ static void mcxn_sct_write(void *opaque, hwaddr offset, uint64_t value,
         sct_st32(s, SCT_CTRL, v);
         /* The low counter runs when neither halted nor stopped. */
         if (!(v & (SCT_CTRL_HALT_L_MASK | SCT_CTRL_STOP_L_MASK))) {
-            timer_mod(&s->event_timer, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                       mcxn_sct_period_ns(s));
+            /* Anchor the first deadline; the callback derives every later one
+             * from it, so the event rate cannot drift. */
+            s->next_event_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                               mcxn_sct_period_ns(s);
+            timer_mod(&s->event_timer, s->next_event_ns);
         } else {
             timer_del(&s->event_timer);
         }
