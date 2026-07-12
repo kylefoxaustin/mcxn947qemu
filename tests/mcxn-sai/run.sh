@@ -10,6 +10,6 @@ command -v "$CC" >/dev/null 2>&1 || { echo "SKIP: $CC not found"; exit 0; }
 "$CC" -mcpu=cortex-m33 -mthumb -nostdlib -nostartfiles -ffreestanding -O2 \
       -Wall -T "$HERE/link.ld" "$HERE/main.c" -o "$ELF"
 OUT="$(timeout 10 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
-        -serial stdio -global mcxn-sai.loopback=on -kernel "$ELF" -no-reboot 2>/dev/null || true)"
+        -icount shift=3 -serial stdio -global mcxn-sai.loopback=on -kernel "$ELF" -no-reboot 2>/dev/null || true)"
 echo "--- guest output ---"; echo "$OUT"; echo "--------------------"
 echo "$OUT" | grep -q "SAI PASS" && { echo "PASS"; exit 0; } || { echo "FAIL"; exit 1; }

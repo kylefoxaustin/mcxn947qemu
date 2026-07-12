@@ -37,6 +37,31 @@
 #define STAT_TDRE (1u << 23)
 static void putc_(char c){ while(!(LP_STAT&STAT_TDRE)){} LP_DATA=(uint8_t)c; }
 static void puts_(const char*s){ while(*s) putc_(*s++); }
+static void putdec(uint32_t v)
+{
+    char b[12];
+    int i = 0;
+
+    if (!v) {
+        putc_('0');
+        return;
+    }
+    while (v) {
+        b[i++] = (char)('0' + (v % 10));
+        v /= 10;
+    }
+    while (i--) {
+        putc_(b[i]);
+    }
+}
+
+/* SysTick — an Arm core timer, independent of every peripheral model. */
+#define SYST_CSR  (*(volatile uint32_t *)0xE000E010u)
+#define SYST_RVR  (*(volatile uint32_t *)0xE000E014u)
+#define SYST_CVR  (*(volatile uint32_t *)0xE000E018u)
+#define SYST_ENABLE    (1u << 0)
+#define SYST_CLKSOURCE (1u << 2)      /* processor clock */
+#define SYST_MASK  0x00FFFFFFu        /* 24-bit down-counter */
 
 #define SAI0 0x40106000u
 #define SAI_TCSR (*(volatile uint32_t *)(SAI0 + 0x08))
@@ -132,6 +157,90 @@ void cpu0_main(void)
     ok &= (TFR_COUNT(SAI_RFR0) == 0);
 
     SAI_TCSR = 0;                                  /* stop the transmitter */
+
+    /* ------------------------------------------------------------------
+     * THE WORD RATE.  The capability table claimed "word rate derived from
+     * TCR2[DIV]/TCR5[W0W]" — and NOTHING TESTED IT.  Mutation testing proved
+     * it: making the model IGNORE TCR2[DIV] entirely left this test GREEN.
+     * The words still moved, still byte-exact, still in order — just at the
+     * WRONG RATE, which for an I2S link is the whole point.  (Exactly the bug
+     * just found in eFlexPWM, where CTRL[PRSC] was not modelled at all.)
+     *
+     * Measured against SysTick — an Arm core timer, independent of every
+     * peripheral model — under -icount so it is deterministic.
+     *
+     * ⭐ AND THE CHECK IS MCLK-INDEPENDENT BY CONSTRUCTION.  The bit clock is
+     * MCLK / (2 * (DIV + 1)), so the word period must scale EXACTLY with
+     * (DIV + 1) — a RATIO, in which the MCLK cancels.  So this verifies the
+     * thing the RM actually specifies, WITHOUT depending on the nominal MCLK
+     * (which is a documented modelling assumption, the clock tree not being
+     * modelled).  A test that divided by the model's own MCLK would prove
+     * nothing — that is the trap that hid the PWM tick rate for weeks.
+     * ------------------------------------------------------------------ */
+    {
+        /*
+         * SWEEP BOTH AXES.  The period is proportional to BITS * (DIV + 1), so
+         * varying DIV alone is a DEGENERATE SHAPE: with W0W frozen at 32 bits,
+         * a model that hardcoded `bits = 32` is BIT-IDENTICAL and the test
+         * cannot see it.  (Mutation testing caught exactly that here — the same
+         * failure as testing a matrix engine only on square matrices, where all
+         * three LENGTH fields are equal and a dimension swap changes nothing.)
+         *
+         * Rows: baseline · double the divider · halve the word length.
+         * Expected period is relative to row 0 and MCLK-INDEPENDENT.
+         */
+        static const uint8_t divs[3] = { 0,  1,  0 };
+        static const uint8_t w0w [3] = { 31, 31, 15 };  /* 32, 32, 16 bits */
+        static const uint8_t mul [3] = { 2,  4,  1 };   /* period x mul/2   */
+        uint32_t drain[3];
+        int k;
+
+        SYST_RVR = SYST_MASK;
+        SYST_CVR = 0;
+        SYST_CSR = SYST_ENABLE | SYST_CLKSOURCE;
+
+        for (k = 0; k < 3; k++) {
+            uint32_t t0, t1;
+
+            SAI_TCSR = 0;                       /* transmitter off       */
+            SAI_TCSR = CSR_FR;                  /* flush the FIFO        */
+            SAI_RCSR = CSR_FR;
+            SAI_TCR2 = divs[k];                 /* bit-clock divider     */
+            SAI_TCR5 = ((uint32_t)w0w[k] << 16); /* word length           */
+            SAI_RCR5 = ((uint32_t)w0w[k] << 16);
+
+            for (i = 0; i < FIFO_DEPTH; i++) {
+                SAI_TDR0 = 0x2000u + i;
+            }
+            ok &= (TFR_COUNT(SAI_TFR0) == FIFO_DEPTH);
+
+            t0 = SYST_CVR;
+            SAI_TCSR = CSR_EN;                  /* bit clock on -> drain */
+            for (d = 0; d < 200000000 && TFR_COUNT(SAI_TFR0) != 0; d++) {
+            }
+            t1 = SYST_CVR;
+            ok &= (TFR_COUNT(SAI_TFR0) == 0);
+
+            drain[k] = (t0 - t1) & SYST_MASK;   /* SysTick counts DOWN   */
+            SAI_TCSR = 0;
+        }
+
+        /* Period must scale as BITS * (DIV+1), relative to row 0.  mul/2 is
+         * that ratio: row1 = x2 (divider), row2 = x0.5 (half the word). */
+        for (k = 1; k < 3; k++) {
+            uint32_t want = drain[0] * mul[k] / 2u;
+            uint32_t got  = drain[k];
+            uint32_t diff = (got > want) ? (got - want) : (want - got);
+
+            puts_("  DIV="); putdec(divs[k]);
+            puts_(" bits="); putdec((uint32_t)w0w[k] + 1);
+            puts_(" drain="); putdec(got);
+            puts_(" expected "); putdec(want);
+            puts_("\r\n");
+
+            ok &= (diff * 100 <= want);         /* within 1% */
+        }
+    }
 
     puts_(ok ? "SAI PASS\r\n" : "SAI FAIL\r\n");
     for (;;) {
