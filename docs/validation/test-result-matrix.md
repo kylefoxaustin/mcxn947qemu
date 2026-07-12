@@ -36,11 +36,11 @@ register-only≈registration/Tier-C.
 | lpuart | ✓ | ✓ | functional | mcxn-multiuart, mcxn-flexcomm | PASS |
 | lpspi | ✓ | ✓ | functional | mcxn-flexcomm | PASS |
 | lpi2c | ✓ | ✓ | functional | mcxn-flexcomm | PASS |
-| i3c | ✓ | ✓ | functional | mcxn-i3c | PASS |
+| i3c | ✓ | ✓ | register-only | mcxn-i3c | PASS |
 | usdhc | ✓ | ✓ | functional | mcxn-usdhc | PASS |
-| flexspi | ✓ | ✓ | functional | mcxn-flexspi, mcxn-xip | PASS |
-| sai | ✓ | ✓ | functional | mcxn-sai | PASS |
-| emvsim | ✓ | ✓ | functional | mcxn-emvsim | PASS |
+| flexspi | ✓ | ✓ | functional | mcxn-flexspi, mcxn-flexspi-nor, mcxn-xip | PASS |
+| sai | ✓ | ✓ | register-only | mcxn-sai | PASS |
+| emvsim | ✓ | ✓ | register-only | mcxn-emvsim | PASS |
 | mailbox | ✓ | ✓ | functional | mcxn-mailbox, mcxn-dualcore | PASS |
 
 ## Timers
@@ -78,7 +78,7 @@ register-only≈registration/Tier-C.
 | opamp | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | vref | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | pdm | ✓ | ◐ | register-only | boot, corpus | SKIP |
-| sinc | ✓ | ◐ | register-only | boot, corpus | SKIP |
+| sinc | ✓ | ✓ | functional | mcxn-sinc | PASS |
 
 ## GPIO / pin / DMA / interrupt
 

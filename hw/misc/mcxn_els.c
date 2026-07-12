@@ -1,21 +1,57 @@
 /*
- * NXP MCX N ELS (EdgeLock Secure subsystem, S50) - bring-up model.
+ * NXP MCX N ELS (EdgeLock Secure subsystem, S50) — honest crypto model.
  *
- * Faithful register file, no real crypto.  Firmware issues an ELS command via
- * ELS_CTRL and then polls ELS_STATUS for the BUSY bit to clear (and inspects
- * the error flag) before reading results.  Here the model reports the engine
- * as permanently idle/done: ELS_STATUS.ELS_BUSY and DTRNG_BUSY read 0, the
- * ERR flag reads 0, and the PRNG/DRBG ready bits read ready so entropy and
- * "wait for ELS done" loops complete.  ELS_INT_STATUS_CLR / ELS_ERR_STATUS_CLR
- * are write-only status-clear registers and are ignored.  Read-only ID/version
- * and keystore-status registers return constants.  Offsets/bits from the
- * MCXN947 CMSIS header (S50_Type).
+ * The ELS is a hardware crypto engine.  We do not implement AES, SHA, HMAC,
+ * ECDSA or key derivation, and we are never going to fake them: a crypto engine
+ * that reports success without computing is the most dangerous silent-wrong a
+ * machine model can contain.
+ *
+ * The trap, and why the previous model fell into it: EVERY dangerous ELS command
+ * writes its result by DMA into a guest buffer (ELS_DMA_RES0), not into a
+ * register.  The old model latched the command, computed nothing, left the result
+ * buffer UNTOUCHED, and then reported ELS_STATUS as "not busy, no error" with
+ * ELS_ERR_STATUS hardwired to 0.  So firmware ran an ECDSA sign, a SHA-256, an
+ * AES encrypt or a key-derivation, saw a clean completion, and read uninitialised
+ * memory as its signature / digest / ciphertext / session key.  An ECDSA VERIFY
+ * would "succeed" against garbage.  Nothing — not the guest, not the host log —
+ * knew.  (Class identified by rt1180emulator, who found the identical bug in his
+ * EdgeLock message unit: "if your uncomputed-flag is gated on reply SHAPE rather
+ * than command SEMANTICS, the commands that write their result to a buffer are
+ * the ones your heuristic will miss, and they are the ones that matter.")
+ *
+ * So this model splits the command set by what it can honestly do:
+ *
+ *   HONOURED   RND_REQ  — we have real entropy, so we DMA real random bytes into
+ *                         the result buffer.  This is a genuine data path.
+ *              DTRNG config / DRBG test / key delete — no result data to fake.
+ *
+ *   FAULTED    every actual cryptographic operation (cipher, AEAD, hash, HMAC,
+ *              CMAC, ECDSA sign/verify, ECDH, key gen/in/out/prov, CKDF/HKDF,
+ *              TLS).  The engine reports the failure through its OWN documented
+ *              error channel: ELS_STATUS[ELS_ERR] + ELS_ERR_STATUS[OPN_ERR].
+ *
+ * The channel matters.  BUSY still clears, so the driver's "wait for done" loop
+ * always terminates — the guest is never hung, it is told.  mcuxClEls checks
+ * ELS_STATUS[ELS_ERR] after the wait and returns an error to its caller, which is
+ * exactly what silicon would do for an operation it could not perform.  Faulting
+ * through the completion path instead would hang the driver rather than inform it
+ * (fleet finding).
+ *
+ * The PRNG behind ELS_PRNG_DATOUT and RND_REQ is a deterministic xorshift32: it
+ * is real, varying entropy — enough that anything seeded from it (Zephyr's stack
+ * randomisation, a CSPRNG) does not degenerate — but it is NOT cryptographically
+ * strong, and firmware must not be relied on to notice.  Swap to
+ * qemu_guest_getrandom() if that ever matters.
+ *
+ * Offsets/bits from the MCXN947 CMSIS header (S50_Type); command IDs from the
+ * MCUXpresso els_pkc driver (mcuxClEls_Crc.h).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "qemu/osdep.h"
 #include "qemu/log.h"
 #include "hw/misc/mcxn_els.h"
+#include "system/dma.h"
 #include "migration/vmstate.h"
 
 /* Register offsets (S50_Type). */
@@ -31,7 +67,7 @@
 #define ELS_DMA_SRC1        0x28
 #define ELS_DMA_SRC2        0x30
 #define ELS_DMA_SRC2_LEN    0x34
-#define ELS_DMA_RES0        0x38
+#define ELS_DMA_RES0        0x38  /* where a command's result is written */
 #define ELS_DMA_RES0_LEN    0x3C
 #define ELS_INT_ENABLE      0x40
 #define ELS_INT_STATUS_CLR  0x44  /* WO */
@@ -49,44 +85,155 @@
 #define ELS_KS0             0x150 /* RO: keystore status 0 */
 #define ELS_KS19            0x19C /* RO: keystore status 19 */
 
-/* ELS_STATUS field masks. */
+/* ELS_STATUS field masks (CMSIS S50_ELS_STATUS_*). */
 #define ELS_STATUS_ELS_BUSY     (1u << 0)
 #define ELS_STATUS_ELS_IRQ      (1u << 1)
 #define ELS_STATUS_ELS_ERR      (1u << 2)
 #define ELS_STATUS_PRNG_RDY     (1u << 3)
 #define ELS_STATUS_DTRNG_BUSY   (1u << 10)
+#define ELS_STATUS_DRBG_ENT_MAX 0x300u   /* DRBG entropy level = max */
 
-/*
- * Idle/done value reported by ELS_STATUS: not busy, no error/IRQ pending,
- * PRNG ready.  DRBG entropy level reports max (0x300) so the entropy-ready
- * checks pass.
- */
-#define ELS_STATUS_IDLE  (ELS_STATUS_PRNG_RDY | 0x300u)
+/* ELS_CTRL fields (CMSIS S50_ELS_CTRL_*). */
+#define ELS_CTRL_EN     (1u << 0)
+#define ELS_CTRL_START  (1u << 1)
+#define ELS_CTRL_RESET  (1u << 2)
+#define ELS_CTRL_CMD(v) (((v) >> 3) & 0x1F)
+
+/* ELS_ERR_STATUS bits (CMSIS S50_ELS_ERR_STATUS_*). */
+#define ELS_ERR_OPN     (1u << 1)   /* operation error: could not be performed */
+
+/* ELS command IDs (MCUXpresso mcuxClEls_Crc.h, ELS_CTRL[ELS_CMD]). */
+#define ELS_CMD_CIPHER          0
+#define ELS_CMD_AUTH_CIPHER     1
+#define ELS_CMD_CHAL_RESP_GEN   3
+#define ELS_CMD_ECSIGN          4
+#define ELS_CMD_ECVFY           5
+#define ELS_CMD_ECKXH           6
+#define ELS_CMD_KEYGEN          8
+#define ELS_CMD_KEYIN           9
+#define ELS_CMD_KEYOUT          10
+#define ELS_CMD_KDELETE         11
+#define ELS_CMD_KEYPROV         12
+#define ELS_CMD_CKDF            16
+#define ELS_CMD_HKDF            17
+#define ELS_CMD_TLS             18
+#define ELS_CMD_HASH            20
+#define ELS_CMD_HMAC            21
+#define ELS_CMD_CMAC            22
+#define ELS_CMD_RND_REQ         24
+#define ELS_CMD_DRBG_TEST       25
+#define ELS_CMD_DTRNG_CFG_LOAD  28
 
 /* Version register value (X.Y1.Y2.Z = 1.0.0.0). Unconfirmed against RM. */
 #define ELS_VERSION_VALUE  0x00001000u
 
-/* Seed for the TRNG-output PRNG (any nonzero constant). */
+/* Seed for the entropy PRNG (any nonzero constant). */
 #define ELS_PRNG_SEED  0x2545F491u
 
+/* Largest RND_REQ we will service in one command. */
+#define ELS_RND_MAX  4096
+
 /*
- * The PRNG/DRBG data-output register (ELS_PRNG_DATOUT) must return *fresh*
- * data on each read — that is what a TRNG does, and the NXP ELS entropy driver
- * reads it word-by-word to fill the kernel entropy pool.  Returning a constant
- * (the old behaviour) yields all-zero entropy, so anything seeded from it
- * (stack-pointer randomisation, CSPRNG) degenerates.  Back it with a small
- * xorshift32 PRNG: varying per read and reproducible per run (deterministic for
- * CI), not cryptographically strong — swap to qemu_guest_getrandom() if true
- * entropy is ever needed.
+ * Real, varying entropy — not cryptographically strong.  A constant here yields
+ * all-zero entropy and anything seeded from it (stack-pointer randomisation, a
+ * CSPRNG) degenerates silently.
  */
 static uint32_t els_prng_next(MCXNELSState *s)
 {
     uint32_t x = s->rng_state;
+
     x ^= x << 13;
     x ^= x >> 17;
     x ^= x << 5;
     s->rng_state = x;
     return x;
+}
+
+static const char *els_cmd_name(uint32_t cmd)
+{
+    switch (cmd) {
+    case ELS_CMD_CIPHER:        return "CIPHER (AES)";
+    case ELS_CMD_AUTH_CIPHER:   return "AUTH_CIPHER (AEAD)";
+    case ELS_CMD_CHAL_RESP_GEN: return "CHAL_RESP_GEN";
+    case ELS_CMD_ECSIGN:        return "ECSIGN (ECDSA sign)";
+    case ELS_CMD_ECVFY:         return "ECVFY (ECDSA verify)";
+    case ELS_CMD_ECKXH:         return "ECKXH (ECDH)";
+    case ELS_CMD_KEYGEN:        return "KEYGEN";
+    case ELS_CMD_KEYIN:         return "KEYIN";
+    case ELS_CMD_KEYOUT:        return "KEYOUT";
+    case ELS_CMD_KEYPROV:       return "KEYPROV";
+    case ELS_CMD_CKDF:          return "CKDF";
+    case ELS_CMD_HKDF:          return "HKDF";
+    case ELS_CMD_TLS:           return "TLS";
+    case ELS_CMD_HASH:          return "HASH";
+    case ELS_CMD_HMAC:          return "HMAC";
+    case ELS_CMD_CMAC:          return "CMAC";
+    default:                    return "unknown";
+    }
+}
+
+/* RND_REQ: the one command we can honestly satisfy — DMA real random bytes. */
+static void els_do_rnd_req(MCXNELSState *s)
+{
+    uint32_t addr = s->regs[ELS_DMA_RES0 / 4];
+    uint32_t len  = s->regs[ELS_DMA_RES0_LEN / 4];
+    uint8_t buf[ELS_RND_MAX];
+
+    if (!len || len > ELS_RND_MAX) {
+        qemu_log_mask(LOG_UNIMP,
+                      "mcxn-els: RND_REQ of %u bytes is outside the modelled "
+                      "range; failing the command rather than returning weak or "
+                      "no entropy\n", len);
+        s->err_status |= ELS_ERR_OPN;
+        return;
+    }
+    for (uint32_t i = 0; i < len; i++) {
+        buf[i] = els_prng_next(s) & 0xFF;
+    }
+    dma_memory_write(&address_space_memory, addr, buf, len,
+                     MEMTXATTRS_UNSPECIFIED);
+}
+
+/*
+ * ELS_CTRL[ELS_START]: run the staged command.
+ *
+ * Anything that produces a cryptographic RESULT is faulted, never faked.  The
+ * result would land in the guest's ELS_DMA_RES0 buffer, so "succeeding" without
+ * writing it hands firmware uninitialised memory as a signature, digest, key or
+ * ciphertext — and firmware has no way to tell.
+ */
+static void els_start_command(MCXNELSState *s)
+{
+    uint32_t cmd = ELS_CTRL_CMD(s->regs[ELS_CTRL / 4]);
+
+    switch (cmd) {
+    case ELS_CMD_RND_REQ:
+        els_do_rnd_req(s);
+        return;
+
+    case ELS_CMD_DRBG_TEST:
+    case ELS_CMD_DTRNG_CFG_LOAD:
+    case ELS_CMD_KDELETE:
+        /* Configuration / teardown: no result data, nothing to fabricate. */
+        return;
+
+    default:
+        /*
+         * A real cryptographic operation we do not implement.  Report it through
+         * the engine's own error channel so mcuxClEls returns a failure to its
+         * caller.  BUSY still clears, so the driver's wait loop terminates: the
+         * guest is informed, not hung.
+         */
+        s->err_status |= ELS_ERR_OPN;
+        qemu_log_mask(LOG_UNIMP,
+                      "mcxn-els: command %u (%s) is NOT COMPUTED — failing it via "
+                      "ELS_STATUS[ELS_ERR]/ELS_ERR_STATUS[OPN_ERR] rather than "
+                      "reporting success over an untouched result buffer.  The "
+                      "ELS crypto engine is not modelled; firmware must treat this "
+                      "operation as failed, not trust the DMA_RES0 contents.\n",
+                      cmd, els_cmd_name(cmd));
+        return;
+    }
 }
 
 static bool els_is_ro(hwaddr off)
@@ -109,13 +256,22 @@ static uint64_t mcxn_els_read(void *opaque, hwaddr off, unsigned size)
 {
     MCXNELSState *s = MCXN_ELS(opaque);
     uint32_t v = (off < MCXN_ELS_SIZE) ? s->regs[off >> 2] : 0;
+    uint32_t st;
 
     switch (off) {
     case ELS_STATUS:
-        /* Commands complete instantly: never busy, no error, PRNG ready. */
-        return ELS_STATUS_IDLE;
+        /*
+         * Commands retire instantly, so BUSY is never set and no wait loop can
+         * hang.  ELS_ERR, however, is REAL: it is set whenever the engine was
+         * asked for a cryptographic result it cannot produce.
+         */
+        st = ELS_STATUS_PRNG_RDY | ELS_STATUS_DRBG_ENT_MAX;
+        if (s->err_status) {
+            st |= ELS_STATUS_ELS_ERR;
+        }
+        return st;
     case ELS_ERR_STATUS:
-        return 0;        /* no error pending */
+        return s->err_status;
     case ELS_VERSION:
         return ELS_VERSION_VALUE;
     case ELS_PRNG_DATOUT:
@@ -133,6 +289,7 @@ static void mcxn_els_write(void *opaque, hwaddr off, uint64_t value,
                            unsigned size)
 {
     MCXNELSState *s = MCXN_ELS(opaque);
+    uint32_t val = value;
 
     if (off >= MCXN_ELS_SIZE) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: OOB write @0x%" HWADDR_PRIx "\n",
@@ -142,12 +299,29 @@ static void mcxn_els_write(void *opaque, hwaddr off, uint64_t value,
     if (els_is_ro(off)) {
         return;          /* read-only registers ignore writes */
     }
-    /* Status-clear (WO) registers have no observable state in this model. */
-    if (off == ELS_INT_STATUS_CLR || off == ELS_INT_STATUS_SET ||
-        off == ELS_ERR_STATUS_CLR) {
+
+    switch (off) {
+    case ELS_ERR_STATUS_CLR:
+        /* W1C: firmware clears the error and may retry. */
+        s->err_status &= ~val;
+        return;
+    case ELS_INT_STATUS_CLR:
+    case ELS_INT_STATUS_SET:
+        return;          /* no observable interrupt state in this model */
+    case ELS_CTRL:
+        s->regs[ELS_CTRL / 4] = val;
+        if (val & ELS_CTRL_RESET) {
+            s->err_status = 0;
+            return;
+        }
+        if ((val & ELS_CTRL_EN) && (val & ELS_CTRL_START)) {
+            els_start_command(s);
+        }
+        return;
+    default:
+        s->regs[off >> 2] = val;
         return;
     }
-    s->regs[off >> 2] = value;
 }
 
 static const MemoryRegionOps mcxn_els_ops = {
@@ -166,6 +340,7 @@ static void mcxn_els_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     s->rng_state = ELS_PRNG_SEED;
+    s->err_status = 0;
 }
 
 static void mcxn_els_realize(DeviceState *dev, Error **errp)
@@ -179,11 +354,12 @@ static void mcxn_els_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_els = {
     .name = TYPE_MCXN_ELS,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNELSState, MCXN_ELS_SIZE / 4),
         VMSTATE_UINT32(rng_state, MCXNELSState),
+        VMSTATE_UINT32(err_status, MCXNELSState),
         VMSTATE_END_OF_LIST()
     },
 };

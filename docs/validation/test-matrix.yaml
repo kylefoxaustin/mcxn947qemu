@@ -96,7 +96,7 @@ clock_power_system:
   - {block: ahbsc,  present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
 
 security_crypto_tamper:
-  - {block: els,  present: true, driver_binds: true,  class: functional,    tested_by: [mcxn-ztest, corpus], result: pass}
+  - {block: els,  present: true, driver_binds: true,  class: functional,    tested_by: [mcxn-els, mcxn-ztest, corpus], result: pass}
   - {block: pkc,  present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
   - {block: puf,  present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
   - {block: cdog, present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
@@ -206,9 +206,9 @@ readme_groups:
     tier: A
     evidence: "Byte-exact erase -> program -> read-back round-trip driven through the RM PEWEN/PERDY sequence; flash is a ROM device, so stores outside a program window are refused and cumulative programming fails verify (tests/mcxn-fmu)"
     blocks: [fmu]
-  - label: "Security — ELS (crypto + TRNG)"
+  - label: "Security — ELS entropy (TRNG); crypto HONESTLY FAULTED, never faked"
     tier: A
-    evidence: "ELS TRNG entropy drives Zephyr stack_random (ztest userspace path)"
+    evidence: "TRNG is real: fresh entropy per read and via RND_REQ DMA, driving Zephyr stack_random (ztest userspace path). The crypto engine (AES/HASH/HMAC/CMAC/ECDSA/ECDH/key-derivation) is NOT implemented and is NOT faked: every such command fails through the engine's own error channel (ELS_STATUS[ELS_ERR] + ELS_ERR_STATUS[OPN_ERR]) and leaves the result buffer untouched, so firmware is told rather than handed uninitialised memory as a signature or key. BUSY still clears, so no driver hangs (tests/mcxn-els)"
     blocks: [els]
   - label: "Watchdogs + micro-tick — WWDT, EWM, UTICK"
     tier: B
