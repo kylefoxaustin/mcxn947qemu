@@ -62,6 +62,40 @@ def _reject_unknown_sections(doc):
             % (", ".join(sorted(unknown)), ", ".join(sorted(SECTION_TITLES))))
 
 
+# The only legal values of a row's `result`.  There used to be NO CHECK AT ALL:
+# the field took any string I happened to type, and the two one-offs already in the
+# file ("operator-run", "partial") had never been agreed anywhere -- they simply
+# were not rejected.  A misspelt result silently became "not pass", which quietly
+# EXCLUDES THE ROW FROM BEING RUN (see the `result == "pass"` gate below) -- so a
+# typo could retire a test from the suite while the drift gate stayed green.
+#
+#     ⭐ A SCHEMA THAT ACCEPTS ANYTHING VALIDATES NOTHING.  This is the same
+#        no-op-edit class as _reject_unknown_sections above, one field over.
+RESULTS = {
+    "pass",          # the listed suites run and pass in CI
+    "partial",       # modelled, but with a NAMED gap in the note -- not run as pass
+    "operator-run",  # only verifiable by a human driving the operator interface
+    "fail",          # known-broken and admitted
+}
+
+
+def _reject_unknown_result(doc):
+    bad = []
+    # ONLY the block sections carry a `result`.  readme_groups (and the other
+    # schema keys) are lists of something else entirely, and walking them was how
+    # the first cut of this guard managed to reject the file it was validating.
+    for sect in SECTION_TITLES:
+        for r in doc.get(sect) or []:
+            if isinstance(r, dict) and r.get("result") not in RESULTS:
+                bad.append("%s/%s: result=%r" % (sect, r.get("block"), r.get("result")))
+    if bad:
+        raise SystemExit(
+            "test-matrix.yaml: illegal `result` value(s):\n  %s\n"
+            "  Anything that is not 'pass' is silently NOT RUN, so a typo here\n"
+            "  retires a test from CI while the drift gate stays green.\n"
+            "  Legal: %s" % ("\n  ".join(bad), ", ".join(sorted(RESULTS))))
+
+
 # Pseudo tested-by tokens that map to a covering boot/corpus suite.
 PSEUDO = {"boot": "mcxn-zephyr", "corpus": "mcxn-mcuxpresso"}
 
@@ -341,6 +375,7 @@ def main():
     doc = yaml.safe_load(open(YAML))
     _reject_unknown_sections(doc)
     _reject_flag_at_operator(doc)
+    _reject_unknown_result(doc)
     verify_groups(doc)   # structural anti-drift: always, cheap
     if a.inject_readme is not None:
         sys.exit(inject_readme(doc, a.inject_readme))

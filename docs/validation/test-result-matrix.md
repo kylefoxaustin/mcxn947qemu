@@ -89,7 +89,7 @@ register-only≈registration/Tier-C.
 
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
-| adc | ✓ | ✓ | operator-driven | mcxn-adc, mcxn-adc-dma | SKIP |
+| adc | ✓ | ✓ | operator-driven | mcxn-adc, mcxn-adc-dma, mcxn-adc-fifo | SKIP |
 | cmp | ✓ | ✓ | operator-driven | mcxn-cmp | SKIP |
 | tsi | ✓ | ✓ | operator-driven | mcxn-tsi | SKIP |
 | dac | ✓ | ✓ | functional | mcxn-dac, mcxn-dac-dma | SKIP |
@@ -129,7 +129,7 @@ register-only≈registration/Tier-C.
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
 | syscon | ✓ | ✓ | register-only | boot, corpus | SKIP |
-| scg | ✓ | ✓ | register-only | boot, corpus | SKIP |
+| scg | ✓ | ✓ | register-only | boot, corpus, mcxn-scg-clock | SKIP |
 | spc | ✓ | ✓ | register-only | boot, corpus | SKIP |
 | cmc | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | vbat | ✓ | ◐ | register-only | boot, corpus | SKIP |

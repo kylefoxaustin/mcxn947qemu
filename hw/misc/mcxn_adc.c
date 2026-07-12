@@ -83,6 +83,7 @@
 
 /* IE bits. */
 #define IE_FWMIE0      (1u << 0)
+#define IE_TCOMP_IE    (1u << 16)  /* CMSIS ADC_IE_TCOMP_IE_SHIFT = 16 */
 
 /* FCTRL[FCOUNT] field. */
 #define FCTRL_FCOUNT_SHIFT 0
@@ -108,6 +109,11 @@
 #define CMDL_ADCH_MASK   0x1Fu
 #define TCTRL_TCMD_SHIFT 24
 #define TCTRL_TCMD_MASK  0xFu
+/* TCTRL[FIFO_SEL_A] (CMSIS bit 1): destination FIFO for a conversion.
+ * RM: "0b - FIFO 0 / 1b - FIFO 1 ... the destination for all single-ended and
+ * differential conversions".  (FIFO_SEL_B, bit 2, only applies to dual
+ * single-ended mode, CMDL[CTYPE]=11b, which this model does not implement.) */
+#define TCTRL_FIFO_SEL_A (1u << 1)
 /* RESFIFO CMDSRC field (which command produced the entry). */
 #define RESFIFO_CMDSRC_SHIFT 24
 #define RESFIFO_CMDSRC_MASK  0xFu
@@ -119,11 +125,89 @@
 #define FCTRL_FWMARK_SHIFT 16
 #define FCTRL_FWMARK_MASK  0xFu
 
+static void mcxn_adc_update_irq(MCXNADCState *s);
+
+static uint32_t adc_fwmark(MCXNADCState *s, int f)
+{
+    uint32_t fctrl = s->regs[(f ? R_FCTRL1 : R_FCTRL0) / 4];
+
+    return (fctrl >> FCTRL_FWMARK_SHIFT) & FCTRL_FWMARK_MASK;
+}
+
+/*
+ * STAT[RDYn] is a LEVEL, not a latch: the FIFO is "ready" exactly while it holds
+ * more entries than the watermark.  It is recomputed on every change of either
+ * term (a push, a pop, a FIFO reset, or a write to FCTRL[FWMARK]) -- which is why
+ * every one of those paths ends here.
+ */
+static void mcxn_adc_update_status(MCXNADCState *s)
+{
+    int f;
+
+    for (f = 0; f < MCXN_ADC_NFIFO; f++) {
+        uint32_t rdy = f ? STAT_RDY1 : STAT_RDY0;
+
+        if (s->fifo_count[f] > adc_fwmark(s, f)) {
+            s->regs[R_STAT / 4] |= rdy;
+        } else {
+            s->regs[R_STAT / 4] &= ~rdy;
+        }
+    }
+    mcxn_adc_update_irq(s);
+}
+
+/*
+ * Push a conversion result.  RM, STAT[FOFn]: "Indicates that more data has been
+ * written to the Result FIFO than it can hold.  THE NEWER DATA IS NOT STORED and
+ * the FIFO holds the original contents."  So on overflow the hardware drops the
+ * ARRIVING result and says so.  The old model dropped the STORED one and said
+ * NOTHING -- a conversion that silently ceased to exist, which is the exact shape
+ * of a silent wrong answer: the guest's data is short and nothing is flagged.
+ */
+static void adc_fifo_push(MCXNADCState *s, int f, uint32_t val)
+{
+    if (s->fifo_count[f] >= MCXN_ADC_FIFO_DEPTH) {
+        s->regs[R_STAT / 4] |= f ? STAT_FOF1 : STAT_FOF0;   /* sticky, W1C */
+        return;                                             /* new data dropped */
+    }
+    s->fifo[f][s->fifo_count[f]++] = val;
+}
+
+static uint32_t adc_fifo_pop(MCXNADCState *s, int f)
+{
+    uint32_t val;
+
+    if (s->fifo_count[f] == 0) {
+        return 0;                       /* RESFIFO[VALID] clear: no result */
+    }
+    val = s->fifo[f][0];
+    memmove(&s->fifo[f][0], &s->fifo[f][1],
+            (--s->fifo_count[f]) * sizeof(s->fifo[f][0]));
+    return val;
+}
+
 static void mcxn_adc_update_irq(MCXNADCState *s)
 {
-    bool active = (s->regs[R_STAT / 4] & s->regs[R_IE / 4] & STAT_W1C_MASK) != 0;
+    uint32_t stat = s->regs[R_STAT / 4];
+    uint32_t ie   = s->regs[R_IE / 4];
     uint32_t de = s->regs[R_DE / 4];
+    bool active;
     int f;
+
+    /*
+     * IE bits 0..3 (FWMIE0/FOFIE0/FWMIE1/FOFIE1) line up 1:1 with STAT bits 0..3
+     * (RDY0/FOF0/RDY1/FOF1), and TEXC_IE lines up with TEXC_INT at bit 8 -- so a
+     * plain STAT & IE is right for those.  TCOMP DOES NOT LINE UP: STAT[TCOMP_INT]
+     * is bit 9 but IE[TCOMP_IE] is bit 16, so the old blanket `stat & ie` ANDed
+     * STAT bit 9 against an IE bit that does not exist and the trigger-completion
+     * interrupt COULD NOT FIRE AT ALL.  Two registers that look parallel, and are
+     * not, for one bit.
+     */
+    active = (stat & ie & (STAT_RDY0 | STAT_FOF0 | STAT_RDY1 | STAT_FOF1 |
+                           STAT_TEXC_INT)) != 0;
+    if ((stat & STAT_TCOMP_INT) && (ie & IE_TCOMP_IE)) {
+        active = true;
+    }
 
     qemu_set_irq(s->irq, active);
 
@@ -139,17 +223,15 @@ static void mcxn_adc_update_irq(MCXNADCState *s)
      * The FIFO asks for service when its occupancy EXCEEDS the watermark
      * (FCTRL[FWMARK]), which is exactly the condition the RM gives.
      */
-    for (f = 0; f < 2; f++) {
-        uint32_t fctrl = s->regs[(f ? R_FCTRL1 : R_FCTRL0) / 4];
+    for (f = 0; f < MCXN_ADC_NFIFO; f++) {
         /*
-         * ⚠ FCOUNT IS NOT IN regs[].  It is COMPUTED ON READ from s->fifo_valid
-         * (see mcxn_adc_read), so reading it back out of the register array gives
-         * ZERO, ALWAYS -- and the request would never fire.  The state lives in
-         * fifo_valid; the register array is only the shadow.  Read the state.
+         * ⚠ FCOUNT IS NOT IN regs[].  It is computed from the FIFO itself (see
+         * mcxn_adc_read), so reading it back out of the register array gives ZERO,
+         * ALWAYS -- and the request would never fire.  The state lives in the FIFO;
+         * the register array is only the shadow.  Read the state.
          */
-        uint32_t count = (f == 0 && s->fifo_valid) ? 1 : 0;
-        uint32_t wm = (fctrl >> FCTRL_FWMARK_SHIFT) & FCTRL_FWMARK_MASK;
-        bool req = (de & (f ? DE_FWMDE1 : DE_FWMDE0)) && count > wm;
+        bool req = (de & (f ? DE_FWMDE1 : DE_FWMDE0)) &&
+                   s->fifo_count[f] > adc_fwmark(s, f);
 
         if (req != s->dma_req_level[f]) {
             s->dma_req_level[f] = req;
@@ -168,6 +250,7 @@ static void mcxn_adc_update_irq(MCXNADCState *s)
 static void mcxn_adc_do_conversion(MCXNADCState *s, uint32_t swtrig)
 {
     uint32_t trig, cmd = 0, ch = 0;
+    int fifo;
 
     if (!(s->regs[R_CTRL / 4] & CTRL_ADCEN)) {
         return;
@@ -188,11 +271,18 @@ static void mcxn_adc_do_conversion(MCXNADCState *s, uint32_t swtrig)
         ch = 0;
     }
 
-    s->fifo_data = (uint32_t)s->adc_ch[ch] | RESFIFO_VALID |
-                   ((cmd & RESFIFO_CMDSRC_MASK) << RESFIFO_CMDSRC_SHIFT);
-    s->fifo_valid = true;
-    s->regs[R_STAT / 4] |= STAT_RDY0;
-    mcxn_adc_update_irq(s);
+    fifo = (trig < 4 && (s->regs[(R_TCTRL0 + trig * 4) / 4] & TCTRL_FIFO_SEL_A))
+           ? 1 : 0;
+    adc_fifo_push(s, fifo, (uint32_t)s->adc_ch[ch] | RESFIFO_VALID |
+                  ((cmd & RESFIFO_CMDSRC_MASK) << RESFIFO_CMDSRC_SHIFT));
+    /*
+     * RDY is NOT set here.  It is a level -- "occupancy > watermark" -- so it is
+     * derived, never asserted.  Setting it unconditionally on a conversion (which
+     * is what this line used to do) made STAT[RDY0] mean "a conversion happened",
+     * not "the FIFO is above its watermark", and those coincide only when
+     * FWMARK == 0.
+     */
+    mcxn_adc_update_status(s);
 }
 
 static uint64_t mcxn_adc_read(void *opaque, hwaddr offset, unsigned size)
@@ -225,23 +315,20 @@ static uint64_t mcxn_adc_read(void *opaque, hwaddr offset, unsigned size)
     case R_SWTRIG:
         return 0;   /* write-only */
     case R_FCTRL0:
-        val = s->regs[R_FCTRL0 / 4] & ~FCTRL_FCOUNT_MASK;
-        if (s->fifo_valid) {
-            val |= (1u << FCTRL_FCOUNT_SHIFT) & FCTRL_FCOUNT_MASK;
-        }
-        return val;
-    case R_FCTRL1:
-        return s->regs[R_FCTRL1 / 4] & ~FCTRL_FCOUNT_MASK;
+    case R_FCTRL1:  /* FWMARK moved: RDY and the DMA request must be re-derived */ {
+        int f = (offset == R_FCTRL1);
+
+        val = s->regs[offset / 4] & ~FCTRL_FCOUNT_MASK;
+        return val | (s->fifo_count[f] & FCTRL_FCOUNT_MASK);
+    }
     case R_RESFIFO0:
-        if (s->fifo_valid) {
-            s->fifo_valid = false;
-            s->regs[R_STAT / 4] &= ~STAT_RDY0;
-            mcxn_adc_update_irq(s);
-            return s->fifo_data;
-        }
-        return 0;   /* empty FIFO: VALID bit clear */
-    case R_RESFIFO1:
-        return 0;   /* FIFO 1 unused in this model */
+    case R_RESFIFO1: {
+        int f = (offset == R_RESFIFO1);
+        uint32_t val2 = adc_fifo_pop(s, f);
+
+        mcxn_adc_update_status(s);      /* the pop may drop us below FWMARK */
+        return val2;
+    }
     default:
         return s->regs[offset / 4];
     }
@@ -302,23 +389,32 @@ static void mcxn_adc_write(void *opaque, hwaddr offset, uint64_t value,
         /* RST and RSTFIFOn are self-clearing soft resets. */
         if (v & CTRL_RST) {
             s->regs[R_STAT / 4] = 0;
-            s->fifo_valid = false;
+            memset(s->fifo_count, 0, sizeof(s->fifo_count));
         }
-        if (v & (CTRL_RSTFIFO0 | CTRL_RSTFIFO1)) {
-            s->fifo_valid = false;
-            s->regs[R_STAT / 4] &= ~(STAT_RDY0 | STAT_RDY1 |
-                                     STAT_FOF0 | STAT_FOF1);
+        /* RSTFIFO0 and RSTFIFO1 are SEPARATE bits for SEPARATE FIFOs.  The old
+         * code drained "the" FIFO on either, because there was only one. */
+        if (v & CTRL_RSTFIFO0) {
+            s->fifo_count[0] = 0;
+            s->regs[R_STAT / 4] &= ~STAT_FOF0;
+        }
+        if (v & CTRL_RSTFIFO1) {
+            s->fifo_count[1] = 0;
+            s->regs[R_STAT / 4] &= ~STAT_FOF1;
         }
         s->regs[R_CTRL / 4] = v & ~(CTRL_RST | CTRL_RSTFIFO0 | CTRL_RSTFIFO1);
-        mcxn_adc_update_irq(s);
+        mcxn_adc_update_status(s);
         return;
     case R_STAT:
-        /* Write-1-to-clear the flag bits; preserve the rest. */
-        s->regs[R_STAT / 4] &= ~(v & STAT_W1C_MASK);
-        if (v & STAT_RDY0) {
-            s->fifo_valid = false;
-        }
-        mcxn_adc_update_irq(s);
+        /*
+         * W1C the sticky flags.  RDYn is NOT sticky -- it is a level, so
+         * update_status re-derives it immediately and a W1C write to it is a
+         * no-op, exactly as on silicon.  The old code responded to a W1C of RDY0
+         * by THROWING AWAY THE FIFO CONTENTS: acknowledging an interrupt
+         * destroyed the very data the interrupt was announcing.
+         */
+        s->regs[R_STAT / 4] &= ~(v & (STAT_FOF0 | STAT_FOF1 |
+                                      STAT_TEXC_INT | STAT_TCOMP_INT));
+        mcxn_adc_update_status(s);
         return;
     case R_IE:
         s->regs[R_IE / 4] = v;
@@ -361,8 +457,8 @@ static void mcxn_adc_reset(DeviceState *dev)
     int i;
 
     memset(s->regs, 0, sizeof(s->regs));
-    s->fifo_data = 0;
-    s->fifo_valid = false;
+    memset(s->fifo, 0, sizeof(s->fifo));
+    memset(s->fifo_count, 0, sizeof(s->fifo_count));
     /* Default analog inputs to documented mid-scale (operator overrides persist
      * across guest soft-resets — this only re-defaults on a full machine reset). */
     for (i = 0; i < MCXN_ADC_CHANNELS; i++) {
@@ -401,13 +497,14 @@ static void mcxn_adc_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_adc = {
     .name = TYPE_MCXN_ADC,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNADCState, MCXN_ADC_SIZE / 4),
         VMSTATE_UINT16_ARRAY(adc_ch, MCXNADCState, MCXN_ADC_CHANNELS),
-        VMSTATE_UINT32(fifo_data, MCXNADCState),
-        VMSTATE_BOOL(fifo_valid, MCXNADCState),
+        VMSTATE_UINT32_2DARRAY(fifo, MCXNADCState, MCXN_ADC_NFIFO,
+                               MCXN_ADC_FIFO_DEPTH),
+        VMSTATE_UINT8_ARRAY(fifo_count, MCXNADCState, MCXN_ADC_NFIFO),
         VMSTATE_END_OF_LIST()
     },
 };

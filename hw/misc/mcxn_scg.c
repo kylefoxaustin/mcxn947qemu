@@ -82,10 +82,36 @@ static const MemoryRegionOps mcxn_scg_ops = {
     .impl.max_access_size = 4,
 };
 
+/*
+ * SIRCCSR reset value (RM rev 7, SCG register map: "200h ... RW 0100_0020h").
+ *
+ * ⚠ bit 5 = SIRC_CLK_PERIPH_EN IS SET OUT OF RESET, and resetting this register to
+ * ZERO -- which is what memset does -- BREAKS EVERY SDK CLOCK QUERY.
+ *
+ *     static uint32_t CLOCK_GetFro12MFreq(void) {
+ *         return ((SCG0->SIRCCSR & SCG_SIRCCSR_SIRC_CLK_PERIPH_EN_MASK) != 0UL)
+ *                ? 12000000U : 0U;
+ *     }
+ *
+ * With the bit clear that returns 0 Hz, so CLOCK_GetLPFlexCommClkFreq() returns 0,
+ * and LPI2C_SlaveInit()/LPUART_Init()/LPSPI_MasterInit() all hit
+ *     assert(sourceClock_Hz > 0U)
+ * and HARD-FAULT.  Nothing in the guest's clock_config.c ever sets this bit --
+ * BECAUSE ON SILICON IT IS ALREADY SET.  A zero reset value is not a neutral
+ * default; here it is a WRONG one, and it takes out an entire peripheral family.
+ *
+ * (Found by running the stock lpi2c/edma_b2b_transfer example, which asserted
+ * "sourceClock_Hz > 0U" -- a driver telling me, in plain text, exactly what was
+ * wrong.  bit 24 = SIRCVLD is already reported by the read path.)
+ */
+#define SCG_SIRCCSR_RESET  0x01000020u
+
 static void mcxn_scg_reset(DeviceState *dev)
 {
     MCXNSCGState *s = MCXN_SCG(dev);
+
     memset(s->regs, 0, sizeof(s->regs));
+    s->regs[SCG_SIRCCSR >> 2] = SCG_SIRCCSR_RESET;
 }
 
 static void mcxn_scg_realize(DeviceState *dev, Error **errp)

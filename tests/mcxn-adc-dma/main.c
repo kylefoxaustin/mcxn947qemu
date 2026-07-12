@@ -114,19 +114,37 @@ void cpu0_main(void)
     ADC_CMDL0  = 0;                          /* channel 0                   */
     ADC_CMDH0  = 0;
     ADC_TCTRL0 = (1u << 24);                 /* trigger 0 -> command 1      */
-    ADC_FCTRL0 = 0;                          /* FWMARK = 0: ask on 1 entry  */
+    /*
+     * FWMARK = 1: the ADC asks for service only when it holds MORE THAN ONE
+     * result, and each request drains two (NBYTES = 8).  This is how the stock
+     * LPADC EDMA driver actually runs -- and it is why this test now REQUIRES A
+     * REAL FIFO.
+     *
+     * ⭐ WITH FWMARK = 0 THIS TEST COULD NOT SEE THE BUG IT WAS WRITTEN FOR.
+     * I regressed the FIFO to depth 1 on purpose and the test STILL PASSED: at
+     * FWMARK = 0 the eDMA drains the single slot between triggers and keeps up, so
+     * "depth 1" and "depth 16" look identical from here.  The mutation is what told
+     * me; the test's own comment had confidently claimed the opposite.
+     *
+     * At FWMARK = 1 a depth-1 FIFO can never exceed the watermark -- occupancy is
+     * 0 or 1, never 2 -- so NO REQUEST CAN EVER FIRE and nothing moves.  The
+     * watermark is the feature the depth EXISTS FOR, so testing the watermark is
+     * what tests the depth.
+     */
+    ADC_FCTRL0 = (1u << 16);                 /* FWMARK = 1                  */
 
     /* --- eDMA: ADC RESFIFO -> memory, one result per request ------------- */
     TCD_SADDR(CHAN)  = ADC_RESFIFO0_ADDR;    /* the FIFO does not advance   */
     TCD_SOFF(CHAN)   = 0;
     TCD_ATTR(CHAN)   = ATTR_32BIT;
-    TCD_NBYTES(CHAN) = 4;                    /* ONE result per request      */
+    TCD_NBYTES(CHAN) = 8;                    /* TWO results per request     */
     TCD_SLAST(CHAN)  = 0;
     TCD_DADDR(CHAN)  = (uint32_t)(uintptr_t)samples;
     TCD_DOFF(CHAN)   = 4;                    /* walk the destination        */
     TCD_DLAST(CHAN)  = (uint32_t)(-(int32_t)(4 * NSAMP));
-    TCD_CITER(CHAN)  = NSAMP;
-    TCD_BITER(CHAN)  = NSAMP;
+    /* NBYTES moves TWO samples, so the major loop is NSAMP/2 minor loops. */
+    TCD_CITER(CHAN)  = NSAMP / 2;
+    TCD_BITER(CHAN)  = NSAMP / 2;
     TCD_CSR(CHAN)    = TCD_DREQ;
     CH_MUX(CHAN)     = DMAREQ_ADC0_FIFO_A;   /* listen to ADC0 FIFO A       */
 
@@ -136,9 +154,20 @@ void cpu0_main(void)
     /* --- convert: each software trigger fills the FIFO, which asks the DMA */
     for (i = 0; i < NSAMP; i++) {
         ADC_SWTRIG = 1;                      /* trigger 0                   */
-        for (d = 0; d < 2000; d++) {         /* let the bottom half run     */
-        }
     }
+    /*
+     * ⭐ THERE IS DELIBERATELY NO DELAY BETWEEN THE TRIGGERS.
+     *
+     * There used to be:  for (d = 0; d < 2000; d++) { }  -- "let the bottom half
+     * run".  I wrote that crutch to make this test pass, and it was papering over
+     * a REAL BUG: the ADC result FIFO was a SINGLE SLOT, so a second conversion
+     * arriving before the eDMA drained the first SILENTLY OVERWROTE it.  The delay
+     * gave the DMA time to drain between triggers, so the model looked fine.
+     *
+     * Without the delay all four conversions land back-to-back and MUST QUEUE --
+     * which is what a 16-deep FIFO is for.  If the FIFO ever regresses to depth 1,
+     * samples go missing here and this fails.  The crutch WAS the camouflage.
+     */
 
     for (d = 0; d < 2000000 && !(CH_CSR(CHAN) & CSR_DONE); d++) {
     }
