@@ -175,6 +175,10 @@ readme_groups:
     tier: A
     evidence: "Loopback + board-to-board frame round-trip (tests/mcxn-can-link)"
     blocks: [flexcan]
+  - label: "I3C controller — drives a real I2C bus"
+    tier: A
+    evidence: "The controller decodes MCTRL (REQUEST/ADDR/DIR/RDTERM) into real i2c_start_transfer/i2c_send/i2c_recv on a bus the SoC exposes. The model supplies the BUS as the silicon does and does NOT invent a device onto it: the test attaches a genuine QEMU at24c EEPROM (-device at24c-eeprom,bus=i2c-bus.0) and the bytes read back BYTE-EXACT — a golden living in a device the I3C model cannot see. An absent target NACKs (MERRWARN) instead of reporting a completed transfer (tests/mcxn-i3c)"
+    blocks: [i3c]
   - label: "EMVSIM (smartcard) — registers/IRQs only, NO DATA PATH"
     tier: B
     evidence: "RETRACTED from tier A on 2026-07-12: mutation-testing showed it moves no data (RX_BUF is a stub) and its test asserted only that an interrupt fired, so a corrupted-data mutation could not fail it. Unlike SAI and I3C — which have both since earned tier A back — EMVSIM has NO PEER to talk to: a smartcard interface needs a card, and there is no card model. Registers and IRQs are correct; an honest data path needs an ISO-7816 card, which is roadmap"
