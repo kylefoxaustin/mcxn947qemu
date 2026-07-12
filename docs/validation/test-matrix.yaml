@@ -193,7 +193,7 @@ readme_groups:
     blocks: [gpio, edma]
   - label: "PowerQuad DSP (matrix/vector + CP0 transcendentals)"
     tier: A
-    evidence: "Computes real results — matrix/vector ops + scalar sin/cos/ln/divide"
+    evidence: "Computes real results — matrix/vector ops + scalar sin/cos/ln/divide. SWEPT ACROSS SHAPES: a 2x2*2x2 multiply cannot catch a dimension bug, because LENGTH's three fields (rows of A, cols of A, cols of B) are all equal and swapping any two changes nothing. Non-square 2x3*3x2 and a 1x3*3x1 dot product make every stride distinct. Negative-tested with an output-stride swap that is bit-identical on square matrices: the old test passes it, the sweep catches it (tests/mcxn-powerquad)"
     blocks: [powerquad]
   - label: "Audio out — DAC output FIFO"
     tier: A

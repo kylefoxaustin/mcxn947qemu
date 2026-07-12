@@ -52,6 +52,14 @@
 #define F8 0x41000000u
 #define F10 0x41200000u
 #define F12 0x41400000u
+/* Goldens for the non-square sweep, plain arithmetic: 2x3 * 3x2 and 1x3 * 3x1. */
+#define F9   0x41100000u
+#define F11  0x41300000u
+#define F32  0x42000000u
+#define F58  0x42680000u
+#define F64  0x42800000u
+#define F139 0x430B0000u
+#define F154 0x431A0000u
 #define F19 0x41980000u
 #define F22 0x41B00000u
 #define F43 0x422C0000u
@@ -113,6 +121,53 @@ static int compute_ok(void)
     if (c[0] != F6 || c[1] != F8 || c[2] != F10 || c[3] != F12) {
         return 0;
     }
+
+    /*
+     * --- SHAPE SWEEP: a SQUARE matrix cannot catch a dimension bug ----------
+     *
+     * Everything above multiplies 2x2 by 2x2, so LENGTH's three fields — rows of
+     * A, cols of A, cols of B — are ALL EQUAL TO 2.  Swap any two of them, or
+     * index the output with the wrong stride, and the answer is unchanged.  The
+     * test is blind to an entire class of bug BY CONSTRUCTION, which is exactly
+     * how a shape-dependent defect survives a green suite (ollama_95_neutron
+     * measured precisely this in shipped Neutron silicon; rt1180emulator hit it
+     * one commit after believing he had fixed the class).
+     *
+     * So multiply NON-SQUARE matrices, where r1 != c1 != c2 and every stride is
+     * distinct.  The goldens are ordinary arithmetic, computed by hand:
+     *
+     *   A(2x3) = [[1,2,3],[4,5,6]]   B(3x2) = [[7,8],[9,10],[11,12]]
+     *   C(2x2) = [[58,64],[139,154]]
+     *
+     *   a dot product is the degenerate case that pins the inner dimension:
+     *   A(1x3) = [1,2,3]  B(3x1) = [4,5,6]  ->  C(1x1) = 32
+     */
+    a[0] = F1; a[1] = F2; a[2] = F3;
+    a[3] = F4; a[4] = F5; a[5] = F6;              /* A = 2x3 */
+    b[0] = F7;  b[1] = F8;
+    b[2] = F9;  b[3] = F10;
+    b[4] = F11; b[5] = F12;                       /* B = 3x2 */
+
+    c[0] = c[1] = c[2] = c[3] = 0;
+    PQ_OUTBASE = MC; PQ_INABASE = MA; PQ_INBBASE = MB;
+    PQ_LENGTH = MTX_LEN(2, 3, 2);                 /* 2x3 * 3x2 -> 2x2 */
+    PQ_CONTROL = CTRL(CP_MTX, OP_MULT);
+    if (c[0] != F58 || c[1] != F64 || c[2] != F139 || c[3] != F154) {
+        return 0;
+    }
+
+    /* Dot product: 1x3 * 3x1 -> 1x1.  Pins the inner (contraction) dimension. */
+    a[0] = F1; a[1] = F2; a[2] = F3;
+    b[0] = F4; b[1] = F5; b[2] = F6;
+
+    c[0] = 0;
+    PQ_OUTBASE = MC; PQ_INABASE = MA; PQ_INBBASE = MB;
+    PQ_LENGTH = MTX_LEN(1, 3, 1);
+    PQ_CONTROL = CTRL(CP_MTX, OP_MULT);
+    if (c[0] != F32) {
+        return 0;
+    }
+
     return 1;
 }
 
