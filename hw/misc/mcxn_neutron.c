@@ -32,6 +32,13 @@
  *     interrupt, and nothing to catch.  Validate accelerator numerics on silicon;
  *     the emulator can tell you the op was ATTEMPTED, never that it was RIGHT.
  *
+ *   ⚠ AND REAL NEUTRON IS NON-DETERMINISTIC: the same input does not reproduce the
+ *     same output bit-for-bit.  So NO GOLDEN-IMAGE / BIT-REPRODUCIBILITY TEST CAN
+ *     EVER PASS AGAINST THE SILICON, at any offload fraction.  Firmware in a
+ *     functional-safety context that needs a reproducible result CANNOT USE THIS
+ *     ACCELERATOR — and it will not discover that from this model, which is
+ *     deterministic simply because it does not compute.
+ *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "qemu/osdep.h"
