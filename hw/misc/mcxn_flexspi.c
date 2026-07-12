@@ -1,6 +1,7 @@
 /*
- * NXP MCX N FlexSPI — functional model with a real SPI-NOR behind it.  See
- * header for the data path and the silent-wrong it exists to kill.
+ * NXP MCX N FlexSPI — functional controller driving a real m25p80 SPI-NOR,
+ * with an executable ROM-device mirror for XIP.  See header for the design and
+ * the single-authority rule it rests on.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -11,6 +12,7 @@
 #include "hw/misc/mcxn_flexspi.h"
 #include "hw/core/irq.h"
 #include "hw/core/qdev-properties.h"
+#include "hw/ssi/ssi.h"
 #include "migration/vmstate.h"
 
 /* Register offsets (CMSIS FLEXSPI_Type). */
@@ -32,20 +34,17 @@
 #define FLEXSPI_RFDR0       0x100   /* RFDR[32] @0x100..0x17C, RO */
 #define FLEXSPI_TFDR0       0x180   /* TFDR[32] @0x180..0x1FC, WO */
 #define FLEXSPI_LUT0        0x200   /* LUT[64]  @0x200..0x2FC       */
-#define FLEXSPI_LUT_LAST    (FLEXSPI_LUT0 + 64 * 4)
 
 /* MCR0 / INTR / IPCMD bits. */
 #define MCR0_SWRESET   (1u << 0)
 #define INTR_IPCMDDONE (1u << 0)
 #define INTR_IPCMDERR  (1u << 3)
-#define INTR_IPRXWA    (1u << 5)   /* RX FIFO has data for the guest   */
+#define INTR_IPRXWA    (1u << 5)   /* RX FIFO has data for the guest    */
 #define INTR_IPTXWE    (1u << 6)   /* TX FIFO wants data from the guest */
 #define IPCMD_TRG      (1u << 0)
 
 /* STS0: report the controller idle so the pre-command wait passes. */
-#define STS0_SEQIDLE   (1u << 0)
-#define STS0_ARBIDLE   (1u << 1)
-#define STS0_IDLE      (STS0_SEQIDLE | STS0_ARBIDLE)
+#define STS0_IDLE      0x3u        /* SEQIDLE | ARBIDLE */
 
 /* IPRXFCR / IPTXFCR. */
 #define FCR_CLRF       (1u << 0)
@@ -65,32 +64,36 @@
 #define LUT_OPCODE1(v)  (((v) >> 26) & 0x3F)
 #define LUT_OPERAND1(v) (((v) >> 16) & 0xFF)
 
-#define LUT_CMD_STOP    0x00
-#define LUT_CMD_SDR     0x01   /* operand = the SPI-NOR opcode */
-#define LUT_CMD_DDR     0x21
+#define LUT_STOP   0x00
+#define LUT_CMD    0x01
+#define LUT_RADDR  0x02
+#define LUT_WRITE  0x08
+#define LUT_READ   0x09
+#define LUT_DUMMY  0x0C
+#define LUT_DDR    0x20   /* DDR variants are the SDR opcode | 0x20 */
 
-/* SPI-NOR opcodes (W25Q64). */
-#define NOR_WRDI        0x04
-#define NOR_RDSR1       0x05
+/* SPI-NOR opcodes we must recognise to keep the XIP mirror in step. */
 #define NOR_WREN        0x06
 #define NOR_READ        0x03
-#define NOR_FAST_READ   0x0B
-#define NOR_DUAL_READ   0x3B
-#define NOR_QUAD_READ   0x6B
-#define NOR_QUAD_IO_RD  0xEB
 #define NOR_PP          0x02
 #define NOR_QPP         0x32
-#define NOR_SE          0x20   /* 4 KiB sector erase   */
-#define NOR_BE32        0x52   /* 32 KiB block erase   */
-#define NOR_BE64        0xD8   /* 64 KiB block erase   */
-#define NOR_CE1         0xC7   /* chip erase           */
+#define NOR_SE          0x20   /* 4 KiB sector erase */
+#define NOR_BE32        0x52
+#define NOR_BE64        0xD8
+#define NOR_CE1         0xC7
 #define NOR_CE2         0x60
-#define NOR_RDID        0x9F   /* JEDEC ID             */
 
-/* Winbond W25Q64: manufacturer 0xEF, type 0x40, capacity 0x17 (2^23 = 8 MiB). */
-static const uint8_t nor_jedec_id[3] = { 0xEF, 0x40, 0x17 };
+/* A decoded LUT sequence: the SPI transaction it describes. */
+typedef struct {
+    bool    valid;
+    uint8_t cmd;
+    int     addr_bits;
+    int     dummy_cycles;
+    bool    has_read;
+    bool    has_write;
+} FlexSPISeq;
 
-static uint8_t *nor_ptr(MCXNFlexSPIState *s)
+static uint8_t *mirror_ptr(MCXNFlexSPIState *s)
 {
     return memory_region_get_ram_ptr(&s->nor);
 }
@@ -120,109 +123,196 @@ static void flexspi_error(MCXNFlexSPIState *s)
     mcxn_flexspi_update_irq(s);
 }
 
-/* Erase [off, off+len) to 0xFF. */
-static void nor_erase(MCXNFlexSPIState *s, uint32_t off, uint32_t len)
-{
-    uint8_t *nor = nor_ptr(s);
+/* --- raw SPI: the controller talks to m25p80 exactly as silicon would ------ */
 
-    off &= ~(len - 1);
-    if (off + len > s->flash_size) {
+static void spi_select(MCXNFlexSPIState *s, bool on)
+{
+    qemu_set_irq(s->cs, on ? 0 : 1);      /* CS is active low */
+}
+
+static void spi_send_addr(MCXNFlexSPIState *s, uint32_t addr, int bits)
+{
+    for (int i = bits / 8 - 1; i >= 0; i--) {
+        ssi_transfer(s->spi, (addr >> (i * 8)) & 0xFF);
+    }
+}
+
+/* Read len bytes out of the flash itself (opcode 0x03 + 24-bit address). */
+static void nor_read(MCXNFlexSPIState *s, uint32_t off, uint8_t *buf,
+                     uint32_t len)
+{
+    spi_select(s, true);
+    ssi_transfer(s->spi, NOR_READ);
+    spi_send_addr(s, off, 24);
+    for (uint32_t i = 0; i < len; i++) {
+        buf[i] = ssi_transfer(s->spi, 0);
+    }
+    spi_select(s, false);
+}
+
+/*
+ * Re-derive the XIP mirror from the flash over [off, off+len), then publish it
+ * so TCG drops translation blocks for code that was just reprogrammed.  The
+ * mirror is never written any other way: m25p80 is the only authority, so the
+ * two cannot drift apart.
+ */
+static void mirror_resync(MCXNFlexSPIState *s, uint32_t off, uint32_t len)
+{
+    if (off >= s->flash_size) {
         return;
     }
-    memset(nor + off, 0xFF, len);
+    len = MIN(len, (uint32_t)(s->flash_size - off));
+    nor_read(s, off, mirror_ptr(s) + off, len);
     memory_region_flush_rom_device(&s->nor, off, len);
 }
 
-/*
- * Program the staged TX data.  NOR flash only clears bits, so this is an AND —
- * programming a location that was not erased first corrupts it, exactly as it
- * does on silicon (a NOR reports no error for this, which is why the model must
- * not quietly "succeed" by overwriting).  A page program also wraps inside its
- * 256-byte page rather than running on into the next one.
- */
-static void nor_program(MCXNFlexSPIState *s, uint32_t off, const uint8_t *data,
-                        uint32_t len)
+/* Program one page into the flash.  WREN first: m25p80 enforces the latch. */
+static void nor_program_page(MCXNFlexSPIState *s, uint32_t off,
+                             const uint8_t *data, uint32_t len)
 {
-    uint8_t *nor = nor_ptr(s);
-    uint32_t page = off & ~(uint32_t)(MCXN_NOR_PAGE - 1);
+    spi_select(s, true);
+    ssi_transfer(s->spi, NOR_WREN);
+    spi_select(s, false);
 
+    spi_select(s, true);
+    ssi_transfer(s->spi, NOR_PP);
+    spi_send_addr(s, off, 24);
     for (uint32_t i = 0; i < len; i++) {
-        uint32_t a = page + ((off + i - page) % MCXN_NOR_PAGE);
-
-        if (a >= s->flash_size) {
-            continue;
-        }
-        nor[a] &= data[i];
+        ssi_transfer(s->spi, data[i]);
     }
-    memory_region_flush_rom_device(&s->nor, page, MCXN_NOR_PAGE);
-}
-
-/* Hand the guest a read result through the IP RX FIFO. */
-static void flexspi_rx_load(MCXNFlexSPIState *s, const uint8_t *data,
-                            uint32_t len)
-{
-    len = MIN(len, MCXN_FLEXSPI_XFER_MAX);
-    memcpy(s->rx_buf, data, len);
-    s->rx_len = len;
-    s->rx_pos = 0;
-    if (len) {
-        s->regs[FLEXSPI_INTR >> 2] |= INTR_IPRXWA;
-    }
+    spi_select(s, false);
 }
 
 /*
- * Decode the LUT sequence selected by IPCR1[ISEQID] and return the SPI-NOR
- * opcode it issues (its first CMD_SDR/CMD_DDR operand), or -1 if it has none.
+ * An image linked into the XIP window is written straight into the mirror by
+ * QEMU's ROM loader (address_space_write_rom bypasses our write op), so the NOR
+ * itself has never seen it.  Program it in before the flash is first consulted —
+ * on hardware the firmware IS in the flash.
+ *
+ * Leaving it mirror-only is the trap: the two would disagree, and the first
+ * erase would silently resurrect stale content underneath a running image — a
+ * brand-new silent-wrong created by the fix for one.  Only non-blank pages are
+ * programmed, so a board with no XIP image costs nothing.
  */
-static int flexspi_lut_opcode(MCXNFlexSPIState *s, uint32_t seq)
+static void flexspi_flush_loader_image(MCXNFlexSPIState *s)
 {
+    const uint8_t *m = mirror_ptr(s);
+
+    s->loader_flushed = true;
+
+    for (uint64_t off = 0; off + MCXN_NOR_PAGE <= s->flash_size;
+         off += MCXN_NOR_PAGE) {
+        bool blank = true;
+
+        for (uint32_t i = 0; i < MCXN_NOR_PAGE; i++) {
+            if (m[off + i] != 0xFF) {
+                blank = false;
+                break;
+            }
+        }
+        if (!blank) {
+            nor_program_page(s, off, m + off, MCXN_NOR_PAGE);
+        }
+    }
+}
+
+/* --- LUT ------------------------------------------------------------------- */
+
+static void seq_add(FlexSPISeq *q, uint32_t op, uint32_t operand)
+{
+    switch (op & ~LUT_DDR) {
+    case LUT_CMD:   q->cmd = operand; q->valid = true; break;
+    case LUT_RADDR: q->addr_bits = operand;            break;
+    case LUT_DUMMY: q->dummy_cycles = operand;         break;
+    case LUT_READ:  q->has_read = true;                break;
+    case LUT_WRITE: q->has_write = true;               break;
+    default: break;
+    }
+}
+
+/* Decode the sequence selected by IPCR1[ISEQID] into the transaction it means. */
+static FlexSPISeq flexspi_decode_lut(MCXNFlexSPIState *s, uint32_t seq)
+{
+    FlexSPISeq q = { 0 };
+
     for (uint32_t i = 0; i < 4; i++) {
         uint32_t lut = s->regs[(FLEXSPI_LUT0 >> 2) + seq * 4 + i];
         uint32_t op0 = LUT_OPCODE0(lut), op1 = LUT_OPCODE1(lut);
 
-        if (op0 == LUT_CMD_SDR || op0 == LUT_CMD_DDR) {
-            return LUT_OPERAND0(lut);
+        if ((op0 & ~LUT_DDR) == LUT_STOP) {
+            return q;
         }
-        if (op0 == LUT_CMD_STOP) {
-            break;
+        seq_add(&q, op0, LUT_OPERAND0(lut));
+
+        if ((op1 & ~LUT_DDR) == LUT_STOP) {
+            return q;
         }
-        if (op1 == LUT_CMD_SDR || op1 == LUT_CMD_DDR) {
-            return LUT_OPERAND1(lut);
-        }
-        if (op1 == LUT_CMD_STOP) {
-            break;
-        }
+        seq_add(&q, op1, LUT_OPERAND1(lut));
     }
-    return -1;
+    return q;
 }
 
-/* Commit a program once the guest has fed all of its data through TFDR. */
-static void flexspi_program_commit(MCXNFlexSPIState *s)
+/* How much of the mirror a modifying opcode invalidates. */
+static bool flexspi_dirty_range(uint8_t cmd, uint32_t addr, uint64_t size,
+                                uint32_t *off, uint32_t *len)
 {
-    nor_program(s, s->pgm_addr, s->tx_buf, s->pgm_len);
-    s->wel = false;                 /* the latch clears after the operation */
+    switch (cmd) {
+    case NOR_PP:
+    case NOR_QPP:
+        *off = addr & ~(uint32_t)(MCXN_NOR_PAGE - 1);
+        *len = MCXN_NOR_PAGE;
+        return true;
+    case NOR_SE:
+        *off = addr & ~(uint32_t)(MCXN_NOR_SECTOR - 1);
+        *len = MCXN_NOR_SECTOR;
+        return true;
+    case NOR_BE32:
+        *off = addr & ~(uint32_t)(MCXN_NOR_BLOCK32 - 1);
+        *len = MCXN_NOR_BLOCK32;
+        return true;
+    case NOR_BE64:
+        *off = addr & ~(uint32_t)(MCXN_NOR_BLOCK64 - 1);
+        *len = MCXN_NOR_BLOCK64;
+        return true;
+    case NOR_CE1:
+    case NOR_CE2:
+        *off = 0;
+        *len = size;
+        return true;
+    default:
+        return false;
+    }
+}
+
+/* Finish a transaction: drop CS, refresh whatever it changed, complete. */
+static void flexspi_finish(MCXNFlexSPIState *s, uint8_t cmd, uint32_t addr)
+{
+    uint32_t doff, dlen;
+
+    spi_select(s, false);
+    if (flexspi_dirty_range(cmd, addr, s->flash_size, &doff, &dlen)) {
+        mirror_resync(s, doff, dlen);
+    }
     s->pgm_pending = false;
     s->regs[FLEXSPI_INTR >> 2] &= ~INTR_IPTXWE;
     flexspi_done(s);
 }
 
-/* IPCMD[TRG]: run the sequence in LUT[ISEQID] against the NOR. */
+/* IPCMD[TRG]: run the LUT sequence against the flash. */
 static void flexspi_ip_command(MCXNFlexSPIState *s)
 {
     uint32_t ipcr1 = s->regs[FLEXSPI_IPCR1 >> 2];
     uint32_t datsz = IPCR1_IDATSZ(ipcr1);
-    uint32_t seq   = IPCR1_ISEQID(ipcr1);
     uint32_t addr  = nor_off(s, s->regs[FLEXSPI_IPCR0 >> 2]);
-    int cmd = flexspi_lut_opcode(s, seq);
-    uint8_t sr;
+    FlexSPISeq q = flexspi_decode_lut(s, IPCR1_ISEQID(ipcr1));
 
-    s->rx_len = s->rx_pos = 0;
+    s->rx_len = s->rx_pos = s->tx_len = 0;
     s->regs[FLEXSPI_INTR >> 2] &= ~(INTR_IPRXWA | INTR_IPTXWE);
 
-    if (cmd < 0) {
+    if (!q.valid) {
         qemu_log_mask(LOG_GUEST_ERROR,
                       "mcxn-flexspi: IP command with no CMD in LUT seq %u\n",
-                      seq);
+                      IPCR1_ISEQID(ipcr1));
         flexspi_error(s);
         return;
     }
@@ -234,100 +324,55 @@ static void flexspi_ip_command(MCXNFlexSPIState *s)
         return;
     }
 
-    switch (cmd) {
-    case NOR_WREN:
-        s->wel = true;
-        flexspi_done(s);
-        return;
+    /* The XIP image must be in the flash before the flash is ever consulted. */
+    if (!s->loader_flushed) {
+        flexspi_flush_loader_image(s);
+    }
 
-    case NOR_WRDI:
-        s->wel = false;
-        flexspi_done(s);
-        return;
+    spi_select(s, true);
+    ssi_transfer(s->spi, q.cmd);
+    if (q.addr_bits) {
+        spi_send_addr(s, addr, q.addr_bits);
+    }
+    for (int i = 0; i < q.dummy_cycles / 8; i++) {
+        ssi_transfer(s->spi, 0);
+    }
 
-    case NOR_RDSR1:
-        /* BUSY (bit 0) is always clear: our operations complete instantly. */
-        sr = s->wel ? 0x02 : 0x00;
-        flexspi_rx_load(s, &sr, 1);
-        flexspi_done(s);
-        return;
-
-    case NOR_RDID:
-        flexspi_rx_load(s, nor_jedec_id, sizeof(nor_jedec_id));
-        flexspi_done(s);
-        return;
-
-    case NOR_READ:
-    case NOR_FAST_READ:
-    case NOR_DUAL_READ:
-    case NOR_QUAD_READ:
-    case NOR_QUAD_IO_RD:
-        if (addr + datsz > s->flash_size) {
-            flexspi_error(s);
-            return;
+    if (q.has_read) {
+        for (uint32_t i = 0; i < datsz; i++) {
+            s->rx_buf[i] = ssi_transfer(s->spi, 0);
         }
-        flexspi_rx_load(s, nor_ptr(s) + addr, datsz);
-        flexspi_done(s);
-        return;
-
-    case NOR_PP:
-    case NOR_QPP:
-        if (!s->wel) {
-            /* No write-enable latch: the NOR ignores the program. */
-            qemu_log_mask(LOG_GUEST_ERROR,
-                          "mcxn-flexspi: page program without WREN is ignored\n");
-            flexspi_done(s);
-            return;
+        s->rx_len = datsz;
+        if (datsz) {
+            s->regs[FLEXSPI_INTR >> 2] |= INTR_IPRXWA;
         }
-        /* The SDK triggers the command and only then feeds TFDR, so stage the
-         * program and ask for data (IPTXWE); commit on the last word. */
+        flexspi_finish(s, q.cmd, addr);
+        return;
+    }
+
+    if (q.has_write && datsz) {
+        /*
+         * The SDK triggers the command and only THEN feeds TFDR, so the SPI
+         * transaction has to stay open: CS stays asserted while the guest
+         * streams the program data, and the mirror is refreshed on the last byte.
+         */
         s->pgm_pending = true;
         s->pgm_addr = addr;
         s->pgm_len = datsz;
-        s->tx_len = 0;
-        if (datsz == 0) {
-            flexspi_program_commit(s);
-        } else {
-            s->regs[FLEXSPI_INTR >> 2] |= INTR_IPTXWE;
-            mcxn_flexspi_update_irq(s);
-        }
-        return;
-
-    case NOR_SE:
-    case NOR_BE32:
-    case NOR_BE64:
-    case NOR_CE1:
-    case NOR_CE2:
-        if (!s->wel) {
-            qemu_log_mask(LOG_GUEST_ERROR,
-                          "mcxn-flexspi: erase without WREN is ignored\n");
-            flexspi_done(s);
-            return;
-        }
-        switch (cmd) {
-        case NOR_SE:    nor_erase(s, addr, MCXN_NOR_SECTOR);  break;
-        case NOR_BE32:  nor_erase(s, addr, MCXN_NOR_BLOCK32); break;
-        case NOR_BE64:  nor_erase(s, addr, MCXN_NOR_BLOCK64); break;
-        default:        nor_erase(s, 0, s->flash_size);       break;
-        }
-        s->wel = false;
-        flexspi_done(s);
-        return;
-
-    default:
-        qemu_log_mask(LOG_UNIMP,
-                      "mcxn-flexspi: unmodelled SPI-NOR opcode 0x%02x "
-                      "(LUT seq %u)\n", cmd, seq);
-        flexspi_error(s);
+        s->regs[FLEXSPI_INTR >> 2] |= INTR_IPTXWE;
+        mcxn_flexspi_update_irq(s);
         return;
     }
+
+    /* No data phase: WREN/WRDI, erase, and friends. */
+    flexspi_finish(s, q.cmd, addr);
 }
 
 static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
 {
     MCXNFlexSPIState *s = MCXN_FLEXSPI(opaque);
     uint32_t v = (off < MCXN_FLEXSPI_SIZE) ? s->regs[off >> 2] : 0;
-    uint32_t avail, i;
+    uint32_t avail, i, byte;
 
     switch (off) {
     case FLEXSPI_MCR0:
@@ -337,28 +382,25 @@ static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
     case FLEXSPI_STS1:
     case FLEXSPI_STS2:
     case FLEXSPI_AHBSPNDSTS:
+    case FLEXSPI_IPTXFSTS:
         return 0;
     case FLEXSPI_IPRXFSTS:
         /*
-         * FILL counts 64-bit FIFO entries, and it must ROUND UP: a partially
-         * filled entry still holds readable bytes.  The stock SDK's small-read
-         * path spins on `size > FILL * 8` (fsl_flexspi.c, FLEXSPI_ReadBlocking),
-         * so rounding down reports FILL = 0 for anything under 8 bytes — a
-         * 3-byte JEDEC ID read then never satisfies the loop and the real driver
-         * hangs forever.  Model what the driver polls, not just what the RM
-         * lists.  (Found by rt1180emulator, who hit it porting a sibling's
-         * FlexSPI.)
+         * FILL counts 64-bit FIFO entries and must ROUND UP: a partially filled
+         * entry still holds readable bytes.  The stock SDK's small-read path
+         * spins on `size > FILL * 8` (fsl_flexspi.c, FLEXSPI_ReadBlocking), so
+         * rounding down reports FILL = 0 for anything under 8 bytes and the real
+         * driver hangs forever on a 3-byte JEDEC ID.  Model what the driver
+         * polls, not just what the RM lists.  (Found by rt1180emulator.)
          */
         avail = s->rx_len - s->rx_pos;
         return ((avail + 7) / 8) & 0xFF;
-    case FLEXSPI_IPTXFSTS:
-        return 0;
     default:
         if (off >= FLEXSPI_RFDR0 && off < FLEXSPI_RFDR0 + 32 * 4) {
             /* The guest reads RFDR[0..watermark] and then pops the FIFO by
              * clearing INTR[IPRXWA]; RFDR itself does not advance. */
             i = (off - FLEXSPI_RFDR0) / 4;
-            uint32_t byte = s->rx_pos + i * 4;
+            byte = s->rx_pos + i * 4;
 
             if (byte + 4 <= s->rx_len) {
                 return ldl_le_p(&s->rx_buf[byte]);
@@ -369,7 +411,7 @@ static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
                 memcpy(tail, &s->rx_buf[byte], s->rx_len - byte);
                 return ldl_le_p(tail);
             }
-            return 0xFFFFFFFFu;   /* past the data: an unprogrammed NOR reads 1s */
+            return 0xFFFFFFFFu;   /* past the data: an erased NOR reads ones */
         }
         return v;
     }
@@ -402,8 +444,7 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
         return;
 
     case FLEXSPI_INTR:
-        /* W1C.  Clearing IPRXWA pops a watermark's worth of RX data; clearing
-         * IPTXWE pushes what the guest staged in TFDR. */
+        /* W1C.  Clearing IPRXWA pops a watermark's worth of RX data. */
         if (val & INTR_IPRXWA) {
             pop = (FCR_WMRK(s->regs[FLEXSPI_IPRXFCR >> 2]) + 1) * 8;
             s->rx_pos = MIN(s->rx_pos + pop, s->rx_len);
@@ -433,7 +474,7 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
 
     case FLEXSPI_IPTXFCR:
         s->regs[off >> 2] = val & ~FCR_CLRF;
-        if (val & FCR_CLRF) {
+        if ((val & FCR_CLRF) && !s->pgm_pending) {
             s->tx_len = 0;
         }
         return;
@@ -449,13 +490,19 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
             return;   /* RX FIFO data is read-only */
         }
         if (off >= FLEXSPI_TFDR0 && off < FLEXSPI_TFDR0 + 32 * 4) {
-            /* TX FIFO: the guest streams program data here.  Append in write
-             * order — the SDK rewrites TFDR[0..watermark] each round. */
-            if (s->pgm_pending && s->tx_len + 4 <= MCXN_FLEXSPI_XFER_MAX) {
-                stl_le_p(&s->tx_buf[s->tx_len], val);
-                s->tx_len += 4;
+            /*
+             * TX FIFO: the guest streams program data here while CS is still
+             * asserted, so the bytes go straight down the SPI bus to the flash.
+             * Append in write order — the SDK rewrites TFDR[0..watermark] each
+             * round.
+             */
+            if (s->pgm_pending) {
+                for (int i = 0; i < 4 && s->tx_len < s->pgm_len; i++) {
+                    ssi_transfer(s->spi, (val >> (i * 8)) & 0xFF);
+                    s->tx_len++;
+                }
                 if (s->tx_len >= s->pgm_len) {
-                    flexspi_program_commit(s);
+                    flexspi_finish(s, NOR_PP, s->pgm_addr);
                 }
             }
             return;
@@ -478,8 +525,8 @@ static const MemoryRegionOps mcxn_flexspi_ops = {
 /*
  * A CPU store into the AHB NOR window.  On silicon this does not program the
  * flash — a NOR is written only by an erase + page-program sequence through the
- * controller — so it must not land here either.  (Backing this window with RAM
- * is what let firmware scribble at XIP addresses and appear to work.)
+ * controller — so it must not land here either.  It must also not touch the
+ * mirror, which is derived from the flash and from nothing else.
  */
 static void mcxn_flexspi_nor_write(void *opaque, hwaddr off, uint64_t val,
                                    unsigned size)
@@ -494,7 +541,7 @@ static void mcxn_flexspi_nor_write(void *opaque, hwaddr off, uint64_t val,
 static uint64_t mcxn_flexspi_nor_read(void *opaque, hwaddr off, unsigned size)
 {
     /* Unreachable in romd mode: reads and instruction fetch go straight to the
-     * backing array.  Present only because a ROM device must supply read ops. */
+     * mirror.  Present only because a ROM device must supply read ops. */
     return 0;
 }
 
@@ -511,10 +558,14 @@ static void mcxn_flexspi_reset(DeviceState *dev)
     MCXNFlexSPIState *s = MCXN_FLEXSPI(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
-    s->wel = false;
     s->rx_len = s->rx_pos = s->tx_len = 0;
     s->pgm_pending = false;
     s->pgm_addr = s->pgm_len = 0;
+    /*
+     * loader_flushed is deliberately NOT cleared.  The ROM loader refills the
+     * mirror on every reset, and re-flushing it into the NOR would overwrite
+     * whatever the guest had legitimately programmed there before the reset.
+     */
 }
 
 static void mcxn_flexspi_realize(DeviceState *dev, Error **errp)
@@ -527,16 +578,17 @@ static void mcxn_flexspi_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
 
     /*
-     * MMIO region 1: the AHB-mapped external NOR, as a ROM *device*.  Reads and
-     * instruction fetch go straight to the backing array — so XIP works and the
-     * -kernel ROM loader can fill it — while stores are routed to the controller
-     * and refused.  Never init_ram: that is what let guest stores program the
-     * flash for free and kept the whole IP path a stub.
+     * MMIO region 1: the AHB XIP window, a ROM *device* mirroring the flash.
+     * Reads and instruction fetch are direct (XIP stays TCG-cacheable, and the
+     * -kernel ROM loader can fill it); stores are routed away and refused.
      */
     memory_region_init_rom_device(&s->nor, OBJECT(s), &mcxn_flexspi_nor_ops, s,
                                   "mcxn.flexspi-nor", s->flash_size, errp);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->nor);
 
+    /* The real flash lives on our SSI bus; the SoC attaches m25p80 to it. */
+    s->spi = ssi_create_bus(dev, "flexspi");
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->cs);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
 
@@ -548,15 +600,14 @@ static const Property mcxn_flexspi_props[] = {
 
 static const VMStateDescription vmstate_mcxn_flexspi = {
     .name = TYPE_MCXN_FLEXSPI,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNFlexSPIState, MCXN_FLEXSPI_SIZE / 4),
-        VMSTATE_BOOL(wel, MCXNFlexSPIState),
+        VMSTATE_BOOL(loader_flushed, MCXNFlexSPIState),
         VMSTATE_UINT8_ARRAY(rx_buf, MCXNFlexSPIState, MCXN_FLEXSPI_XFER_MAX),
         VMSTATE_UINT32(rx_len, MCXNFlexSPIState),
         VMSTATE_UINT32(rx_pos, MCXNFlexSPIState),
-        VMSTATE_UINT8_ARRAY(tx_buf, MCXNFlexSPIState, MCXN_FLEXSPI_XFER_MAX),
         VMSTATE_UINT32(tx_len, MCXNFlexSPIState),
         VMSTATE_BOOL(pgm_pending, MCXNFlexSPIState),
         VMSTATE_UINT32(pgm_addr, MCXNFlexSPIState),

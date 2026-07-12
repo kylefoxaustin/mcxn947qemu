@@ -26,6 +26,20 @@
 
 /* FlexSPI0 AHB-mapped NOR (XIP), secure view; see SoC MCXN_FLEXSPI0_AHB_S. */
 #define QSPI_BASE 0x90000000u
+
+/* FlexSPI IP path, used to interrogate the FLASH ITSELF (not the XIP mirror). */
+#define FSPI 0x400C8000u
+#define FSPI_INTR     (*(volatile uint32_t *)(FSPI+0x14))
+#define FSPI_IPCR0    (*(volatile uint32_t *)(FSPI+0xA0))
+#define FSPI_IPCR1    (*(volatile uint32_t *)(FSPI+0xA4))
+#define FSPI_IPCMD    (*(volatile uint32_t *)(FSPI+0xB0))
+#define FSPI_IPRXFCR  (*(volatile uint32_t *)(FSPI+0xB8))
+#define FSPI_IPRXFSTS (*(volatile uint32_t *)(FSPI+0xF0))
+#define FSPI_RFDR(i)  (*(volatile uint32_t *)(FSPI+0x100+(i)*4))
+#define FSPI_LUT(i)   (*(volatile uint32_t *)(FSPI+0x200+(i)*4))
+#define LUT_SEQ(c0,p0,o0,c1,p1,o1) \
+    ((uint32_t)(o0)|((uint32_t)(p0)<<8)|((uint32_t)(c0)<<10)| \
+     ((uint32_t)(o1)<<16)|((uint32_t)(p1)<<24)|((uint32_t)(c1)<<26))
 #define QSPI_SIZE 0x00800000u   /* 8 MiB W25Q64 */
 
 static void putc_(char c)
@@ -70,6 +84,8 @@ static uint32_t xip_compute(uint32_t n)
 
 void cpu0_main(void)
 {
+    int ok_coherent = 0;
+
     LP_CTRL = CTRL_TE;
     puts_("XIP test\r\n");
 
@@ -81,7 +97,43 @@ void cpu0_main(void)
     uint32_t (*volatile fp)(uint32_t) = xip_compute;
     uint32_t r = fp(3000000);   /* sum of squares 1..3e6, mod 2^32 */
 
-    puts_((in_xip && r == 0x9F726920u) ? "XIP PASS\r\n" : "XIP FAIL\r\n");
+    /*
+     * COHERENCE: the XIP window is only a MIRROR of the flash — m25p80 is the
+     * authority.  QEMU's -kernel loader writes an XIP image straight into that
+     * mirror, so unless the controller programs it into the NOR, the two
+     * disagree: the mirror runs code the flash has never heard of, and the next
+     * erase silently resurrects stale content underneath a running image.  That
+     * would be a brand-new silent-wrong created by the fix for one.
+     *
+     * So ask the FLASH what is at the XIP function's address, over the IP command
+     * path, and require it to match what the CPU is executing from the window.
+     */
+    {
+        uint32_t off = fn & 0x00FFFFFFu;      /* flash offset of xip_compute */
+        volatile uint32_t *win = (volatile uint32_t *)(fn & ~3u);
+        int coherent = 1;
+
+        /* LUT seq 0: READ (0x03) + 24-bit address. */
+        FSPI_LUT(0) = LUT_SEQ(0x01, 0, 0x03, 0x02, 0, 24);
+        FSPI_LUT(1) = LUT_SEQ(0x09, 0, 0x04, 0x00, 0, 0);
+
+        FSPI_IPRXFCR = 1;                     /* clear RX FIFO */
+        FSPI_INTR = 0x9;                      /* W1C DONE|ERR */
+        FSPI_IPCR0 = off & ~3u;
+        FSPI_IPCR1 = 16 | (0u << 16);         /* 16 bytes, seq 0 */
+        FSPI_IPCMD = 1;
+        while (!(FSPI_INTR & 0x1)) { }
+
+        for (int i = 0; i < 4; i++) {
+            if (FSPI_RFDR(i) != win[i]) {
+                coherent = 0;                 /* flash and mirror disagree */
+            }
+        }
+        ok_coherent = coherent;
+    }
+
+    puts_((in_xip && r == 0x9F726920u && ok_coherent)
+          ? "XIP PASS\r\n" : "XIP FAIL\r\n");
 
     /* Exit so the harness can time the run: an XIP window that regressed to
      * MMIO still prints PASS, just ~100x later, and only a wall clock sees it.

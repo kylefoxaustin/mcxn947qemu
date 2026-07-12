@@ -68,6 +68,7 @@
 #include "hw/misc/mcxn_sai.h"
 #include "hw/misc/mcxn_usdhc.h"
 #include "hw/misc/mcxn_flexspi.h"
+#include "hw/ssi/ssi.h"
 #include "hw/misc/mcxn_pwm.h"
 #include "hw/misc/mcxn_qdc.h"
 #include "hw/misc/mcxn_sct.h"
@@ -813,8 +814,26 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->flexspi0), 0, 0x400C8000);
-    sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexspi0), 0,
+
+    /*
+     * The board's external flash: a Winbond W25Q64 (8 MiB, JEDEC 0xef4017) on
+     * the FlexSPI's SSI bus.  QEMU's m25p80 models this exact part, so the NOR
+     * physics — erase-before-write, bits only 1 -> 0, page-program wrap, the WREN
+     * latch — come from the upstream flash model instead of being re-invented in
+     * the controller.  m25p80 is the sole authority for flash content; the AHB
+     * XIP window is only a mirror derived from it (see hw/misc/mcxn_flexspi.c).
+     */
+    {
+        DeviceState *nor = qdev_new("w25q64");
+
+        qdev_realize_and_unref(nor, BUS(s->flexspi0.spi), &error_fatal);
+        /* sysbus IRQ 0 is the flash chip-select; IRQ 1 is the NVIC line. */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexspi0), 0,
+                           qdev_get_gpio_in_named(nor, SSI_GPIO_CS, 0));
+    }
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexspi0), 1,
                        qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 58));
+
     memory_region_init_alias(&s->flexspi0_s_alias, OBJECT(dev), "mcxn.flexspi0.s",
                              &s->flexspi0.iomem, 0, MCXN_FLEXSPI_SIZE);
     memory_region_add_subregion(system_memory, 0x400C8000 + MCXN_SECURE_ALIAS,

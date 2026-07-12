@@ -726,6 +726,7 @@ config MCXN_SOC
     select MCXN_LPUART
     select SSI
     select SPI_LINK
+    select SSI_M25P80
     select MCXN_SCG
     select MCXN_SYSCON
     select MCXN_SPC
