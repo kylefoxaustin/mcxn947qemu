@@ -10,6 +10,7 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+#include "qemu/host-utils.h"
 #include "qemu/timer.h"
 #include "hw/misc/mcxn_pwm.h"
 #include "hw/core/irq.h"
@@ -22,6 +23,8 @@
 
 /* Submodule register offsets within a block. */
 #define PWM_SM_INIT        0x02    /* Initial count */
+#define PWM_SM_CTRL2       0x04    /* Control 2 (CLK_SEL) */
+#define PWM_SM_CTRL        0x06    /* Control (PRSC) */
 #define PWM_SM_VAL1        0x0E    /* Modulo (period) value */
 #define PWM_SM_STS         0x24    /* Status (W1C flags) */
 #define PWM_SM_INTEN       0x26    /* Interrupt enable */
@@ -35,7 +38,32 @@
 /* MCTRL.RUN bit for submodule 0 (bits [11:8], one per submodule). */
 #define PWM_MCTRL_RUN_SM0  0x0100u
 
-/* Nominal PWM counter clock: 10 ns/tick (~100 MHz) for the modelled period. */
+/* SM_CTRL[PRSC]: counter prescaler, divide by 2^PRSC (CMSIS PWM_CTRL_PRSC_*). */
+#define PWM_CTRL_PRSC_MASK   0x0070u
+#define PWM_CTRL_PRSC_SHIFT  4
+
+/*
+ * The submodule counter clock.
+ *
+ * ⚠ THIS USED TO BE AN INVENTED 10 ns/tick ("nominal ~100 MHz") — a number that
+ * appears nowhere in the RM and is not derived from the modelled clock tree.  It
+ * survived because THE TEST DIVIDED BY THE SAME CONSTANT: the carrier period was
+ * "verified" against SysTick, which independently measures ELAPSED TIME and so
+ * genuinely catches a DRIFTING timer (that is what it was written for) — but it
+ * CANNOT catch a wrong TICK RATE, because the prediction and the model are wrong
+ * together and SysTick cheerfully confirms them.  A careful measurement on one
+ * side of the comparison made the other side invisible.  (backend hit the exact
+ * same shape in a perf/W ratio: "THE STALE TERM IS WHICHEVER ONE YOU DID NOT JUST
+ * WORK ON.")
+ *
+ * Per the RM the counter is clocked from the IPBus clock (CTRL2[CLK_SEL]=0),
+ * divided by 2^CTRL[PRSC].  The clock tree is not modelled, so the IPBus rate is
+ * a DOCUMENTED ASSUMPTION tied to the SoC's system clock (mcxn_frdm.c drives
+ * sysclk at 150 MHz) rather than a free-floating constant.  The PRESCALER and the
+ * INIT/VAL1 relationship are EXACT; only the base rate is an assumption, and it
+ * is now a traceable one.
+ */
+#define PWM_IPBUS_HZ       150000000u  /* = MCXN947_SYSCLK_HZ (mcxn_frdm.c) */
 #define PWM_TICK_NS        10
 
 /* Top-level (shared) registers. */
@@ -82,13 +110,27 @@ static void mcxn_pwm_update_irq(MCXNPWMState *s)
     qemu_set_irq(s->irq, active);
 }
 
-/* Submodule-0 counter period from INIT/VAL1 at the nominal PWM tick rate. */
+/*
+ * Submodule-0 counter period from INIT/VAL1, the CTRL[PRSC] prescaler and the
+ * IPBus rate.
+ *
+ * ⚠ CTRL[PRSC] WAS NOT MODELLED AT ALL.  It is a 3-bit field selecting a divide
+ * of 2^PRSC (1..128), and the model ignored it completely: a driver that set
+ * PRSC=3 expecting a carrier EIGHT TIMES SLOWER got exactly the same frequency.
+ * That is a silent wrong answer in the one number motor control is built on, and
+ * it is off by up to 128x.  The test never set PRSC either — it exercised the
+ * single configuration in which the bug is invisible (the same degenerate-shape
+ * failure as testing a matrix engine only on square matrices).
+ */
 static int64_t mcxn_pwm_period_ns(MCXNPWMState *s)
 {
     uint16_t init = pwm_ld16(s, PWM_SM_INIT);
     uint16_t val1 = pwm_ld16(s, PWM_SM_VAL1);
+    uint16_t ctrl = pwm_ld16(s, PWM_SM_CTRL);
+    unsigned prsc = (ctrl & PWM_CTRL_PRSC_MASK) >> PWM_CTRL_PRSC_SHIFT;
     int64_t span = (uint16_t)(val1 - init) + 1;   /* counter range, wraps ok */
-    int64_t ns = span * PWM_TICK_NS;
+    int64_t ticks = span << prsc;                 /* 2^PRSC IPBus clocks/count */
+    int64_t ns = muldiv64(ticks, NANOSECONDS_PER_SECOND, PWM_IPBUS_HZ);
 
     return ns < 1000 ? 1000 : ns;                 /* floor to keep it sane */
 }

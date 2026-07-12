@@ -41,6 +41,7 @@
 
 #define PWM0 0x400CE000u
 #define SM0_INIT  (*(volatile uint16_t *)(PWM0 + 0x02))
+#define SM0_CTRL  (*(volatile uint16_t *)(PWM0 + 0x06))   /* PRSC lives here */
 #define SM0_VAL1  (*(volatile uint16_t *)(PWM0 + 0x0E))
 #define SM0_STS   (*(volatile uint16_t *)(PWM0 + 0x24))
 #define SM0_INTEN (*(volatile uint16_t *)(PWM0 + 0x26))
@@ -61,13 +62,39 @@
 #define SYST_CLKSOURCE (1u << 2)   /* 1 = processor clock (SYSCLK) */
 #define SYST_MASK  0x00FFFFFFu     /* 24-bit down-counter */
 
-/* Predicted from configuration alone — nothing below comes from the model. */
+/*
+ * Predicted from CONFIGURATION AND THE RM — and this time that claim is true.
+ *
+ * ⚠ THE OLD VERSION OF THIS COMMENT SAID "nothing below comes from the model",
+ * AND IT WAS A LIE.  `PWM_TICK_NS 10` was the MODEL'S OWN INVENTED CONSTANT — a
+ * ~100 MHz tick appearing nowhere in the RM — so the prediction and the model
+ * divided by THE SAME MADE-UP NUMBER.  SysTick independently measures ELAPSED
+ * TIME and therefore genuinely catches a DRIFTING carrier (which is what it was
+ * written for, and it did).  But it CANNOT catch a wrong TICK RATE: both sides
+ * are wrong together and SysTick confirms them.  A careful measurement on one
+ * side of a comparison made the other side INVISIBLE.
+ *
+ * ⚠ AND THE TEST NEVER SET CTRL[PRSC], SO IT NEVER NOTICED THAT THE MODEL
+ * IGNORED IT ENTIRELY.  PRSC is a 3-bit divide-by-2^PRSC (1..128) and eFlexPWM
+ * carrier frequency IS motor control: a driver asking for an 8x slower carrier
+ * got the same one, silently, and the emulator agreed with itself.  One shape,
+ * one green, one invisible bug — the same degenerate-oracle failure as testing a
+ * matrix engine only on square matrices.
+ *
+ * Per the RM the counter runs from the IPBus clock divided by 2^PRSC.  The SoC
+ * drives sysclk at 150 MHz and SysTick runs off the processor clock, so:
+ *
+ *     SysTick ticks per PWM period  ==  (VAL1 - INIT + 1) << PRSC     (exactly)
+ *
+ * The counts below therefore come from the RM's semantics, not from the model.
+ */
 #define PWM_VAL1         0x1000
-#define PWM_TICK_NS      10        /* eFlexPWM counter tick */
-#define SYSCLK_MHZ       150
 #define PERIODS_MEASURED 8
-#define EXPECTED_TICKS  (((PWM_VAL1 + 1) * PWM_TICK_NS * SYSCLK_MHZ * \
-                          PERIODS_MEASURED) / 1000)
+#define EXPECTED_TICKS_FOR(prsc) \
+    (((uint32_t)(PWM_VAL1 + 1) << (prsc)) * PERIODS_MEASURED)
+
+/* SM_CTRL[PRSC] (CMSIS PWM_CTRL_PRSC_*): divide the counter clock by 2^PRSC. */
+#define CTRL_PRSC(n)     ((uint16_t)((n) << 4))
 
 static void putc_(char c)
 {
@@ -117,8 +144,9 @@ void pwm0_handler(void)
 
 void cpu0_main(void)
 {
-    uint32_t elapsed, lo, hi;
+    uint32_t elapsed;
     int ok = 1;
+    int p;
 
     LP_CTRL = CTRL_TE;
     puts_("PWM test\r\n");
@@ -128,39 +156,48 @@ void cpu0_main(void)
     SYST_CVR = 0;
     SYST_CSR = SYST_ENABLE | SYST_CLKSOURCE;
 
-    SM0_INIT = 0;
-    SM0_VAL1 = PWM_VAL1;      /* modulo -> carrier period */
-    SM0_INTEN = INTEN_RIE;    /* reload interrupt enable */
-
     NVIC_ISER3 = (1u << (PWM0_IRQ - 96));
-    __asm__ volatile ("cpsie i");
-
-    PWM_MCTRL = MCTRL_RUN_SM0;   /* start submodule 0 -> periodic reloads */
-
-    while (reloads < 1 + PERIODS_MEASURED) {
-    }
-
-    PWM_MCTRL = 0;            /* stop the submodule */
-    __asm__ volatile ("cpsid i");
-
-    /* SysTick counts DOWN; modular arithmetic absorbs the wrap. */
-    elapsed = (t_first - t_last) & SYST_MASK;
-
-    puts_("  "); putdec(PERIODS_MEASURED); puts_(" carriers = ");
-    putdec(elapsed); puts_(" SysTick ticks, expected ");
-    putdec(EXPECTED_TICKS); puts_("\r\n");
 
     /*
-     * +/-1%.  The measurement is EXACT under -icount (which run.sh passes):
-     * virtual time is then derived from instructions retired, not from host wall
-     * time, so it is deterministic and immune to load on the build box.  Without
-     * icount this same measurement swings +/-13% run to run — a flaky "golden" is
-     * not a golden, it is a coin toss with a reference value printed next to it.
+     * SWEEP THE PRESCALER.  A single shape cannot catch a prescaler that is not
+     * modelled — every PRSC must move the carrier by exactly 2^PRSC, or the
+     * dimension is untested.  PRSC=0 (/1), 1 (/2), 3 (/8): if the model ignores
+     * PRSC, the /2 and /8 rows come back at the /1 period and FAIL here.
      */
-    lo = EXPECTED_TICKS - EXPECTED_TICKS / 100;
-    hi = EXPECTED_TICKS + EXPECTED_TICKS / 100;
-    ok &= (elapsed >= lo && elapsed <= hi);
-    ok &= (reloads >= 1 + PERIODS_MEASURED);
+    for (p = 0; p < 3; p++) {
+        static const uint8_t prsc_list[3] = { 0, 1, 3 };
+        uint8_t prsc = prsc_list[p];
+        uint32_t expect = EXPECTED_TICKS_FOR(prsc);
+        uint32_t diff;
+
+        reloads = 0;
+        SM0_INIT = 0;
+        SM0_VAL1 = PWM_VAL1;              /* modulo -> carrier period      */
+        SM0_CTRL = CTRL_PRSC(prsc);       /* counter clock / 2^PRSC        */
+        SM0_INTEN = INTEN_RIE;            /* reload interrupt enable       */
+
+        __asm__ volatile ("cpsie i");
+        PWM_MCTRL = MCTRL_RUN_SM0;        /* start submodule 0             */
+
+        while (reloads < 1 + PERIODS_MEASURED) {
+        }
+
+        PWM_MCTRL = 0;                    /* stop the submodule            */
+        __asm__ volatile ("cpsid i");
+
+        /* SysTick counts DOWN; modular arithmetic absorbs the wrap. */
+        elapsed = (t_first - t_last) & SYST_MASK;
+
+        diff = (elapsed > expect) ? (elapsed - expect) : (expect - elapsed);
+
+        puts_("  PRSC="); putdec(prsc);
+        puts_(" measured "); putdec(elapsed);
+        puts_(" SysTick ticks, expected "); putdec(expect);
+        puts_("\r\n");
+
+        /* Within 0.1%: the carrier must scale EXACTLY with 2^PRSC. */
+        ok &= (diff * 1000 <= expect);
+    }
 
     puts_(ok ? "PWM PASS\r\n" : "PWM FAIL\r\n");
     for (;;) {
