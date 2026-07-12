@@ -238,9 +238,69 @@ static uint32_t mcxn_flexcomm_istat(MCXNLPUARTState *s)
     return istat;
 }
 
+/* DMA-enable bits each stock driver sets (CMSIS). */
+#define BAUD_RDMAE   0x00200000u   /* LPUART_BAUD[RDMAE] */
+#define BAUD_TDMAE   0x00800000u   /* LPUART_BAUD[TDMAE] */
+#define DER_TDDE     0x1u          /* LPSPI_DER / LPI2C_MDER [TDDE] */
+#define DER_RDDE     0x2u          /* LPSPI_DER / LPI2C_MDER [RDDE] */
+
+/*
+ * THE DMA REQUEST LINES (LpFlexcomm{n} Rx = 69 + 2n, Tx = 70 + 2n — CMSIS
+ * dma_request_source_t).
+ *
+ * ⚠ These did not exist, and their absence is the reason every stock
+ * LPUART/LPSPI/LPI2C DMA driver — LPUART_TransferSendEDMA,
+ * LPSPI_MasterTransferEDMA, LPI2C_MasterTransferEDMA — would have HUNG: the
+ * driver arms an eDMA channel at the data register, sets the peripheral's
+ * DMA-enable bit, and waits for a request that NOTHING COULD RAISE.
+ *
+ * I had flagged this gap in the docs ("wired for SAI and DAC only") and stopped
+ * there.  rt1180emulator named the organ: **"An honestly-documented missing
+ * capability is still a missing capability.  Naming a gap in the place you first
+ * met it is not the same as understanding its extent.  The flag discharges the
+ * anxiety and the gap stays."**  He flagged his in one row and it was a gap in
+ * twelve; mine covered four families and the chip has 117 request sources.
+ *
+ * Level-driven and edge-suppressed: a qemu_irq handler runs on EVERY
+ * qemu_set_irq call, and the eDMA re-enters us as it drains/fills.
+ */
+static void mcxn_flexcomm_update_dma(MCXNLPUARTState *s)
+{
+    bool tx = false, rx = false;
+
+    switch (s->pselid & PSELID_PERSEL) {
+    case 2:                                         /* LPSPI */
+        tx = (s->spi_der & DER_TDDE) != 0;          /* TX FIFO always ready */
+        rx = (s->spi_der & DER_RDDE) && s->spi_rx_full;
+        break;
+    case 3:                                         /* LPI2C */
+        tx = (s->i2c_mder & DER_TDDE) != 0;
+        rx = (s->i2c_mder & DER_RDDE) && s->i2c_rx_full;
+        break;
+    default:                                        /* LPUART */
+        /* TDRE is always asserted here (writes are synchronous), so an armed
+         * TX DMA request is continuously asserted until the channel's major
+         * loop completes and TCD_CSR[DREQ] clears ERQ — which is exactly how a
+         * real UART TX DMA drains a buffer. */
+        tx = (s->baud & BAUD_TDMAE) != 0;
+        rx = (s->baud & BAUD_RDMAE) && s->rx_full;
+        break;
+    }
+
+    if (tx != s->dma_tx_level) {
+        s->dma_tx_level = tx;
+        qemu_set_irq(s->dma_req_tx, tx);
+    }
+    if (rx != s->dma_rx_level) {
+        s->dma_rx_level = rx;
+        qemu_set_irq(s->dma_req_rx, rx);
+    }
+}
+
 static void mcxn_flexcomm_update_irq(MCXNLPUARTState *s)
 {
     qemu_set_irq(s->irq, mcxn_flexcomm_istat(s) != 0);
+    mcxn_flexcomm_update_dma(s);
 }
 
 /* === LPSPI (master) function ============================================== */
@@ -252,6 +312,7 @@ static uint64_t mcxn_lpspi_read(MCXNLPUARTState *s, hwaddr offset)
     case LPSPI_CR:    return s->spi_cr;
     case LPSPI_SR:    return mcxn_lpspi_status(s);
     case LPSPI_IER:   return s->spi_ier;
+    case LPSPI_DER:   return s->spi_der;
     case LPSPI_CFGR0: return s->spi_cfgr0;
     case LPSPI_CFGR1: return s->spi_cfgr1;
     case LPSPI_CCR:   return s->spi_ccr;
@@ -305,8 +366,14 @@ static void mcxn_lpspi_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
     case LPSPI_FCR:   s->spi_fcr = value;   break;
     case LPSPI_TCR:   s->spi_tcr = value;   break;
     case LPSPI_CCR1:
-    case LPSPI_DER:
         break;  /* accepted, not modelled */
+    case LPSPI_DER:
+        /* The DMA-enable bits.  These used to be ACCEPTED AND DISCARDED, so the
+         * stock LPSPI_MasterTransferEDMA driver armed a channel, set TDDE, and
+         * waited forever for a request nothing could raise. */
+        s->spi_der = value;
+        mcxn_flexcomm_update_irq(s);
+        break;
     case LPSPI_TDR:
         /*
          * Master transmit: shift one word out.  With no external device the
@@ -369,8 +436,9 @@ static uint64_t mcxn_lpi2c_read(MCXNLPUARTState *s, hwaddr offset)
     case LPI2C_MCCR0:
     case LPI2C_MCCR1:
     case LPI2C_MFCR:
-    case LPI2C_MDER:
         return 0;  /* accepted, not modelled */
+    case LPI2C_MDER:
+        return s->i2c_mder;
     default:
         qemu_log_mask(LOG_UNIMP, "%s: unhandled LPI2C read @0x%03" HWADDR_PRIx
                       "\n", __func__, offset);
@@ -408,8 +476,12 @@ static void mcxn_lpi2c_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
     case LPI2C_MCCR0:
     case LPI2C_MCCR1:
     case LPI2C_MFCR:
-    case LPI2C_MDER:
         break;  /* accepted, not modelled */
+    case LPI2C_MDER:
+        /* DMA-enable bits — see LPSPI_DER. */
+        s->i2c_mder = value;
+        mcxn_flexcomm_update_irq(s);
+        break;
     case LPI2C_MTDR: {
         /*
          * Controller command FIFO.  No external I2C bus is modelled; instead a
@@ -593,7 +665,14 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
         s->pincfg = value;
         break;
     case LPUART_BAUD:
+        /* BAUD carries TDMAE/RDMAE — arming a DMA-enable bit changes whether the
+         * transmitter/receiver is ASKING the eDMA for service, so the request
+         * line must be re-evaluated here.  This used to be a plain store, so a
+         * stock driver that armed TDMAE last (as they all do) never raised a
+         * request at all.  ⚠ THE IDENTICAL BUG I HAD JUST FIXED IN THE DAC's DER
+         * — a fix applied in one place is not a fix. */
         s->baud = value;
+        mcxn_flexcomm_update_irq(s);
         break;
     case LPUART_STAT:
         /*
@@ -728,6 +807,8 @@ static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_LPUART, 0x1000);
     sysbus_init_mmio(sbd, &s->iomem);
     sysbus_init_irq(sbd, &s->irq);
+    sysbus_init_irq(sbd, &s->dma_req_tx);   /* -> eDMA source 70 + 2n */
+    sysbus_init_irq(sbd, &s->dma_req_rx);   /* -> eDMA source 69 + 2n */
 
     qemu_chr_fe_set_handlers(&s->chr, mcxn_lpuart_can_rx, mcxn_lpuart_rx,
                              NULL, NULL, s, NULL, true);

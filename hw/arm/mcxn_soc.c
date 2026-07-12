@@ -499,6 +499,7 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             mcxn_flexcomm_cfg[i].irq));
+
         memory_region_init_alias(&s->flexcomm_s_alias[i], OBJECT(dev), aname,
                                  &s->flexcomm[i].iomem, 0, 0x1000);
         memory_region_add_subregion(system_memory,
@@ -661,6 +662,33 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      edma_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->edma_s_alias[i]);
+    }
+
+    /*
+     * PERIPHERAL DMA REQUEST LINES — wired HERE, in one place, AFTER the eDMA has
+     * been realized.
+     *
+     * ⚠ qdev_get_gpio_in() only works once the target device is REALIZED and has
+     * created its GPIO inputs.  The FlexComm block realizes BEFORE the eDMA, so
+     * wiring it inside its own loop silently connected NOTHING — SAI and DAC only
+     * worked because they happen to be declared AFTER the eDMA.  A latent
+     * ordering dependency I got away with by accident.  Doing every peripheral's
+     * request-line wiring in ONE place, after the mover exists, removes the
+     * dependency instead of tiptoeing around it.
+     *
+     * CMSIS dma_request_source_t: LpFlexcomm{n} Rx = 69 + 2n, Tx = 70 + 2n.
+     * Without these, every stock LPUART/LPSPI/LPI2C EDMA driver
+     * (LPUART_TransferSendEDMA, LPSPI_MasterTransferEDMA,
+     * LPI2C_MasterTransferEDMA) arms a channel, sets the peripheral's DMA-enable
+     * bit, and waits FOREVER for a request nothing could raise.
+     */
+    for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_LPFLEXCOMM0_TX + 2 * i));
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 2,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_LPFLEXCOMM0_RX + 2 * i));
     }
 
     /* ADC0..1 (LPADC): conversion-complete IRQ to cpu0 NVIC. */

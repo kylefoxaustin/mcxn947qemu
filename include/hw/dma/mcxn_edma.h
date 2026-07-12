@@ -39,6 +39,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNEDMAState, MCXN_EDMA)
 #define MCXN_DMA_REQ_DAC0_FIFO     25
 #define MCXN_DMA_REQ_DAC1_FIFO     26
 #define MCXN_DMA_REQ_DAC2_FIFO     27
+#define MCXN_DMA_REQ_LPFLEXCOMM0_RX 69   /* LpFlexcomm{n} Rx = 69 + 2n */
+#define MCXN_DMA_REQ_LPFLEXCOMM0_TX 70   /* LpFlexcomm{n} Tx = 70 + 2n */
 #define MCXN_DMA_REQ_SAI0_RX       99
 #define MCXN_DMA_REQ_SAI0_TX       100
 #define MCXN_DMA_REQ_SAI1_RX       101

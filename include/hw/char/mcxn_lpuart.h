@@ -31,6 +31,13 @@ struct MCXNLPUARTState {
     qemu_irq     irq;
     CharFrontend  chr;
 
+    /* DMA request lines into the eDMA: LpFlexcomm{n} Rx = 69 + 2n, Tx = 70 + 2n
+     * (CMSIS).  Without these, every stock *_TransferSendEDMA driver hangs. */
+    qemu_irq     dma_req_tx;
+    qemu_irq     dma_req_rx;
+    bool         dma_tx_level;
+    bool         dma_rx_level;
+
     /* When this FlexComm is used as an LPSPI board-to-board node, spi_bus_name
      * is set and an SSI bus is created so a `spi-link` peripheral can bridge it
      * to a chardev socket; LPSPI-mode TDR writes then shift over that bus
@@ -77,6 +84,7 @@ struct MCXNLPUARTState {
     uint32_t spi_ccr;
     uint32_t spi_fcr;
     uint32_t spi_tcr;
+    uint32_t spi_der;     /* DMA Enable — the stock EDMA driver sets TDDE/RDDE */
     uint32_t spi_rdr;     /* rx data holding */
     bool     spi_rx_full;
 
@@ -85,6 +93,7 @@ struct MCXNLPUARTState {
     uint32_t i2c_msr;     /* latched W1C flags (EPF/SDF/NDF) */
     uint32_t i2c_mier;
     uint32_t i2c_mcfgr1;
+    uint32_t i2c_mder;    /* DMA Enable — the stock EDMA driver sets TDDE/RDDE */
     uint32_t i2c_mrdr;    /* rx data holding */
     bool     i2c_rx_full;
     bool     i2c_busy;    /* asserted between START and STOP */
