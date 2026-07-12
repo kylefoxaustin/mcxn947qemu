@@ -51,9 +51,9 @@ timers:
 
 compute:
   - {block: powerquad,        present: true, driver_binds: true,  class: computes,         tested_by: [mcxn-powerquad, mcxn-powerquad-coproc], result: pass}
-  - {block: powerquad-fixedpt, present: true, driver_binds: true, class: flag-at-operator, tested_by: [mcxn-powerquad-coproc], result: pass}
-  - {block: smartdma,         present: true, driver_binds: false, class: flag-at-operator, tested_by: [boot, corpus], result: pass}
-  - {block: neutron-npu,      present: true, driver_binds: true,  class: flag-at-operator, tested_by: [mcxn-neutron], result: pass, note: "compute is proprietary microcode (RM: no user registers); handshake acked so no hang, result uncomputed + flagged (compute-modelled=false, jobs-started), never silent-wrong"}
+  - {block: powerquad-fixedpt, present: true, driver_binds: true, class: honest-fault, tested_by: [mcxn-powerquad-coproc], result: pass, note: "unmodelled CP_MTX opcodes (INV/PROD, FFT/FIR) now FAIL to the guest via ERRSTAT[BUSERROR] instead of leaving a stale result buffer the guest would read as an answer"}
+  - {block: smartdma,         present: true, driver_binds: false, class: honest-fault, tested_by: [boot, corpus], result: pass, note: "the EZH core is not modelled, so the program never runs and NOTHING IS MOVED. CTRL[START] therefore stays SET (a dead coprocessor) instead of self-clearing, which used to tell a polling guest its transfer had completed while the destination buffer was untouched"}
+  - {block: neutron-npu,      present: true, driver_binds: true,  class: honest-fault, tested_by: [mcxn-neutron], result: pass, note: "compute is proprietary microcode (RM: no user registers). The handshake is acked so firmware never hangs, and the UNCOMPUTED result is surfaced TO THE GUEST by default via the non-gating INTR[ERRORTRAP] + IRQ 97 — not merely to the host via QMP, which the firmware under test cannot see"}
 
 analog:
   - {block: adc,   present: true, driver_binds: true,  class: operator-driven, tested_by: [mcxn-adc], result: pass}
@@ -138,7 +138,8 @@ class_aliases:
   functional: COMPUTES                 # + tier=B (driver/functional, no golden oracle)
   operator-driven: COMPUTES-operator-driven
   register-only: REGISTER-ONLY
-  flag-at-operator: FLAG-AT-OPERATOR
+  honest-fault: HONEST-FAULT
+  flag-at-operator: FLAG-AT-OPERATOR (deprecated)
   not-modelled: REGISTER-ONLY|HONEST-FAULT  # per block; never silent-wrong (none on MCX today)
   # Neutron NPU carries a default + opt-in pair (same dual shape as 95's Neutron):
   neutron-npu-default: FLAG-AT-OPERATOR
@@ -216,7 +217,7 @@ readme_groups:
     blocks: [wwdt, ewm, utick]
   - label: "Accelerators (honest) — Neutron NPU, SmartDMA, PowerQuad fixed-point"
     tier: B
-    evidence: "Handshake acked (no hang); the proprietary-microcode result is flagged UNCOMPUTED to the GUEST by default, via the non-gating INTR[ERRORTRAP] channel — firmware can detect it, not just the host (tests/mcxn-neutron)"
+    evidence: "Nothing is fabricated and nothing hangs: the Neutron NPU flags its UNCOMPUTED result to the GUEST (INTR[ERRORTRAP] + IRQ 97), SmartDMA leaves CTRL[START] set because its program never ran and no data was moved, and PowerQuad's unmodelled opcodes fail via ERRSTAT[BUSERROR] rather than leaving a stale result. Host-only flags (QMP/log) are NOT sufficient — the firmware under test cannot see them (tests/mcxn-neutron, mcxn-powerquad-coproc)"
     blocks: [neutron-npu, smartdma, powerquad-fixedpt]
   - label: "Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM"
     tier: B

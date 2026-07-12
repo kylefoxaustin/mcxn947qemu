@@ -41,10 +41,17 @@ static uint64_t mcxn_smartdma_read(void *opaque, hwaddr off, unsigned size)
     switch (off) {
     case R_CTRL:
         /*
-         * The engine completes instantly in the model: never report START as
-         * still pending so a boot-then-poll loop falls through.
+         * START reads back exactly as the engine's real state: still SET, because
+         * the EZH program was never executed and therefore never completed.
+         *
+         * Clearing it (the old behaviour) told a polling guest "your transfer is
+         * done" while the destination buffer had never been touched — a silent
+         * wrong answer, and the worst kind, because SmartDMA's whole job is to
+         * MOVE DATA to a pointer the guest gave us.  A boot-then-poll loop that
+         * never falls through is a dead coprocessor, which is exactly what this
+         * is; the guest can see that, and a LOG_UNIMP says why.
          */
-        return v & ~CTRL_START;
+        return v;
     case R_PC:
     case R_SP:
         /* Read-only engine state; nothing to model, report the boot address. */
@@ -77,12 +84,15 @@ static void mcxn_smartdma_write(void *opaque, hwaddr off,
         if (v & CTRL_START) {
             s->programs_started++;
             qemu_log_mask(LOG_UNIMP,
-                          "%s: SmartDMA program START acked but NOT executed "
-                          "(no EZH core modelled; compute-modelled=false, "
-                          "programs-started=%u)\n",
+                          "%s: SmartDMA program START — the EZH core is NOT "
+                          "modelled, so the program does not run and NOTHING IS "
+                          "MOVED.  START stays set (the engine never completes) "
+                          "rather than reporting a transfer that did not happen; "
+                          "the destination buffer is untouched.  "
+                          "compute-modelled=false, programs-started=%u\n",
                           __func__, s->programs_started);
         }
-        s->regs[off >> 2] = v & ~CTRL_START;
+        s->regs[off >> 2] = v;   /* START stays set: it never finished */
         return;
     case R_EZH2ARM:
         /*

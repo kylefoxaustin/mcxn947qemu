@@ -34,6 +34,7 @@
 #define INTRSTAT_INTR_STAT (1u << 0)   /* completion interrupt status (W1C) */
 #define INTREN_INTR_EN     (1u << 0)   /* completion interrupt enable */
 #define ERRSTAT_MASK       0x1Fu       /* OVERFLOW/NAN/FIXEDOVERFLOW/UFLOW/BERR */
+#define ERRSTAT_BUSERROR   0x10u       /* guest-visible "operation failed" */
 
 /* CONTROL: engine ("machine") in bits[6:4], opcode in bits[3:0]
  * (driver writes (CP_xxx << 4) | opcode). */
@@ -198,11 +199,21 @@ static void mcxn_powerquad_matrix(MCXNPowerQuadState *s, uint32_t opcode)
         break;
     }
     default:
-        /* INV (Gauss-Jordan) / PROD and the FFT/FIR engines: not yet computed.
-         * Flagged so it is visible rather than a silent wrong answer. */
+        /*
+         * INV (Gauss-Jordan) / PROD and the FFT/FIR engines are not computed.
+         *
+         * The result would be left STALE in the guest's output buffer, so the
+         * guest must be TOLD — a host-side LOG_UNIMP is not enough, because the
+         * firmware under test cannot see it and will read the stale buffer as its
+         * DSP result.  Raise the engine's own error flag (ERRSTAT[BUSERROR]),
+         * which fsl_powerquad checks, so the operation reports as failed instead
+         * of quietly returning whatever was in memory.
+         */
+        s->regs[R_ERRSTAT >> 2] |= ERRSTAT_BUSERROR;
         qemu_log_mask(LOG_UNIMP,
-                      "%s: CP_MTX opcode %u not modelled (result left stale)\n",
-                      __func__, opcode);
+                      "%s: CP_MTX opcode %u NOT COMPUTED — failing it via "
+                      "ERRSTAT[BUSERROR] rather than leaving a stale result the "
+                      "guest would read as an answer\n", __func__, opcode);
         break;
     }
 }

@@ -63,11 +63,29 @@ LEGEND = """## Class legend
 | **functional** | Moves real data / generates real events + IRQs on a verified data path. |
 | **operator-driven** | No physical stimulus in QEMU; the input is a runtime QOM property (analog). |
 | **register-only** | Register-accurate; no compute expected (config / cache / ID / security-trim). |
-| **flag-at-operator** | Proprietary compute not modelled; op acked + truth exposed via QMP (no silent-wrong). |
+| **honest-fault** | Compute not modelled; the op FAILS to the GUEST through the block's own non-gating error channel, and no result is fabricated. The guest is told, and is never hung. |
+| **flag-at-operator** | DEPRECATED — do not use for anything the guest reads. See below. |
 | **not-modelled** | Silicon present but the compute register set is not modelled (honest). |
 
+⚠️ **flag-at-operator is a trap, and it used to be defined as a safe endpoint here.**
+It read: "op acked + truth exposed via QMP (no silent-wrong)".  That is wrong, and
+it licensed real bugs in this tree (the Neutron NPU, the ELS crypto engine, the
+SmartDMA, PowerQuad's unmodelled opcodes).  QMP and the host log are exposure to
+the OPERATOR.  The firmware under test cannot see either.  If the guest CONSUMES
+the result — and it always does when the result travels by pointer into a buffer
+the guest supplied — then acking the operation is a SILENT WRONG ANSWER to the
+guest, no matter how loudly the host is told.
+
+**Being honest to the host while lying to the guest is not being honest.**
+
+Anything the guest reads must be **honest-fault**: fail through the block's own
+documented error channel (never the completion gate, which hangs the driver
+instead of informing it).  flag-at-operator is acceptable only for pure telemetry
+that no guest ever reads.  (Tightened in step with 95emulator, who found the same
+defect in their class enum: the rule is where it hides.)
+
 Fleet class aliases (for cross-repo diff): computes≈COMPUTES,
-operator-driven≈HONEST-PARAMETERIZABLE, flag-at-operator≈FAULTS-ABSENT,
+operator-driven≈HONEST-PARAMETERIZABLE, honest-fault≈HONEST-FAULT,
 register-only≈registration/Tier-C.
 """
 
@@ -78,7 +96,7 @@ register-only≈registration/Tier-C.
 CLASS_TIER = {
     "computes": "A", "functional": "A",
     "operator-driven": "B", "register-only": "B",
-    "flag-at-operator": "B", "not-modelled": "B",
+    "honest-fault": "B", "flag-at-operator": "B", "not-modelled": "B",
 }
 
 README = os.path.join(ROOT, "README.md")
