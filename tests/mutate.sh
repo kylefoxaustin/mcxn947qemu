@@ -89,8 +89,30 @@ fi
 rm -f /tmp/mutate-build.$$
 echo "── build OK: the mutation is genuinely in the binary"
 
-echo "── running $TESTDIR (it MUST now fail)"
-if bash "$TESTDIR/run.sh" >/dev/null 2>&1; then
+echo "── running $TESTDIR (it MUST now fail — and FAIL is not the same as CRASH)"
+OUT="$(bash "$TESTDIR/run.sh" 2>&1)"
+rc=$?
+
+#
+# ⭐ GATE 3, AND THE HOLE IT USED TO HAVE.
+#
+# This used to be `if bash run.sh; then survived; else caught; fi` -- i.e. ANY
+# non-zero exit was scored as "the test caught the mutation".  But a mutated build
+# that makes QEMU crash, a run.sh that errors out, a missing toolchain, a SKIP:
+# ALL EXIT NON-ZERO TOO.  Every one of them would have been reported as a catch.
+#
+#     AN EXIT-1 CRASH AND AN EXIT-1 REFUSAL ARE INDISTINGUISHABLE BY EXIT CODE
+#     ALONE.  NEVER ASSERT "NON-ZERO".  ASSERT THE THING YOU MEANT.
+#
+# That is gate 2 -- "a check that did not RUN looks exactly like a check that
+# found NOTHING" -- which I wrote INTO THIS FILE and then failed to apply to this
+# file's own verdict.  ollama_95_neutron hit the identical bug in a verify script
+# an hour later and named it: "I patched it where I MET it."
+#
+# So: the test must have RUN and REPORTED FAILURE.  A crash, a skip, or no verdict
+# at all is INCONCLUSIVE -- never a catch.
+#
+if [ $rc -eq 0 ]; then
     echo
     echo "❌ THE TEST STILL PASSES WITH THE MODEL BROKEN."
     echo "   It CANNOT FAIL in this dimension — it is decoration, and you could"
@@ -98,5 +120,31 @@ if bash "$TESTDIR/run.sh" >/dev/null 2>&1; then
     exit 1
 fi
 
+if echo "$OUT" | grep -q 'SKIP:'; then
+    echo
+    echo "⚠️  INCONCLUSIVE — the test SKIPPED (exit $rc).  It was never run, so this"
+    echo "    proves NOTHING about whether it can catch the mutation."
+    echo "$OUT" | grep 'SKIP:' | head -1
+    exit 6
+fi
+
+if echo "$OUT" | grep -qiE 'segmentation fault|core dumped|command not found|unbound variable|syntax error|no such file|assertion.*failed.*qemu|qemu-system-arm: .*error'; then
+    echo
+    echo "⚠️  INCONCLUSIVE — the run CRASHED (exit $rc), it did not FAIL."
+    echo "    A crash and a refusal are indistinguishable by exit code alone, and"
+    echo "    scoring this as a catch would be a lie.  Fix the crash, then re-run."
+    echo "$OUT" | grep -iE 'segmentation fault|command not found|unbound variable|syntax error|no such file' | head -2
+    exit 7
+fi
+
+if ! echo "$OUT" | grep -qE '(^|[^A-Z])FAIL'; then
+    echo
+    echo "⚠️  INCONCLUSIVE — exit $rc but the test printed NO FAILURE VERDICT."
+    echo "    It may have died before reaching its own checks.  An empty result is"
+    echo "    not a pass, and it is not a catch either."
+    echo "$OUT" | tail -3
+    exit 8
+fi
+
 echo
-echo "✅ the test caught the mutation — it can fail, and does."
+echo "✅ the test caught the mutation — it RAN, and it REPORTED FAILURE."
