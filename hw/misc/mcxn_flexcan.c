@@ -62,6 +62,10 @@
 #define MB_CODE_MASK   0xFu
 #define CODE_RX_EMPTY  0x4   /* MB configured to receive, currently empty */
 #define CODE_RX_FULL   0x2   /* MB holds a received frame */
+#define CODE_RX_OVERRUN 0x6  /* 0110b: a frame was overwritten into a full MB
+                              * (RM rev 7, message-buffer CODE table).  This is
+                              * how the silicon TELLS the guest it lost one —
+                              * the model used to just drop the frame in silence */
 #define CODE_TX_DATA   0xC   /* MB armed to transmit a data frame */
 
 /* CS control bits (classic frame): SRR[22], IDE[21], RTR[20], DLC[19:16]. */
@@ -144,14 +148,51 @@ static void flexcan_send_to_bus(MCXNFlexCanState *s, unsigned tx)
     can_bus_client_send(&s->bus_client, &f, 1);
 }
 
-/* A frame arrived from the CAN bus: land it in the first RX-empty message
- * buffer (RXMGMASK=0 => any ID; the guest filters in software), set its flag. */
+/* Is this controller on the bus at all right now?  A DISABLED or FROZEN
+ * FlexCAN neither receives NOR transmits. */
+static bool flexcan_enabled(MCXNFlexCanState *s)
+{
+    uint32_t mcr = s->regs[R_MCR >> 2];
+
+    /* A DISABLED or FROZEN FlexCAN is not on the bus at all.  This used to
+     * return true unconditionally, so a controller the guest had switched off
+     * still quietly filled its mailboxes with traffic the silicon would never
+     * have delivered. */
+    return !(mcr & MCR_MDIS) && !(mcr & MCR_NOTRDY);
+}
+
+/*
+ * A frame arrived from the CAN bus.  Run the RM's matching process (rev 7,
+ * "Matching process"): scan the receive message buffers and deliver the frame
+ * to the first one whose ID matches under the mask.
+ *
+ * Two silent-wrong-answer bugs used to live here, and both are the kind a CAN
+ * node in a board farm would never be able to diagnose from inside firmware:
+ *
+ *  1. NO ID MATCHING AT ALL.  The frame was dropped into the first CODE=EMPTY
+ *     mailbox, whatever ID that mailbox had been configured for.  A driver that
+ *     trusts its own filter -- "MB3 is my ID, so whatever lands in MB3 is mine"
+ *     -- would read somebody else's frame and never know.  The old comment
+ *     defended this with "RXMGMASK=0 => any ID; the guest filters in software",
+ *     which is only true at RESET: the moment a driver programs mailbox IDs and
+ *     a mask, the model ignored both.
+ *
+ *  2. A FULL MAILBOX MEANT A SILENTLY DROPPED FRAME.  The old code scanned only
+ *     for CODE=EMPTY and, finding none, returned success having thrown the frame
+ *     away -- the comment even admitted "a real device flags overrun".  Per the
+ *     RM the matching process considers MBs whose CODE is EMPTY, FULL *or*
+ *     OVERRUN, and when a new frame lands on an unserviced buffer the buffer is
+ *     OVERWRITTEN and CODE becomes OVERRUN (0110b).  So the data still moves and
+ *     the guest is TOLD it lost one.  Dropping in silence is the worst of both.
+ */
 static ssize_t flexcan_bus_receive(CanBusClientState *client,
                                    const qemu_can_frame *frames,
                                    size_t frames_cnt)
 {
     MCXNFlexCanState *s = container_of(client, MCXNFlexCanState, bus_client);
     const qemu_can_frame *f = frames;
+    uint32_t mask = s->regs[R_RXMGMASK >> 2];
+    uint32_t rx_id;
     bool eff, rtr;
     unsigned rx;
     uint8_t len, i;
@@ -159,34 +200,59 @@ static ssize_t flexcan_bus_receive(CanBusClientState *client,
     if (!frames_cnt || (f->can_id & QEMU_CAN_ERR_FLAG)) {
         return frames_cnt;
     }
+    if (!flexcan_enabled(s)) {
+        return frames_cnt;         /* module disabled/frozen: not on the bus */
+    }
+
     eff = f->can_id & QEMU_CAN_EFF_FLAG;
     rtr = f->can_id & QEMU_CAN_RTR_FLAG;
     len = f->can_dlc > 8 ? 8 : f->can_dlc;
 
+    /* MB ID registers hold standard IDs left-aligned at bit 18. */
+    rx_id = eff ? (f->can_id & QEMU_CAN_EFF_MASK)
+                : ((f->can_id & QEMU_CAN_SFF_MASK) << 18);
+
     for (rx = 0; rx < MB_COUNT; rx++) {
         uint32_t r = (MB_BASE + rx * MB_STRIDE) >> 2;
+        uint32_t code = (s->regs[r] >> MB_CODE_SHIFT) & MB_CODE_MASK;
+        bool full;
 
-        if (((s->regs[r] >> MB_CODE_SHIFT) & MB_CODE_MASK) != CODE_RX_EMPTY) {
+        /* The matching process considers EMPTY, FULL and OVERRUN buffers. */
+        if (code != CODE_RX_EMPTY && code != CODE_RX_FULL &&
+            code != CODE_RX_OVERRUN) {
             continue;
         }
-        s->regs[r + 1] = eff ? (f->can_id & QEMU_CAN_EFF_MASK)
-                             : ((f->can_id & QEMU_CAN_SFF_MASK) << 18);
+        /* A 0 mask bit is "don't care", so the reset mask of 0 accepts any ID
+         * — which is what made the missing filter look correct for so long. */
+        if (((rx_id ^ s->regs[r + 1]) & mask) != 0) {
+            continue;              /* this mailbox is not listening for this ID */
+        }
+
+        full = (code != CODE_RX_EMPTY);   /* unserviced: this is an overrun */
+
+        s->regs[r + 1] = rx_id;
         s->regs[r + 2] = s->regs[r + 3] = 0;
         for (i = 0; i < len; i++) {
             s->regs[r + 2 + i / 4] |= (uint32_t)f->data[i] << (24 - 8 * (i % 4));
         }
-        s->regs[r] = (CODE_RX_FULL << MB_CODE_SHIFT) | ((uint32_t)len << 16) |
+        s->regs[r] = ((full ? CODE_RX_OVERRUN : CODE_RX_FULL) << MB_CODE_SHIFT) |
+                     ((uint32_t)len << 16) |
                      (eff ? (MB_IDE | MB_SRR) : 0) | (rtr ? MB_RTR : 0);
         s->regs[R_IFLAG1 >> 2] |= (1u << rx);
         flexcan_update_irq(s);
         return 1;
     }
-    return 1;   /* no free RX MB: drop (a real device flags overrun) */
+
+    /* Nothing was listening for this ID.  That is not an error: on a real bus
+     * every node sees every frame and ignores the ones it did not filter for. */
+    return 1;
 }
 
 static bool flexcan_bus_can_receive(CanBusClientState *client)
 {
-    return true;
+    MCXNFlexCanState *s = container_of(client, MCXNFlexCanState, bus_client);
+
+    return flexcan_enabled(s);
 }
 
 static CanBusClientInfo flexcan_bus_client_info = {
@@ -199,6 +265,14 @@ static void flexcan_transmit(MCXNFlexCanState *s, unsigned tx)
     uint32_t t = (MB_BASE + tx * MB_STRIDE) >> 2;
     uint32_t tcs = s->regs[t];
     uint32_t tid = s->regs[t + 1];
+
+    /* A disabled or frozen module is not on the bus: it does not transmit, and
+     * (in loopback) it does not deliver to itself either.  Gating only the
+     * receive path left a switched-off controller still looping frames back into
+     * its own mailboxes. */
+    if (!flexcan_enabled(s)) {
+        return;
+    }
 
     if (s->canbus && !(s->regs[R_CTRL1 >> 2] & CTRL1_LPB)) {
         /* Board-to-board: put the frame on the real CAN bus. */
@@ -214,14 +288,25 @@ static void flexcan_transmit(MCXNFlexCanState *s, unsigned tx)
             if (rx == tx) {
                 continue;
             }
-            if (((rcs >> MB_CODE_SHIFT) & MB_CODE_MASK) != CODE_RX_EMPTY) {
+            uint32_t rcode = (rcs >> MB_CODE_SHIFT) & MB_CODE_MASK;
+            bool full;
+
+            /* Matching considers EMPTY, FULL and OVERRUN buffers (RM rev 7).
+             * Only scanning for EMPTY meant a frame arriving on an unserviced
+             * mailbox was DROPPED IN SILENCE. */
+            if (rcode != CODE_RX_EMPTY && rcode != CODE_RX_FULL &&
+                rcode != CODE_RX_OVERRUN) {
                 continue;
             }
             if (((tid ^ s->regs[r + 1]) & mask) != 0) {
                 continue;
             }
-            /* Deliver the frame: keep DLC/RTR/IDE/SRR, set CODE=FULL. */
-            s->regs[r]     = (CODE_RX_FULL << MB_CODE_SHIFT) | (tcs & 0x00FF0000u);
+            full = (rcode != CODE_RX_EMPTY);   /* unserviced => overrun */
+
+            /* Deliver the frame: keep DLC/RTR/IDE/SRR; CODE=FULL, or OVERRUN if
+             * we just overwrote a buffer the CPU had not read yet. */
+            s->regs[r]     = ((full ? CODE_RX_OVERRUN : CODE_RX_FULL)
+                              << MB_CODE_SHIFT) | (tcs & 0x00FF0000u);
             s->regs[r + 1] = tid;
             s->regs[r + 2] = s->regs[t + 2];
             s->regs[r + 3] = s->regs[t + 3];

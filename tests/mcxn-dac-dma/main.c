@@ -80,6 +80,7 @@ static void wait_for_probe(void)
 #define GCR_DACEN  (1u << 0)
 #define GCR_FIFOEN (1u << 3)
 #define TCR_SWTRG  (1u << 0)
+#define FSR_EMPTY  (1u << 1)    /* the FIFO has nothing in it */
 #define FSR_UF     (1u << 7)    /* underflow: the FIFO had nothing to convert */
 #define DER_WM_DMAEN (1u << 2)  /* LPDAC_DER_WM_DMAEN_MASK */
 
@@ -115,7 +116,6 @@ static volatile uint32_t samples[NSAMPLES];
 
 void cpu0_main(void)
 {
-    volatile int d;
     int ok = 1;
     int i;
 
@@ -154,8 +154,20 @@ void cpu0_main(void)
      */
     DAC_DER = DER_WM_DMAEN;
 
-    /* Let the (asynchronous) bottom half run. */
-    for (d = 0; d < 1000; d++) {
+    /*
+     * WAIT FOR THE DATA TO ACTUALLY BE THERE.  The DMA is ASYNCHRONOUS, and a
+     * busy-wait does NOT guarantee it has run: under host load the CPU can burn
+     * through a spin loop and reach the trigger before the transfer happens, and
+     * the converter underflows.  That is not an emulation artefact either -- on
+     * real silicon, triggering a DAC before the DMA has fed it underflows too.
+     *
+     * (The first version of this test spun a fixed count and "passed" on an idle
+     * machine, then failed 4 runs in 5 the moment the box was busy.  A test that
+     * spins on hope instead of polling a condition is a NON-DETERMINISTIC
+     * INSTRUMENT, and I have now been bitten by that at three different levels
+     * tonight.)  A real driver waits for the FIFO to be non-empty, so do that.
+     */
+    while (DAC_FSR & FSR_EMPTY) {
     }
 
     /*
@@ -165,8 +177,6 @@ void cpu0_main(void)
      */
     for (i = 0; i < NSAMPLES; i++) {
         DAC_TCR = TCR_SWTRG;
-        for (d = 0; d < 1000; d++) {         /* let the refill request settle */
-        }
         puts_("TRIG\r\n");                   /* harness probes the pin here   */
         wait_for_probe();                    /* ...and must finish before we
                                               * overwrite the pin              */
