@@ -93,6 +93,10 @@ static void putdec(uint32_t v)
 #define ATTR_32BIT ((2u << 8) | 2u)   /* SSIZE = DSIZE = 2 -> 4 bytes */
 
 #define ES_NCE (1u << 3)
+#define ES_DOE (1u << 4)
+#define ES_DAE (1u << 5)
+#define ES_SOE (1u << 6)
+#define ES_SAE (1u << 7)
 #define ES_ERR (1u << 31)
 
 #define CHAN 0
@@ -179,6 +183,62 @@ void cpu0_main(void)
         putdec(n);
         puts_(" -> moved byte-exact\r\n");
         ok &= this_ok;
+    }
+
+    /* --- the OTHER axes, which I had also only ever tested at ROUND values ---
+     *
+     * Every test in this tree used SOFF = 4 and an aligned buffer.  A misaligned
+     * SADDR or an offset that is not a multiple of the transfer size is a
+     * CONFIGURATION ERROR on real silicon (CH_ES[SAE]/[SOE]/[DAE]/[DOE]) -- the
+     * channel refuses to run.  The model used to walk them happily and produce
+     * garbage.  I DEFINED these four bits when I fixed NBYTES and IMPLEMENTED
+     * NONE OF THEM: a dead error channel created while fixing a dead error
+     * channel.  Sweeping the ugly values is the only thing that finds that.
+     */
+    {
+        static const char  *const what[4] = { "SADDR misaligned",
+                                              "DADDR misaligned",
+                                              "SOFF not x4",
+                                              "DOFF not x4" };
+        static const uint8_t  sa[4]  = { 1, 0, 0, 0 };   /* SADDR byte offset */
+        static const uint8_t  da[4]  = { 0, 2, 0, 0 };   /* DADDR byte offset */
+        static const int8_t   so[4]  = { 4, 4, 3, 4 };   /* SOFF              */
+        static const int8_t   dof[4] = { 4, 4, 4, 6 };   /* DOFF              */
+        static const uint32_t exp[4] = { ES_SAE, ES_DAE, ES_SOE, ES_DOE };
+        int k;
+
+        for (k = 0; k < 4; k++) {
+            int this_ok = 1;
+
+            for (j = 0; j < NBUF; j++) {
+                dst[j] = 0xEE;
+            }
+            CH_ES(CHAN)      = 0xFFFFFFFFu;
+            CH_CSR(CHAN)     = 0;
+            TCD_SADDR(CHAN)  = (uint32_t)(uintptr_t)src + sa[k];
+            TCD_SOFF(CHAN)   = (uint16_t)(int16_t)so[k];
+            TCD_ATTR(CHAN)   = ATTR_32BIT;
+            TCD_NBYTES(CHAN) = 4;
+            TCD_SLAST(CHAN)  = 0;
+            TCD_DADDR(CHAN)  = (uint32_t)(uintptr_t)dst + da[k];
+            TCD_DOFF(CHAN)   = (uint16_t)(int16_t)dof[k];
+            TCD_DLAST(CHAN)  = 0;
+            TCD_CITER(CHAN)  = 1;
+            TCD_BITER(CHAN)  = 1;
+            TCD_CSR(CHAN)    = TCD_START;
+
+            this_ok &= !!(CH_ES(CHAN) & exp[k]);           /* the RIGHT bit    */
+            this_ok &= !!(CH_ES(CHAN) & ES_ERR);
+            this_ok &= !(CH_CSR(CHAN) & CSR_DONE);         /* not "complete"   */
+            for (j = 0; j < NBUF; j++) {
+                this_ok &= (dst[j] == 0xEE);               /* nothing moved    */
+            }
+
+            puts_(this_ok ? "  ok   " : "  FAIL ");
+            puts_(what[k]);
+            puts_(" -> refused\r\n");
+            ok &= this_ok;
+        }
     }
 
     puts_(ok ? "DMANB PASS\r\n" : "DMANB FAIL\r\n");

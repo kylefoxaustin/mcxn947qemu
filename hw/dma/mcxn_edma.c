@@ -88,10 +88,17 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
     uint32_t saddr = c->tcd_saddr, daddr = c->tcd_daddr;
     uint8_t buf[32];
     uint32_t step = ssize ? ssize : 1;
+    uint32_t err;
     uint32_t b;
 
     if (dsize == 0 || nbytes == 0 || citer == 0) {
-        c->csr |= CH_CSR_DONE;
+        /* CITER=0 / NBYTES=0 is a CONFIGURATION ERROR, not a completed transfer.
+         * Setting DONE here told the guest an empty TCD had "finished". */
+        c->es |= CH_ES_NCE | CH_ES_ERR;
+        if (c->csr & CH_CSR_EEI) {
+            c->intr |= CH_INT_INT;
+            edma_update_irq(s, n);
+        }
         return true;
     }
     if (step > sizeof(buf)) {
@@ -115,13 +122,47 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
      *    broken values.  I learned the lesson ON the axis that taught it, and did
      *    not carry it ONE COLUMN TO THE RIGHT."
      */
-    if (nbytes % step != 0) {
-        c->es |= CH_ES_NCE | CH_ES_ERR;
+    /*
+     * ⚠ THE FULL TCD VALIDATION -- and I nearly shipped a DEAD ERROR CHANNEL while
+     * fixing one.  When the NBYTES check went in I DEFINED CH_ES[SAE], [SOE],
+     * [DAE] and [DOE] and IMPLEMENTED NONE OF THEM: four error bits that could
+     * never be set, in a register a driver reads to find out what went wrong.
+     * Exactly the "defined but never raised" class I had swept for hours earlier.
+     *
+     * ollama_95_neutron, on his N axis: "I am not predicting it is broken.  I am
+     * saying I HAVE NO RIGHT TO SAY IT ISN'T."  My SOFF/SADDR axes had had the
+     * same treatment -- every test uses SOFF=4 and an aligned buffer.  Round.
+     *
+     * Real eDMA validates the whole TCD before it moves anything (RM): a
+     * misaligned address, an offset that is not a multiple of the transfer size,
+     * a NBYTES that is not a multiple of it, or CITER=0, and the channel REFUSES
+     * TO RUN.  Silently walking a misaligned buffer 3 bytes at a time produces
+     * garbage that no firmware could diagnose.
+     */
+    err = 0;
+    if (saddr % ssize) {
+        err |= CH_ES_SAE;                 /* source address not aligned      */
+    }
+    if (soff % (int16_t)ssize) {
+        err |= CH_ES_SOE;                 /* source offset not a multiple    */
+    }
+    if (daddr % dsize) {
+        err |= CH_ES_DAE;                 /* dest address not aligned        */
+    }
+    if (doff % (int16_t)dsize) {
+        err |= CH_ES_DOE;                 /* dest offset not a multiple      */
+    }
+    if (nbytes % ssize || nbytes % dsize) {
+        err |= CH_ES_NCE;                 /* NBYTES not a multiple           */
+    }
+
+    if (err) {
+        c->es |= err | CH_ES_ERR;
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "mcxn-edma: ch%d NBYTES=%u is not a multiple of the "
-                      "transfer size %u -- CH_ES[NCE]; the channel does NOT run "
-                      "(it used to silently drop the remainder)\n",
-                      n, nbytes, step);
+                      "mcxn-edma: ch%d TCD is invalid (CH_ES=0x%x): "
+                      "SADDR=0x%x SOFF=%d DADDR=0x%x DOFF=%d NBYTES=%u "
+                      "SSIZE=%u DSIZE=%u -- the channel does NOT run\n",
+                      n, err, saddr, soff, daddr, doff, nbytes, ssize, dsize);
         /* The ERROR interrupt is gated by CH_CSR[EEI] -- NOT by TCD_CSR[INTMAJOR],
          * which is the TRANSFER-COMPLETE signal.  Raising major-completion on an
          * error would tell the guest "done" about a transfer that never ran,
