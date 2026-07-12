@@ -18,7 +18,12 @@ elfs=("$ZTEST_DIR"/*.elf)
 fail=0
 for elf in "${elfs[@]}"; do
     name="$(basename "$elf" .elf)"
-    OUT="$(timeout 60 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
+    # -icount: virtual time is derived from instructions retired, not host wall
+    # time.  Without it the timing-sensitive suites (timer_api.test_sleep_abs)
+    # FLAKE under host load — reproduced directly: it fails on a loaded box and
+    # passes on an idle one, same tree.  A CI suite measured on a non-deterministic
+    # instrument reports luck, not correctness.
+    OUT="$(timeout 90 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
             -serial stdio -kernel "$elf" -no-reboot </dev/null 2>/dev/null || true)"
     if echo "$OUT" | grep -q "PROJECT EXECUTION SUCCESSFUL"; then
         # Count reported suite/case results for a one-line summary.
