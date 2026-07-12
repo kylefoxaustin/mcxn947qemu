@@ -51,8 +51,8 @@ register-only≈registration/Tier-C.
 | usbhs1 | ✓ | ✓ | functional | mcxn-usb-hs | SKIP |
 | enet | ✓ | ✓ | functional | mcxn-enet, mcxn-enet-mac, mcxn-enet-tcp, mcxn-enet-udp, mcxn-enet-tcpip, mcxn-enet-x2, mcxn-enet-lab | SKIP |
 | flexcan | ✓ | ✓ | functional | mcxn-flexcan, mcxn-flexcan-rx, mcxn-can-link | SKIP |
-| lpuart | ✓ | ✓ | functional | mcxn-multiuart, mcxn-flexcomm | SKIP |
-| lpspi | ✓ | ✓ | functional | mcxn-flexcomm | SKIP |
+| lpuart | ✓ | ✓ | functional | mcxn-multiuart, mcxn-flexcomm, mcxn-uart-dma, mcxn-lpuart-edma-stock | SKIP |
+| lpspi | ✓ | ✓ | functional | mcxn-flexcomm, mcxn-spi-link | SKIP |
 | lpi2c | ✓ | ✓ | functional | mcxn-flexcomm | SKIP |
 | i3c | ✓ | ✓ | functional | mcxn-i3c | SKIP |
 | usdhc | ✓ | ✓ | functional | mcxn-usdhc | SKIP |

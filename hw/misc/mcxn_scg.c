@@ -26,7 +26,26 @@
 #define SCG_SPLLCSR  0x600
 
 /* All VLD/LOCK status bits share bit 24. */
-#define SCG_READY    0x01000000u
+#define SCG_READY    0x01000000u   /* xxxVLD / xxx_LOCK, bit 24 in every CSR */
+
+/* Enable bits, from CMSIS -- the term the VALID bit must FOLLOW. */
+#define SOSCCSR_SOSCEN    (1u << 0)
+#define ROSCCSR_ROSCCM    (1u << 16)  /* ROSC has NO enable bit; see below */
+#define APLLCSR_PWR_CLK   ((1u << 0) | (1u << 1))  /* APLLPWREN | APLLCLKEN */
+#define SPLLCSR_PWR_CLK   ((1u << 0) | (1u << 1))  /* SPLLPWREN | SPLLCLKEN */
+
+/* Additional register offsets (CMSIS SCG_Type). */
+#define SCG_APLLNDIV      0x50C
+#define SCG_APLLMDIV      0x510
+#define SCG_APLLPDIV      0x514
+#define SCG_APLLLOCK_CNFG 0x518
+#define SCG_APLLSSCG1     0x528
+#define SCG_SPLLNDIV      0x60C
+#define SCG_SPLLMDIV      0x610
+#define SCG_SPLLPDIV      0x614
+#define SCG_SPLLLOCK_CNFG 0x618
+#define SCG_SPLLSSCG1     0x628
+#define SCG_LDOCSR        0x800
 
 #define SCG_VERID_VALUE  0x06010000u
 
@@ -43,13 +62,51 @@ static uint64_t mcxn_scg_read(void *opaque, hwaddr off, unsigned size)
     case SCG_CSR:
         /* Report the source selected via RCCR as the active source. */
         return s->regs[SCG_RCCR >> 2];
+    /*
+     * ⚠ THESE USED TO BE ONE CASE:  return v | SCG_READY;   -- "always valid".
+     *
+     * "Always valid" is not a conservative simplification.  It is a FABRICATED
+     * ASSERTION, and the SDK acts on it:
+     *
+     *     uint32_t CLOCK_GetExtClkFreq(void) {              -- fsl_clock.c:2321
+     *         return ((SCG0->SOSCCSR & SCG_SOSCCSR_SOSCVLD_MASK) != 0UL)
+     *                ? s_Ext_Clk_Freq : 0U;
+     *     }
+     *
+     * -- so a VLD the guest never earned makes the SDK report an EXTERNAL CRYSTAL
+     * FREQUENCY FOR AN OSCILLATOR NOBODY TURNED ON.  The RM agrees it is wrong:
+     * SOSCCSR/ROSCCSR/APLLCSR/SPLLCSR all reset to 0.  (SIRC and FIRC are genuinely
+     * running out of reset and carry their VLD in their RESET VALUE, which is where
+     * it belongs -- see mcxn_scg_reset.)
+     *
+     * So VALID now FOLLOWS ENABLE.  Firmware still never spins -- the clock is
+     * "ready" the instant it is enabled, which is the right emulation of a lock
+     * time we do not model -- but it is not ready BEFORE THAT, and code that asks
+     * "is this oscillator running?" now gets the truth.
+     *
+     * The enable term per source is taken from what THE DRIVER ACTUALLY SETS before
+     * it spins, not from what the field is named:
+     *
+     *   SOSC:  sets SOSCCM|SOSCEN, waits SOSCVLD            (fsl_clock.c:236)
+     *   ROSC:  HAS NO ENABLE BIT AT ALL.  The driver sets ROSCCM and waits ROSCVLD
+     *          (fsl_clock.c:355).  A header is a claim about the silicon; a driver
+     *          is a claim about what the silicon must DO.  The driver wins.
+     *   APLL:  sets APLLPWREN|APLLCLKEN                     (fsl_clock.c:2163)
+     *   SPLL:  sets SPLLPWREN|SPLLCLKEN                     (fsl_clock.c:2221)
+     */
     case SCG_SOSCCSR:
+        return (v & SOSCCSR_SOSCEN) ? (v | SCG_READY) : v;
+    case SCG_ROSCCSR:
+        return (v & ROSCCSR_ROSCCM) ? (v | SCG_READY) : v;
+    case SCG_APLLCSR:
+        return (v & APLLCSR_PWR_CLK) ? (v | SCG_READY) : v;
+    case SCG_SPLLCSR:
+        return (v & SPLLCSR_PWR_CLK) ? (v | SCG_READY) : v;
+
+    /* SIRC and FIRC ARE running out of reset; their VLD is in the reset value. */
     case SCG_SIRCCSR:
     case SCG_FIRCCSR:
-    case SCG_ROSCCSR:
-    case SCG_APLLCSR:
-    case SCG_SPLLCSR:
-        return v | SCG_READY;   /* always valid/locked */
+        return v | SCG_READY;
     default:
         return v;
     }
@@ -111,7 +168,38 @@ static void mcxn_scg_reset(DeviceState *dev)
     MCXNSCGState *s = MCXN_SCG(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
-    s->regs[SCG_SIRCCSR >> 2] = SCG_SIRCCSR_RESET;
+
+    /*
+     * RESET VALUES, FROM THE RM's REGISTER MAP.  Every one of these was ZERO, and
+     * zero is not a neutral default -- it is a CLAIM, and the SDK computes on it:
+     *
+     *   RCCR[SCS]      = 3 : the clock source the part is ACTUALLY running on out
+     *                        of reset.  CLOCK_GetCoreSysClkFreq() switches on it;
+     *                        0 is not a source, it is a hole.  (CSR mirrors RCCR.)
+     *   xPLLNDIV/MDIV/PDIV = 1 : THE SDK DIVIDES BY THESE.  Zero is a divide-by-zero
+     *                        sitting in the model waiting for someone to compute a
+     *                        PLL frequency.
+     *   xPLLLOCK_CNFG  = 0x4F4C, xPLLSSCG1 = 0x8000_0000, LDOCSR = 8 : read-modify-
+     *                        written by the SDK's PLL setup; starting from 0 silently
+     *                        drops bits the guest never knew it had.
+     *   SIRCCSR        = 0x0100_0020 : bit 5 SIRC_CLK_PERIPH_EN is SET out of reset,
+     *                        and without it CLOCK_GetFro12MFreq() returns 0 Hz and
+     *                        EVERY FlexComm driver asserts sourceClock_Hz > 0 and
+     *                        hard-faults.  That one bit is what started this audit.
+     */
+    s->regs[SCG_RCCR >> 2]           = 0x03000000u;   /* SCS = 3 */
+    s->regs[SCG_SIRCCSR >> 2]        = SCG_SIRCCSR_RESET;
+    s->regs[SCG_APLLNDIV >> 2]       = 0x00000001u;
+    s->regs[SCG_APLLMDIV >> 2]       = 0x00000001u;
+    s->regs[SCG_APLLPDIV >> 2]       = 0x00000001u;
+    s->regs[SCG_APLLLOCK_CNFG >> 2]  = 0x00004F4Cu;
+    s->regs[SCG_APLLSSCG1 >> 2]      = 0x80000000u;
+    s->regs[SCG_SPLLNDIV >> 2]       = 0x00000001u;
+    s->regs[SCG_SPLLMDIV >> 2]       = 0x00000001u;
+    s->regs[SCG_SPLLPDIV >> 2]       = 0x00000001u;
+    s->regs[SCG_SPLLLOCK_CNFG >> 2]  = 0x00004F4Cu;
+    s->regs[SCG_SPLLSSCG1 >> 2]      = 0x80000000u;
+    s->regs[SCG_LDOCSR >> 2]         = 0x00000008u;
 }
 
 static void mcxn_scg_realize(DeviceState *dev, Error **errp)

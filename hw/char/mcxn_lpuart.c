@@ -45,6 +45,51 @@
 #define LPFLEXCOMM_ISTAT   0xFF4  /* RO */
 #define LPFLEXCOMM_PSELID  0xFF8
 
+/*
+ * ⚠ LPI2C LIVES AT +0x800 INSIDE THE FLEXCOMM WINDOW.  LPUART AND LPSPI DO NOT.
+ *
+ * CMSIS is unambiguous, and the three do not share a base:
+ *     LP_FLEXCOMM0_BASE = 0x4009_2000
+ *     LPUART0_BASE      = 0x4009_2000    (+0x000)
+ *     LPSPI0_BASE       = 0x4009_2000    (+0x000)   -- overlays LPUART
+ *     LPI2C0_BASE       = 0x4009_2800    (+0x800)   -- DOES NOT
+ *
+ * This decode had LPI2C at +0x000 alongside the other two.  So every LPI2C
+ * register access from real firmware -- which naturally uses LPI2C0_BASE -- landed
+ * at window offset 0x8xx, MATCHED NO CASE, AND WAS SILENTLY DROPPED: reads returned
+ * 0, writes went nowhere.  THE WHOLE IP WAS UNREACHABLE FROM THE GUEST.  The stock
+ * lpi2c examples print their banner and then quietly do nothing, forever, because
+ * LPI2C_MasterInit()'s every write fell on the floor.
+ *
+ * And my own LPI2C tests passed the entire time, because they poked THE OFFSETS
+ * THIS FILE INVENTED.  The test agreed with the model because the test got its
+ * address from the model.  That is not a test, it is a mirror -- and no amount of
+ * mutation testing can see it, because mutating the model moves the mirror too.
+ * It took an INDEPENDENT golden (the RM's reset values, read back at the addresses
+ * CMSIS gives) to notice that nobody was home.
+ */
+#define LPI2C_WINDOW  0x800
+
+/*
+ * Reset values from the RM's register map.  Each of these was ZERO, and zero is a
+ * CLAIM the guest acts on -- see the SCG SIRCCSR bug that started this audit.
+ */
+#define LPUART_BAUD_RESET   0x0F000004u  /* OSR=15, SBR=4 -- the SDK DIVIDES by OSR */
+#define LPUART_TOSR_RESET   0x0000000Fu
+#define LPSPI_TCR_RESET     0x0000001Fu  /* FRAMESZ = 31 -> a 32-bit frame */
+
+/*
+ * FIFO[RXFIFOSIZE] (bits 2:0) and FIFO[TXFIFOSIZE] (bits 6:4) are READ-ONLY
+ * CAPABILITY fields: the part telling software how deep its FIFOs are.  Reset 0x22
+ * = size code 2 on each.  They were 0 (= the smallest FIFO), and worse, they were
+ * STORED -- so the SDK's `base->FIFO = ...` during init would have OVERWRITTEN the
+ * part's own description of itself.  A capability register that software can change
+ * is not a capability register.
+ */
+#define LPUART_FIFO_SIZES      0x00000022u
+#define LPUART_FIFO_SIZES_MASK 0x00000077u
+#define LPUART_DATA_RXEMPT     0x00001000u  /* CMSIS LPUART_DATA_RXEMPT_MASK */
+
 /* --- Bit masks (CMSIS) ----------------------------------------------------- */
 #define STAT_OR     0x00080000u
 #define STAT_IDLE   0x00100000u
@@ -197,9 +242,15 @@ static uint32_t mcxn_lpspi_status(MCXNLPUARTState *s)
 static uint32_t mcxn_lpi2c_status(MCXNLPUARTState *s)
 {
     uint32_t msr = s->i2c_msr;
-    if (s->i2c_mcr & LPI2C_MCR_MEN) {
-        msr |= LPI2C_MSR_TDF;        /* synchronous TX FIFO always has room */
-    }
+
+    /*
+     * TDF means "the TX FIFO is at or below its watermark", i.e. THERE IS ROOM.
+     * That is true of an empty FIFO whether or not the module is enabled, which is
+     * why the RM gives MSR a reset value of 1 with MEN still clear.  Gating it on
+     * MEN made TDF mean "enabled AND has room" -- a different claim, and one that
+     * reads back 0 out of reset where silicon reads 1.
+     */
+    msr |= LPI2C_MSR_TDF;            /* synchronous TX FIFO always has room */
     if (s->i2c_rx_full) {
         msr |= LPI2C_MSR_RDF;
     }
@@ -546,7 +597,10 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
     case PERSEL_LPSPI:
         return mcxn_lpspi_read(s, offset);
     case PERSEL_LPI2C:
-        return mcxn_lpi2c_read(s, offset);
+        if (offset < LPI2C_WINDOW) {
+            return 0;    /* reserved below the LPI2C sub-block */
+        }
+        return mcxn_lpi2c_read(s, offset - LPI2C_WINDOW);
     default:
         break;  /* fall through to the LPUART register map */
     }
@@ -587,6 +641,13 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
     case LPUART_DATA:
     case LPUART_DATARO:
         r = s->rx_byte;
+        if (!s->rx_full) {
+            /* DATA[RXEMPT] (bit 12).  RM reset 0x0000_1000: an empty receiver SAYS
+             * it is empty.  Reading 0 instead means "byte 0x00 was received", and a
+             * guest polling DATA rather than STAT cannot tell those apart -- a
+             * fabricated NUL in the input stream. */
+            r |= LPUART_DATA_RXEMPT;
+        }
         if (offset == LPUART_DATA && s->rx_full) {
             s->rx_full = false;
             mcxn_flexcomm_update_irq(s);
@@ -603,7 +664,7 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
         r = s->modir;
         break;
     case LPUART_FIFO:
-        r = s->fifo | FIFO_TXEMPT;
+        r = (s->fifo & ~LPUART_FIFO_SIZES_MASK) | LPUART_FIFO_SIZES | FIFO_TXEMPT;
         if (!s->rx_full) {
             r |= FIFO_RXEMPT;
         }
@@ -657,7 +718,10 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
         mcxn_lpspi_write(s, offset, value);
         return;
     case PERSEL_LPI2C:
-        mcxn_lpi2c_write(s, offset, value);
+        if (offset < LPI2C_WINDOW) {
+            return;      /* reserved below the LPI2C sub-block */
+        }
+        mcxn_lpi2c_write(s, offset - LPI2C_WINDOW, value);
         return;
     default:
         break;  /* fall through to the LPUART register map */
@@ -717,7 +781,10 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
         s->modir = value;
         break;
     case LPUART_FIFO:
-        s->fifo = value;
+        /* RXFIFOSIZE/TXFIFOSIZE are RO: the SDK writes this whole register during
+         * init, and storing the written value would let software overwrite the
+         * part's own description of its FIFO depth. */
+        s->fifo = value & ~LPUART_FIFO_SIZES_MASK;
         break;
     case LPUART_WATER:
         s->water = value;
@@ -796,17 +863,21 @@ static void mcxn_lpuart_reset(DeviceState *dev)
 {
     MCXNLPUARTState *s = MCXN_LPUART(dev);
 
-    s->global = s->pincfg = s->baud = s->ctrl = 0;
+    s->global = s->pincfg = s->ctrl = 0;
     s->match = s->modir = s->fifo = s->water = 0;
     s->pselid = PERSEL_LPUART;   /* default selection for a console instance */
-    s->reir = s->teir = s->hdcr = s->tocr = s->tosr = 0;
+    s->reir = s->teir = s->hdcr = s->tocr = 0;
+    /* Reset values from the RM, not zero -- see LPUART_BAUD_RESET above. */
+    s->baud = LPUART_BAUD_RESET;
+    s->tosr = LPUART_TOSR_RESET;
     s->timeout[0] = s->timeout[1] = s->timeout[2] = s->timeout[3] = 0;
     s->rx_byte = 0;
     s->rx_full = false;
 
     /* LPSPI / LPI2C function state. */
     s->spi_cr = s->spi_sr = s->spi_ier = 0;
-    s->spi_cfgr0 = s->spi_cfgr1 = s->spi_ccr = s->spi_fcr = s->spi_tcr = 0;
+    s->spi_cfgr0 = s->spi_cfgr1 = s->spi_ccr = s->spi_fcr = 0;
+    s->spi_tcr = LPSPI_TCR_RESET;
     s->spi_rdr = 0;
     s->spi_rx_full = false;
     s->i2c_mcr = s->i2c_msr = s->i2c_mier = s->i2c_mcfgr1 = 0;

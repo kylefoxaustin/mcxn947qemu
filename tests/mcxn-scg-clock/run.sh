@@ -51,7 +51,11 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
 SCG0=0x40044000
 SIRCCSR=$((SCG0 + 0x200))
+SOSCCSR=$((SCG0 + 0x100))
+APLLCSR=$((SCG0 + 0x500))
+RCCR=$((SCG0 + 0x014))
 EXPECT=0x01000020        # RM rev 7: "200h  SIRCCSR  32  RW  0100_0020h"
+VLD=0x01000000           # xxxVLD / xxx_LOCK, bit 24 of every SCG *CSR
 fail=0
 
 # ── ORACLE A — the reset value itself, against the RM.
@@ -72,6 +76,50 @@ else
     echo "      clear the SDK sees a 0 Hz FlexComm clock and every LPI2C/LPSPI/LPUART"
     echo "      init asserts and hard-faults."
     fail=1
+fi
+
+# ── ORACLE A2 — VALID MUST BE EARNED, NOT FABRICATED.
+#
+# The read path used to be one line for every oscillator and PLL:
+#     return v | SCG_READY;    /* always valid/locked */
+# which is not a conservative simplification, it is a FABRICATED ASSERTION -- and
+# the SDK acts on it:
+#     uint32_t CLOCK_GetExtClkFreq(void) {              -- fsl_clock.c:2321
+#         return ((SCG0->SOSCCSR & SCG_SOSCCSR_SOSCVLD_MASK) != 0UL)
+#                ? s_Ext_Clk_Freq : 0U;
+#     }
+# so a VLD nobody earned makes the SDK report a CRYSTAL FREQUENCY FOR AN OSCILLATOR
+# THAT WAS NEVER TURNED ON.  The RM agrees: SOSCCSR/ROSCCSR/APLLCSR/SPLLCSR all reset
+# to 0.  (SIRC and FIRC really are running out of reset; they carry VLD in their
+# RESET VALUE, which is where it belongs.)
+#
+# This half of the test exists because a mutation proved the other half could not
+# see it: reverting SOSCCSR to "always valid" left the SIRCCSR check GREEN.
+QS="$(mktemp)"
+{ printf 'readl 0x%x\n' $SOSCCSR      # [1] reset: VLD CLEAR (nobody enabled it)
+  printf 'readl 0x%x\n' $APLLCSR      # [2] reset: LOCK CLEAR
+  printf 'readl 0x%x\n' $RCCR         # [3] RCCR[SCS] = 3 -- the source it RUNS on
+  printf 'writel 0x%x 0x1\n' $SOSCCSR # enable SOSC (SOSCEN, bit 0)
+  printf 'readl 0x%x\n' $SOSCCSR      # [4] NOW valid
+  printf 'writel 0x%x 0x3\n' $APLLCSR # APLLPWREN | APLLCLKEN
+  printf 'readl 0x%x\n' $APLLCSR      # [5] NOW locked
+} > "$QS"
+mapfile -t V < <(timeout 30 "$QEMU" -M frdm-mcxn947 -display none -accel qtest \
+                     -qtest stdio -monitor none -serial none < "$QS" 2>/dev/null \
+                 | grep -oE '^OK 0x[0-9a-f]+' | cut -d' ' -f2)
+rm -f "$QS"
+if [ "${#V[@]}" -ne 5 ]; then
+    echo "FAIL: asked 5 questions, got ${#V[@]} answers"; fail=1
+else
+    bit() { printf '%d' $(( ( $(printf '%d' "$1") >> 24) & 1 )); }
+    chk() { if [ "$2" = "$3" ]; then echo "PASS: $1"
+            else echo "FAIL: $1 (got $2, want $3)"; fail=1; fi; }
+    chk "SOSCVLD CLEAR at reset (the crystal is not running)" "$(bit "${V[0]}")" 0
+    chk "APLL_LOCK CLEAR at reset (the PLL is not powered)"   "$(bit "${V[1]}")" 0
+    chk "RCCR[SCS]=3 at reset (the source the part RUNS on)"  \
+        "$(printf '%d' "${V[2]}")" "$(printf '%d' 0x03000000)"
+    chk "SOSCVLD SET once SOSCEN is written"                  "$(bit "${V[3]}")" 1
+    chk "APLL_LOCK SET once APLLPWREN|APLLCLKEN are written"  "$(bit "${V[4]}")" 1
 fi
 
 # ── ORACLE B — the real tenant.  NXP's driver, NXP's assert, NXP's words.

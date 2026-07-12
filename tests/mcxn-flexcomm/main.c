@@ -56,11 +56,39 @@
 
 /* --- LPI2C on FlexComm0 ---------------------------------------------------- */
 #define FC0_BASE   0x40092000u
-#define I2C_MCR    (*(volatile uint32_t *)(FC0_BASE + 0x10))
-#define I2C_MSR    (*(volatile uint32_t *)(FC0_BASE + 0x14))
-#define I2C_MIER   (*(volatile uint32_t *)(FC0_BASE + 0x18))
-#define I2C_MTDR   (*(volatile uint32_t *)(FC0_BASE + 0x60))
-#define I2C_MRDR   (*(volatile uint32_t *)(FC0_BASE + 0x70))
+
+/*
+ * ⭐ THE LPI2C SUB-BLOCK IS AT +0x800, AND THIS TEST USED TO SAY +0x000.
+ *
+ * CMSIS:  LP_FLEXCOMM0_BASE = 0x4009_2000
+ *         LPUART0_BASE      = 0x4009_2000   (+0x000)
+ *         LPSPI0_BASE       = 0x4009_2000   (+0x000)
+ *         LPI2C0_BASE       = 0x4009_2800   (+0x800)   <-- not with the others
+ *
+ * The model ALSO had LPI2C at +0x000, so every LPI2C access from real firmware --
+ * which of course uses LPI2C0_BASE -- landed in an unmapped hole and was silently
+ * dropped.  The IP was UNREACHABLE FROM THE GUEST, and the stock lpi2c examples sat
+ * there printing a banner and doing nothing.
+ *
+ * AND THIS TEST PASSED THROUGH ALL OF IT, because it took its addresses FROM THE
+ * MODEL.  It poked +0x10, the model answered at +0x10, and the two of them agreed
+ * perfectly about a register that does not exist at that address on the part.
+ *
+ *     ⭐ A TEST THAT GETS ITS ADDRESSES FROM THE MODEL IS NOT A TEST.  IT IS A
+ *        MIRROR.  And mutation testing CANNOT SEE IT: mutate the model and the
+ *        mirror moves with it, so the test still "catches" the mutation and still
+ *        proves nothing about the silicon.
+ *
+ * It took an oracle I did not write -- the RM's reset values, read back at the
+ * addresses CMSIS gives -- to notice that nobody was home.  Addresses now come from
+ * CMSIS, like firmware's do.
+ */
+#define LPI2C0_BASE (FC0_BASE + 0x800u)
+#define I2C_MCR    (*(volatile uint32_t *)(LPI2C0_BASE + 0x10))
+#define I2C_MSR    (*(volatile uint32_t *)(LPI2C0_BASE + 0x14))
+#define I2C_MIER   (*(volatile uint32_t *)(LPI2C0_BASE + 0x18))
+#define I2C_MTDR   (*(volatile uint32_t *)(LPI2C0_BASE + 0x60))
+#define I2C_MRDR   (*(volatile uint32_t *)(LPI2C0_BASE + 0x70))
 #define I2C_PSELID (*(volatile uint32_t *)(FC0_BASE + FC_PSELID_OFF))
 #define I2C_MCR_MEN   0x1u
 #define I2C_MSR_RDF   0x2u
