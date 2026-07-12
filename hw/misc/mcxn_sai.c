@@ -61,6 +61,7 @@
 #define TCR5_W0W(v)  (((v) >> 16) & 0x1F)    /* word width - 1            */
 
 /* TCSR/RCSR bit masks (shared layout for the two CSR registers). */
+#define CSR_FRDE    (1u << 0)   /* FIFO request DMA enable  */
 #define CSR_FRF     (1u << 16)  /* FIFO request flag        */
 #define CSR_FWF     (1u << 17)  /* FIFO warning flag        */
 #define CSR_FEF     (1u << 18)  /* FIFO error (underrun/overrun) flag */
@@ -146,6 +147,31 @@ static void mcxn_sai_update_irq(MCXNSAIState *s)
                ((tcsr >> CSR_IE_TO_FLAG_SHIFT) & 0x1Fu)) != 0;
     bool rx = (((rflags >> 16) & 0x1Fu) &
                ((rcsr >> CSR_IE_TO_FLAG_SHIFT) & 0x1Fu)) != 0;
+
+    /*
+     * THE DMA REQUEST LINES.  The same FIFO-request condition that raises the
+     * interrupt also asks the eDMA for service when TCSR/RCSR[FRDE] is set —
+     * this is how every stock SAI driver actually moves audio
+     * (SAI_TransferSendEDMA, Zephyr's i2s_mcux_sai).  Without these lines the
+     * eDMA could only be started by a software TCD_CSR[START] write, so
+     * DMA-driven audio did not work at all: the guest armed a channel, enabled
+     * ERQ, and waited forever for a request that nothing could raise.
+     *
+     * Level-driven and edge-suppressed: only a CHANGE is published, because a
+     * qemu_irq handler runs on every qemu_set_irq call and the eDMA re-enters
+     * us as it fills the FIFO.
+     */
+    bool tdma = (tflags & CSR_FRF) && (tcsr & CSR_FRDE);
+    bool rdma = (rflags & CSR_FRF) && (rcsr & CSR_FRDE);
+
+    if (tdma != s->tx_dma_req) {
+        s->tx_dma_req = tdma;
+        qemu_set_irq(s->dma_req_tx, tdma);
+    }
+    if (rdma != s->rx_dma_req) {
+        s->rx_dma_req = rdma;
+        qemu_set_irq(s->dma_req_rx, rdma);
+    }
 
     qemu_set_irq(s->irq, tx || rx);
 }
@@ -360,6 +386,8 @@ static void mcxn_sai_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_SAI, MCXN_SAI_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_tx);   /* -> eDMA src 100 */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_rx);   /* -> eDMA src 99  */
 
     timer_init_ns(&s->word_timer, QEMU_CLOCK_VIRTUAL, mcxn_sai_word_tick, s);
 }

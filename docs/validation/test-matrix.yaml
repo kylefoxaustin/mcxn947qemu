@@ -68,7 +68,7 @@ analog:
 gpio_dma_irq:
   - {block: gpio,     present: true, driver_binds: true,  class: functional,    tested_by: [mcxn-gpio], result: pass}
   - {block: port,     present: true, driver_binds: true,  class: register-only, tested_by: [mcxn-gpio, mcxn-mcuxpresso], result: pass}
-  - {block: edma,     present: true, driver_binds: true,  class: functional,    tested_by: [mcxn-dma], result: pass}
+  - {block: edma,     present: true, driver_binds: true,  class: functional,    tested_by: [mcxn-dma, mcxn-sai-dma], result: pass, note: "PERIPHERAL-TRIGGERED DMA added 2026-07-12: CH_CSR[ERQ] used to be a DEAD CONSTANT -- defined, never read -- and no peripheral had a request line, so the only way to move a byte was a software TCD_CSR[START] write. DMA-driven audio/ADC/UART, which is how nearly all real transfer works, DID NOT EXIST: a guest that armed a channel, set ERQ and waited for a FIFO watermark waited forever. Now peripherals drive one GPIO per CMSIS request-mux source (SAI0 Tx=100/Rx=99, DAC0=25, ADC0 FIFO A=21) and a channel consumes the source its CH_MUX[SRC] selects, ONE MINOR LOOP PER REQUEST, with TCD_CSR[DREQ] auto-clearing ERQ at major completion"}
   - {block: inputmux, present: true, driver_binds: true,  class: register-only, tested_by: [boot, corpus], result: pass}
   - {block: pint,     present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
   - {block: intm,     present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
@@ -195,9 +195,9 @@ readme_groups:
     tier: A
     evidence: "Timer/PWM data paths + IRQs. The eFlexPWM CARRIER PERIOD is measured against SysTick — an Arm core timer, independent of every peripheral model — and matched to the period predicted from configuration (49168 vs 49164 ticks, 0.008%), under -icount so the measurement is deterministic. Counting interrupts is not enough: a 3x-wrong carrier still fires them (tests/mcxn-pwm, mcxn-ctimer, mcxn-timers, mcxn-ostimer, mcxn-sct, mcxn-rtc)"
     blocks: [ctimer, mrt, lptmr, ostimer, sct, pwm, rtc]
-  - label: "GPIO + eDMA"
+  - label: "GPIO + eDMA (incl. PERIPHERAL-TRIGGERED DMA)"
     tier: A
-    evidence: "GPIO toggles; eDMA TCD transfers (tests/mcxn-gpio, mcxn-dma)"
+    evidence: "GPIO toggles; eDMA TCD transfers, software-triggered AND hardware-request-triggered. CH_CSR[ERQ] was previously a DEAD CONSTANT and no peripheral had a request line, so DMA-driven audio/ADC/UART -- how nearly all real transfer works -- could not run at all. Peripherals now drive one line per CMSIS request-mux source (SAI0 Tx=100), a channel consumes the source its CH_MUX[SRC] selects, one MINOR LOOP per request, and TCD_CSR[DREQ] auto-clears ERQ at major completion. Proven stock-driver-shaped: the CPU arms a channel at the SAI TDR, sets TCSR[FRDE] and NEVER WRITES TDR AGAIN -- every word is carried by the DMA and returns byte-exact through the board loopback. Requests are serviced in a BOTTOM HALF: servicing inline from the peripheral's own MMIO write is a re-entrant access QEMU SILENTLY DROPS, which looks exactly like success (CITER decrements, DONE sets, INTMAJOR fires) while moving ZERO bytes -- negative-tested (tests/mcxn-gpio, mcxn-dma, mcxn-sai-dma)"
     blocks: [gpio, edma]
   - label: "PowerQuad DSP (matrix/vector + CP0 transcendentals)"
     tier: A

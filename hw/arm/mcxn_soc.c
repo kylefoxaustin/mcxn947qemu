@@ -925,6 +925,21 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->sai[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             sai_cfg[i].irq));
+
+        /*
+         * The SAI's DMA request lines into DMA0.  This is how a stock driver
+         * moves audio: the FIFO watermark asks the eDMA for service, one minor
+         * loop per request.  Request-mux source numbers are CMSIS-exact
+         * (dma_request_source_t): SAI0 Rx = 99 / Tx = 100, SAI1 Rx = 101 /
+         * Tx = 102.  Without these, ERQ was a dead bit and DMA-driven audio
+         * could not run at all.
+         */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->sai[i]), 1,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_SAI0_TX + 2 * i));
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->sai[i]), 2,
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_SAI0_RX + 2 * i));
         memory_region_init_alias(&s->sai_s_alias[i], OBJECT(dev), aname,
                                  &s->sai[i].iomem, 0, MCXN_SAI_SIZE);
         memory_region_add_subregion(system_memory,

@@ -63,6 +63,13 @@ struct MCXNSAIState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq irq;
+
+    /* DMA request lines into the eDMA (SAI0 Tx = mux source 100, Rx = 99).
+     * The FIFO-request condition gated by TCSR/RCSR[FRDE]. */
+    qemu_irq dma_req_tx;
+    qemu_irq dma_req_rx;
+    bool     tx_dma_req;
+    bool     rx_dma_req;
     uint32_t regs[MCXN_SAI_SIZE / 4];
 
     /* "loopback" property: wire SAI_TXD back to SAI_RXD, as a bench jumper

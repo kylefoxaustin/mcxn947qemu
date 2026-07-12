@@ -14,12 +14,35 @@
 #define HW_DMA_MCXN_EDMA_H
 
 #include "hw/core/sysbus.h"
+#include "qemu/main-loop.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_EDMA "mcxn-edma"
 OBJECT_DECLARE_SIMPLE_TYPE(MCXNEDMAState, MCXN_EDMA)
 
 #define MCXN_EDMA_CHANNELS 16
+
+/*
+ * MCX N DMA request-mux sources (CMSIS dma_request_source_t).  Peripherals
+ * drive one GPIO input per source; a channel consumes the one its CH_MUX[SRC]
+ * selects.  Highest source in the enum is 121, so 128 covers the 7-bit field.
+ */
+#define MCXN_EDMA_REQ_SOURCES  128
+#define CH_MUX_SRC_MASK        0x7Fu    /* CMSIS DMA_CH_MUX_SRC_MASK */
+#define MCXN_EDMA_MAX_LOOPS    0x100000 /* backstop: a peripheral that never
+                                         * drops its request must not wedge the
+                                         * machine */
+
+/* Request-mux source numbers used by the SoC wiring (CMSIS-exact). */
+#define MCXN_DMA_REQ_ADC0_FIFO_A   21
+#define MCXN_DMA_REQ_ADC0_FIFO_B   22
+#define MCXN_DMA_REQ_DAC0_FIFO     25
+#define MCXN_DMA_REQ_DAC1_FIFO     26
+#define MCXN_DMA_REQ_DAC2_FIFO     27
+#define MCXN_DMA_REQ_SAI0_RX       99
+#define MCXN_DMA_REQ_SAI0_TX       100
+#define MCXN_DMA_REQ_SAI1_RX       101
+#define MCXN_DMA_REQ_SAI1_TX       102
 
 typedef struct MCXNEDMAChan {
     uint32_t csr, es, intr, sbr, pri, mux;
@@ -40,6 +63,16 @@ struct MCXNEDMAState {
     uint32_t mp_es;
     uint32_t ch_grpri[MCXN_EDMA_CHANNELS];
     MCXNEDMAChan ch[MCXN_EDMA_CHANNELS];
+
+    /* Hardware request lines, one per request-mux source.  Latched so that a
+     * peripheral re-asserting from inside a transfer is seen by the drain loop
+     * rather than re-entering it. */
+    bool req_level[MCXN_EDMA_REQ_SOURCES];
+
+    /* Requests are serviced from a bottom half: a peripheral raises its line
+     * from inside its own MMIO write, and writing back into it on that call
+     * stack is a re-entrant access that QEMU's guard silently DROPS. */
+    QEMUBH *bh;
 };
 
 #endif /* HW_DMA_MCXN_EDMA_H */

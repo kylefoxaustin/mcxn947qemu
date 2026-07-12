@@ -8,6 +8,7 @@
 #include "hw/dma/mcxn_edma.h"
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
+#include "qemu/main-loop.h"
 #include "system/address-spaces.h"
 
 /* Management-page registers. */
@@ -41,6 +42,7 @@
 #define CH_INT_INT   (1u << 0)
 #define TCD_CSR_START    (1u << 0)
 #define TCD_CSR_INTMAJOR (1u << 1)
+#define TCD_CSR_DREQ     (1u << 3)   /* CMSIS DMA_TCD_CSR_DREQ_MASK */
 #define ATTR_SSIZE(a)  (((a) >> 8) & 0x7)
 #define ATTR_DSIZE(a)  ((a) & 0x7)
 #define NBYTES_MASK  0x3FFFFFFFu
@@ -51,8 +53,19 @@ static void edma_update_irq(MCXNEDMAState *s, int n)
     qemu_set_irq(s->irq[n], !!(s->ch[n].intr & CH_INT_INT));
 }
 
-/* Run a software-triggered channel transfer to completion. */
-static void edma_run(MCXNEDMAState *s, int n)
+/*
+ * Run ONE MINOR LOOP (NBYTES) of a channel and advance the TCD.  Returns true
+ * once the MAJOR loop completes.
+ *
+ * This is the unit a HARDWARE REQUEST moves.  Real eDMA does not transfer a
+ * whole buffer when a peripheral asks for service: a SAI whose FIFO dropped
+ * below its watermark asks for ONE minor loop, the DMA moves NBYTES into the
+ * FIFO, and the peripheral asks again when it next needs data.  That is the
+ * whole shape of DMA-driven audio/ADC/UART, and modelling only the
+ * software-START path (which ran the entire major loop in one go) meant this
+ * device could not do it at all.
+ */
+static bool edma_minor_loop(MCXNEDMAState *s, int n)
 {
     MCXNEDMAChan *c = &s->ch[n];
     uint32_t ssize = 1u << ATTR_SSIZE(c->tcd_attr);
@@ -64,34 +77,57 @@ static void edma_run(MCXNEDMAState *s, int n)
     uint32_t saddr = c->tcd_saddr, daddr = c->tcd_daddr;
     uint8_t buf[32];
     uint32_t step = ssize ? ssize : 1;
-    uint32_t m, b;
+    uint32_t b;
 
     if (dsize == 0 || nbytes == 0 || citer == 0) {
         c->csr |= CH_CSR_DONE;
-        return;
+        return true;
     }
     if (step > sizeof(buf)) {
         step = sizeof(buf);
     }
-    for (m = 0; m < citer; m++) {
-        for (b = 0; b + step <= nbytes; b += step) {
-            address_space_read(&address_space_memory, saddr,
-                               MEMTXATTRS_UNSPECIFIED, buf, step);
-            address_space_write(&address_space_memory, daddr,
-                                MEMTXATTRS_UNSPECIFIED, buf, step);
-            saddr += soff;
-            daddr += doff;
-        }
+
+    for (b = 0; b + step <= nbytes; b += step) {
+        address_space_read(&address_space_memory, saddr,
+                           MEMTXATTRS_UNSPECIFIED, buf, step);
+        address_space_write(&address_space_memory, daddr,
+                            MEMTXATTRS_UNSPECIFIED, buf, step);
+        saddr += soff;
+        daddr += doff;
     }
-    saddr += (int32_t)c->tcd_slast;
-    daddr += (int32_t)c->tcd_dlast;
     c->tcd_saddr = saddr;
     c->tcd_daddr = daddr;
+
+    citer--;
+    c->tcd_citer = (c->tcd_citer & ~CITER_MASK) | citer;
+    if (citer != 0) {
+        return false;                     /* major loop still running */
+    }
+
+    /* Major loop complete: apply the final address adjustments and reload. */
+    c->tcd_saddr = saddr + (int32_t)c->tcd_slast;
+    c->tcd_daddr = daddr + (int32_t)c->tcd_dlast;
     c->tcd_citer = c->tcd_biter;          /* reload major count */
     c->csr |= CH_CSR_DONE;
+    if (c->tcd_csr & TCD_CSR_DREQ) {
+        c->csr &= ~CH_CSR_ERQ;            /* auto-disable the request */
+    }
     if (c->tcd_csr & TCD_CSR_INTMAJOR) {
         c->intr |= CH_INT_INT;
         edma_update_irq(s, n);
+    }
+    return true;
+}
+
+/* Run a software-triggered channel transfer to completion. */
+static void edma_run(MCXNEDMAState *s, int n)
+{
+    int guard = 0;
+
+    while (!edma_minor_loop(s, n)) {
+        if (++guard > MCXN_EDMA_MAX_LOOPS) {
+            break;
+        }
     }
 }
 
@@ -212,6 +248,86 @@ static void edma_write(void *opaque, hwaddr off, uint64_t val, unsigned size)
     }
 }
 
+/*
+ * Service every channel whose hardware request line is asserted.
+ *
+ * ⚠ THIS MUST RUN IN A BOTTOM HALF, NOT INLINE FROM THE REQUEST.  A peripheral
+ * raises its request from inside its OWN MMIO write handler (the SAI asserts
+ * when firmware sets TCSR[FRDE]).  If the DMA then wrote straight back into that
+ * peripheral, it would be a RE-ENTRANT MMIO access into a device already engaged
+ * in I/O, and QEMU's re-entrancy guard DROPS IT:
+ *
+ *     qemu-system-arm: warning: Blocked re-entrant IO on MemoryRegion: mcxn-sai
+ *                      at addr: 0x20
+ *
+ * The failure is SILENT DATA LOSS and it looks exactly like success: the channel
+ * still walks its minor loops, still decrements CITER, still sets DONE and still
+ * raises INTMAJOR -- while every byte it "moved" was thrown away and the FIFO
+ * stayed empty.  A test that asked "did the transfer complete?" would pass.  Only
+ * checking the DATA catches it.  Real DMA is asynchronous anyway; a bottom half
+ * is both the correct model and the correct QEMU idiom.
+ */
+static void mcxn_edma_service_bh(void *opaque)
+{
+    MCXNEDMAState *s = opaque;
+    int guard = 0;
+    bool progress;
+
+    do {
+        int n;
+
+        progress = false;
+        for (n = 0; n < MCXN_EDMA_CHANNELS; n++) {
+            MCXNEDMAChan *c = &s->ch[n];
+            uint32_t src = c->mux & CH_MUX_SRC_MASK;
+
+            if (!(c->csr & CH_CSR_ERQ) || src == 0) {
+                continue;
+            }
+            if (!s->req_level[src]) {
+                continue;               /* nothing is asking this channel */
+            }
+            /*
+             * One minor loop per request, as the hardware does.  Writing into
+             * the peripheral makes it re-evaluate its FIFO and update its
+             * request line (through mcxn_edma_req below), so the next pass of
+             * this loop sees the new level.
+             */
+            c->csr &= ~CH_CSR_DONE;
+            edma_minor_loop(s, n);
+            progress = true;
+        }
+    } while (progress && ++guard < MCXN_EDMA_MAX_LOOPS);
+}
+
+/*
+ * A peripheral asserted (or dropped) its DMA request line.
+ *
+ * `src` is the MCX N request-mux source number from the CMSIS
+ * dma_request_source_t enum (e.g. SAI0 Tx = 100, DAC0 = 25, ADC0 FIFO A = 21).
+ * A channel consumes it when CH_MUX[SRC] selects that source and CH_CSR[ERQ]
+ * enables the hardware request.  Until now ERQ was a DEAD CONSTANT -- defined,
+ * never read -- and the only way to move a byte was a software TCD_CSR[START]
+ * write.  That meant peripheral-triggered DMA, which is how essentially all real
+ * audio/ADC/UART/SPI transfer works, DID NOT EXIST: a guest that set ERQ and
+ * waited for the FIFO watermark to drive the transfer waited forever.
+ *
+ * We only latch the level here and kick the bottom half; see above for why the
+ * transfer itself must not happen on this call stack.
+ */
+static void mcxn_edma_req(void *opaque, int src, int level)
+{
+    MCXNEDMAState *s = MCXN_EDMA(opaque);
+
+    if (src < 0 || src >= MCXN_EDMA_REQ_SOURCES) {
+        return;
+    }
+    s->req_level[src] = level;
+    if (level) {
+        qemu_bh_schedule(s->bh);
+    }
+}
+
 static const MemoryRegionOps edma_ops = {
     .read = edma_read,
     .write = edma_write,
@@ -230,12 +346,17 @@ static void mcxn_edma_reset(DeviceState *dev)
     s->mp_es = 0;
     memset(s->ch_grpri, 0, sizeof(s->ch_grpri));
     memset(s->ch, 0, sizeof(s->ch));
+    memset(s->req_level, 0, sizeof(s->req_level));
 }
 
 static void mcxn_edma_realize(DeviceState *dev, Error **errp)
 {
     MCXNEDMAState *s = MCXN_EDMA(dev);
     int n;
+
+    /* One input per MCX N DMA request-mux source: peripherals drive these. */
+    qdev_init_gpio_in(dev, mcxn_edma_req, MCXN_EDMA_REQ_SOURCES);
+    s->bh = qemu_bh_new(mcxn_edma_service_bh, s);
 
     /* Management page (0x0) + 16 channels x 0x1000 = 0x11000. */
     memory_region_init_io(&s->iomem, OBJECT(s), &edma_ops, s, TYPE_MCXN_EDMA,
