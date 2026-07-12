@@ -42,6 +42,26 @@ node() { # <elf> <mac> <out>
 }
 
 echo "segment: mcast=$MCAST"
+
+# JOIN=1: bring up ONLY our 0x88B5 node and hold it on the REAL fleet segment,
+# so rt1180 (0x88B6) and imx95 (0x88B7) can join with their own firmware.  We
+# broadcast for the whole window and PASS only on seeing BOTH other ethertypes —
+# a peer that has not arrived yet is not a failure, it is just not here yet.
+if [ "${JOIN:-0}" = "1" ]; then
+  HOLD="${HOLD:-180}"
+  echo "JOIN: holding 0x88B5 on $MCAST for ${HOLD}s (waiting for 0x88B6 + 0x88B7)"
+  timeout "$HOLD" "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+    -nic socket,mcast=$MCAST,model=mcxn-enet,mac=02:4d:43:58:00:01 \
+    -kernel "$HERE/node-mcx.elf" -no-reboot 2>/dev/null | tee "$O1" || true
+  if grep -q 'ENET-LAB3 PASS' "$O1"; then
+    echo "PASS: 0x88B5 saw BOTH 0x88B6 and 0x88B7 on the wire"
+    exit 0
+  fi
+  echo "did NOT see both peers — who was on the segment:"
+  grep -oE 'peer ethertype 0x[0-9a-f]+' "$O1" | sort -u || echo "  (nobody)"
+  exit 1
+fi
+
 node "$HERE/node-mcx.elf"    02:4d:43:58:00:01 "$O1"
 node "$HERE/node-rt1180.elf" 02:4d:43:58:00:02 "$O2"
 node "$HERE/node-imx95.elf"  02:4d:43:58:00:03 "$O3"

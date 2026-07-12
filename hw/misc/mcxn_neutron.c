@@ -10,6 +10,28 @@
  * a LOG_UNIMP per kick, and an optional operator-driven guest-visible error
  * trap.  Never a silent wrong answer; never a hang.
  *
+ * ⚠ WHAT REAL NEUTRON SILICON DOES, AND WHY THIS MODEL IS DELIBERATELY *MORE
+ * HONEST THAN THE HARDWARE* (measured on shipped silicon by the 95 fleet, 2026-07-12):
+ *
+ *   Real Neutron DOES NOT REFUSE WORK IT CANNOT DO CORRECTLY.  It CLAIMS the op
+ *   and returns garbage.  Measured: an 8-bit MatMulNBits at a KNOWN-SAFE K was
+ *   accepted by the NPU execution provider and came back with rel-L2 = 103% and
+ *   cosine = -0.0019 — i.e. ORTHOGONAL TO THE TRUTH, not merely inaccurate.  And
+ *   at certain K values (tiling-dependent, NON-MONOTONIC: 8192 is fine, 7168 is
+ *   garbage; 10752 is fine, 11008 is garbage) it produces a numerical explosion.
+ *   Even when it IS correct, its error is ~6x the ggml CPU kernel it replaces and
+ *   costs +7.3% perplexity end-to-end.
+ *
+ *   This model instead FAULTS to the guest (INTR[ERRORTRAP]), because the compute
+ *   is proprietary microcode with no user-visible registers: we cannot reproduce
+ *   the right answer, and we will not fabricate a plausible wrong one.
+ *
+ *   ⇒ THEREFORE: A CLEAN ERRORTRAP HERE IS *NOT* A PROMISE THAT SILICON WILL
+ *     FAULT.  Firmware that "handled the error nicely" against this model will,
+ *     on a real board, be handed CONFIDENT NONSENSE instead — with no flag, no
+ *     interrupt, and nothing to catch.  Validate accelerator numerics on silicon;
+ *     the emulator can tell you the op was ATTEMPTED, never that it was RIGHT.
+ *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 #include "qemu/osdep.h"
