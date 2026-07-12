@@ -37,7 +37,18 @@
 #define R_TCD_CSR   0x3C
 #define R_TCD_BITER 0x3E
 
+/* CH_ES — error status (CMSIS DMA_CH_ES_*).  The eDMA VALIDATES THE TCD BEFORE
+ * IT MOVES ANYTHING and refuses to run on an error; it does not quietly move a
+ * partial minor loop. */
+#define CH_ES_NCE    (1u << 3)    /* NBYTES/CITER configuration error */
+#define CH_ES_DOE    (1u << 4)    /* destination offset error         */
+#define CH_ES_DAE    (1u << 5)    /* destination address error        */
+#define CH_ES_SOE    (1u << 6)    /* source offset error              */
+#define CH_ES_SAE    (1u << 7)    /* source address error             */
+#define CH_ES_ERR    (1u << 31)   /* any of the above                 */
+
 #define CH_CSR_ERQ   (1u << 0)
+#define CH_CSR_EEI   (1u << 2)   /* error interrupt enable (CMSIS DMA_CH_CSR_EEI) */
 #define CH_CSR_DONE  (1u << 30)
 #define CH_INT_INT   (1u << 0)
 #define TCD_CSR_START    (1u << 0)
@@ -85,6 +96,41 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
     }
     if (step > sizeof(buf)) {
         step = sizeof(buf);
+    }
+
+    /*
+     * ⚠ CONFIGURATION CHECK — and this used to be a SILENT DATA LOSS.
+     *
+     * The minor loop below is `for (b = 0; b + step <= nbytes; b += step)`.  With
+     * NBYTES=6 and a 4-byte transfer size it moved FOUR BYTES AND DROPPED TWO --
+     * no error, no flag, DONE set, INTMAJOR raised, and the guest told that its
+     * transfer had completed.  Real eDMA does not do that: a NBYTES that is not a
+     * multiple of the transfer size is a CONFIGURATION ERROR (CH_ES[NCE]) and the
+     * channel REFUSES TO RUN.
+     *
+     * ⭐ EVERY TEST IN THIS TREE USED NBYTES = 4 WITH A 4-BYTE TRANSFER SIZE.
+     * Perfectly round, and the bug is invisible at every round value.  Found by
+     * carrying ollama_95_neutron's rule one column to the right:
+     *   "ROUND NUMBERS ARE HOW BUGS SURVIVE -- a 2^n sweep sails straight past the
+     *    broken values.  I learned the lesson ON the axis that taught it, and did
+     *    not carry it ONE COLUMN TO THE RIGHT."
+     */
+    if (nbytes % step != 0) {
+        c->es |= CH_ES_NCE | CH_ES_ERR;
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "mcxn-edma: ch%d NBYTES=%u is not a multiple of the "
+                      "transfer size %u -- CH_ES[NCE]; the channel does NOT run "
+                      "(it used to silently drop the remainder)\n",
+                      n, nbytes, step);
+        /* The ERROR interrupt is gated by CH_CSR[EEI] -- NOT by TCD_CSR[INTMAJOR],
+         * which is the TRANSFER-COMPLETE signal.  Raising major-completion on an
+         * error would tell the guest "done" about a transfer that never ran,
+         * which is the very lie this check exists to remove. */
+        if (c->csr & CH_CSR_EEI) {
+            c->intr |= CH_INT_INT;
+            edma_update_irq(s, n);
+        }
+        return true;                      /* aborted: no DONE, no data moved */
     }
 
     for (b = 0; b + step <= nbytes; b += step) {
@@ -223,7 +269,9 @@ static void edma_write(void *opaque, hwaddr off, uint64_t val, unsigned size)
             edma_update_irq(s, n);
         }
         return;
-    case R_CH_ES:   c->es = v; return;
+    case R_CH_ES:
+        c->es &= ~v;                      /* W1C */
+        return;
     case R_CH_SBR:  c->sbr = v; return;
     case R_CH_PRI:  c->pri = v; return;
     case R_CH_MUX:  c->mux = v; return;
