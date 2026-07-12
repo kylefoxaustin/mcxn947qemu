@@ -81,7 +81,7 @@ memory_flash_cache:
   - {block: fmu,            present: true, driver_binds: true,  class: functional,    tested_by: [mcxn-fmu], result: pass}
   - {block: cache64,        present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
   - {block: npx,            present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
-  - {block: crc,            present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
+  - {block: crc,            present: true, driver_binds: true,  class: computes,      tested_by: [mcxn-crc], result: pass, note: "checked against three PUBLISHED check vectors (CRC-16/CCITT-FALSE 0x29B1, CRC-32/MPEG-2 0x0376E6E7, CRC-32/IEEE 0xCBF43926) — independent goldens, three configurations, not one stamp. DATA also accepts byte writes, which the stock CRC_WriteData() needs for odd-length messages"}
   - {block: sema42,         present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
   - {block: otpc,           present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
 
@@ -227,10 +227,14 @@ readme_groups:
     tier: B
     evidence: "Drivers bind; pin-mux / IRQ routing registers correct (sub-word MMIO)"
     blocks: [port, inputmux, pint, intm, evtg, flexio, qdc, plu]
-  - label: "Memory / cache / CRC — CACHE64, NPX, CRC, SEMA42, OTPC"
+  - label: "CRC engine (computes)"
+    tier: A
+    evidence: "Verified against three PUBLISHED check vectors over \"123456789\" — CRC-16/CCITT-FALSE 0x29B1, CRC-32/MPEG-2 0x0376E6E7, CRC-32/IEEE 0xCBF43926 — so the goldens are independent of this implementation, and three configurations are swept rather than one stamped (tests/mcxn-crc)"
+    blocks: [crc]
+  - label: "Memory / cache — CACHE64, NPX, SEMA42, OTPC"
     tier: B
-    evidence: "Register-accurate; CRC compute, cache/ID/fuse config"
-    blocks: [cache64, npx, crc, sema42, otpc]
+    evidence: "Register-accurate; cache/ID/fuse config"
+    blocks: [cache64, npx, sema42, otpc]
   - label: "Clocks / power / system — SCG, SYSCON, SPC, CMC, VBAT, WUU, FREQME, AHBSC"
     tier: B
     evidence: "Clock/power config; firmware programs directly (no System Manager)"

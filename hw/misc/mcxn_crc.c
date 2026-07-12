@@ -189,9 +189,18 @@ static const MemoryRegionOps mcxn_crc_ops = {
     .read = mcxn_crc_read,
     .write = mcxn_crc_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
-    .valid.min_access_size = 4,
+    /*
+     * The DATA register MUST accept 1/2/4-byte writes.  The stock SDK's
+     * CRC_WriteData() feeds the engine byte-wise (fsl_crc.c: ACCESS8BIT.DATALL)
+     * to align an unaligned buffer and to finish an odd-length one, so a
+     * 4-byte-only window rejects the real driver on any message whose length is
+     * not a multiple of four.  crc_feed_data() already honours the access size;
+     * only the window was wrong.  (Same class as the fleet's eDMA byte-access
+     * lesson, which this block had been missed out of.)
+     */
+    .valid.min_access_size = 1,
     .valid.max_access_size = 4,
-    .impl.min_access_size = 4,
+    .impl.min_access_size = 1,
     .impl.max_access_size = 4,
 };
 

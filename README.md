@@ -102,7 +102,8 @@ proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 | Accelerators (honest) — Neutron NPU, SmartDMA, PowerQuad fixed-point | B | Nothing is fabricated and nothing hangs: the Neutron NPU flags its UNCOMPUTED result to the GUEST (INTR[ERRORTRAP] + IRQ 97), SmartDMA leaves CTRL[START] set because its program never ran and no data was moved, and PowerQuad's unmodelled opcodes fail via ERRSTAT[BUSERROR] rather than leaving a stale result. Host-only flags (QMP/log) are NOT sufficient — the firmware under test cannot see them (tests/mcxn-neutron, mcxn-powerquad-coproc) |
 | Analog & audio-in — ADC, CMP, TSI, OPAMP, VREF, PDM | B | Register-accurate; analog inputs operator-driven via QOM property. PDM has no bitstream source in emulation and says so: it produces NO samples and flags FIFO underflow rather than fabricating silence firmware cannot tell from real audio |
 | Pin / IRQ / GPIO infra — PORT, INPUTMUX, PINT, INTM, EVTG, FLEXIO, QDC, PLU | B | Drivers bind; pin-mux / IRQ routing registers correct (sub-word MMIO) |
-| Memory / cache / CRC — CACHE64, NPX, CRC, SEMA42, OTPC | B | Register-accurate; CRC compute, cache/ID/fuse config |
+| CRC engine (computes) | A | Verified against three PUBLISHED check vectors over "123456789" — CRC-16/CCITT-FALSE 0x29B1, CRC-32/MPEG-2 0x0376E6E7, CRC-32/IEEE 0xCBF43926 — so the goldens are independent of this implementation, and three configurations are swept rather than one stamped (tests/mcxn-crc) |
+| Memory / cache — CACHE64, NPX, SEMA42, OTPC | B | Register-accurate; cache/ID/fuse config |
 | Clocks / power / system — SCG, SYSCON, SPC, CMC, VBAT, WUU, FREQME, AHBSC | B | Clock/power config; firmware programs directly (no System Manager) |
 | Security / crypto / tamper — PKC, PUF, CDOG, GDET, ITRC, TRDC, TDET | B | Drivers bind; registers / reset values / W1C semantics correct |
 | USB support — USBDCD, USBPHY, USBHS-NC | B | Charger-detect / PHY / non-core config registers |
