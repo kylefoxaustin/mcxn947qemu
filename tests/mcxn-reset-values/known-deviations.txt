@@ -1,0 +1,522 @@
+# Registers where THIS MODEL KNOWINGLY DISAGREES WITH THE REFERENCE MANUAL.
+#
+# ⭐ THIS IS A TO-DO LIST, NOT A CERTIFICATE.  tests/mcxn-reset-values FAILS if a
+#    line here starts MATCHING the RM -- i.e. once you fix one, you MUST delete its
+#    line.  That is deliberate:
+#
+#      "An independent whitelist doesn't merely MISS the bug -- IT CERTIFIES IT."
+#
+#    Every line below is a register where the guest reads something the silicon
+#    would never produce.  Most are harmless today only because no firmware we run
+#    happens to read them.  That is luck, not correctness.
+#
+# Format:  <INSTANCE> <REGISTER>   # why
+
+# ---- SYSCON0 (62) : clock-tree defaults: CLKSEL=7 means NO SOURCE SELECTED and CLKDIV bit30 is HALT. Reading 0 tells the guest a divider is running and a source is chosen when neither is true.
+SYSCON0        AHBCLKCTRL0          # model=0x00000000 RM=0x00000603
+SYSCON0        SYSTICKCLKSEL0       # model=0x00000000 RM=0x00000007
+SYSCON0        TRACECLKDIV          # model=0x00000000 RM=0x40000000
+SYSCON0        TSICLKDIV            # model=0x00000000 RM=0x40000000
+SYSCON0        CLKOUTDIV            # model=0x00000000 RM=0x40000000
+SYSCON0        FROHFDIV             # model=0x00000000 RM=0x40000000
+SYSCON0        USB0CLKDIV           # model=0x00000000 RM=0x40000000
+SYSCON0        SCTCLKDIV            # model=0x00000000 RM=0x40000000
+SYSCON0        PLLCLKDIV            # model=0x00000000 RM=0x40000000
+SYSCON0        PLL1CLK0DIV          # model=0x00000000 RM=0x40000000
+SYSCON0        PLL1CLK1DIV          # model=0x00000000 RM=0x40000000
+SYSCON0        NVM_CTRL             # model=0x00000000 RM=0x00020410
+SYSCON0        PLLCLKDIVSEL         # model=0x00000000 RM=0x00000007
+SYSCON0        I3C0FCLKSEL          # model=0x00000000 RM=0x00000007
+SYSCON0        I3C0FCLKSTCSEL       # model=0x00000000 RM=0x00000007
+SYSCON0        I3C0FCLKSTCDIV       # model=0x00000000 RM=0x40000000
+SYSCON0        I3C0FCLKSDIV         # model=0x00000000 RM=0x40000000
+SYSCON0        I3C0FCLKDIV          # model=0x00000000 RM=0x40000000
+SYSCON0        MICFILFCLKSEL        # model=0x00000000 RM=0x0000000f
+SYSCON0        MICFILFCLKDIV        # model=0x00000000 RM=0x40000000
+SYSCON0        FLEXIOCLKSEL         # model=0x00000000 RM=0x00000007
+SYSCON0        FLEXIOCLKDIV         # model=0x00000000 RM=0x40000000
+SYSCON0        FLEXCAN0CLKSEL       # model=0x00000000 RM=0x00000007
+SYSCON0        FLEXCAN1CLKSEL       # model=0x00000000 RM=0x00000007
+SYSCON0        FLEXCAN1CLKDIV       # model=0x00000000 RM=0x40000000
+SYSCON0        ENETRMIICLKSEL       # model=0x00000000 RM=0x00000007
+SYSCON0        ENETRMIICLKDIV       # model=0x00000000 RM=0x40000000
+SYSCON0        ENETPTPREFCLKSEL     # model=0x00000000 RM=0x00000007
+SYSCON0        ENETPTPREFCLKDIV     # model=0x00000000 RM=0x40000000
+SYSCON0        EWM0CLKSEL           # model=0x00000000 RM=0x00000001
+SYSCON0        WDT1CLKSEL           # model=0x00000000 RM=0x00000003
+SYSCON0        WDT1CLKDIV           # model=0x00000000 RM=0x40000000
+SYSCON0        OSTIMERCLKSEL        # model=0x00000000 RM=0x00000003
+SYSCON0        CMP0FCLKSEL          # model=0x00000000 RM=0x00000007
+SYSCON0        CMP0FCLKDIV          # model=0x00000000 RM=0x40000000
+SYSCON0        CMP0RRCLKSEL         # model=0x00000000 RM=0x00000007
+SYSCON0        CMP0RRCLKDIV         # model=0x00000000 RM=0x40000000
+SYSCON0        CMP1FCLKSEL          # model=0x00000000 RM=0x00000007
+SYSCON0        CMP1FCLKDIV          # model=0x00000000 RM=0x40000000
+SYSCON0        CMP1RRCLKSEL         # model=0x00000000 RM=0x00000007
+SYSCON0        CMP1RRCLKDIV         # model=0x00000000 RM=0x40000000
+SYSCON0        CMP2FCLKSEL          # model=0x00000000 RM=0x00000007
+SYSCON0        CMP2FCLKDIV          # model=0x00000000 RM=0x40000000
+SYSCON0        CMP2RRCLKSEL         # model=0x00000000 RM=0x00000007
+SYSCON0        CMP2RRCLKDIV         # model=0x00000000 RM=0x40000000
+SYSCON0        CPUCTRL              # model=0x00000000 RM=0x00000028
+SYSCON0        LPCAC_CTRL           # model=0x00000000 RM=0x00000031
+SYSCON0        SAI0CLKSEL           # model=0x00000000 RM=0x00000007
+SYSCON0        SAI1CLKSEL           # model=0x00000000 RM=0x00000007
+SYSCON0        SAI0CLKDIV           # model=0x00000000 RM=0x40000000
+SYSCON0        SAI1CLKDIV           # model=0x00000000 RM=0x40000000
+SYSCON0        EMVSIM0CLKSEL        # model=0x00000000 RM=0x00000007
+SYSCON0        EMVSIM1CLKSEL        # model=0x00000000 RM=0x00000007
+SYSCON0        EMVSIM0CLKDIV        # model=0x00000000 RM=0x40000000
+SYSCON0        EMVSIM1CLKDIV        # model=0x00000000 RM=0x40000000
+SYSCON0        I3C1FCLKSEL          # model=0x00000000 RM=0x00000007
+SYSCON0        I3C1FCLKSTCSEL       # model=0x00000000 RM=0x00000007
+SYSCON0        I3C1FCLKSTCDIV       # model=0x00000000 RM=0x40000000
+SYSCON0        I3C1FCLKSDIV         # model=0x00000000 RM=0x40000000
+SYSCON0        I3C1FCLKDIV          # model=0x00000000 RM=0x40000000
+SYSCON0        AUTOCLKGATEOVERRIDE  # model=0x00000000 RM=0x0000ffff
+SYSCON0        ECC_ENABLE_CTRL      # model=0x00000000 RM=0x00000003
+
+# ---- INPUTMUX0 (53) : trigger-routing selectors default to 0x7F = NO INPUT CONNECTED. Reading 0 names input 0 instead. Also DMA0_REQ_ENABLE0/1 (reset FFFF_FFFF) gate every eDMA request and are unmodelled -- our request lines are UNGATED, i.e. MORE PERMISSIVE THAN SILICON.
+INPUTMUX0      CTIMER0CAP0          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER0CAP1          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER0CAP2          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER0CAP3          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      TIMER0TRIG           # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER1CAP0          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER1CAP1          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER1CAP2          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER1CAP3          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      TIMER1TRIG           # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER2CAP0          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER2CAP1          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER2CAP2          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER2CAP3          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      TIMER2TRIG           # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER3CAP0          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER3CAP1          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER3CAP2          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER3CAP3          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      TIMER3TRIG           # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER4CAP0          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER4CAP1          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER4CAP2          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CTIMER4CAP3          # model=0x00000000 RM=0x0000007f
+INPUTMUX0      TIMER4TRIG           # model=0x00000000 RM=0x0000007f
+INPUTMUX0      CMP0_TRIG            # model=0x00000000 RM=0x0000003f
+INPUTMUX0      DAC0_TRIG            # model=0x00000000 RM=0x0000003f
+INPUTMUX0      DAC1_TRIG            # model=0x00000000 RM=0x0000003f
+INPUTMUX0      DAC2_TRIG            # model=0x00000000 RM=0x0000003f
+INPUTMUX0      PWM0_EXT_CLK         # model=0x00000000 RM=0x00000007
+INPUTMUX0      PWM1_EXT_CLK         # model=0x00000000 RM=0x00000007
+INPUTMUX0      USBFS_TRIG           # model=0x00000000 RM=0x0000000f
+INPUTMUX0      TSI_TRIG             # model=0x00000000 RM=0x00000003
+INPUTMUX0      CMP1_TRIG            # model=0x00000000 RM=0x0000003f
+INPUTMUX0      CMP2_TRIG            # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM0_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM1_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM2_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM3_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM4_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM5_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM6_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM7_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM8_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      FLEXCOMM9_TRIG       # model=0x00000000 RM=0x0000003f
+INPUTMUX0      DMA0_REQ_ENABLE0     # model=0x00000000 RM=0xffffffff
+INPUTMUX0      DMA0_REQ_ENABLE1     # model=0x00000000 RM=0xffffffff
+INPUTMUX0      DMA0_REQ_ENABLE2     # model=0x00000000 RM=0xffffffff
+INPUTMUX0      DMA0_REQ_ENABLE3     # model=0x00000000 RM=0x03ffffff
+INPUTMUX0      DMA1_REQ_ENABLE0     # model=0x00000000 RM=0xffffffff
+INPUTMUX0      DMA1_REQ_ENABLE1     # model=0x00000000 RM=0xffffffff
+INPUTMUX0      DMA1_REQ_ENABLE2     # model=0x00000000 RM=0xffffffff
+INPUTMUX0      DMA1_REQ_ENABLE3     # model=0x00000000 RM=0x03ffffff
+
+# ---- USBPHY (45) : PWD resets with the power-down bits SET; reading 0 says the PHY is already powered up. VERSION is a fabricated ID (0x02000000 vs 0x05000000).
+USBPHY         PWD                  # model=0x00000000 RM=0x001e1c00
+USBPHY         PWD_SET              # model=0x00000000 RM=0x001e1c00
+USBPHY         PWD_CLR              # model=0x00000000 RM=0x001e1c00
+USBPHY         PWD_TOG              # model=0x00000000 RM=0x001e1c00
+USBPHY         TX                   # model=0x00000000 RM=0x10070707
+USBPHY         TX_SET               # model=0x00000000 RM=0x10070707
+USBPHY         TX_CLR               # model=0x00000000 RM=0x10070707
+USBPHY         TX_TOG               # model=0x00000000 RM=0x10070707
+USBPHY         CTRL                 # model=0x00000000 RM=0xc0000000
+USBPHY         CTRL_SET             # model=0x00000000 RM=0xc0000000
+USBPHY         CTRL_CLR             # model=0x00000000 RM=0xc0000000
+USBPHY         CTRL_TOG             # model=0x00000000 RM=0xc0000000
+USBPHY         DEBUG0               # model=0x00000000 RM=0x7f180000
+USBPHY         DEBUG0_SET           # model=0x00000000 RM=0x7f180000
+USBPHY         DEBUG0_CLR           # model=0x00000000 RM=0x7f180000
+USBPHY         DEBUG0_TOG           # model=0x00000000 RM=0x7f180000
+USBPHY         VERSION              # model=0x02000000 RM=0x05000000
+USBPHY         IP                   # model=0x00000000 RM=0x00060000
+USBPHY         IP_SET               # model=0x00000000 RM=0x00060000
+USBPHY         IP_CLR               # model=0x00000000 RM=0x00060000
+USBPHY         IP_TOG               # model=0x00000000 RM=0x00060000
+USBPHY         PLL_SIC              # model=0x00000000 RM=0x00912000
+USBPHY         PLL_SIC_SET          # model=0x00000000 RM=0x00912000
+USBPHY         PLL_SIC_CLR          # model=0x00000000 RM=0x00912000
+USBPHY         PLL_SIC_TOG          # model=0x00000000 RM=0x00912000
+USBPHY         USB1_VBUS_DETECT     # model=0x00000000 RM=0x00700004
+USBPHY         USB1_VBUS_DETECT_SET # model=0x00000000 RM=0x00700004
+USBPHY         USB1_VBUS_DETECT_CLR # model=0x00000000 RM=0x00700004
+USBPHY         USB1_VBUS_DETECT_TOG # model=0x00000000 RM=0x00700004
+USBPHY         USB1_VBUS_DET_STAT   # model=0x00000000 RM=0x00000001
+USBPHY         USB1_VBUS_DET_STAT_SET # model=0x00000000 RM=0x00000001
+USBPHY         USB1_VBUS_DET_STAT_CLR # model=0x00000000 RM=0x00000001
+USBPHY         USB1_VBUS_DET_STAT_TOG # model=0x00000000 RM=0x00000001
+USBPHY         USB1_CHRG_DETECT     # model=0x00000000 RM=0x80180000
+USBPHY         USB1_CHRG_DETECT_SET # model=0x00000000 RM=0x80180000
+USBPHY         USB1_CHRG_DETECT_CLR # model=0x00000000 RM=0x80180000
+USBPHY         USB1_CHRG_DETECT_TOG # model=0x00000000 RM=0x80180000
+USBPHY         ANACTRL              # model=0x00000000 RM=0x02000400
+USBPHY         ANACTRL_SET          # model=0x00000000 RM=0x02000400
+USBPHY         ANACTRL_CLR          # model=0x00000000 RM=0x02000400
+USBPHY         ANACTRL_TOG          # model=0x00000000 RM=0x02000400
+USBPHY         PFDA                 # model=0x00000000 RM=0x01010101
+USBPHY         PFDA_SET             # model=0x00000000 RM=0x01010101
+USBPHY         PFDA_CLR             # model=0x00000000 RM=0x01010101
+USBPHY         PFDA_TOG             # model=0x00000000 RM=0x01010101
+
+# ---- SPC0 (13) : power-controller defaults (ACTIVE_CFG etc.). Unmodelled; the guest RMWs them and silently drops bits it never knew it had.
+SPC0           CNTRL                # model=0x00000000 RM=0x00000007
+SPC0           SRAMCTL              # model=0x00000000 RM=0x00000001
+SPC0           ACTIVE_CFG           # model=0x00000000 RM=0x3f100615
+SPC0           ACTIVE_CFG1          # model=0x00000000 RM=0x00000002
+SPC0           LP_CFG               # model=0x00000000 RM=0x00021504
+SPC0           LP_CFG1              # model=0x00000000 RM=0x00000002
+SPC0           ACTIVE_VDELAY        # model=0x00000000 RM=0x000000c8
+SPC0           VD_CORE_CFG          # model=0x00000000 RM=0x00000001
+SPC0           VD_SYS_CFG           # model=0x00000000 RM=0x00000001
+SPC0           VD_IO_CFG            # model=0x00000000 RM=0x00000101
+SPC0           GLITCH_DETECT_SC     # model=0x00000000 RM=0x0000003f
+SPC0           SYSLDO_CFG           # model=0x00000000 RM=0x00000101
+SPC0           DCDC_BURST_CFG       # model=0x00000000 RM=0x01400000
+
+# ---- USBHS1__USBC (12) : FABRICATED IDENTITY/CAPABILITY REGISTERS: ID reads 0x0022fa05 where silicon reads 0xe4a1fa05; HWDEVICE/HWTXBUF/HWRXBUF likewise invented. The part is lying about what it is.
+USBHS1__USBC   ID                   # model=0x0022fa05 RM=0xe4a1fa05
+USBHS1__USBC   HWGENERAL            # model=0x00000000 RM=0x00000015
+USBHS1__USBC   HWDEVICE             # model=0x00000005 RM=0x00000011
+USBHS1__USBC   HWTXBUF              # model=0x80040020 RM=0x80050808
+USBHS1__USBC   HWRXBUF              # model=0x00000020 RM=0x00000808
+USBHS1__USBC   SBUSCFG              # model=0x00000000 RM=0x00000002
+USBHS1__USBC   USBCMD               # model=0x00000000 RM=0x00080000
+USBHS1__USBC   BURSTSIZE            # model=0x00000000 RM=0x00000808
+USBHS1__USBC   CONFIGFLAG           # model=0x00000000 RM=0x00000001
+USBHS1__USBC   PORTSC1              # model=0x00000000 RM=0x1c000004
+USBHS1__USBC   USBMODE              # model=0x00000000 RM=0x00005000
+USBHS1__USBC   ENDPTCTRL0           # model=0x00000000 RM=0x00800080
+
+# ---- VBAT0 (12) : STATUSA/STATUSB/IRQENB fabricated or zero; the 32k oscillator is not modelled (which is also why SCG ROSCVLD has to follow ROSCCM rather than a real oscillator).
+VBAT0          STATUSA              # model=0x00000030 RM=0x00000081
+VBAT0          STATUSB              # model=0x00000000 RM=0x000f003e
+VBAT0          IRQENB               # model=0x00000000 RM=0x000fffff
+VBAT0          WAKENB               # model=0x00000000 RM=0x000fffff
+VBAT0          OSCCTLB              # model=0x00000000 RM=0x000fffff
+VBAT0          OSCCFGB              # model=0x00000000 RM=0x00000fff
+VBAT0          OSCLCKB              # model=0x00000000 RM=0x00000001
+VBAT0          FROCTLA              # model=0x00000000 RM=0x00000001
+VBAT0          FROLCKB              # model=0x00000000 RM=0x00000001
+VBAT0          LDOCTLB              # model=0x00000000 RM=0x00000007
+VBAT0          LDOLCKB              # model=0x00000000 RM=0x00000001
+VBAT0          WAKLCKB              # model=0x00000000 RM=0x00000001
+
+# ---- USDHC0 (10) : HOST_CTRL_CAP is missing its real capability bits (0x07f3b407 vs 0x07f30000) -- including VOLTAGE SUPPORT, which the SD driver negotiates against. Also BLK_ATT/PROT_CTRL/SYS_CTRL/WTMK_LVL defaults.
+USDHC0         BLK_ATT              # model=0x00000000 RM=0x00010000
+USDHC0         PROT_CTRL            # model=0x00000000 RM=0x08800020
+USDHC0         SYS_CTRL             # model=0x00000000 RM=0x0080800f
+USDHC0         HOST_CTRL_CAP        # model=0x07f30000 RM=0x07f3b407
+USDHC0         WTMK_LVL             # model=0x00000000 RM=0x08100810
+USDHC0         MIX_CTRL             # model=0x00000000 RM=0x80000000
+USDHC0         DLL_STATUS           # model=0x00000000 RM=0x00000200
+USDHC0         VEND_SPEC            # model=0x00000000 RM=0x30007809
+USDHC0         VEND_SPEC2           # model=0x00000000 RM=0x00019006
+USDHC0         TUNING_CTRL          # model=0x00000000 RM=0x00212800
+
+# ---- EMVSIM0 (9) : EMVSIM is RETRACTED (no ISO-7816 card model upstream); its reset values are unmodelled with the rest of it.
+EMVSIM0        DIVISOR              # model=0x00000000 RM=0x00000174
+EMVSIM0        INT_MASK             # model=0x00000000 RM=0x0000ffff
+EMVSIM0        RX_THD               # model=0x00000000 RM=0x00000001
+EMVSIM0        TX_THD               # model=0x00000000 RM=0x0000000f
+EMVSIM0        PCSR                 # model=0x00000000 RM=0x01000000
+EMVSIM0        CWT_VAL              # model=0x00000000 RM=0x0000ffff
+EMVSIM0        BWT_VAL              # model=0x00000000 RM=0xffffffff
+EMVSIM0        GPCNT0_VAL           # model=0x00000000 RM=0x0000ffff
+EMVSIM0        GPCNT1_VAL           # model=0x00000000 RM=0x0000ffff
+
+# ---- EMVSIM1 (9) : EMVSIM is RETRACTED (no ISO-7816 card model upstream); its reset values are unmodelled with the rest of it.
+EMVSIM1        DIVISOR              # model=0x00000000 RM=0x00000174
+EMVSIM1        INT_MASK             # model=0x00000000 RM=0x0000ffff
+EMVSIM1        RX_THD               # model=0x00000000 RM=0x00000001
+EMVSIM1        TX_THD               # model=0x00000000 RM=0x0000000f
+EMVSIM1        PCSR                 # model=0x00000000 RM=0x01000000
+EMVSIM1        CWT_VAL              # model=0x00000000 RM=0x0000ffff
+EMVSIM1        BWT_VAL              # model=0x00000000 RM=0xffffffff
+EMVSIM1        GPCNT0_VAL           # model=0x00000000 RM=0x0000ffff
+EMVSIM1        GPCNT1_VAL           # model=0x00000000 RM=0x0000ffff
+
+# ---- FLEXSPI0 (9) : MCR0/MCR1/MCR2/AHBCR defaults and LUTKEY (0x5af05af0, the LUT unlock magic). Reading 0 for LUTKEY means the guest cannot tell a locked LUT from an unlocked one.
+FLEXSPI0       MCR0                 # model=0x00000000 RM=0xffff8002
+FLEXSPI0       MCR1                 # model=0x00000000 RM=0xffffffff
+FLEXSPI0       MCR2                 # model=0x00000000 RM=0x200081f7
+FLEXSPI0       AHBCR                # model=0x00000000 RM=0x00000018
+FLEXSPI0       LUTKEY               # model=0x00000000 RM=0x5af05af0
+FLEXSPI0       LUTCR                # model=0x00000000 RM=0x00000002
+FLEXSPI0       FLSHCR4              # model=0x00000000 RM=0x000000c3
+FLEXSPI0       STS0                 # model=0x00000003 RM=0x00000002
+FLEXSPI0       STS2                 # model=0x00000000 RM=0x01000100
+
+# ---- ENET0 (7) : MAC defaults (RCR/TCR/etc.) not modelled; the ENET model is driven functionally, not from its reset image.
+ENET0          MAC_CONFIGURATION    # model=0x00000000 RM=0x00008000
+ENET0          MAC_LPI_TIMERS_CONTROL # model=0x00000000 RM=0x03e80000
+ENET0          MAC_ONEUS_TIC_COUNTER # model=0x00000000 RM=0x00000063
+ENET0          MAC_VERSION          # model=0x00000051 RM=0x00001052
+ENET0          MAC_ADDRESS0_HIGH    # model=0x00000000 RM=0x8000ffff
+ENET0          MAC_ADDRESS0_LOW     # model=0x00000000 RM=0xffffffff
+ENET0          MAC_TIMESTAMP_CONTROL # model=0x00000000 RM=0x00002000
+
+# ---- TSI0 (7) : touch-sense defaults not modelled.
+TSI0           GENCS                # model=0x00000000 RM=0x02001000
+TSI0           SINC                 # model=0x00000000 RM=0x00070001
+TSI0           SSC0                 # model=0x00000000 RM=0x60320000
+TSI0           SSC1                 # model=0x00000000 RM=0x00600040
+TSI0           SSC2                 # model=0x00000000 RM=0x10080101
+TSI0           BASELINE             # model=0x00000000 RM=0x00010000
+TSI0           SHIELD               # model=0x00000000 RM=0x04000000
+
+# ---- LPI2C0 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C0         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C0         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C0         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C0         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C0         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C0         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- LPI2C1 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C1         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C1         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C1         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C1         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C1         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C1         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- LPI2C2 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C2         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C2         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C2         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C2         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C2         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C2         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- LPI2C3 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C3         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C3         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C3         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C3         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C3         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C3         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- LPI2C4 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C4         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C4         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C4         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C4         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C4         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C4         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- LPI2C5 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C5         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C5         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C5         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C5         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C5         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C5         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- LPI2C6 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C6         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C6         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C6         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C6         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C6         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C6         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- LPI2C7 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C7         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C7         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C7         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C7         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C7         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C7         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- LPI2C8 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C8         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C8         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C8         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C8         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C8         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C8         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- LPI2C9 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
+LPI2C9         MSR                  # model=0x00000000 RM=0x00000001
+LPI2C9         MRDR                 # model=0x00000000 RM=0x00004000
+LPI2C9         MRDROR               # model=0x00000000 RM=0x00004000
+LPI2C9         SASR                 # model=0x00000000 RM=0x00004000
+LPI2C9         SRDR                 # model=0x00000000 RM=0x00004000
+LPI2C9         SRDROR               # model=0x00000000 RM=0x00004000
+
+# ---- CAN0 (5) : MCR fabricated (0xd900000f vs 0xd890000f); CTRL2/CTRL1_PN/FLT_DLC/FDCTRL defaults missing.
+CAN0           MCR                  # model=0xd900000f RM=0xd890000f
+CAN0           CTRL2                # model=0x00000000 RM=0x00a00000
+CAN0           CTRL1_PN             # model=0x00000000 RM=0x00000100
+CAN0           FLT_DLC              # model=0x00000000 RM=0x00000008
+CAN0           FDCTRL               # model=0x00000000 RM=0x80000100
+
+# ---- CAN1 (5) : MCR fabricated (0xd900000f vs 0xd890000f); CTRL2/CTRL1_PN/FLT_DLC/FDCTRL defaults missing.
+CAN1           MCR                  # model=0xd900000f RM=0xd890000f
+CAN1           CTRL2                # model=0x00000000 RM=0x00a00000
+CAN1           CTRL1_PN             # model=0x00000000 RM=0x00000100
+CAN1           FLT_DLC              # model=0x00000000 RM=0x00000008
+CAN1           FDCTRL               # model=0x00000000 RM=0x80000100
+
+# ---- LPSPI0 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI0         DER                  # model=0x00001000 RM=0x00000000
+LPSPI0         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI0         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI0         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI0         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- LPSPI1 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI1         DER                  # model=0x00001000 RM=0x00000000
+LPSPI1         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI1         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI1         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI1         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- LPSPI2 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI2         DER                  # model=0x00001000 RM=0x00000000
+LPSPI2         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI2         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI2         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI2         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- LPSPI3 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI3         DER                  # model=0x00001000 RM=0x00000000
+LPSPI3         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI3         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI3         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI3         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- LPSPI4 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI4         DER                  # model=0x00001000 RM=0x00000000
+LPSPI4         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI4         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI4         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI4         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- LPSPI5 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI5         DER                  # model=0x00001000 RM=0x00000000
+LPSPI5         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI5         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI5         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI5         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- LPSPI6 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI6         DER                  # model=0x00001000 RM=0x00000000
+LPSPI6         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI6         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI6         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI6         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- LPSPI7 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI7         DER                  # model=0x00001000 RM=0x00000000
+LPSPI7         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI7         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI7         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI7         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- LPSPI8 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI8         DER                  # model=0x00001000 RM=0x00000000
+LPSPI8         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI8         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI8         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI8         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- LPSPI9 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
+LPSPI9         DER                  # model=0x00001000 RM=0x00000000
+LPSPI9         DMR0                 # model=0x00001000 RM=0x00000000
+LPSPI9         FSR                  # model=0x0000000f RM=0x00000000
+LPSPI9         TCR                  # model=0x00000000 RM=0x0000001f
+LPSPI9         RSR                  # model=0x00000000 RM=0x00000002
+
+# ---- CACHE64_POLSEL0 (2) : cache policy-select defaults not modelled.
+CACHE64_POLSEL0 REG0_TOP             # model=0x00000000 RM=0x0aaaa800
+CACHE64_POLSEL0 REG1_TOP             # model=0x00000000 RM=0x15555400
+
+# ---- DMA0 (2) : eDMA MP_CSR reset 0x00310000 (management-page config) reads 0.
+DMA0           MP_CSR               # model=0x00000000 RM=0x00310000
+DMA0           MP_CSR               # model=0x00000000 RM=0x00310000
+
+# ---- DMA1 (2) : eDMA MP_CSR reset 0x00310000 (management-page config) reads 0.
+DMA1           MP_CSR               # model=0x00000000 RM=0x00310000
+DMA1           MP_CSR               # model=0x00000000 RM=0x00310000
+
+# ---- OSTIMER0 (2) : OSTIMER defaults not modelled.
+OSTIMER0       MATCH_L              # model=0x00000000 RM=0xffffffff
+OSTIMER0       MATCH_H              # model=0x00000000 RM=0xffffffff
+
+# ---- PDM (2) : FIFO_CTRL watermark default 0xF and DC_CTRL 0xFF read 0. (PDM is honest-empty anyway: there is no audio source, so no samples are ever produced.)
+PDM            FIFO_CTRL            # model=0x00000000 RM=0x0000000f
+PDM            DC_CTRL              # model=0x00000000 RM=0x000000ff
+
+# ---- USBHS1__USBNC (2) : USB non-core defaults not modelled.
+USBHS1__USBNC  CTRL1                # model=0x00000000 RM=0x30001000
+USBHS1__USBNC  HSIC_CTRL            # model=0x00000000 RM=0x10004084
+
+# ---- ADC0 (1) : CFG reset 0x00800000 reads 0.
+ADC0           CFG                  # model=0x00000000 RM=0x00800000
+
+# ---- ADC1 (1) : CFG reset 0x00800000 reads 0.
+ADC1           CFG                  # model=0x00000000 RM=0x00800000
+
+# ---- FREQME0 (1) : frequency-measure defaults not modelled.
+FREQME0        MAX                  # model=0x00000000 RM=0x7fffffff
+
+# ---- LP_FLEXCOMM0 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM0   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- LP_FLEXCOMM1 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM1   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- LP_FLEXCOMM2 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM2   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- LP_FLEXCOMM3 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM3   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- LP_FLEXCOMM4 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM4   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- LP_FLEXCOMM5 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM5   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- LP_FLEXCOMM6 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM6   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- LP_FLEXCOMM7 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM7   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- LP_FLEXCOMM8 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM8   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- LP_FLEXCOMM9 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
+LP_FLEXCOMM9   PSELID               # model=0x00000071 RM=0x00103070
+
+# ---- SAI0 (1) : TCSR bits 0x00030000 are fabricated (RM resets TCSR to 0).
+SAI0           TCSR                 # model=0x00030000 RM=0x00000000
+
+# ---- SAI1 (1) : TCSR bits 0x00030000 are fabricated (RM resets TCSR to 0).
+SAI1           TCSR                 # model=0x00030000 RM=0x00000000
+
+# ---- VREF0 (1) : CSR bit31 is FABRICATED READY -- same class as the SCG 'always valid' bug just fixed; VREF should earn it.
+VREF0          CSR                  # model=0x80000000 RM=0x00000000
+

@@ -173,4 +173,5 @@ _None — MCXN947 is a superset MCU; every block above is present silicon (so no
 | qtest | per-device register/IRQ semantics | mcxn-qtest | SKIP |
 | migration | vmstate save/restore | mcxn-migration | SKIP |
 | soak | stability/leak/coexistence | mcxn-soak | (operator-run) |
+| reset-values | every register's RESET VALUE vs the REFERENCE MANUAL (1655 registers, 113 instances) | mcxn-reset-values | SKIP |
 

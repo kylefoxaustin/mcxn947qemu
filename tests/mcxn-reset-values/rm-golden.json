@@ -1,0 +1,9932 @@
+[
+{
+"inst": "ADC0",
+"reg": "IE",
+"addr": 1074843672,
+"reset": 0
+},
+{
+"inst": "ADC0",
+"reg": "CFG",
+"addr": 1074843680,
+"reset": 8388608
+},
+{
+"inst": "ADC0",
+"reg": "PAUSE",
+"addr": 1074843684,
+"reset": 0
+},
+{
+"inst": "ADC0",
+"reg": "SWTRIG",
+"addr": 1074843700,
+"reset": 0
+},
+{
+"inst": "ADC0",
+"reg": "TSTAT",
+"addr": 1074843704,
+"reset": 0
+},
+{
+"inst": "ADC0",
+"reg": "OFSTRIM",
+"addr": 1074843712,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "IE",
+"addr": 1074847768,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "CFG",
+"addr": 1074847776,
+"reset": 8388608
+},
+{
+"inst": "ADC1",
+"reg": "PAUSE",
+"addr": 1074847780,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "SWTRIG",
+"addr": 1074847796,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "TSTAT",
+"addr": 1074847800,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "OFSTRIM",
+"addr": 1074847808,
+"reset": 0
+},
+{
+"inst": "CACHE64_CTRL0",
+"reg": "CCR",
+"addr": 1073854464,
+"reset": 0
+},
+{
+"inst": "CACHE64_CTRL0",
+"reg": "CLCR",
+"addr": 1073854468,
+"reset": 0
+},
+{
+"inst": "CACHE64_CTRL0",
+"reg": "CSAR",
+"addr": 1073854472,
+"reset": 0
+},
+{
+"inst": "CACHE64_CTRL0",
+"reg": "CCVR",
+"addr": 1073854476,
+"reset": 0
+},
+{
+"inst": "CACHE64_POLSEL0",
+"reg": "REG0_TOP",
+"addr": 1073852436,
+"reset": 178956288
+},
+{
+"inst": "CACHE64_POLSEL0",
+"reg": "REG1_TOP",
+"addr": 1073852440,
+"reset": 357913600
+},
+{
+"inst": "CACHE64_POLSEL0",
+"reg": "POLSEL",
+"addr": 1073852444,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "MCR",
+"addr": 1074610176,
+"reset": 3633315855
+},
+{
+"inst": "CAN0",
+"reg": "CTRL1",
+"addr": 1074610180,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "TIMER",
+"addr": 1074610184,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "ECR",
+"addr": 1074610204,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "ESR1",
+"addr": 1074610208,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "IMASK1",
+"addr": 1074610216,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "IFLAG1",
+"addr": 1074610224,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "CTRL2",
+"addr": 1074610228,
+"reset": 10485760
+},
+{
+"inst": "CAN0",
+"reg": "ESR2",
+"addr": 1074610232,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "CRCR",
+"addr": 1074610244,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "CBT",
+"addr": 1074610256,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "CTRL1_PN",
+"addr": 1074612992,
+"reset": 256
+},
+{
+"inst": "CAN0",
+"reg": "CTRL2_PN",
+"addr": 1074612996,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "WU_MTC",
+"addr": 1074613000,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "FLT_ID1",
+"addr": 1074613004,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "FLT_DLC",
+"addr": 1074613008,
+"reset": 8
+},
+{
+"inst": "CAN0",
+"reg": "PL1_LO",
+"addr": 1074613012,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "PL1_HI",
+"addr": 1074613016,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "FLT_ID2_IDMASK",
+"addr": 1074613020,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "EPRS",
+"addr": 1074613232,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "ENCBT",
+"addr": 1074613236,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "EDCBT",
+"addr": 1074613240,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "ETDC",
+"addr": 1074613244,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "FDCTRL",
+"addr": 1074613248,
+"reset": 2147483904
+},
+{
+"inst": "CAN0",
+"reg": "FDCBT",
+"addr": 1074613252,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "FDCRC",
+"addr": 1074613256,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "ERFCR",
+"addr": 1074613260,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "ERFIER",
+"addr": 1074613264,
+"reset": 0
+},
+{
+"inst": "CAN0",
+"reg": "ERFSR",
+"addr": 1074613268,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "MCR",
+"addr": 1074626560,
+"reset": 3633315855
+},
+{
+"inst": "CAN1",
+"reg": "CTRL1",
+"addr": 1074626564,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "TIMER",
+"addr": 1074626568,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "ECR",
+"addr": 1074626588,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "ESR1",
+"addr": 1074626592,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "IMASK1",
+"addr": 1074626600,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "IFLAG1",
+"addr": 1074626608,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "CTRL2",
+"addr": 1074626612,
+"reset": 10485760
+},
+{
+"inst": "CAN1",
+"reg": "ESR2",
+"addr": 1074626616,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "CRCR",
+"addr": 1074626628,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "CBT",
+"addr": 1074626640,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "CTRL1_PN",
+"addr": 1074629376,
+"reset": 256
+},
+{
+"inst": "CAN1",
+"reg": "CTRL2_PN",
+"addr": 1074629380,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "WU_MTC",
+"addr": 1074629384,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "FLT_ID1",
+"addr": 1074629388,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "FLT_DLC",
+"addr": 1074629392,
+"reset": 8
+},
+{
+"inst": "CAN1",
+"reg": "PL1_LO",
+"addr": 1074629396,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "PL1_HI",
+"addr": 1074629400,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "FLT_ID2_IDMASK",
+"addr": 1074629404,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "EPRS",
+"addr": 1074629616,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "ENCBT",
+"addr": 1074629620,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "EDCBT",
+"addr": 1074629624,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "ETDC",
+"addr": 1074629628,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "FDCTRL",
+"addr": 1074629632,
+"reset": 2147483904
+},
+{
+"inst": "CAN1",
+"reg": "FDCBT",
+"addr": 1074629636,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "FDCRC",
+"addr": 1074629640,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "ERFCR",
+"addr": 1074629644,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "ERFIER",
+"addr": 1074629648,
+"reset": 0
+},
+{
+"inst": "CAN1",
+"reg": "ERFSR",
+"addr": 1074629652,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "CKCTRL",
+"addr": 1074036752,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "CKSTAT",
+"addr": 1074036756,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "PMPROT",
+"addr": 1074036760,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "GPMCTRL",
+"addr": 1074036764,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "RPC",
+"addr": 1074036868,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "SSRS",
+"addr": 1074036872,
+"reset": 6
+},
+{
+"inst": "CMC0",
+"reg": "SRIE",
+"addr": 1074036876,
+"reset": 34816
+},
+{
+"inst": "CMC0",
+"reg": "SRIF",
+"addr": 1074036880,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "RSTCNT",
+"addr": 1074036892,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "FLASHCR",
+"addr": 1074036960,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "BSR",
+"addr": 1074036992,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "BLR",
+"addr": 1074037004,
+"reset": 2
+},
+{
+"inst": "CMC0",
+"reg": "CORECTL",
+"addr": 1074037008,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "DBGCTL",
+"addr": 1074037024,
+"reset": 0
+},
+{
+"inst": "CMP0",
+"reg": "CCR0",
+"addr": 1074073608,
+"reset": 2
+},
+{
+"inst": "CMP0",
+"reg": "CCR1",
+"addr": 1074073612,
+"reset": 0
+},
+{
+"inst": "CMP0",
+"reg": "CCR2",
+"addr": 1074073616,
+"reset": 0
+},
+{
+"inst": "CMP0",
+"reg": "DCR",
+"addr": 1074073624,
+"reset": 0
+},
+{
+"inst": "CMP0",
+"reg": "CSR",
+"addr": 1074073632,
+"reset": 0
+},
+{
+"inst": "CMP0",
+"reg": "RRCR0",
+"addr": 1074073636,
+"reset": 0
+},
+{
+"inst": "CMP0",
+"reg": "RRCR1",
+"addr": 1074073640,
+"reset": 0
+},
+{
+"inst": "CMP0",
+"reg": "RRCSR",
+"addr": 1074073644,
+"reset": 0
+},
+{
+"inst": "CMP0",
+"reg": "RRSR",
+"addr": 1074073648,
+"reset": 0
+},
+{
+"inst": "CMP0",
+"reg": "RRCR2",
+"addr": 1074073656,
+"reset": 0
+},
+{
+"inst": "CMP1",
+"reg": "CCR0",
+"addr": 1074077704,
+"reset": 2
+},
+{
+"inst": "CMP1",
+"reg": "CCR1",
+"addr": 1074077708,
+"reset": 0
+},
+{
+"inst": "CMP1",
+"reg": "CCR2",
+"addr": 1074077712,
+"reset": 0
+},
+{
+"inst": "CMP1",
+"reg": "DCR",
+"addr": 1074077720,
+"reset": 0
+},
+{
+"inst": "CMP1",
+"reg": "CSR",
+"addr": 1074077728,
+"reset": 0
+},
+{
+"inst": "CMP1",
+"reg": "RRCR0",
+"addr": 1074077732,
+"reset": 0
+},
+{
+"inst": "CMP1",
+"reg": "RRCR1",
+"addr": 1074077736,
+"reset": 0
+},
+{
+"inst": "CMP1",
+"reg": "RRCSR",
+"addr": 1074077740,
+"reset": 0
+},
+{
+"inst": "CMP1",
+"reg": "RRSR",
+"addr": 1074077744,
+"reset": 0
+},
+{
+"inst": "CMP1",
+"reg": "RRCR2",
+"addr": 1074077752,
+"reset": 0
+},
+{
+"inst": "CMP2",
+"reg": "CCR0",
+"addr": 1074081800,
+"reset": 2
+},
+{
+"inst": "CMP2",
+"reg": "CCR1",
+"addr": 1074081804,
+"reset": 0
+},
+{
+"inst": "CMP2",
+"reg": "CCR2",
+"addr": 1074081808,
+"reset": 0
+},
+{
+"inst": "CMP2",
+"reg": "DCR",
+"addr": 1074081816,
+"reset": 0
+},
+{
+"inst": "CMP2",
+"reg": "CSR",
+"addr": 1074081824,
+"reset": 0
+},
+{
+"inst": "CMP2",
+"reg": "RRCR0",
+"addr": 1074081828,
+"reset": 0
+},
+{
+"inst": "CMP2",
+"reg": "RRCR1",
+"addr": 1074081832,
+"reset": 0
+},
+{
+"inst": "CMP2",
+"reg": "RRCSR",
+"addr": 1074081836,
+"reset": 0
+},
+{
+"inst": "CMP2",
+"reg": "RRSR",
+"addr": 1074081840,
+"reset": 0
+},
+{
+"inst": "CMP2",
+"reg": "RRCR2",
+"addr": 1074081848,
+"reset": 0
+},
+{
+"inst": "CMX_PERFMON0",
+"reg": "PMCR",
+"addr": 1074532352,
+"reset": 0
+},
+{
+"inst": "CMX_PERFMON1",
+"reg": "PMCR",
+"addr": 1074536448,
+"reset": 0
+},
+{
+"inst": "CRC0",
+"reg": "GPOLY",
+"addr": 1074573316,
+"reset": 4129
+},
+{
+"inst": "CTIMER0",
+"reg": "TC",
+"addr": 1073790984,
+"reset": 0
+},
+{
+"inst": "CTIMER0",
+"reg": "PR",
+"addr": 1073790988,
+"reset": 0
+},
+{
+"inst": "CTIMER0",
+"reg": "PC",
+"addr": 1073790992,
+"reset": 0
+},
+{
+"inst": "CTIMER1",
+"reg": "TC",
+"addr": 1073795080,
+"reset": 0
+},
+{
+"inst": "CTIMER1",
+"reg": "PR",
+"addr": 1073795084,
+"reset": 0
+},
+{
+"inst": "CTIMER1",
+"reg": "PC",
+"addr": 1073795088,
+"reset": 0
+},
+{
+"inst": "CTIMER2",
+"reg": "TC",
+"addr": 1073799176,
+"reset": 0
+},
+{
+"inst": "CTIMER2",
+"reg": "PR",
+"addr": 1073799180,
+"reset": 0
+},
+{
+"inst": "CTIMER2",
+"reg": "PC",
+"addr": 1073799184,
+"reset": 0
+},
+{
+"inst": "CTIMER3",
+"reg": "TC",
+"addr": 1073803272,
+"reset": 0
+},
+{
+"inst": "CTIMER3",
+"reg": "PR",
+"addr": 1073803276,
+"reset": 0
+},
+{
+"inst": "CTIMER3",
+"reg": "PC",
+"addr": 1073803280,
+"reset": 0
+},
+{
+"inst": "CTIMER4",
+"reg": "TC",
+"addr": 1073807368,
+"reset": 0
+},
+{
+"inst": "CTIMER4",
+"reg": "PR",
+"addr": 1073807372,
+"reset": 0
+},
+{
+"inst": "CTIMER4",
+"reg": "PC",
+"addr": 1073807376,
+"reset": 0
+},
+{
+"inst": "DMA0",
+"reg": "MP_CSR",
+"addr": 1074266112,
+"reset": 3211264
+},
+{
+"inst": "DMA0",
+"reg": "MP_CSR",
+"addr": 1074266112,
+"reset": 3211264
+},
+{
+"inst": "DMA0",
+"reg": "MP_ES",
+"addr": 1074266116,
+"reset": 0
+},
+{
+"inst": "DMA0",
+"reg": "MP_ES",
+"addr": 1074266116,
+"reset": 0
+},
+{
+"inst": "DMA0",
+"reg": "MP_INT",
+"addr": 1074266120,
+"reset": 0
+},
+{
+"inst": "DMA0",
+"reg": "MP_INT",
+"addr": 1074266120,
+"reset": 0
+},
+{
+"inst": "DMA0",
+"reg": "MP_HRS",
+"addr": 1074266124,
+"reset": 0
+},
+{
+"inst": "DMA0",
+"reg": "MP_HRS",
+"addr": 1074266124,
+"reset": 0
+},
+{
+"inst": "DMA1",
+"reg": "MP_CSR",
+"addr": 1074397184,
+"reset": 3211264
+},
+{
+"inst": "DMA1",
+"reg": "MP_CSR",
+"addr": 1074397184,
+"reset": 3211264
+},
+{
+"inst": "DMA1",
+"reg": "MP_ES",
+"addr": 1074397188,
+"reset": 0
+},
+{
+"inst": "DMA1",
+"reg": "MP_ES",
+"addr": 1074397188,
+"reset": 0
+},
+{
+"inst": "DMA1",
+"reg": "MP_INT",
+"addr": 1074397192,
+"reset": 0
+},
+{
+"inst": "DMA1",
+"reg": "MP_INT",
+"addr": 1074397192,
+"reset": 0
+},
+{
+"inst": "DMA1",
+"reg": "MP_HRS",
+"addr": 1074397196,
+"reset": 0
+},
+{
+"inst": "DMA1",
+"reg": "MP_HRS",
+"addr": 1074397196,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EIMCR",
+"addr": 1074114560,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHEN",
+"addr": 1074114564,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD0_WORD0",
+"addr": 1074114816,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD0_WORD1",
+"addr": 1074114820,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD1_WORD0",
+"addr": 1074114880,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD1_WORD1",
+"addr": 1074114884,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD2_WORD0",
+"addr": 1074114944,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD2_WORD1",
+"addr": 1074114948,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD3_WORD0",
+"addr": 1074115008,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD3_WORD1",
+"addr": 1074115012,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD4_WORD0",
+"addr": 1074115072,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD4_WORD1",
+"addr": 1074115076,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD5_WORD0",
+"addr": 1074115136,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD5_WORD1",
+"addr": 1074115140,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD6_WORD0",
+"addr": 1074115200,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD6_WORD1",
+"addr": 1074115204,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD7_WORD0",
+"addr": 1074115264,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD7_WORD1",
+"addr": 1074115268,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD8_WORD0",
+"addr": 1074115328,
+"reset": 0
+},
+{
+"inst": "EIM0",
+"reg": "EICHD8_WORD1",
+"addr": 1074115332,
+"reset": 0
+},
+{
+"inst": "EMVSIM0",
+"reg": "VER_ID",
+"addr": 1074802688,
+"reset": 0
+},
+{
+"inst": "EMVSIM0",
+"reg": "CLKCFG",
+"addr": 1074802696,
+"reset": 0
+},
+{
+"inst": "EMVSIM0",
+"reg": "DIVISOR",
+"addr": 1074802700,
+"reset": 372
+},
+{
+"inst": "EMVSIM0",
+"reg": "INT_MASK",
+"addr": 1074802708,
+"reset": 65535
+},
+{
+"inst": "EMVSIM0",
+"reg": "RX_THD",
+"addr": 1074802712,
+"reset": 1
+},
+{
+"inst": "EMVSIM0",
+"reg": "TX_THD",
+"addr": 1074802716,
+"reset": 15
+},
+{
+"inst": "EMVSIM0",
+"reg": "RX_STATUS",
+"addr": 1074802720,
+"reset": 0
+},
+{
+"inst": "EMVSIM0",
+"reg": "TX_STATUS",
+"addr": 1074802724,
+"reset": 184
+},
+{
+"inst": "EMVSIM0",
+"reg": "PCSR",
+"addr": 1074802728,
+"reset": 16777216
+},
+{
+"inst": "EMVSIM0",
+"reg": "RX_BUF",
+"addr": 1074802732,
+"reset": 0
+},
+{
+"inst": "EMVSIM0",
+"reg": "TX_BUF",
+"addr": 1074802736,
+"reset": 0
+},
+{
+"inst": "EMVSIM0",
+"reg": "TX_GETU",
+"addr": 1074802740,
+"reset": 0
+},
+{
+"inst": "EMVSIM0",
+"reg": "CWT_VAL",
+"addr": 1074802744,
+"reset": 65535
+},
+{
+"inst": "EMVSIM0",
+"reg": "BWT_VAL",
+"addr": 1074802748,
+"reset": 4294967295
+},
+{
+"inst": "EMVSIM0",
+"reg": "BGT_VAL",
+"addr": 1074802752,
+"reset": 0
+},
+{
+"inst": "EMVSIM0",
+"reg": "GPCNT0_VAL",
+"addr": 1074802756,
+"reset": 65535
+},
+{
+"inst": "EMVSIM0",
+"reg": "GPCNT1_VAL",
+"addr": 1074802760,
+"reset": 65535
+},
+{
+"inst": "EMVSIM1",
+"reg": "VER_ID",
+"addr": 1074806784,
+"reset": 0
+},
+{
+"inst": "EMVSIM1",
+"reg": "CLKCFG",
+"addr": 1074806792,
+"reset": 0
+},
+{
+"inst": "EMVSIM1",
+"reg": "DIVISOR",
+"addr": 1074806796,
+"reset": 372
+},
+{
+"inst": "EMVSIM1",
+"reg": "INT_MASK",
+"addr": 1074806804,
+"reset": 65535
+},
+{
+"inst": "EMVSIM1",
+"reg": "RX_THD",
+"addr": 1074806808,
+"reset": 1
+},
+{
+"inst": "EMVSIM1",
+"reg": "TX_THD",
+"addr": 1074806812,
+"reset": 15
+},
+{
+"inst": "EMVSIM1",
+"reg": "RX_STATUS",
+"addr": 1074806816,
+"reset": 0
+},
+{
+"inst": "EMVSIM1",
+"reg": "TX_STATUS",
+"addr": 1074806820,
+"reset": 184
+},
+{
+"inst": "EMVSIM1",
+"reg": "PCSR",
+"addr": 1074806824,
+"reset": 16777216
+},
+{
+"inst": "EMVSIM1",
+"reg": "RX_BUF",
+"addr": 1074806828,
+"reset": 0
+},
+{
+"inst": "EMVSIM1",
+"reg": "TX_BUF",
+"addr": 1074806832,
+"reset": 0
+},
+{
+"inst": "EMVSIM1",
+"reg": "TX_GETU",
+"addr": 1074806836,
+"reset": 0
+},
+{
+"inst": "EMVSIM1",
+"reg": "CWT_VAL",
+"addr": 1074806840,
+"reset": 65535
+},
+{
+"inst": "EMVSIM1",
+"reg": "BWT_VAL",
+"addr": 1074806844,
+"reset": 4294967295
+},
+{
+"inst": "EMVSIM1",
+"reg": "BGT_VAL",
+"addr": 1074806848,
+"reset": 0
+},
+{
+"inst": "EMVSIM1",
+"reg": "GPCNT0_VAL",
+"addr": 1074806852,
+"reset": 65535
+},
+{
+"inst": "EMVSIM1",
+"reg": "GPCNT1_VAL",
+"addr": 1074806856,
+"reset": 65535
+},
+{
+"inst": "ENET0",
+"reg": "MAC_CONFIGURATION",
+"addr": 1074790400,
+"reset": 32768
+},
+{
+"inst": "ENET0",
+"reg": "MAC_PACKET_FILTER",
+"addr": 1074790408,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_WATCHDOG_TIMEOUT",
+"addr": 1074790412,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_VLAN_TAG_CTRL",
+"addr": 1074790480,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_VLAN_INCL",
+"addr": 1074790496,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_RX_FLOW_CTRL",
+"addr": 1074790544,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_RXQ_CTRL4",
+"addr": 1074790548,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_INTERRUPT_STATUS",
+"addr": 1074790576,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_INTERRUPT_ENABLE",
+"addr": 1074790580,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_RX_TX_STATUS",
+"addr": 1074790584,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_PMT_CONTROL_STATUS",
+"addr": 1074790592,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_RWK_PACKET_FILTER",
+"addr": 1074790596,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_LPI_CONTROL_STATUS",
+"addr": 1074790608,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_LPI_TIMERS_CONTROL",
+"addr": 1074790612,
+"reset": 65536000
+},
+{
+"inst": "ENET0",
+"reg": "MAC_LPI_ENTRY_TIMER",
+"addr": 1074790616,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_ONEUS_TIC_COUNTER",
+"addr": 1074790620,
+"reset": 99
+},
+{
+"inst": "ENET0",
+"reg": "MAC_VERSION",
+"addr": 1074790672,
+"reset": 4178
+},
+{
+"inst": "ENET0",
+"reg": "MAC_DEBUG",
+"addr": 1074790676,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_MDIO_ADDRESS",
+"addr": 1074790912,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_MDIO_DATA",
+"addr": 1074790916,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_CSR_SW_CTRL",
+"addr": 1074790960,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_ADDRESS0_HIGH",
+"addr": 1074791168,
+"reset": 2147549183
+},
+{
+"inst": "ENET0",
+"reg": "MAC_ADDRESS0_LOW",
+"addr": 1074791172,
+"reset": 4294967295
+},
+{
+"inst": "ENET0",
+"reg": "INDIR_ACCESS_CTRL",
+"addr": 1074793072,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "INDIR_ACCESS_DATA",
+"addr": 1074793076,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_TIMESTAMP_CONTROL",
+"addr": 1074793216,
+"reset": 8192
+},
+{
+"inst": "ENET0",
+"reg": "MAC_SUB_SECOND_INCREMENT",
+"addr": 1074793220,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_SYSTEM_TIME_SECONDS",
+"addr": 1074793224,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_TIMESTAMP_ADDEND",
+"addr": 1074793240,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_TIMESTAMP_STATUS",
+"addr": 1074793248,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_PPS_CONTROL",
+"addr": 1074793328,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "PPS0_TARGET_TIME_SECONDS",
+"addr": 1074793344,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MTL_OPERATION_MODE",
+"addr": 1074793472,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MTL_INTERRUPT_STATUS",
+"addr": 1074793504,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "DMA_MODE",
+"addr": 1074794496,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "DMA_SYSBUS_MODE",
+"addr": 1074794500,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "DMA_INTERRUPT_STATUS",
+"addr": 1074794504,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "DMA_DEBUG_STATUS0",
+"addr": 1074794508,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "CR0",
+"addr": 1074118656,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "CR1",
+"addr": 1074118660,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SR0",
+"addr": 1074118672,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SR1",
+"addr": 1074118676,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "EAR0",
+"addr": 1074118912,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SYN0",
+"addr": 1074118916,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "EAR1",
+"addr": 1074118928,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SYN1",
+"addr": 1074118932,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "EAR2",
+"addr": 1074118944,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SYN2",
+"addr": 1074118948,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "EAR3",
+"addr": 1074118960,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SYN3",
+"addr": 1074118964,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "EAR4",
+"addr": 1074118976,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SYN4",
+"addr": 1074118980,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "EAR5",
+"addr": 1074118992,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SYN5",
+"addr": 1074118996,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "EAR6",
+"addr": 1074119008,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SYN6",
+"addr": 1074119012,
+"reset": 0
+},
+{
+"inst": "ERM0",
+"reg": "SYN8",
+"addr": 1074119044,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PIN",
+"addr": 1074810892,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "SHIFTSTAT",
+"addr": 1074810896,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "SHIFTERR",
+"addr": 1074810900,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "TIMSTAT",
+"addr": 1074810904,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "SHIFTSIEN",
+"addr": 1074810912,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "SHIFTEIEN",
+"addr": 1074810916,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "TIMIEN",
+"addr": 1074810920,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "SHIFTSDEN",
+"addr": 1074810928,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "TIMERSDEN",
+"addr": 1074810936,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "SHIFTSTATE",
+"addr": 1074810944,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "TRGSTAT",
+"addr": 1074810952,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "TRIGIEN",
+"addr": 1074810956,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINSTAT",
+"addr": 1074810960,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINIEN",
+"addr": 1074810964,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINREN",
+"addr": 1074810968,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINFEN",
+"addr": 1074810972,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINOUTD",
+"addr": 1074810976,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINOUTE",
+"addr": 1074810980,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINOUTDIS",
+"addr": 1074810984,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINOUTCLR",
+"addr": 1074810988,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINOUTSET",
+"addr": 1074810992,
+"reset": 0
+},
+{
+"inst": "FLEXIO0",
+"reg": "PINOUTTOG",
+"addr": 1074810996,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "MCR0",
+"addr": 1074561024,
+"reset": 4294934530
+},
+{
+"inst": "FLEXSPI0",
+"reg": "MCR1",
+"addr": 1074561028,
+"reset": 4294967295
+},
+{
+"inst": "FLEXSPI0",
+"reg": "MCR2",
+"addr": 1074561032,
+"reset": 536904183
+},
+{
+"inst": "FLEXSPI0",
+"reg": "AHBCR",
+"addr": 1074561036,
+"reset": 24
+},
+{
+"inst": "FLEXSPI0",
+"reg": "INTEN",
+"addr": 1074561040,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "INTR",
+"addr": 1074561044,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "LUTKEY",
+"addr": 1074561048,
+"reset": 1525701360
+},
+{
+"inst": "FLEXSPI0",
+"reg": "LUTCR",
+"addr": 1074561052,
+"reset": 2
+},
+{
+"inst": "FLEXSPI0",
+"reg": "FLSHCR4",
+"addr": 1074561172,
+"reset": 195
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPCR0",
+"addr": 1074561184,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPCR1",
+"addr": 1074561188,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPCR2",
+"addr": 1074561192,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPCMD",
+"addr": 1074561200,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "DLPR",
+"addr": 1074561204,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPRXFCR",
+"addr": 1074561208,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPTXFCR",
+"addr": 1074561212,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "STS0",
+"addr": 1074561248,
+"reset": 2
+},
+{
+"inst": "FLEXSPI0",
+"reg": "STS1",
+"addr": 1074561252,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "STS2",
+"addr": 1074561256,
+"reset": 16777472
+},
+{
+"inst": "FLEXSPI0",
+"reg": "AHBSPNDSTS",
+"addr": 1074561260,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPRXFSTS",
+"addr": 1074561264,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPTXFSTS",
+"addr": 1074561268,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "HADDRSTART",
+"addr": 1074562080,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "HADDREND",
+"addr": 1074562084,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "HADDROFFSET",
+"addr": 1074562088,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTRL",
+"addr": 1074562092,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPSNSZSTART0",
+"addr": 1074562096,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPSNSZEND0",
+"addr": 1074562100,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPSNSZSTART1",
+"addr": 1074562104,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPSNSZEND1",
+"addr": 1074562108,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "AHBBUFREGIONEND0",
+"addr": 1074562116,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "AHBBUFREGIONEND1",
+"addr": 1074562124,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "AHBBUFREGIONEND2",
+"addr": 1074562132,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "AHBBUFREGIONEND3",
+"addr": 1074562140,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX0IV0",
+"addr": 1074562336,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX0IV1",
+"addr": 1074562340,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX0START",
+"addr": 1074562344,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX0END",
+"addr": 1074562348,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX1IV0",
+"addr": 1074562368,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX1IV1",
+"addr": 1074562372,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX1START",
+"addr": 1074562376,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX1END",
+"addr": 1074562380,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX2IV0",
+"addr": 1074562400,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX2IV1",
+"addr": 1074562404,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX2START",
+"addr": 1074562408,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX2END",
+"addr": 1074562412,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX3IV0",
+"addr": 1074562432,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX3IV1",
+"addr": 1074562436,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX3START",
+"addr": 1074562440,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX3END",
+"addr": 1074562444,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX4IV0",
+"addr": 1074562464,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX4IV1",
+"addr": 1074562468,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX4START",
+"addr": 1074562472,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX4END",
+"addr": 1074562476,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX5IV0",
+"addr": 1074562496,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX5IV1",
+"addr": 1074562500,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX5START",
+"addr": 1074562504,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX5END",
+"addr": 1074562508,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX6IV0",
+"addr": 1074562528,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX6IV1",
+"addr": 1074562532,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX6START",
+"addr": 1074562536,
+"reset": 0
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTX6END",
+"addr": 1074562540,
+"reset": 0
+},
+{
+"inst": "FMU0TEST",
+"reg": "FCCOB0",
+"addr": 1074016272,
+"reset": 0
+},
+{
+"inst": "FMU0TEST",
+"reg": "FCCOB1",
+"addr": 1074016276,
+"reset": 0
+},
+{
+"inst": "FMU0TEST",
+"reg": "FCCOB2",
+"addr": 1074016280,
+"reset": 0
+},
+{
+"inst": "FMU0TEST",
+"reg": "FCCOB3",
+"addr": 1074016284,
+"reset": 0
+},
+{
+"inst": "FMU0TEST",
+"reg": "FCCOB4",
+"addr": 1074016288,
+"reset": 0
+},
+{
+"inst": "FMU0TEST",
+"reg": "FCCOB5",
+"addr": 1074016292,
+"reset": 0
+},
+{
+"inst": "FMU0TEST",
+"reg": "FCCOB6",
+"addr": 1074016296,
+"reset": 0
+},
+{
+"inst": "FMU0TEST",
+"reg": "FCCOB7",
+"addr": 1074016300,
+"reset": 0
+},
+{
+"inst": "FREQME0",
+"reg": "CTRL_R",
+"addr": 1073811456,
+"reset": 0
+},
+{
+"inst": "FREQME0",
+"reg": "CTRLSTAT",
+"addr": 1073811460,
+"reset": 0
+},
+{
+"inst": "FREQME0",
+"reg": "MIN",
+"addr": 1073811464,
+"reset": 0
+},
+{
+"inst": "FREQME0",
+"reg": "MAX",
+"addr": 1073811468,
+"reset": 2147483647
+},
+{
+"inst": "GPIO0",
+"reg": "LOCK",
+"addr": 1074356236,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "PCNS",
+"addr": 1074356240,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "ICNS",
+"addr": 1074356244,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "PCNP",
+"addr": 1074356248,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "ICNP",
+"addr": 1074356252,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "PDOR",
+"addr": 1074356288,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "PSOR",
+"addr": 1074356292,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "PCOR",
+"addr": 1074356296,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "PTOR",
+"addr": 1074356300,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "PDIR",
+"addr": 1074356304,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "PDDR",
+"addr": 1074356308,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "PIDR",
+"addr": 1074356312,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "GICLR",
+"addr": 1074356480,
+"reset": 0
+},
+{
+"inst": "GPIO0",
+"reg": "GICHR",
+"addr": 1074356484,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "LOCK",
+"addr": 1074364428,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "PCNS",
+"addr": 1074364432,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "ICNS",
+"addr": 1074364436,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "PCNP",
+"addr": 1074364440,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "ICNP",
+"addr": 1074364444,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "PDOR",
+"addr": 1074364480,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "PSOR",
+"addr": 1074364484,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "PCOR",
+"addr": 1074364488,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "PTOR",
+"addr": 1074364492,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "PDIR",
+"addr": 1074364496,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "PDDR",
+"addr": 1074364500,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "PIDR",
+"addr": 1074364504,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "GICLR",
+"addr": 1074364672,
+"reset": 0
+},
+{
+"inst": "GPIO1",
+"reg": "GICHR",
+"addr": 1074364676,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "LOCK",
+"addr": 1074372620,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "PCNS",
+"addr": 1074372624,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "ICNS",
+"addr": 1074372628,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "PCNP",
+"addr": 1074372632,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "ICNP",
+"addr": 1074372636,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "PDOR",
+"addr": 1074372672,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "PSOR",
+"addr": 1074372676,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "PCOR",
+"addr": 1074372680,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "PTOR",
+"addr": 1074372684,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "PDIR",
+"addr": 1074372688,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "PDDR",
+"addr": 1074372692,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "PIDR",
+"addr": 1074372696,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "GICLR",
+"addr": 1074372864,
+"reset": 0
+},
+{
+"inst": "GPIO2",
+"reg": "GICHR",
+"addr": 1074372868,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "LOCK",
+"addr": 1074380812,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "PCNS",
+"addr": 1074380816,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "ICNS",
+"addr": 1074380820,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "PCNP",
+"addr": 1074380824,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "ICNP",
+"addr": 1074380828,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "PDOR",
+"addr": 1074380864,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "PSOR",
+"addr": 1074380868,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "PCOR",
+"addr": 1074380872,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "PTOR",
+"addr": 1074380876,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "PDIR",
+"addr": 1074380880,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "PDDR",
+"addr": 1074380884,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "PIDR",
+"addr": 1074380888,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "GICLR",
+"addr": 1074381056,
+"reset": 0
+},
+{
+"inst": "GPIO3",
+"reg": "GICHR",
+"addr": 1074381060,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "LOCK",
+"addr": 1074389004,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "PCNS",
+"addr": 1074389008,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "ICNS",
+"addr": 1074389012,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "PCNP",
+"addr": 1074389016,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "ICNP",
+"addr": 1074389020,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "PDOR",
+"addr": 1074389056,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "PSOR",
+"addr": 1074389060,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "PCOR",
+"addr": 1074389064,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "PTOR",
+"addr": 1074389068,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "PDIR",
+"addr": 1074389072,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "PDDR",
+"addr": 1074389076,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "PIDR",
+"addr": 1074389080,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "GICLR",
+"addr": 1074389248,
+"reset": 0
+},
+{
+"inst": "GPIO4",
+"reg": "GICHR",
+"addr": 1074389252,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "LOCK",
+"addr": 1074003980,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "PCNS",
+"addr": 1074003984,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "ICNS",
+"addr": 1074003988,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "PCNP",
+"addr": 1074003992,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "ICNP",
+"addr": 1074003996,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "PDOR",
+"addr": 1074004032,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "PSOR",
+"addr": 1074004036,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "PCOR",
+"addr": 1074004040,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "PTOR",
+"addr": 1074004044,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "PDIR",
+"addr": 1074004048,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "PDDR",
+"addr": 1074004052,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "PIDR",
+"addr": 1074004056,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "GICLR",
+"addr": 1074004224,
+"reset": 0
+},
+{
+"inst": "GPIO5",
+"reg": "GICHR",
+"addr": 1074004228,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MCONFIG",
+"addr": 1073876992,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SCONFIG",
+"addr": 1073876996,
+"reset": 65536
+},
+{
+"inst": "I3C0",
+"reg": "SSTATUS",
+"addr": 1073877000,
+"reset": 5120
+},
+{
+"inst": "I3C0",
+"reg": "SCTRL",
+"addr": 1073877004,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SINTSET",
+"addr": 1073877008,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SINTMASKED",
+"addr": 1073877016,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SERRWARN",
+"addr": 1073877020,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SDMACTRL",
+"addr": 1073877024,
+"reset": 16
+},
+{
+"inst": "I3C0",
+"reg": "SDATACTRL",
+"addr": 1073877036,
+"reset": 2147483696
+},
+{
+"inst": "I3C0",
+"reg": "SRDATAB",
+"addr": 1073877056,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SWDATAB1",
+"addr": 1073877076,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SCAPABILITIES2",
+"addr": 1073877084,
+"reset": 768
+},
+{
+"inst": "I3C0",
+"reg": "SCAPABILITIES",
+"addr": 1073877088,
+"reset": 3896508024
+},
+{
+"inst": "I3C0",
+"reg": "SDYNADDR",
+"addr": 1073877092,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SMAXLIMITS",
+"addr": 1073877096,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SIDPARTNO",
+"addr": 1073877100,
+"reset": 805306368
+},
+{
+"inst": "I3C0",
+"reg": "SIDEXT",
+"addr": 1073877104,
+"reset": 61184
+},
+{
+"inst": "I3C0",
+"reg": "SVENDORID",
+"addr": 1073877108,
+"reset": 283
+},
+{
+"inst": "I3C0",
+"reg": "STCCLOCK",
+"addr": 1073877112,
+"reset": 532
+},
+{
+"inst": "I3C0",
+"reg": "SMSGMAPADDR",
+"addr": 1073877116,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MCTRL",
+"addr": 1073877124,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MSTATUS",
+"addr": 1073877128,
+"reset": 4096
+},
+{
+"inst": "I3C0",
+"reg": "MIBIRULES",
+"addr": 1073877132,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MINTSET",
+"addr": 1073877136,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MINTMASKED",
+"addr": 1073877144,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MERRWARN",
+"addr": 1073877148,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MDMACTRL",
+"addr": 1073877152,
+"reset": 16
+},
+{
+"inst": "I3C0",
+"reg": "MDATACTRL",
+"addr": 1073877164,
+"reset": 2147483696
+},
+{
+"inst": "I3C0",
+"reg": "MRDATAB",
+"addr": 1073877184,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MRDATAH",
+"addr": 1073877192,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MWDATAB1",
+"addr": 1073877196,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MRMSG_SDR",
+"addr": 1073877204,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MRMSG_DDR",
+"addr": 1073877212,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "MDYNADDR",
+"addr": 1073877220,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SMAPCTRL0",
+"addr": 1073877276,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "IBIEXT1",
+"addr": 1073877312,
+"reset": 112
+},
+{
+"inst": "I3C0",
+"reg": "IBIEXT2",
+"addr": 1073877316,
+"reset": 0
+},
+{
+"inst": "I3C0",
+"reg": "SID",
+"addr": 1073881084,
+"reset": 3989504256
+},
+{
+"inst": "I3C1",
+"reg": "MCONFIG",
+"addr": 1073881088,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SCONFIG",
+"addr": 1073881092,
+"reset": 65536
+},
+{
+"inst": "I3C1",
+"reg": "SSTATUS",
+"addr": 1073881096,
+"reset": 5120
+},
+{
+"inst": "I3C1",
+"reg": "SCTRL",
+"addr": 1073881100,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SINTSET",
+"addr": 1073881104,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SINTMASKED",
+"addr": 1073881112,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SERRWARN",
+"addr": 1073881116,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SDMACTRL",
+"addr": 1073881120,
+"reset": 16
+},
+{
+"inst": "I3C1",
+"reg": "SDATACTRL",
+"addr": 1073881132,
+"reset": 2147483696
+},
+{
+"inst": "I3C1",
+"reg": "SRDATAB",
+"addr": 1073881152,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SWDATAB1",
+"addr": 1073881172,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SCAPABILITIES2",
+"addr": 1073881180,
+"reset": 768
+},
+{
+"inst": "I3C1",
+"reg": "SCAPABILITIES",
+"addr": 1073881184,
+"reset": 3896508024
+},
+{
+"inst": "I3C1",
+"reg": "SDYNADDR",
+"addr": 1073881188,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SMAXLIMITS",
+"addr": 1073881192,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SIDPARTNO",
+"addr": 1073881196,
+"reset": 805306368
+},
+{
+"inst": "I3C1",
+"reg": "SIDEXT",
+"addr": 1073881200,
+"reset": 61184
+},
+{
+"inst": "I3C1",
+"reg": "SVENDORID",
+"addr": 1073881204,
+"reset": 283
+},
+{
+"inst": "I3C1",
+"reg": "STCCLOCK",
+"addr": 1073881208,
+"reset": 532
+},
+{
+"inst": "I3C1",
+"reg": "SMSGMAPADDR",
+"addr": 1073881212,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MCTRL",
+"addr": 1073881220,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MSTATUS",
+"addr": 1073881224,
+"reset": 4096
+},
+{
+"inst": "I3C1",
+"reg": "MIBIRULES",
+"addr": 1073881228,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MINTSET",
+"addr": 1073881232,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MINTMASKED",
+"addr": 1073881240,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MERRWARN",
+"addr": 1073881244,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MDMACTRL",
+"addr": 1073881248,
+"reset": 16
+},
+{
+"inst": "I3C1",
+"reg": "MDATACTRL",
+"addr": 1073881260,
+"reset": 2147483696
+},
+{
+"inst": "I3C1",
+"reg": "MRDATAB",
+"addr": 1073881280,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MRDATAH",
+"addr": 1073881288,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MWDATAB1",
+"addr": 1073881292,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MRMSG_SDR",
+"addr": 1073881300,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MRMSG_DDR",
+"addr": 1073881308,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "MDYNADDR",
+"addr": 1073881316,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SMAPCTRL0",
+"addr": 1073881372,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "IBIEXT1",
+"addr": 1073881408,
+"reset": 112
+},
+{
+"inst": "I3C1",
+"reg": "IBIEXT2",
+"addr": 1073881412,
+"reset": 0
+},
+{
+"inst": "I3C1",
+"reg": "SID",
+"addr": 1073885180,
+"reset": 3989504256
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER0CAP0",
+"addr": 1073766432,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER0CAP1",
+"addr": 1073766436,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER0CAP2",
+"addr": 1073766440,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER0CAP3",
+"addr": 1073766444,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "TIMER0TRIG",
+"addr": 1073766448,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER1CAP0",
+"addr": 1073766464,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER1CAP1",
+"addr": 1073766468,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER1CAP2",
+"addr": 1073766472,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER1CAP3",
+"addr": 1073766476,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "TIMER1TRIG",
+"addr": 1073766480,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER2CAP0",
+"addr": 1073766496,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER2CAP1",
+"addr": 1073766500,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER2CAP2",
+"addr": 1073766504,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER2CAP3",
+"addr": 1073766508,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "TIMER2TRIG",
+"addr": 1073766512,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER3CAP0",
+"addr": 1073766816,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER3CAP1",
+"addr": 1073766820,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER3CAP2",
+"addr": 1073766824,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER3CAP3",
+"addr": 1073766828,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "TIMER3TRIG",
+"addr": 1073766832,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER4CAP0",
+"addr": 1073766848,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER4CAP1",
+"addr": 1073766852,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER4CAP2",
+"addr": 1073766856,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CTIMER4CAP3",
+"addr": 1073766860,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "TIMER4TRIG",
+"addr": 1073766864,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CMP0_TRIG",
+"addr": 1073767008,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DAC0_TRIG",
+"addr": 1073767168,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DAC1_TRIG",
+"addr": 1073767200,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DAC2_TRIG",
+"addr": 1073767232,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "PWM0_EXT_CLK",
+"addr": 1073767456,
+"reset": 7
+},
+{
+"inst": "INPUTMUX0",
+"reg": "PWM1_EXT_CLK",
+"addr": 1073767460,
+"reset": 7
+},
+{
+"inst": "INPUTMUX0",
+"reg": "USBFS_TRIG",
+"addr": 1073767552,
+"reset": 15
+},
+{
+"inst": "INPUTMUX0",
+"reg": "TSI_TRIG",
+"addr": 1073767584,
+"reset": 3
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CMP1_TRIG",
+"addr": 1073767648,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "CMP2_TRIG",
+"addr": 1073767680,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM0_TRIG",
+"addr": 1073767840,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM1_TRIG",
+"addr": 1073767872,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM2_TRIG",
+"addr": 1073767904,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM3_TRIG",
+"addr": 1073767936,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM4_TRIG",
+"addr": 1073767968,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM5_TRIG",
+"addr": 1073768000,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM6_TRIG",
+"addr": 1073768032,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM7_TRIG",
+"addr": 1073768064,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM8_TRIG",
+"addr": 1073768096,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "FLEXCOMM9_TRIG",
+"addr": 1073768128,
+"reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE0",
+"addr": 1073768192,
+"reset": 4294967295
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE0_SET",
+"addr": 1073768196,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE0_CLR",
+"addr": 1073768200,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE0_TOG",
+"addr": 1073768204,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE1",
+"addr": 1073768208,
+"reset": 4294967295
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE1_SET",
+"addr": 1073768212,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE1_CLR",
+"addr": 1073768216,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE1_TOG",
+"addr": 1073768220,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE2",
+"addr": 1073768224,
+"reset": 4294967295
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE2_SET",
+"addr": 1073768228,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE2_CLR",
+"addr": 1073768232,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE2_TOG",
+"addr": 1073768236,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE3",
+"addr": 1073768240,
+"reset": 67108863
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE3_SET",
+"addr": 1073768244,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA0_REQ_ENABLE3_CLR",
+"addr": 1073768248,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE0",
+"addr": 1073768320,
+"reset": 4294967295
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE0_SET",
+"addr": 1073768324,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE0_CLR",
+"addr": 1073768328,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE0_TOG",
+"addr": 1073768332,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE1",
+"addr": 1073768336,
+"reset": 4294967295
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE1_SET",
+"addr": 1073768340,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE1_CLR",
+"addr": 1073768344,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE1_TOG",
+"addr": 1073768348,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE2",
+"addr": 1073768352,
+"reset": 4294967295
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE3",
+"addr": 1073768368,
+"reset": 67108863
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE3_SET",
+"addr": 1073768372,
+"reset": 0
+},
+{
+"inst": "INPUTMUX0",
+"reg": "DMA1_REQ_ENABLE3_CLR",
+"addr": 1073768376,
+"reset": 0
+},
+{
+"inst": "INTM0",
+"reg": "INTM_MM",
+"addr": 1074122752,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MCR",
+"addr": 1074341904,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MSR",
+"addr": 1074341908,
+"reset": 1
+},
+{
+"inst": "LPI2C0",
+"reg": "MIER",
+"addr": 1074341912,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MDER",
+"addr": 1074341916,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MCFGR0",
+"addr": 1074341920,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MCFGR1",
+"addr": 1074341924,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MCFGR2",
+"addr": 1074341928,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MCFGR3",
+"addr": 1074341932,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MDMR",
+"addr": 1074341952,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MCCR0",
+"addr": 1074341960,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MCCR1",
+"addr": 1074341968,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MFCR",
+"addr": 1074341976,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MFSR",
+"addr": 1074341980,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "MRDR",
+"addr": 1074342000,
+"reset": 16384
+},
+{
+"inst": "LPI2C0",
+"reg": "MRDROR",
+"addr": 1074342008,
+"reset": 16384
+},
+{
+"inst": "LPI2C0",
+"reg": "SCR",
+"addr": 1074342160,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "SSR",
+"addr": 1074342164,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "SIER",
+"addr": 1074342168,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "SDER",
+"addr": 1074342172,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "SCFGR0",
+"addr": 1074342176,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "SCFGR1",
+"addr": 1074342180,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "SCFGR2",
+"addr": 1074342184,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "SAMR",
+"addr": 1074342208,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "SASR",
+"addr": 1074342224,
+"reset": 16384
+},
+{
+"inst": "LPI2C0",
+"reg": "STAR",
+"addr": 1074342228,
+"reset": 0
+},
+{
+"inst": "LPI2C0",
+"reg": "SRDR",
+"addr": 1074342256,
+"reset": 16384
+},
+{
+"inst": "LPI2C0",
+"reg": "SRDROR",
+"addr": 1074342264,
+"reset": 16384
+},
+{
+"inst": "LPI2C1",
+"reg": "MCR",
+"addr": 1074346000,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MSR",
+"addr": 1074346004,
+"reset": 1
+},
+{
+"inst": "LPI2C1",
+"reg": "MIER",
+"addr": 1074346008,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MDER",
+"addr": 1074346012,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MCFGR0",
+"addr": 1074346016,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MCFGR1",
+"addr": 1074346020,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MCFGR2",
+"addr": 1074346024,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MCFGR3",
+"addr": 1074346028,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MDMR",
+"addr": 1074346048,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MCCR0",
+"addr": 1074346056,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MCCR1",
+"addr": 1074346064,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MFCR",
+"addr": 1074346072,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MFSR",
+"addr": 1074346076,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "MRDR",
+"addr": 1074346096,
+"reset": 16384
+},
+{
+"inst": "LPI2C1",
+"reg": "MRDROR",
+"addr": 1074346104,
+"reset": 16384
+},
+{
+"inst": "LPI2C1",
+"reg": "SCR",
+"addr": 1074346256,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "SSR",
+"addr": 1074346260,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "SIER",
+"addr": 1074346264,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "SDER",
+"addr": 1074346268,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "SCFGR0",
+"addr": 1074346272,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "SCFGR1",
+"addr": 1074346276,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "SCFGR2",
+"addr": 1074346280,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "SAMR",
+"addr": 1074346304,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "SASR",
+"addr": 1074346320,
+"reset": 16384
+},
+{
+"inst": "LPI2C1",
+"reg": "STAR",
+"addr": 1074346324,
+"reset": 0
+},
+{
+"inst": "LPI2C1",
+"reg": "SRDR",
+"addr": 1074346352,
+"reset": 16384
+},
+{
+"inst": "LPI2C1",
+"reg": "SRDROR",
+"addr": 1074346360,
+"reset": 16384
+},
+{
+"inst": "LPI2C2",
+"reg": "MCR",
+"addr": 1074350096,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MSR",
+"addr": 1074350100,
+"reset": 1
+},
+{
+"inst": "LPI2C2",
+"reg": "MIER",
+"addr": 1074350104,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MDER",
+"addr": 1074350108,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MCFGR0",
+"addr": 1074350112,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MCFGR1",
+"addr": 1074350116,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MCFGR2",
+"addr": 1074350120,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MCFGR3",
+"addr": 1074350124,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MDMR",
+"addr": 1074350144,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MCCR0",
+"addr": 1074350152,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MCCR1",
+"addr": 1074350160,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MFCR",
+"addr": 1074350168,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MFSR",
+"addr": 1074350172,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "MRDR",
+"addr": 1074350192,
+"reset": 16384
+},
+{
+"inst": "LPI2C2",
+"reg": "MRDROR",
+"addr": 1074350200,
+"reset": 16384
+},
+{
+"inst": "LPI2C2",
+"reg": "SCR",
+"addr": 1074350352,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "SSR",
+"addr": 1074350356,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "SIER",
+"addr": 1074350360,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "SDER",
+"addr": 1074350364,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "SCFGR0",
+"addr": 1074350368,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "SCFGR1",
+"addr": 1074350372,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "SCFGR2",
+"addr": 1074350376,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "SAMR",
+"addr": 1074350400,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "SASR",
+"addr": 1074350416,
+"reset": 16384
+},
+{
+"inst": "LPI2C2",
+"reg": "STAR",
+"addr": 1074350420,
+"reset": 0
+},
+{
+"inst": "LPI2C2",
+"reg": "SRDR",
+"addr": 1074350448,
+"reset": 16384
+},
+{
+"inst": "LPI2C2",
+"reg": "SRDROR",
+"addr": 1074350456,
+"reset": 16384
+},
+{
+"inst": "LPI2C3",
+"reg": "MCR",
+"addr": 1074354192,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MSR",
+"addr": 1074354196,
+"reset": 1
+},
+{
+"inst": "LPI2C3",
+"reg": "MIER",
+"addr": 1074354200,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MDER",
+"addr": 1074354204,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MCFGR0",
+"addr": 1074354208,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MCFGR1",
+"addr": 1074354212,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MCFGR2",
+"addr": 1074354216,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MCFGR3",
+"addr": 1074354220,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MDMR",
+"addr": 1074354240,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MCCR0",
+"addr": 1074354248,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MCCR1",
+"addr": 1074354256,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MFCR",
+"addr": 1074354264,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MFSR",
+"addr": 1074354268,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "MRDR",
+"addr": 1074354288,
+"reset": 16384
+},
+{
+"inst": "LPI2C3",
+"reg": "MRDROR",
+"addr": 1074354296,
+"reset": 16384
+},
+{
+"inst": "LPI2C3",
+"reg": "SCR",
+"addr": 1074354448,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "SSR",
+"addr": 1074354452,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "SIER",
+"addr": 1074354456,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "SDER",
+"addr": 1074354460,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "SCFGR0",
+"addr": 1074354464,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "SCFGR1",
+"addr": 1074354468,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "SCFGR2",
+"addr": 1074354472,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "SAMR",
+"addr": 1074354496,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "SASR",
+"addr": 1074354512,
+"reset": 16384
+},
+{
+"inst": "LPI2C3",
+"reg": "STAR",
+"addr": 1074354516,
+"reset": 0
+},
+{
+"inst": "LPI2C3",
+"reg": "SRDR",
+"addr": 1074354544,
+"reset": 16384
+},
+{
+"inst": "LPI2C3",
+"reg": "SRDROR",
+"addr": 1074354552,
+"reset": 16384
+},
+{
+"inst": "LPI2C4",
+"reg": "MCR",
+"addr": 1074481168,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MSR",
+"addr": 1074481172,
+"reset": 1
+},
+{
+"inst": "LPI2C4",
+"reg": "MIER",
+"addr": 1074481176,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MDER",
+"addr": 1074481180,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MCFGR0",
+"addr": 1074481184,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MCFGR1",
+"addr": 1074481188,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MCFGR2",
+"addr": 1074481192,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MCFGR3",
+"addr": 1074481196,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MDMR",
+"addr": 1074481216,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MCCR0",
+"addr": 1074481224,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MCCR1",
+"addr": 1074481232,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MFCR",
+"addr": 1074481240,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MFSR",
+"addr": 1074481244,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "MRDR",
+"addr": 1074481264,
+"reset": 16384
+},
+{
+"inst": "LPI2C4",
+"reg": "MRDROR",
+"addr": 1074481272,
+"reset": 16384
+},
+{
+"inst": "LPI2C4",
+"reg": "SCR",
+"addr": 1074481424,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "SSR",
+"addr": 1074481428,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "SIER",
+"addr": 1074481432,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "SDER",
+"addr": 1074481436,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "SCFGR0",
+"addr": 1074481440,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "SCFGR1",
+"addr": 1074481444,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "SCFGR2",
+"addr": 1074481448,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "SAMR",
+"addr": 1074481472,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "SASR",
+"addr": 1074481488,
+"reset": 16384
+},
+{
+"inst": "LPI2C4",
+"reg": "STAR",
+"addr": 1074481492,
+"reset": 0
+},
+{
+"inst": "LPI2C4",
+"reg": "SRDR",
+"addr": 1074481520,
+"reset": 16384
+},
+{
+"inst": "LPI2C4",
+"reg": "SRDROR",
+"addr": 1074481528,
+"reset": 16384
+},
+{
+"inst": "LPI2C5",
+"reg": "MCR",
+"addr": 1074485264,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MSR",
+"addr": 1074485268,
+"reset": 1
+},
+{
+"inst": "LPI2C5",
+"reg": "MIER",
+"addr": 1074485272,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MDER",
+"addr": 1074485276,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MCFGR0",
+"addr": 1074485280,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MCFGR1",
+"addr": 1074485284,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MCFGR2",
+"addr": 1074485288,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MCFGR3",
+"addr": 1074485292,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MDMR",
+"addr": 1074485312,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MCCR0",
+"addr": 1074485320,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MCCR1",
+"addr": 1074485328,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MFCR",
+"addr": 1074485336,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MFSR",
+"addr": 1074485340,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "MRDR",
+"addr": 1074485360,
+"reset": 16384
+},
+{
+"inst": "LPI2C5",
+"reg": "MRDROR",
+"addr": 1074485368,
+"reset": 16384
+},
+{
+"inst": "LPI2C5",
+"reg": "SCR",
+"addr": 1074485520,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "SSR",
+"addr": 1074485524,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "SIER",
+"addr": 1074485528,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "SDER",
+"addr": 1074485532,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "SCFGR0",
+"addr": 1074485536,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "SCFGR1",
+"addr": 1074485540,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "SCFGR2",
+"addr": 1074485544,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "SAMR",
+"addr": 1074485568,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "SASR",
+"addr": 1074485584,
+"reset": 16384
+},
+{
+"inst": "LPI2C5",
+"reg": "STAR",
+"addr": 1074485588,
+"reset": 0
+},
+{
+"inst": "LPI2C5",
+"reg": "SRDR",
+"addr": 1074485616,
+"reset": 16384
+},
+{
+"inst": "LPI2C5",
+"reg": "SRDROR",
+"addr": 1074485624,
+"reset": 16384
+},
+{
+"inst": "LPI2C6",
+"reg": "MCR",
+"addr": 1074489360,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MSR",
+"addr": 1074489364,
+"reset": 1
+},
+{
+"inst": "LPI2C6",
+"reg": "MIER",
+"addr": 1074489368,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MDER",
+"addr": 1074489372,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MCFGR0",
+"addr": 1074489376,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MCFGR1",
+"addr": 1074489380,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MCFGR2",
+"addr": 1074489384,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MCFGR3",
+"addr": 1074489388,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MDMR",
+"addr": 1074489408,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MCCR0",
+"addr": 1074489416,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MCCR1",
+"addr": 1074489424,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MFCR",
+"addr": 1074489432,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MFSR",
+"addr": 1074489436,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "MRDR",
+"addr": 1074489456,
+"reset": 16384
+},
+{
+"inst": "LPI2C6",
+"reg": "MRDROR",
+"addr": 1074489464,
+"reset": 16384
+},
+{
+"inst": "LPI2C6",
+"reg": "SCR",
+"addr": 1074489616,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "SSR",
+"addr": 1074489620,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "SIER",
+"addr": 1074489624,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "SDER",
+"addr": 1074489628,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "SCFGR0",
+"addr": 1074489632,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "SCFGR1",
+"addr": 1074489636,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "SCFGR2",
+"addr": 1074489640,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "SAMR",
+"addr": 1074489664,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "SASR",
+"addr": 1074489680,
+"reset": 16384
+},
+{
+"inst": "LPI2C6",
+"reg": "STAR",
+"addr": 1074489684,
+"reset": 0
+},
+{
+"inst": "LPI2C6",
+"reg": "SRDR",
+"addr": 1074489712,
+"reset": 16384
+},
+{
+"inst": "LPI2C6",
+"reg": "SRDROR",
+"addr": 1074489720,
+"reset": 16384
+},
+{
+"inst": "LPI2C7",
+"reg": "MCR",
+"addr": 1074493456,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MSR",
+"addr": 1074493460,
+"reset": 1
+},
+{
+"inst": "LPI2C7",
+"reg": "MIER",
+"addr": 1074493464,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MDER",
+"addr": 1074493468,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MCFGR0",
+"addr": 1074493472,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MCFGR1",
+"addr": 1074493476,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MCFGR2",
+"addr": 1074493480,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MCFGR3",
+"addr": 1074493484,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MDMR",
+"addr": 1074493504,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MCCR0",
+"addr": 1074493512,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MCCR1",
+"addr": 1074493520,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MFCR",
+"addr": 1074493528,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MFSR",
+"addr": 1074493532,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "MRDR",
+"addr": 1074493552,
+"reset": 16384
+},
+{
+"inst": "LPI2C7",
+"reg": "MRDROR",
+"addr": 1074493560,
+"reset": 16384
+},
+{
+"inst": "LPI2C7",
+"reg": "SCR",
+"addr": 1074493712,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "SSR",
+"addr": 1074493716,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "SIER",
+"addr": 1074493720,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "SDER",
+"addr": 1074493724,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "SCFGR0",
+"addr": 1074493728,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "SCFGR1",
+"addr": 1074493732,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "SCFGR2",
+"addr": 1074493736,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "SAMR",
+"addr": 1074493760,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "SASR",
+"addr": 1074493776,
+"reset": 16384
+},
+{
+"inst": "LPI2C7",
+"reg": "STAR",
+"addr": 1074493780,
+"reset": 0
+},
+{
+"inst": "LPI2C7",
+"reg": "SRDR",
+"addr": 1074493808,
+"reset": 16384
+},
+{
+"inst": "LPI2C7",
+"reg": "SRDROR",
+"addr": 1074493816,
+"reset": 16384
+},
+{
+"inst": "LPI2C8",
+"reg": "MCR",
+"addr": 1074497552,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MSR",
+"addr": 1074497556,
+"reset": 1
+},
+{
+"inst": "LPI2C8",
+"reg": "MIER",
+"addr": 1074497560,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MDER",
+"addr": 1074497564,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MCFGR0",
+"addr": 1074497568,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MCFGR1",
+"addr": 1074497572,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MCFGR2",
+"addr": 1074497576,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MCFGR3",
+"addr": 1074497580,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MDMR",
+"addr": 1074497600,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MCCR0",
+"addr": 1074497608,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MCCR1",
+"addr": 1074497616,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MFCR",
+"addr": 1074497624,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MFSR",
+"addr": 1074497628,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "MRDR",
+"addr": 1074497648,
+"reset": 16384
+},
+{
+"inst": "LPI2C8",
+"reg": "MRDROR",
+"addr": 1074497656,
+"reset": 16384
+},
+{
+"inst": "LPI2C8",
+"reg": "SCR",
+"addr": 1074497808,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "SSR",
+"addr": 1074497812,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "SIER",
+"addr": 1074497816,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "SDER",
+"addr": 1074497820,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "SCFGR0",
+"addr": 1074497824,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "SCFGR1",
+"addr": 1074497828,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "SCFGR2",
+"addr": 1074497832,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "SAMR",
+"addr": 1074497856,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "SASR",
+"addr": 1074497872,
+"reset": 16384
+},
+{
+"inst": "LPI2C8",
+"reg": "STAR",
+"addr": 1074497876,
+"reset": 0
+},
+{
+"inst": "LPI2C8",
+"reg": "SRDR",
+"addr": 1074497904,
+"reset": 16384
+},
+{
+"inst": "LPI2C8",
+"reg": "SRDROR",
+"addr": 1074497912,
+"reset": 16384
+},
+{
+"inst": "LPI2C9",
+"reg": "MCR",
+"addr": 1074501648,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MSR",
+"addr": 1074501652,
+"reset": 1
+},
+{
+"inst": "LPI2C9",
+"reg": "MIER",
+"addr": 1074501656,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MDER",
+"addr": 1074501660,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MCFGR0",
+"addr": 1074501664,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MCFGR1",
+"addr": 1074501668,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MCFGR2",
+"addr": 1074501672,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MCFGR3",
+"addr": 1074501676,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MDMR",
+"addr": 1074501696,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MCCR0",
+"addr": 1074501704,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MCCR1",
+"addr": 1074501712,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MFCR",
+"addr": 1074501720,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MFSR",
+"addr": 1074501724,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "MRDR",
+"addr": 1074501744,
+"reset": 16384
+},
+{
+"inst": "LPI2C9",
+"reg": "MRDROR",
+"addr": 1074501752,
+"reset": 16384
+},
+{
+"inst": "LPI2C9",
+"reg": "SCR",
+"addr": 1074501904,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "SSR",
+"addr": 1074501908,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "SIER",
+"addr": 1074501912,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "SDER",
+"addr": 1074501916,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "SCFGR0",
+"addr": 1074501920,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "SCFGR1",
+"addr": 1074501924,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "SCFGR2",
+"addr": 1074501928,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "SAMR",
+"addr": 1074501952,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "SASR",
+"addr": 1074501968,
+"reset": 16384
+},
+{
+"inst": "LPI2C9",
+"reg": "STAR",
+"addr": 1074501972,
+"reset": 0
+},
+{
+"inst": "LPI2C9",
+"reg": "SRDR",
+"addr": 1074502000,
+"reset": 16384
+},
+{
+"inst": "LPI2C9",
+"reg": "SRDROR",
+"addr": 1074502008,
+"reset": 16384
+},
+{
+"inst": "LPSPI0",
+"reg": "IER",
+"addr": 1074339864,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "DER",
+"addr": 1074339868,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "CFGR0",
+"addr": 1074339872,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "CFGR1",
+"addr": 1074339876,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "DMR0",
+"addr": 1074339888,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "DMR1",
+"addr": 1074339892,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "CCR",
+"addr": 1074339904,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "CCR1",
+"addr": 1074339908,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "FCR",
+"addr": 1074339928,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "FSR",
+"addr": 1074339932,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "TCR",
+"addr": 1074339936,
+"reset": 31
+},
+{
+"inst": "LPSPI0",
+"reg": "RSR",
+"addr": 1074339952,
+"reset": 2
+},
+{
+"inst": "LPSPI0",
+"reg": "RDR",
+"addr": 1074339956,
+"reset": 0
+},
+{
+"inst": "LPSPI0",
+"reg": "RDROR",
+"addr": 1074339960,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "IER",
+"addr": 1074343960,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "DER",
+"addr": 1074343964,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "CFGR0",
+"addr": 1074343968,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "CFGR1",
+"addr": 1074343972,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "DMR0",
+"addr": 1074343984,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "DMR1",
+"addr": 1074343988,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "CCR",
+"addr": 1074344000,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "CCR1",
+"addr": 1074344004,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "FCR",
+"addr": 1074344024,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "FSR",
+"addr": 1074344028,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "TCR",
+"addr": 1074344032,
+"reset": 31
+},
+{
+"inst": "LPSPI1",
+"reg": "RSR",
+"addr": 1074344048,
+"reset": 2
+},
+{
+"inst": "LPSPI1",
+"reg": "RDR",
+"addr": 1074344052,
+"reset": 0
+},
+{
+"inst": "LPSPI1",
+"reg": "RDROR",
+"addr": 1074344056,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "IER",
+"addr": 1074348056,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "DER",
+"addr": 1074348060,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "CFGR0",
+"addr": 1074348064,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "CFGR1",
+"addr": 1074348068,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "DMR0",
+"addr": 1074348080,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "DMR1",
+"addr": 1074348084,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "CCR",
+"addr": 1074348096,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "CCR1",
+"addr": 1074348100,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "FCR",
+"addr": 1074348120,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "FSR",
+"addr": 1074348124,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "TCR",
+"addr": 1074348128,
+"reset": 31
+},
+{
+"inst": "LPSPI2",
+"reg": "RSR",
+"addr": 1074348144,
+"reset": 2
+},
+{
+"inst": "LPSPI2",
+"reg": "RDR",
+"addr": 1074348148,
+"reset": 0
+},
+{
+"inst": "LPSPI2",
+"reg": "RDROR",
+"addr": 1074348152,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "IER",
+"addr": 1074352152,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "DER",
+"addr": 1074352156,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "CFGR0",
+"addr": 1074352160,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "CFGR1",
+"addr": 1074352164,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "DMR0",
+"addr": 1074352176,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "DMR1",
+"addr": 1074352180,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "CCR",
+"addr": 1074352192,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "CCR1",
+"addr": 1074352196,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "FCR",
+"addr": 1074352216,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "FSR",
+"addr": 1074352220,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "TCR",
+"addr": 1074352224,
+"reset": 31
+},
+{
+"inst": "LPSPI3",
+"reg": "RSR",
+"addr": 1074352240,
+"reset": 2
+},
+{
+"inst": "LPSPI3",
+"reg": "RDR",
+"addr": 1074352244,
+"reset": 0
+},
+{
+"inst": "LPSPI3",
+"reg": "RDROR",
+"addr": 1074352248,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "IER",
+"addr": 1074479128,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "DER",
+"addr": 1074479132,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "CFGR0",
+"addr": 1074479136,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "CFGR1",
+"addr": 1074479140,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "DMR0",
+"addr": 1074479152,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "DMR1",
+"addr": 1074479156,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "CCR",
+"addr": 1074479168,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "CCR1",
+"addr": 1074479172,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "FCR",
+"addr": 1074479192,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "FSR",
+"addr": 1074479196,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "TCR",
+"addr": 1074479200,
+"reset": 31
+},
+{
+"inst": "LPSPI4",
+"reg": "RSR",
+"addr": 1074479216,
+"reset": 2
+},
+{
+"inst": "LPSPI4",
+"reg": "RDR",
+"addr": 1074479220,
+"reset": 0
+},
+{
+"inst": "LPSPI4",
+"reg": "RDROR",
+"addr": 1074479224,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "IER",
+"addr": 1074483224,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "DER",
+"addr": 1074483228,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "CFGR0",
+"addr": 1074483232,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "CFGR1",
+"addr": 1074483236,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "DMR0",
+"addr": 1074483248,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "DMR1",
+"addr": 1074483252,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "CCR",
+"addr": 1074483264,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "CCR1",
+"addr": 1074483268,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "FCR",
+"addr": 1074483288,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "FSR",
+"addr": 1074483292,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "TCR",
+"addr": 1074483296,
+"reset": 31
+},
+{
+"inst": "LPSPI5",
+"reg": "RSR",
+"addr": 1074483312,
+"reset": 2
+},
+{
+"inst": "LPSPI5",
+"reg": "RDR",
+"addr": 1074483316,
+"reset": 0
+},
+{
+"inst": "LPSPI5",
+"reg": "RDROR",
+"addr": 1074483320,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "IER",
+"addr": 1074487320,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "DER",
+"addr": 1074487324,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "CFGR0",
+"addr": 1074487328,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "CFGR1",
+"addr": 1074487332,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "DMR0",
+"addr": 1074487344,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "DMR1",
+"addr": 1074487348,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "CCR",
+"addr": 1074487360,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "CCR1",
+"addr": 1074487364,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "FCR",
+"addr": 1074487384,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "FSR",
+"addr": 1074487388,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "TCR",
+"addr": 1074487392,
+"reset": 31
+},
+{
+"inst": "LPSPI6",
+"reg": "RSR",
+"addr": 1074487408,
+"reset": 2
+},
+{
+"inst": "LPSPI6",
+"reg": "RDR",
+"addr": 1074487412,
+"reset": 0
+},
+{
+"inst": "LPSPI6",
+"reg": "RDROR",
+"addr": 1074487416,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "IER",
+"addr": 1074491416,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "DER",
+"addr": 1074491420,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "CFGR0",
+"addr": 1074491424,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "CFGR1",
+"addr": 1074491428,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "DMR0",
+"addr": 1074491440,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "DMR1",
+"addr": 1074491444,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "CCR",
+"addr": 1074491456,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "CCR1",
+"addr": 1074491460,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "FCR",
+"addr": 1074491480,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "FSR",
+"addr": 1074491484,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "TCR",
+"addr": 1074491488,
+"reset": 31
+},
+{
+"inst": "LPSPI7",
+"reg": "RSR",
+"addr": 1074491504,
+"reset": 2
+},
+{
+"inst": "LPSPI7",
+"reg": "RDR",
+"addr": 1074491508,
+"reset": 0
+},
+{
+"inst": "LPSPI7",
+"reg": "RDROR",
+"addr": 1074491512,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "IER",
+"addr": 1074495512,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "DER",
+"addr": 1074495516,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "CFGR0",
+"addr": 1074495520,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "CFGR1",
+"addr": 1074495524,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "DMR0",
+"addr": 1074495536,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "DMR1",
+"addr": 1074495540,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "CCR",
+"addr": 1074495552,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "CCR1",
+"addr": 1074495556,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "FCR",
+"addr": 1074495576,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "FSR",
+"addr": 1074495580,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "TCR",
+"addr": 1074495584,
+"reset": 31
+},
+{
+"inst": "LPSPI8",
+"reg": "RSR",
+"addr": 1074495600,
+"reset": 2
+},
+{
+"inst": "LPSPI8",
+"reg": "RDR",
+"addr": 1074495604,
+"reset": 0
+},
+{
+"inst": "LPSPI8",
+"reg": "RDROR",
+"addr": 1074495608,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "IER",
+"addr": 1074499608,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "DER",
+"addr": 1074499612,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "CFGR0",
+"addr": 1074499616,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "CFGR1",
+"addr": 1074499620,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "DMR0",
+"addr": 1074499632,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "DMR1",
+"addr": 1074499636,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "CCR",
+"addr": 1074499648,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "CCR1",
+"addr": 1074499652,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "FCR",
+"addr": 1074499672,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "FSR",
+"addr": 1074499676,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "TCR",
+"addr": 1074499680,
+"reset": 31
+},
+{
+"inst": "LPSPI9",
+"reg": "RSR",
+"addr": 1074499696,
+"reset": 2
+},
+{
+"inst": "LPSPI9",
+"reg": "RDR",
+"addr": 1074499700,
+"reset": 0
+},
+{
+"inst": "LPSPI9",
+"reg": "RDROR",
+"addr": 1074499704,
+"reset": 0
+},
+{
+"inst": "LPTMR0",
+"reg": "CSR",
+"addr": 1074044928,
+"reset": 0
+},
+{
+"inst": "LPTMR0",
+"reg": "PSR",
+"addr": 1074044932,
+"reset": 0
+},
+{
+"inst": "LPTMR0",
+"reg": "CMR",
+"addr": 1074044936,
+"reset": 0
+},
+{
+"inst": "LPTMR0",
+"reg": "CNR",
+"addr": 1074044940,
+"reset": 0
+},
+{
+"inst": "LPTMR1",
+"reg": "CSR",
+"addr": 1074049024,
+"reset": 0
+},
+{
+"inst": "LPTMR1",
+"reg": "PSR",
+"addr": 1074049028,
+"reset": 0
+},
+{
+"inst": "LPTMR1",
+"reg": "CMR",
+"addr": 1074049032,
+"reset": 0
+},
+{
+"inst": "LPTMR1",
+"reg": "CNR",
+"addr": 1074049036,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "GLOBAL",
+"addr": 1074339848,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "PINCFG",
+"addr": 1074339852,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "BAUD",
+"addr": 1074339856,
+"reset": 251658244
+},
+{
+"inst": "LPUART0",
+"reg": "CTRL",
+"addr": 1074339864,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "DATA",
+"addr": 1074339868,
+"reset": 4096
+},
+{
+"inst": "LPUART0",
+"reg": "MATCH",
+"addr": 1074339872,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "MODIR",
+"addr": 1074339876,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "FIFO",
+"addr": 1074339880,
+"reset": 12582946
+},
+{
+"inst": "LPUART0",
+"reg": "WATER",
+"addr": 1074339884,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "DATARO",
+"addr": 1074339888,
+"reset": 4096
+},
+{
+"inst": "LPUART0",
+"reg": "MCR",
+"addr": 1074339904,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "MSR",
+"addr": 1074339908,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "REIR",
+"addr": 1074339912,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "TEIR",
+"addr": 1074339916,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "HDCR",
+"addr": 1074339920,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "TOCR",
+"addr": 1074339928,
+"reset": 0
+},
+{
+"inst": "LPUART0",
+"reg": "TOSR",
+"addr": 1074339932,
+"reset": 15
+},
+{
+"inst": "LPUART1",
+"reg": "GLOBAL",
+"addr": 1074343944,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "PINCFG",
+"addr": 1074343948,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "BAUD",
+"addr": 1074343952,
+"reset": 251658244
+},
+{
+"inst": "LPUART1",
+"reg": "CTRL",
+"addr": 1074343960,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "DATA",
+"addr": 1074343964,
+"reset": 4096
+},
+{
+"inst": "LPUART1",
+"reg": "MATCH",
+"addr": 1074343968,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "MODIR",
+"addr": 1074343972,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "FIFO",
+"addr": 1074343976,
+"reset": 12582946
+},
+{
+"inst": "LPUART1",
+"reg": "WATER",
+"addr": 1074343980,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "DATARO",
+"addr": 1074343984,
+"reset": 4096
+},
+{
+"inst": "LPUART1",
+"reg": "MCR",
+"addr": 1074344000,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "MSR",
+"addr": 1074344004,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "REIR",
+"addr": 1074344008,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "TEIR",
+"addr": 1074344012,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "HDCR",
+"addr": 1074344016,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "TOCR",
+"addr": 1074344024,
+"reset": 0
+},
+{
+"inst": "LPUART1",
+"reg": "TOSR",
+"addr": 1074344028,
+"reset": 15
+},
+{
+"inst": "LPUART2",
+"reg": "GLOBAL",
+"addr": 1074348040,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "PINCFG",
+"addr": 1074348044,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "BAUD",
+"addr": 1074348048,
+"reset": 251658244
+},
+{
+"inst": "LPUART2",
+"reg": "CTRL",
+"addr": 1074348056,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "DATA",
+"addr": 1074348060,
+"reset": 4096
+},
+{
+"inst": "LPUART2",
+"reg": "MATCH",
+"addr": 1074348064,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "MODIR",
+"addr": 1074348068,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "FIFO",
+"addr": 1074348072,
+"reset": 12582946
+},
+{
+"inst": "LPUART2",
+"reg": "WATER",
+"addr": 1074348076,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "DATARO",
+"addr": 1074348080,
+"reset": 4096
+},
+{
+"inst": "LPUART2",
+"reg": "MCR",
+"addr": 1074348096,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "MSR",
+"addr": 1074348100,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "REIR",
+"addr": 1074348104,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "TEIR",
+"addr": 1074348108,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "HDCR",
+"addr": 1074348112,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "TOCR",
+"addr": 1074348120,
+"reset": 0
+},
+{
+"inst": "LPUART2",
+"reg": "TOSR",
+"addr": 1074348124,
+"reset": 15
+},
+{
+"inst": "LPUART3",
+"reg": "GLOBAL",
+"addr": 1074352136,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "PINCFG",
+"addr": 1074352140,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "BAUD",
+"addr": 1074352144,
+"reset": 251658244
+},
+{
+"inst": "LPUART3",
+"reg": "CTRL",
+"addr": 1074352152,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "DATA",
+"addr": 1074352156,
+"reset": 4096
+},
+{
+"inst": "LPUART3",
+"reg": "MATCH",
+"addr": 1074352160,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "MODIR",
+"addr": 1074352164,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "FIFO",
+"addr": 1074352168,
+"reset": 12582946
+},
+{
+"inst": "LPUART3",
+"reg": "WATER",
+"addr": 1074352172,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "DATARO",
+"addr": 1074352176,
+"reset": 4096
+},
+{
+"inst": "LPUART3",
+"reg": "MCR",
+"addr": 1074352192,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "MSR",
+"addr": 1074352196,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "REIR",
+"addr": 1074352200,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "TEIR",
+"addr": 1074352204,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "HDCR",
+"addr": 1074352208,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "TOCR",
+"addr": 1074352216,
+"reset": 0
+},
+{
+"inst": "LPUART3",
+"reg": "TOSR",
+"addr": 1074352220,
+"reset": 15
+},
+{
+"inst": "LPUART4",
+"reg": "GLOBAL",
+"addr": 1074479112,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "PINCFG",
+"addr": 1074479116,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "BAUD",
+"addr": 1074479120,
+"reset": 251658244
+},
+{
+"inst": "LPUART4",
+"reg": "CTRL",
+"addr": 1074479128,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "DATA",
+"addr": 1074479132,
+"reset": 4096
+},
+{
+"inst": "LPUART4",
+"reg": "MATCH",
+"addr": 1074479136,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "MODIR",
+"addr": 1074479140,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "FIFO",
+"addr": 1074479144,
+"reset": 12582946
+},
+{
+"inst": "LPUART4",
+"reg": "WATER",
+"addr": 1074479148,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "DATARO",
+"addr": 1074479152,
+"reset": 4096
+},
+{
+"inst": "LPUART4",
+"reg": "MCR",
+"addr": 1074479168,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "MSR",
+"addr": 1074479172,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "REIR",
+"addr": 1074479176,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "TEIR",
+"addr": 1074479180,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "HDCR",
+"addr": 1074479184,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "TOCR",
+"addr": 1074479192,
+"reset": 0
+},
+{
+"inst": "LPUART4",
+"reg": "TOSR",
+"addr": 1074479196,
+"reset": 15
+},
+{
+"inst": "LPUART5",
+"reg": "GLOBAL",
+"addr": 1074483208,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "PINCFG",
+"addr": 1074483212,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "BAUD",
+"addr": 1074483216,
+"reset": 251658244
+},
+{
+"inst": "LPUART5",
+"reg": "CTRL",
+"addr": 1074483224,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "DATA",
+"addr": 1074483228,
+"reset": 4096
+},
+{
+"inst": "LPUART5",
+"reg": "MATCH",
+"addr": 1074483232,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "MODIR",
+"addr": 1074483236,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "FIFO",
+"addr": 1074483240,
+"reset": 12582946
+},
+{
+"inst": "LPUART5",
+"reg": "WATER",
+"addr": 1074483244,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "DATARO",
+"addr": 1074483248,
+"reset": 4096
+},
+{
+"inst": "LPUART5",
+"reg": "MCR",
+"addr": 1074483264,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "MSR",
+"addr": 1074483268,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "REIR",
+"addr": 1074483272,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "TEIR",
+"addr": 1074483276,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "HDCR",
+"addr": 1074483280,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "TOCR",
+"addr": 1074483288,
+"reset": 0
+},
+{
+"inst": "LPUART5",
+"reg": "TOSR",
+"addr": 1074483292,
+"reset": 15
+},
+{
+"inst": "LPUART6",
+"reg": "GLOBAL",
+"addr": 1074487304,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "PINCFG",
+"addr": 1074487308,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "BAUD",
+"addr": 1074487312,
+"reset": 251658244
+},
+{
+"inst": "LPUART6",
+"reg": "CTRL",
+"addr": 1074487320,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "DATA",
+"addr": 1074487324,
+"reset": 4096
+},
+{
+"inst": "LPUART6",
+"reg": "MATCH",
+"addr": 1074487328,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "MODIR",
+"addr": 1074487332,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "FIFO",
+"addr": 1074487336,
+"reset": 12582946
+},
+{
+"inst": "LPUART6",
+"reg": "WATER",
+"addr": 1074487340,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "DATARO",
+"addr": 1074487344,
+"reset": 4096
+},
+{
+"inst": "LPUART6",
+"reg": "MCR",
+"addr": 1074487360,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "MSR",
+"addr": 1074487364,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "REIR",
+"addr": 1074487368,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "TEIR",
+"addr": 1074487372,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "HDCR",
+"addr": 1074487376,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "TOCR",
+"addr": 1074487384,
+"reset": 0
+},
+{
+"inst": "LPUART6",
+"reg": "TOSR",
+"addr": 1074487388,
+"reset": 15
+},
+{
+"inst": "LPUART7",
+"reg": "GLOBAL",
+"addr": 1074491400,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "PINCFG",
+"addr": 1074491404,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "BAUD",
+"addr": 1074491408,
+"reset": 251658244
+},
+{
+"inst": "LPUART7",
+"reg": "CTRL",
+"addr": 1074491416,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "DATA",
+"addr": 1074491420,
+"reset": 4096
+},
+{
+"inst": "LPUART7",
+"reg": "MATCH",
+"addr": 1074491424,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "MODIR",
+"addr": 1074491428,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "FIFO",
+"addr": 1074491432,
+"reset": 12582946
+},
+{
+"inst": "LPUART7",
+"reg": "WATER",
+"addr": 1074491436,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "DATARO",
+"addr": 1074491440,
+"reset": 4096
+},
+{
+"inst": "LPUART7",
+"reg": "MCR",
+"addr": 1074491456,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "MSR",
+"addr": 1074491460,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "REIR",
+"addr": 1074491464,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "TEIR",
+"addr": 1074491468,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "HDCR",
+"addr": 1074491472,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "TOCR",
+"addr": 1074491480,
+"reset": 0
+},
+{
+"inst": "LPUART7",
+"reg": "TOSR",
+"addr": 1074491484,
+"reset": 15
+},
+{
+"inst": "LPUART8",
+"reg": "GLOBAL",
+"addr": 1074495496,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "PINCFG",
+"addr": 1074495500,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "BAUD",
+"addr": 1074495504,
+"reset": 251658244
+},
+{
+"inst": "LPUART8",
+"reg": "CTRL",
+"addr": 1074495512,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "DATA",
+"addr": 1074495516,
+"reset": 4096
+},
+{
+"inst": "LPUART8",
+"reg": "MATCH",
+"addr": 1074495520,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "MODIR",
+"addr": 1074495524,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "FIFO",
+"addr": 1074495528,
+"reset": 12582946
+},
+{
+"inst": "LPUART8",
+"reg": "WATER",
+"addr": 1074495532,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "DATARO",
+"addr": 1074495536,
+"reset": 4096
+},
+{
+"inst": "LPUART8",
+"reg": "MCR",
+"addr": 1074495552,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "MSR",
+"addr": 1074495556,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "REIR",
+"addr": 1074495560,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "TEIR",
+"addr": 1074495564,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "HDCR",
+"addr": 1074495568,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "TOCR",
+"addr": 1074495576,
+"reset": 0
+},
+{
+"inst": "LPUART8",
+"reg": "TOSR",
+"addr": 1074495580,
+"reset": 15
+},
+{
+"inst": "LPUART9",
+"reg": "GLOBAL",
+"addr": 1074499592,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "PINCFG",
+"addr": 1074499596,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "BAUD",
+"addr": 1074499600,
+"reset": 251658244
+},
+{
+"inst": "LPUART9",
+"reg": "CTRL",
+"addr": 1074499608,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "DATA",
+"addr": 1074499612,
+"reset": 4096
+},
+{
+"inst": "LPUART9",
+"reg": "MATCH",
+"addr": 1074499616,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "MODIR",
+"addr": 1074499620,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "FIFO",
+"addr": 1074499624,
+"reset": 12582946
+},
+{
+"inst": "LPUART9",
+"reg": "WATER",
+"addr": 1074499628,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "DATARO",
+"addr": 1074499632,
+"reset": 4096
+},
+{
+"inst": "LPUART9",
+"reg": "MCR",
+"addr": 1074499648,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "MSR",
+"addr": 1074499652,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "REIR",
+"addr": 1074499656,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "TEIR",
+"addr": 1074499660,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "HDCR",
+"addr": 1074499664,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "TOCR",
+"addr": 1074499672,
+"reset": 0
+},
+{
+"inst": "LPUART9",
+"reg": "TOSR",
+"addr": 1074499676,
+"reset": 15
+},
+{
+"inst": "LP_FLEXCOMM0",
+"reg": "ISTAT",
+"addr": 1074343924,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM0",
+"reg": "PSELID",
+"addr": 1074343928,
+"reset": 1060976
+},
+{
+"inst": "LP_FLEXCOMM1",
+"reg": "ISTAT",
+"addr": 1074348020,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM1",
+"reg": "PSELID",
+"addr": 1074348024,
+"reset": 1060976
+},
+{
+"inst": "LP_FLEXCOMM2",
+"reg": "ISTAT",
+"addr": 1074352116,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM2",
+"reg": "PSELID",
+"addr": 1074352120,
+"reset": 1060976
+},
+{
+"inst": "LP_FLEXCOMM3",
+"reg": "ISTAT",
+"addr": 1074356212,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM3",
+"reg": "PSELID",
+"addr": 1074356216,
+"reset": 1060976
+},
+{
+"inst": "LP_FLEXCOMM4",
+"reg": "ISTAT",
+"addr": 1074483188,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM4",
+"reg": "PSELID",
+"addr": 1074483192,
+"reset": 1060976
+},
+{
+"inst": "LP_FLEXCOMM5",
+"reg": "ISTAT",
+"addr": 1074487284,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM5",
+"reg": "PSELID",
+"addr": 1074487288,
+"reset": 1060976
+},
+{
+"inst": "LP_FLEXCOMM6",
+"reg": "ISTAT",
+"addr": 1074491380,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM6",
+"reg": "PSELID",
+"addr": 1074491384,
+"reset": 1060976
+},
+{
+"inst": "LP_FLEXCOMM7",
+"reg": "ISTAT",
+"addr": 1074495476,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM7",
+"reg": "PSELID",
+"addr": 1074495480,
+"reset": 1060976
+},
+{
+"inst": "LP_FLEXCOMM8",
+"reg": "ISTAT",
+"addr": 1074499572,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM8",
+"reg": "PSELID",
+"addr": 1074499576,
+"reset": 1060976
+},
+{
+"inst": "LP_FLEXCOMM9",
+"reg": "ISTAT",
+"addr": 1074503668,
+"reset": 0
+},
+{
+"inst": "LP_FLEXCOMM9",
+"reg": "PSELID",
+"addr": 1074503672,
+"reset": 1060976
+},
+{
+"inst": "MAILBOX",
+"reg": "MUTEX",
+"addr": 1074471160,
+"reset": 1
+},
+{
+"inst": "OPAMP0",
+"reg": "OPAMP_CTR",
+"addr": 1074855944,
+"reset": 16777216
+},
+{
+"inst": "OPAMP1",
+"reg": "OPAMP_CTR",
+"addr": 1074868232,
+"reset": 16777216
+},
+{
+"inst": "OPAMP2",
+"reg": "OPAMP_CTR",
+"addr": 1074876424,
+"reset": 16777216
+},
+{
+"inst": "OSTIMER0",
+"reg": "EVTIMERL",
+"addr": 1074040832,
+"reset": 0
+},
+{
+"inst": "OSTIMER0",
+"reg": "EVTIMERH",
+"addr": 1074040836,
+"reset": 0
+},
+{
+"inst": "OSTIMER0",
+"reg": "CAPTURE_L",
+"addr": 1074040840,
+"reset": 0
+},
+{
+"inst": "OSTIMER0",
+"reg": "CAPTURE_H",
+"addr": 1074040844,
+"reset": 0
+},
+{
+"inst": "OSTIMER0",
+"reg": "MATCH_L",
+"addr": 1074040848,
+"reset": 4294967295
+},
+{
+"inst": "OSTIMER0",
+"reg": "MATCH_H",
+"addr": 1074040852,
+"reset": 4294967295
+},
+{
+"inst": "OSTIMER0",
+"reg": "OSEVENT_CTRL",
+"addr": 1074040860,
+"reset": 0
+},
+{
+"inst": "PDM",
+"reg": "CTRL_1",
+"addr": 1074839552,
+"reset": 0
+},
+{
+"inst": "PDM",
+"reg": "CTRL_2",
+"addr": 1074839556,
+"reset": 0
+},
+{
+"inst": "PDM",
+"reg": "STAT",
+"addr": 1074839560,
+"reset": 0
+},
+{
+"inst": "PDM",
+"reg": "FIFO_CTRL",
+"addr": 1074839568,
+"reset": 15
+},
+{
+"inst": "PDM",
+"reg": "FIFO_STAT",
+"addr": 1074839572,
+"reset": 0
+},
+{
+"inst": "PDM",
+"reg": "DC_CTRL",
+"addr": 1074839652,
+"reset": 255
+},
+{
+"inst": "PDM",
+"reg": "DC_OUT_CTRL",
+"addr": 1074839656,
+"reset": 0
+},
+{
+"inst": "PDM",
+"reg": "RANGE_CTRL",
+"addr": 1074839668,
+"reset": 0
+},
+{
+"inst": "PDM",
+"reg": "RANGE_STAT",
+"addr": 1074839676,
+"reset": 0
+},
+{
+"inst": "PDM",
+"reg": "FSYNC_CTRL",
+"addr": 1074839680,
+"reset": 0
+},
+{
+"inst": "PDM",
+"reg": "VERID",
+"addr": 1074839684,
+"reset": 34537472
+},
+{
+"inst": "PDM",
+"reg": "PARAM",
+"addr": 1074839688,
+"reset": 1858
+},
+{
+"inst": "PLU0",
+"reg": "OUTPUTS",
+"addr": 1073957120,
+"reset": 0
+},
+{
+"inst": "PLU0",
+"reg": "WAKEINT_CTRL",
+"addr": 1073957124,
+"reset": 0
+},
+{
+"inst": "PORT0",
+"reg": "GPCLR",
+"addr": 1074880528,
+"reset": 0
+},
+{
+"inst": "PORT0",
+"reg": "GPCHR",
+"addr": 1074880532,
+"reset": 0
+},
+{
+"inst": "PORT0",
+"reg": "CONFIG",
+"addr": 1074880544,
+"reset": 0
+},
+{
+"inst": "PORT0",
+"reg": "EDFR",
+"addr": 1074880576,
+"reset": 0
+},
+{
+"inst": "PORT0",
+"reg": "EDIER",
+"addr": 1074880580,
+"reset": 0
+},
+{
+"inst": "PORT0",
+"reg": "EDCR",
+"addr": 1074880584,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "GPCLR",
+"addr": 1074884624,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "GPCHR",
+"addr": 1074884628,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "CONFIG",
+"addr": 1074884640,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "EDFR",
+"addr": 1074884672,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "EDIER",
+"addr": 1074884676,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "EDCR",
+"addr": 1074884680,
+"reset": 0
+},
+{
+"inst": "PORT2",
+"reg": "GPCLR",
+"addr": 1074888720,
+"reset": 0
+},
+{
+"inst": "PORT2",
+"reg": "GPCHR",
+"addr": 1074888724,
+"reset": 0
+},
+{
+"inst": "PORT2",
+"reg": "CONFIG",
+"addr": 1074888736,
+"reset": 0
+},
+{
+"inst": "PORT2",
+"reg": "EDFR",
+"addr": 1074888768,
+"reset": 0
+},
+{
+"inst": "PORT2",
+"reg": "EDIER",
+"addr": 1074888772,
+"reset": 0
+},
+{
+"inst": "PORT2",
+"reg": "EDCR",
+"addr": 1074888776,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "GPCLR",
+"addr": 1074892816,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "GPCHR",
+"addr": 1074892820,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "CONFIG",
+"addr": 1074892832,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "EDFR",
+"addr": 1074892864,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "EDIER",
+"addr": 1074892868,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "EDCR",
+"addr": 1074892872,
+"reset": 0
+},
+{
+"inst": "PORT4",
+"reg": "GPCLR",
+"addr": 1074896912,
+"reset": 0
+},
+{
+"inst": "PORT4",
+"reg": "GPCHR",
+"addr": 1074896916,
+"reset": 0
+},
+{
+"inst": "PORT4",
+"reg": "CONFIG",
+"addr": 1074896928,
+"reset": 0
+},
+{
+"inst": "PORT4",
+"reg": "EDFR",
+"addr": 1074896960,
+"reset": 0
+},
+{
+"inst": "PORT4",
+"reg": "EDIER",
+"addr": 1074896964,
+"reset": 0
+},
+{
+"inst": "PORT4",
+"reg": "EDCR",
+"addr": 1074896968,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "GPCLR",
+"addr": 1074012176,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "GPCHR",
+"addr": 1074012180,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "CONFIG",
+"addr": 1074012192,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "EDFR",
+"addr": 1074012224,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "EDIER",
+"addr": 1074012228,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "EDCR",
+"addr": 1074012232,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "OUTBASE",
+"addr": 1074524160,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "OUTFORMAT",
+"addr": 1074524164,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "TMPBASE",
+"addr": 1074524168,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "TMPFORMAT",
+"addr": 1074524172,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "INABASE",
+"addr": 1074524176,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "INAFORMAT",
+"addr": 1074524180,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "INBBASE",
+"addr": 1074524184,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "INBFORMAT",
+"addr": 1074524188,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "CONTROL",
+"addr": 1074524416,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "LENGTH",
+"addr": 1074524420,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "CPPRE",
+"addr": 1074524424,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "MISC",
+"addr": 1074524428,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "CURSORY",
+"addr": 1074524432,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "CORDIC_X",
+"addr": 1074524544,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "CORDIC_Y",
+"addr": 1074524548,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "CORDIC_Z",
+"addr": 1074524552,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "ERRSTAT",
+"addr": 1074524556,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "INTREN",
+"addr": 1074524560,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "EVENTEN",
+"addr": 1074524564,
+"reset": 0
+},
+{
+"inst": "POWERQUAD",
+"reg": "INTRSTAT",
+"addr": 1074524568,
+"reset": 0
+},
+{
+"inst": "RTC0",
+"reg": "SUBSECOND_CTRL",
+"addr": 1074055168,
+"reset": 0
+},
+{
+"inst": "RTC0",
+"reg": "SUBSECOND_CNT",
+"addr": 1074055172,
+"reset": 0
+},
+{
+"inst": "RTC0",
+"reg": "WAKE_TIMER_CTRL",
+"addr": 1074056192,
+"reset": 0
+},
+{
+"inst": "RTC0",
+"reg": "WAKE_TIMER_CNT",
+"addr": 1074056204,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "TCSR",
+"addr": 1074814984,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "TCR1",
+"addr": 1074814988,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "TCR2",
+"addr": 1074814992,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "TCR3",
+"addr": 1074814996,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "TCR4",
+"addr": 1074815000,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "TCR5",
+"addr": 1074815004,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "TMR",
+"addr": 1074815072,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "RCSR",
+"addr": 1074815112,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "RCR1",
+"addr": 1074815116,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "RCR2",
+"addr": 1074815120,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "RCR3",
+"addr": 1074815124,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "RCR4",
+"addr": 1074815128,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "RCR5",
+"addr": 1074815132,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "RMR",
+"addr": 1074815200,
+"reset": 0
+},
+{
+"inst": "SAI0",
+"reg": "MCR",
+"addr": 1074815232,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "TCSR",
+"addr": 1074819080,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "TCR1",
+"addr": 1074819084,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "TCR2",
+"addr": 1074819088,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "TCR3",
+"addr": 1074819092,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "TCR4",
+"addr": 1074819096,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "TCR5",
+"addr": 1074819100,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "TMR",
+"addr": 1074819168,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "RCSR",
+"addr": 1074819208,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "RCR1",
+"addr": 1074819212,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "RCR2",
+"addr": 1074819216,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "RCR3",
+"addr": 1074819220,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "RCR4",
+"addr": 1074819224,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "RCR5",
+"addr": 1074819228,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "RMR",
+"addr": 1074819296,
+"reset": 0
+},
+{
+"inst": "SAI1",
+"reg": "MCR",
+"addr": 1074819328,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "TRIM_LOCK",
+"addr": 1074020360,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "CSR",
+"addr": 1074020368,
+"reset": 50331648
+},
+{
+"inst": "SCG0",
+"reg": "RCCR",
+"addr": 1074020372,
+"reset": 50331648
+},
+{
+"inst": "SCG0",
+"reg": "SOSCCSR",
+"addr": 1074020608,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "SOSCCFG",
+"addr": 1074020616,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "SIRCCSR",
+"addr": 1074020864,
+"reset": 16777248
+},
+{
+"inst": "SCG0",
+"reg": "SIRCTCFG",
+"addr": 1074020876,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "FIRCCFG",
+"addr": 1074021128,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "FIRCTCFG",
+"addr": 1074021132,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "ROSCCSR",
+"addr": 1074021376,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "APLLCSR",
+"addr": 1074021632,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "APLLCTRL",
+"addr": 1074021636,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "APLLSTAT",
+"addr": 1074021640,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "APLLNDIV",
+"addr": 1074021644,
+"reset": 1
+},
+{
+"inst": "SCG0",
+"reg": "APLLMDIV",
+"addr": 1074021648,
+"reset": 1
+},
+{
+"inst": "SCG0",
+"reg": "APLLPDIV",
+"addr": 1074021652,
+"reset": 1
+},
+{
+"inst": "SCG0",
+"reg": "APLLLOCK_CNFG",
+"addr": 1074021656,
+"reset": 20300
+},
+{
+"inst": "SCG0",
+"reg": "APLLSSCGSTAT",
+"addr": 1074021664,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "APLLSSCG0",
+"addr": 1074021668,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "APLLSSCG1",
+"addr": 1074021672,
+"reset": 2147483648
+},
+{
+"inst": "SCG0",
+"reg": "APLL_OVRD",
+"addr": 1074021876,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "SPLLCSR",
+"addr": 1074021888,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "SPLLCTRL",
+"addr": 1074021892,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "SPLLSTAT",
+"addr": 1074021896,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "SPLLNDIV",
+"addr": 1074021900,
+"reset": 1
+},
+{
+"inst": "SCG0",
+"reg": "SPLLMDIV",
+"addr": 1074021904,
+"reset": 1
+},
+{
+"inst": "SCG0",
+"reg": "SPLLPDIV",
+"addr": 1074021908,
+"reset": 1
+},
+{
+"inst": "SCG0",
+"reg": "SPLLLOCK_CNFG",
+"addr": 1074021912,
+"reset": 20300
+},
+{
+"inst": "SCG0",
+"reg": "SPLLSSCGSTAT",
+"addr": 1074021920,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "SPLLSSCG0",
+"addr": 1074021924,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "SPLLSSCG1",
+"addr": 1074021928,
+"reset": 2147483648
+},
+{
+"inst": "SCG0",
+"reg": "SPLL_OVRD",
+"addr": 1074022132,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "UPLLCSR",
+"addr": 1074022144,
+"reset": 0
+},
+{
+"inst": "SCG0",
+"reg": "LDOCSR",
+"addr": 1074022400,
+"reset": 8
+},
+{
+"inst": "SCT0",
+"reg": "LIMIT",
+"addr": 1074335752,
+"reset": 0
+},
+{
+"inst": "SCT0",
+"reg": "HALT",
+"addr": 1074335756,
+"reset": 0
+},
+{
+"inst": "SCT0",
+"reg": "STOP",
+"addr": 1074335760,
+"reset": 0
+},
+{
+"inst": "SCT0",
+"reg": "START",
+"addr": 1074335764,
+"reset": 0
+},
+{
+"inst": "SCT0",
+"reg": "DITHER",
+"addr": 1074335768,
+"reset": 0
+},
+{
+"inst": "SCT0",
+"reg": "COUNT",
+"addr": 1074335808,
+"reset": 0
+},
+{
+"inst": "SCT0",
+"reg": "REGMODE",
+"addr": 1074335820,
+"reset": 0
+},
+{
+"inst": "SCT0",
+"reg": "OUTPUTDIRCTRL",
+"addr": 1074335828,
+"reset": 0
+},
+{
+"inst": "SCT0",
+"reg": "RES",
+"addr": 1074335832,
+"reset": 0
+},
+{
+"inst": "SINC0",
+"reg": "PARAMETER",
+"addr": 1074823172,
+"reset": 7341320
+},
+{
+"inst": "SINC0",
+"reg": "MCR",
+"addr": 1074823176,
+"reset": 0
+},
+{
+"inst": "SINC0",
+"reg": "NIE",
+"addr": 1074823180,
+"reset": 0
+},
+{
+"inst": "SINC0",
+"reg": "EIE",
+"addr": 1074823184,
+"reset": 0
+},
+{
+"inst": "SINC0",
+"reg": "FIFOIE",
+"addr": 1074823188,
+"reset": 0
+},
+{
+"inst": "SINC0",
+"reg": "NIS",
+"addr": 1074823192,
+"reset": 0
+},
+{
+"inst": "SINC0",
+"reg": "EIS",
+"addr": 1074823196,
+"reset": 0
+},
+{
+"inst": "SINC0",
+"reg": "FIFOIS",
+"addr": 1074823200,
+"reset": 0
+},
+{
+"inst": "SINC0",
+"reg": "SR",
+"addr": 1074823204,
+"reset": 2031616
+},
+{
+"inst": "SPC0",
+"reg": "SC",
+"addr": 1074024464,
+"reset": 0
+},
+{
+"inst": "SPC0",
+"reg": "CNTRL",
+"addr": 1074024468,
+"reset": 7
+},
+{
+"inst": "SPC0",
+"reg": "LPREQ_CFG",
+"addr": 1074024476,
+"reset": 0
+},
+{
+"inst": "SPC0",
+"reg": "SRAMCTL",
+"addr": 1074024512,
+"reset": 1
+},
+{
+"inst": "SPC0",
+"reg": "ACTIVE_CFG",
+"addr": 1074024704,
+"reset": 1058014741
+},
+{
+"inst": "SPC0",
+"reg": "ACTIVE_CFG1",
+"addr": 1074024708,
+"reset": 2
+},
+{
+"inst": "SPC0",
+"reg": "LP_CFG",
+"addr": 1074024712,
+"reset": 136452
+},
+{
+"inst": "SPC0",
+"reg": "LP_CFG1",
+"addr": 1074024716,
+"reset": 2
+},
+{
+"inst": "SPC0",
+"reg": "LPWKUP_DELAY",
+"addr": 1074024736,
+"reset": 0
+},
+{
+"inst": "SPC0",
+"reg": "ACTIVE_VDELAY",
+"addr": 1074024740,
+"reset": 200
+},
+{
+"inst": "SPC0",
+"reg": "VD_STAT",
+"addr": 1074024752,
+"reset": 0
+},
+{
+"inst": "SPC0",
+"reg": "VD_CORE_CFG",
+"addr": 1074024756,
+"reset": 1
+},
+{
+"inst": "SPC0",
+"reg": "VD_SYS_CFG",
+"addr": 1074024760,
+"reset": 1
+},
+{
+"inst": "SPC0",
+"reg": "VD_IO_CFG",
+"addr": 1074024764,
+"reset": 257
+},
+{
+"inst": "SPC0",
+"reg": "EVD_CFG",
+"addr": 1074024768,
+"reset": 0
+},
+{
+"inst": "SPC0",
+"reg": "GLITCH_DETECT_SC",
+"addr": 1074024772,
+"reset": 63
+},
+{
+"inst": "SPC0",
+"reg": "CORELDO_CFG",
+"addr": 1074025216,
+"reset": 0
+},
+{
+"inst": "SPC0",
+"reg": "SYSLDO_CFG",
+"addr": 1074025472,
+"reset": 257
+},
+{
+"inst": "SPC0",
+"reg": "DCDC_CFG",
+"addr": 1074025728,
+"reset": 0
+},
+{
+"inst": "SPC0",
+"reg": "DCDC_BURST_CFG",
+"addr": 1074025732,
+"reset": 20971520
+},
+{
+"inst": "SYSCON0",
+"reg": "PRESETCTRL2",
+"addr": 1073742088,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "PRESETCTRL3",
+"addr": 1073742092,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "AHBCLKCTRL0",
+"addr": 1073742336,
+"reset": 1539
+},
+{
+"inst": "SYSCON0",
+"reg": "AHBCLKCTRL1",
+"addr": 1073742340,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "AHBCLKCTRL2",
+"addr": 1073742344,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "AHBCLKCTRL3",
+"addr": 1073742348,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "SYSTICKCLKSEL0",
+"addr": 1073742432,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "TRACECLKDIV",
+"addr": 1073742600,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "TSICLKDIV",
+"addr": 1073742716,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "AHBCLKDIV",
+"addr": 1073742720,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "CLKOUTDIV",
+"addr": 1073742724,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "FROHFDIV",
+"addr": 1073742728,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "USB0CLKDIV",
+"addr": 1073742744,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "SCTCLKDIV",
+"addr": 1073742772,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "PLLCLKDIV",
+"addr": 1073742788,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "PLL1CLK0DIV",
+"addr": 1073742820,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "PLL1CLK1DIV",
+"addr": 1073742824,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "CLKUNLOCK",
+"addr": 1073742844,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "NVM_CTRL",
+"addr": 1073742848,
+"reset": 132112
+},
+{
+"inst": "SYSCON0",
+"reg": "ROMCR",
+"addr": 1073742852,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "PLLCLKDIVSEL",
+"addr": 1073743148,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C0FCLKSEL",
+"addr": 1073743152,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C0FCLKSTCSEL",
+"addr": 1073743156,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C0FCLKSTCDIV",
+"addr": 1073743160,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C0FCLKSDIV",
+"addr": 1073743164,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C0FCLKDIV",
+"addr": 1073743168,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C0FCLKSSEL",
+"addr": 1073743172,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "MICFILFCLKSEL",
+"addr": 1073743176,
+"reset": 15
+},
+{
+"inst": "SYSCON0",
+"reg": "MICFILFCLKDIV",
+"addr": 1073743180,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "FLEXIOCLKSEL",
+"addr": 1073743200,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "FLEXIOCLKDIV",
+"addr": 1073743204,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "FLEXCAN0CLKSEL",
+"addr": 1073743264,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "FLEXCAN0CLKDIV",
+"addr": 1073743268,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "FLEXCAN1CLKSEL",
+"addr": 1073743272,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "FLEXCAN1CLKDIV",
+"addr": 1073743276,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "ENETRMIICLKSEL",
+"addr": 1073743280,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "ENETRMIICLKDIV",
+"addr": 1073743284,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "ENETPTPREFCLKSEL",
+"addr": 1073743288,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "ENETPTPREFCLKDIV",
+"addr": 1073743292,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "ENET_PHY_INTF_SEL",
+"addr": 1073743296,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "ENET_SBD_FLOW_CTRL",
+"addr": 1073743300,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "EWM0CLKSEL",
+"addr": 1073743316,
+"reset": 1
+},
+{
+"inst": "SYSCON0",
+"reg": "WDT1CLKSEL",
+"addr": 1073743320,
+"reset": 3
+},
+{
+"inst": "SYSCON0",
+"reg": "WDT1CLKDIV",
+"addr": 1073743324,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "OSTIMERCLKSEL",
+"addr": 1073743328,
+"reset": 3
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP0FCLKSEL",
+"addr": 1073743344,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP0FCLKDIV",
+"addr": 1073743348,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP0RRCLKSEL",
+"addr": 1073743352,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP0RRCLKDIV",
+"addr": 1073743356,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP1FCLKSEL",
+"addr": 1073743360,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP1FCLKDIV",
+"addr": 1073743364,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP1RRCLKSEL",
+"addr": 1073743368,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP1RRCLKDIV",
+"addr": 1073743372,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP2FCLKSEL",
+"addr": 1073743376,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP2FCLKDIV",
+"addr": 1073743380,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP2RRCLKSEL",
+"addr": 1073743384,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "CMP2RRCLKDIV",
+"addr": 1073743388,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "CPUCTRL",
+"addr": 1073743872,
+"reset": 40
+},
+{
+"inst": "SYSCON0",
+"reg": "CPBOOT",
+"addr": 1073743876,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "LPCAC_CTRL",
+"addr": 1073743908,
+"reset": 49
+},
+{
+"inst": "SYSCON0",
+"reg": "SAI0CLKSEL",
+"addr": 1073744000,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "SAI1CLKSEL",
+"addr": 1073744004,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "SAI0CLKDIV",
+"addr": 1073744008,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "SAI1CLKDIV",
+"addr": 1073744012,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "EMVSIM0CLKSEL",
+"addr": 1073744016,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "EMVSIM1CLKSEL",
+"addr": 1073744020,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "EMVSIM0CLKDIV",
+"addr": 1073744024,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "EMVSIM1CLKDIV",
+"addr": 1073744028,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C1FCLKSEL",
+"addr": 1073744688,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C1FCLKSTCSEL",
+"addr": 1073744692,
+"reset": 7
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C1FCLKSTCDIV",
+"addr": 1073744696,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C1FCLKSDIV",
+"addr": 1073744700,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C1FCLKDIV",
+"addr": 1073744704,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "I3C1FCLKSSEL",
+"addr": 1073744708,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "ETB_STATUS",
+"addr": 1073744720,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "ETB_COUNTER_CTRL",
+"addr": 1073744724,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "ETB_COUNTER_RELOAD",
+"addr": 1073744728,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "ETB_COUNTER_VALUE",
+"addr": 1073744732,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "GRAY_CODE_LSB",
+"addr": 1073744736,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "BINARY_CODE_LSB",
+"addr": 1073744744,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "AUTOCLKGATEOVERRIDE",
+"addr": 1073745412,
+"reset": 65535
+},
+{
+"inst": "SYSCON0",
+"reg": "AUTOCLKGATEOVERRIDEC",
+"addr": 1073745452,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "PWM0SUBCTL",
+"addr": 1073745464,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "PWM1SUBCTL",
+"addr": 1073745468,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "CTIMERGLOBALSTARTEN",
+"addr": 1073745472,
+"reset": 0
+},
+{
+"inst": "SYSCON0",
+"reg": "ECC_ENABLE_CTRL",
+"addr": 1073745476,
+"reset": 3
+},
+{
+"inst": "TSI0",
+"reg": "TSHD",
+"addr": 1074069508,
+"reset": 0
+},
+{
+"inst": "TSI0",
+"reg": "GENCS",
+"addr": 1074069512,
+"reset": 33558528
+},
+{
+"inst": "TSI0",
+"reg": "MUL",
+"addr": 1074069516,
+"reset": 0
+},
+{
+"inst": "TSI0",
+"reg": "SINC",
+"addr": 1074069520,
+"reset": 458753
+},
+{
+"inst": "TSI0",
+"reg": "SSC0",
+"addr": 1074069524,
+"reset": 1613889536
+},
+{
+"inst": "TSI0",
+"reg": "SSC1",
+"addr": 1074069528,
+"reset": 6291520
+},
+{
+"inst": "TSI0",
+"reg": "SSC2",
+"addr": 1074069532,
+"reset": 268960001
+},
+{
+"inst": "TSI0",
+"reg": "BASELINE",
+"addr": 1074069536,
+"reset": 65536
+},
+{
+"inst": "TSI0",
+"reg": "CHMERGE",
+"addr": 1074069540,
+"reset": 0
+},
+{
+"inst": "TSI0",
+"reg": "SHIELD",
+"addr": 1074069544,
+"reset": 67108864
+},
+{
+"inst": "TSI0",
+"reg": "DATA",
+"addr": 1074069760,
+"reset": 0
+},
+{
+"inst": "TSI0",
+"reg": "MISC",
+"addr": 1074069768,
+"reset": 0
+},
+{
+"inst": "TSI0",
+"reg": "TRIG",
+"addr": 1074069772,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ID",
+"addr": 1074835456,
+"reset": 3835820549
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "HWGENERAL",
+"addr": 1074835460,
+"reset": 21
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "HWHOST",
+"addr": 1074835464,
+"reset": 268566529
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "HWDEVICE",
+"addr": 1074835468,
+"reset": 17
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "HWTXBUF",
+"addr": 1074835472,
+"reset": 2147813384
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "HWRXBUF",
+"addr": 1074835476,
+"reset": 2056
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "GPTIMER0LD",
+"addr": 1074835584,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "GPTIMER0CTRL",
+"addr": 1074835588,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "GPTIMER1LD",
+"addr": 1074835592,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "GPTIMER1CTRL",
+"addr": 1074835596,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "SBUSCFG",
+"addr": 1074835600,
+"reset": 2
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "HCSPARAMS",
+"addr": 1074835716,
+"reset": 65553
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "HCCPARAMS",
+"addr": 1074835720,
+"reset": 6
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "DCCPARAMS",
+"addr": 1074835748,
+"reset": 392
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "USBCMD",
+"addr": 1074835776,
+"reset": 524288
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "USBINTR",
+"addr": 1074835784,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "FRINDEX",
+"addr": 1074835788,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "DEVICEADDR",
+"addr": 1074835796,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "PERIODICLISTBASE",
+"addr": 1074835796,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ASYNCLISTADDR",
+"addr": 1074835800,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ENDPTLISTADDR",
+"addr": 1074835800,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "BURSTSIZE",
+"addr": 1074835808,
+"reset": 2056
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "TXFILLTUNING",
+"addr": 1074835812,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ENDPTNAK",
+"addr": 1074835832,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ENDPTNAKEN",
+"addr": 1074835836,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "CONFIGFLAG",
+"addr": 1074835840,
+"reset": 1
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "PORTSC1",
+"addr": 1074835844,
+"reset": 469762052
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "USBMODE",
+"addr": 1074835880,
+"reset": 20480
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ENDPTSETUPSTAT",
+"addr": 1074835884,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ENDPTPRIME",
+"addr": 1074835888,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ENDPTFLUSH",
+"addr": 1074835892,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ENDPTSTAT",
+"addr": 1074835896,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ENDPTCOMPLETE",
+"addr": 1074835900,
+"reset": 0
+},
+{
+"inst": "USBHS1__USBC",
+"reg": "ENDPTCTRL0",
+"addr": 1074835904,
+"reset": 8388736
+},
+{
+"inst": "USBHS1__USBNC",
+"reg": "CTRL1",
+"addr": 1074835968,
+"reset": 805310464
+},
+{
+"inst": "USBHS1__USBNC",
+"reg": "HSIC_CTRL",
+"addr": 1074835984,
+"reset": 268451972
+},
+{
+"inst": "USBPHY",
+"reg": "PWD",
+"addr": 1074831360,
+"reset": 1973248
+},
+{
+"inst": "USBPHY",
+"reg": "PWD_SET",
+"addr": 1074831364,
+"reset": 1973248
+},
+{
+"inst": "USBPHY",
+"reg": "PWD_CLR",
+"addr": 1074831368,
+"reset": 1973248
+},
+{
+"inst": "USBPHY",
+"reg": "PWD_TOG",
+"addr": 1074831372,
+"reset": 1973248
+},
+{
+"inst": "USBPHY",
+"reg": "TX",
+"addr": 1074831376,
+"reset": 268896007
+},
+{
+"inst": "USBPHY",
+"reg": "TX_SET",
+"addr": 1074831380,
+"reset": 268896007
+},
+{
+"inst": "USBPHY",
+"reg": "TX_CLR",
+"addr": 1074831384,
+"reset": 268896007
+},
+{
+"inst": "USBPHY",
+"reg": "TX_TOG",
+"addr": 1074831388,
+"reset": 268896007
+},
+{
+"inst": "USBPHY",
+"reg": "RX",
+"addr": 1074831392,
+"reset": 0
+},
+{
+"inst": "USBPHY",
+"reg": "RX_SET",
+"addr": 1074831396,
+"reset": 0
+},
+{
+"inst": "USBPHY",
+"reg": "RX_CLR",
+"addr": 1074831400,
+"reset": 0
+},
+{
+"inst": "USBPHY",
+"reg": "RX_TOG",
+"addr": 1074831404,
+"reset": 0
+},
+{
+"inst": "USBPHY",
+"reg": "CTRL",
+"addr": 1074831408,
+"reset": 3221225472
+},
+{
+"inst": "USBPHY",
+"reg": "CTRL_SET",
+"addr": 1074831412,
+"reset": 3221225472
+},
+{
+"inst": "USBPHY",
+"reg": "CTRL_CLR",
+"addr": 1074831416,
+"reset": 3221225472
+},
+{
+"inst": "USBPHY",
+"reg": "CTRL_TOG",
+"addr": 1074831420,
+"reset": 3221225472
+},
+{
+"inst": "USBPHY",
+"reg": "DEBUG0",
+"addr": 1074831440,
+"reset": 2132279296
+},
+{
+"inst": "USBPHY",
+"reg": "DEBUG0_SET",
+"addr": 1074831444,
+"reset": 2132279296
+},
+{
+"inst": "USBPHY",
+"reg": "DEBUG0_CLR",
+"addr": 1074831448,
+"reset": 2132279296
+},
+{
+"inst": "USBPHY",
+"reg": "DEBUG0_TOG",
+"addr": 1074831452,
+"reset": 2132279296
+},
+{
+"inst": "USBPHY",
+"reg": "VERSION",
+"addr": 1074831488,
+"reset": 83886080
+},
+{
+"inst": "USBPHY",
+"reg": "IP",
+"addr": 1074831504,
+"reset": 393216
+},
+{
+"inst": "USBPHY",
+"reg": "IP_SET",
+"addr": 1074831508,
+"reset": 393216
+},
+{
+"inst": "USBPHY",
+"reg": "IP_CLR",
+"addr": 1074831512,
+"reset": 393216
+},
+{
+"inst": "USBPHY",
+"reg": "IP_TOG",
+"addr": 1074831516,
+"reset": 393216
+},
+{
+"inst": "USBPHY",
+"reg": "PLL_SIC",
+"addr": 1074831520,
+"reset": 9510912
+},
+{
+"inst": "USBPHY",
+"reg": "PLL_SIC_SET",
+"addr": 1074831524,
+"reset": 9510912
+},
+{
+"inst": "USBPHY",
+"reg": "PLL_SIC_CLR",
+"addr": 1074831528,
+"reset": 9510912
+},
+{
+"inst": "USBPHY",
+"reg": "PLL_SIC_TOG",
+"addr": 1074831532,
+"reset": 9510912
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_VBUS_DETECT",
+"addr": 1074831552,
+"reset": 7340036
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_VBUS_DETECT_SET",
+"addr": 1074831556,
+"reset": 7340036
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_VBUS_DETECT_CLR",
+"addr": 1074831560,
+"reset": 7340036
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_VBUS_DETECT_TOG",
+"addr": 1074831564,
+"reset": 7340036
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_VBUS_DET_STAT",
+"addr": 1074831568,
+"reset": 1
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_VBUS_DET_STAT_SET",
+"addr": 1074831572,
+"reset": 1
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_VBUS_DET_STAT_CLR",
+"addr": 1074831576,
+"reset": 1
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_VBUS_DET_STAT_TOG",
+"addr": 1074831580,
+"reset": 1
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_CHRG_DETECT",
+"addr": 1074831584,
+"reset": 2149056512
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_CHRG_DETECT_SET",
+"addr": 1074831588,
+"reset": 2149056512
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_CHRG_DETECT_CLR",
+"addr": 1074831592,
+"reset": 2149056512
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_CHRG_DETECT_TOG",
+"addr": 1074831596,
+"reset": 2149056512
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_CHRG_DET_STAT",
+"addr": 1074831600,
+"reset": 0
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_CHRG_DET_STAT_SET",
+"addr": 1074831604,
+"reset": 0
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_CHRG_DET_STAT_CLR",
+"addr": 1074831608,
+"reset": 0
+},
+{
+"inst": "USBPHY",
+"reg": "USB1_CHRG_DET_STAT_TOG",
+"addr": 1074831612,
+"reset": 0
+},
+{
+"inst": "USBPHY",
+"reg": "ANACTRL",
+"addr": 1074831616,
+"reset": 33555456
+},
+{
+"inst": "USBPHY",
+"reg": "ANACTRL_SET",
+"addr": 1074831620,
+"reset": 33555456
+},
+{
+"inst": "USBPHY",
+"reg": "ANACTRL_CLR",
+"addr": 1074831624,
+"reset": 33555456
+},
+{
+"inst": "USBPHY",
+"reg": "ANACTRL_TOG",
+"addr": 1074831628,
+"reset": 33555456
+},
+{
+"inst": "USBPHY",
+"reg": "PFDA",
+"addr": 1074831680,
+"reset": 16843009
+},
+{
+"inst": "USBPHY",
+"reg": "PFDA_SET",
+"addr": 1074831684,
+"reset": 16843009
+},
+{
+"inst": "USBPHY",
+"reg": "PFDA_CLR",
+"addr": 1074831688,
+"reset": 16843009
+},
+{
+"inst": "USBPHY",
+"reg": "PFDA_TOG",
+"addr": 1074831692,
+"reset": 16843009
+},
+{
+"inst": "USDHC0",
+"reg": "DS_ADDR",
+"addr": 1074827264,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "BLK_ATT",
+"addr": 1074827268,
+"reset": 65536
+},
+{
+"inst": "USDHC0",
+"reg": "CMD_ARG",
+"addr": 1074827272,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "CMD_XFR_TYP",
+"addr": 1074827276,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "CMD_RSP0",
+"addr": 1074827280,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "CMD_RSP1",
+"addr": 1074827284,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "CMD_RSP2",
+"addr": 1074827288,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "CMD_RSP3",
+"addr": 1074827292,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "DATA_BUFF_ACC_PORT",
+"addr": 1074827296,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "PROT_CTRL",
+"addr": 1074827304,
+"reset": 142606368
+},
+{
+"inst": "USDHC0",
+"reg": "SYS_CTRL",
+"addr": 1074827308,
+"reset": 8421391
+},
+{
+"inst": "USDHC0",
+"reg": "INT_STATUS",
+"addr": 1074827312,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "INT_STATUS_EN",
+"addr": 1074827316,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "INT_SIGNAL_EN",
+"addr": 1074827320,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "AUTOCMD12_ERR_STATUS",
+"addr": 1074827324,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "HOST_CTRL_CAP",
+"addr": 1074827328,
+"reset": 133411847
+},
+{
+"inst": "USDHC0",
+"reg": "WTMK_LVL",
+"addr": 1074827332,
+"reset": 135268368
+},
+{
+"inst": "USDHC0",
+"reg": "MIX_CTRL",
+"addr": 1074827336,
+"reset": 2147483648
+},
+{
+"inst": "USDHC0",
+"reg": "FORCE_EVENT",
+"addr": 1074827344,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "ADMA_ERR_STATUS",
+"addr": 1074827348,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "ADMA_SYS_ADDR",
+"addr": 1074827352,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "DLL_CTRL",
+"addr": 1074827360,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "DLL_STATUS",
+"addr": 1074827364,
+"reset": 512
+},
+{
+"inst": "USDHC0",
+"reg": "CLK_TUNE_CTRL_STATUS",
+"addr": 1074827368,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "VEND_SPEC",
+"addr": 1074827456,
+"reset": 805337097
+},
+{
+"inst": "USDHC0",
+"reg": "MMC_BOOT",
+"addr": 1074827460,
+"reset": 0
+},
+{
+"inst": "USDHC0",
+"reg": "VEND_SPEC2",
+"addr": 1074827464,
+"reset": 102406
+},
+{
+"inst": "USDHC0",
+"reg": "TUNING_CTRL",
+"addr": 1074827468,
+"reset": 2172928
+},
+{
+"inst": "VBAT0",
+"reg": "STATUSA",
+"addr": 1074106384,
+"reset": 129
+},
+{
+"inst": "VBAT0",
+"reg": "STATUSB",
+"addr": 1074106388,
+"reset": 983102
+},
+{
+"inst": "VBAT0",
+"reg": "IRQENA",
+"addr": 1074106392,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "IRQENB",
+"addr": 1074106396,
+"reset": 1048575
+},
+{
+"inst": "VBAT0",
+"reg": "WAKENA",
+"addr": 1074106400,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "WAKENB",
+"addr": 1074106404,
+"reset": 1048575
+},
+{
+"inst": "VBAT0",
+"reg": "WAKECFG",
+"addr": 1074106424,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "OSCCTLA",
+"addr": 1074106624,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "OSCCTLB",
+"addr": 1074106628,
+"reset": 1048575
+},
+{
+"inst": "VBAT0",
+"reg": "OSCCFGA",
+"addr": 1074106632,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "OSCCFGB",
+"addr": 1074106636,
+"reset": 4095
+},
+{
+"inst": "VBAT0",
+"reg": "OSCLCKA",
+"addr": 1074106648,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "OSCLCKB",
+"addr": 1074106652,
+"reset": 1
+},
+{
+"inst": "VBAT0",
+"reg": "OSCCLKE",
+"addr": 1074106656,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "FROCTLA",
+"addr": 1074106880,
+"reset": 1
+},
+{
+"inst": "VBAT0",
+"reg": "FROCTLB",
+"addr": 1074106884,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "FROLCKA",
+"addr": 1074106904,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "FROLCKB",
+"addr": 1074106908,
+"reset": 1
+},
+{
+"inst": "VBAT0",
+"reg": "FROCLKE",
+"addr": 1074106912,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "LDOCTLA",
+"addr": 1074107136,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "LDOCTLB",
+"addr": 1074107140,
+"reset": 7
+},
+{
+"inst": "VBAT0",
+"reg": "LDOLCKA",
+"addr": 1074107160,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "LDOLCKB",
+"addr": 1074107164,
+"reset": 1
+},
+{
+"inst": "VBAT0",
+"reg": "LDORAMC",
+"addr": 1074107168,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "LDOTIMER0",
+"addr": 1074107184,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "LDOTIMER1",
+"addr": 1074107192,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "WAKLCKA",
+"addr": 1074108408,
+"reset": 0
+},
+{
+"inst": "VBAT0",
+"reg": "WAKLCKB",
+"addr": 1074108412,
+"reset": 1
+},
+{
+"inst": "VREF0",
+"reg": "CSR",
+"addr": 1074860040,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "PE1",
+"addr": 1074028552,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "PE2",
+"addr": 1074028556,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "ME",
+"addr": 1074028568,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "PF",
+"addr": 1074028576,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "FILT",
+"addr": 1074028592,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "PDC1",
+"addr": 1074028600,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "PDC2",
+"addr": 1074028604,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "FDC",
+"addr": 1074028616,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "PMC",
+"addr": 1074028624,
+"reset": 0
+},
+{
+"inst": "WUU0",
+"reg": "FMC",
+"addr": 1074028632,
+"reset": 0
+},
+{
+"inst": "WWDT0",
+"reg": "MOD",
+"addr": 1073831936,
+"reset": 0
+},
+{
+"inst": "WWDT0",
+"reg": "TC",
+"addr": 1073831940,
+"reset": 255
+},
+{
+"inst": "WWDT0",
+"reg": "TV",
+"addr": 1073831948,
+"reset": 255
+},
+{
+"inst": "WWDT0",
+"reg": "WARNINT",
+"addr": 1073831956,
+"reset": 0
+},
+{
+"inst": "WWDT0",
+"reg": "WINDOW",
+"addr": 1073831960,
+"reset": 16777215
+},
+{
+"inst": "WWDT1",
+"reg": "MOD",
+"addr": 1073836032,
+"reset": 0
+},
+{
+"inst": "WWDT1",
+"reg": "TC",
+"addr": 1073836036,
+"reset": 255
+},
+{
+"inst": "WWDT1",
+"reg": "TV",
+"addr": 1073836044,
+"reset": 255
+},
+{
+"inst": "WWDT1",
+"reg": "WARNINT",
+"addr": 1073836052,
+"reset": 0
+},
+{
+"inst": "WWDT1",
+"reg": "WINDOW",
+"addr": 1073836056,
+"reset": 16777215
+}
+]
