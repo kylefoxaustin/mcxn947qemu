@@ -55,6 +55,7 @@ typedef struct MCXNEDMAChan {
     uint32_t tcd_saddr, tcd_slast, tcd_daddr, tcd_dlast;
     uint32_t tcd_nbytes;
     uint16_t tcd_soff, tcd_attr, tcd_doff, tcd_citer, tcd_csr, tcd_biter;
+    bool     sg_pending;  /* a scatter/gather TCD is loaded and awaiting resume */
 } MCXNEDMAChan;
 
 struct MCXNEDMAState {
@@ -79,6 +80,9 @@ struct MCXNEDMAState {
      * from inside its own MMIO write, and writing back into it on that call
      * stack is a re-entrant access that QEMU's guard silently DROPS. */
     QEMUBH *bh;
+
+    /* Guard against a channel-link loop (A links B links A). */
+    bool in_link;
 };
 
 #endif /* HW_DMA_MCXN_EDMA_H */

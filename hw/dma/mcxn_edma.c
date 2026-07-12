@@ -10,6 +10,8 @@
 #include "migration/vmstate.h"
 #include "qemu/main-loop.h"
 #include "system/address-spaces.h"
+#include "system/dma.h"
+#include "qemu/bswap.h"
 
 /* Management-page registers. */
 #define R_MP_CSR  0x00
@@ -40,6 +42,7 @@
 /* CH_ES — error status (CMSIS DMA_CH_ES_*).  The eDMA VALIDATES THE TCD BEFORE
  * IT MOVES ANYTHING and refuses to run on an error; it does not quietly move a
  * partial minor loop. */
+#define CH_ES_SGE    (1u << 2)    /* scatter/gather configuration error */
 #define CH_ES_NCE    (1u << 3)    /* NBYTES/CITER configuration error */
 #define CH_ES_DOE    (1u << 4)    /* destination offset error         */
 #define CH_ES_DAE    (1u << 5)    /* destination address error        */
@@ -54,10 +57,102 @@
 #define TCD_CSR_START    (1u << 0)
 #define TCD_CSR_INTMAJOR (1u << 1)
 #define TCD_CSR_DREQ     (1u << 3)   /* CMSIS DMA_TCD_CSR_DREQ_MASK */
+#define TCD_CSR_ESG      (1u << 4)   /* enable scatter/gather: load the next TCD */
+#define TCD_CSR_MAJORELINK (1u << 5) /* link a channel on major completion       */
+#define TCD_CSR_MAJORLINKCH(v)  (((v) >> 8) & 0xF)
+
+/* ATTR: SMOD[15:11] / SSIZE[10:8] / DMOD[7:3] / DSIZE[2:0]  (CMSIS DMA_TCD_ATTR_*)
+ * SMOD/DMOD define a CIRCULAR BUFFER: the address wraps inside a 2^MOD-aligned
+ * block.  These were NOT MODELLED, so the stock wrap_transfer example ran off the
+ * end of its source buffer and handed the guest ADJACENT MEMORY -- 150000000,
+ * 16000000, 32768: the clock constants that happened to live next door.  Not
+ * zeros.  PLAUSIBLE NUMBERS.  A silent wrong answer with real data in it. */
+#define ATTR_SMOD(a)   (((a) >> 11) & 0x1F)
+#define ATTR_DMOD(a)   (((a) >> 3) & 0x1F)
+
+/* CITER/BITER: when ELINK is set the count is only 9 bits -- the upper bits are
+ * the link channel.  Masking with 0x7FFF would read LINKCH AS PART OF THE COUNT. */
+#define CITER_ELINK      (1u << 15)
+#define CITER_ELINK_MASK 0x1FFu
+#define CITER_LINKCH(v)  (((v) >> 9) & 0xF)
 #define ATTR_SSIZE(a)  (((a) >> 8) & 0x7)
 #define ATTR_DSIZE(a)  ((a) & 0x7)
 #define NBYTES_MASK  0x3FFFFFFFu
 #define CITER_MASK   0x7FFFu
+
+/*
+ * Advance an address by its offset, honouring the ATTR modulo (circular buffer).
+ * A zero MOD means a plain linear advance.  With MOD = k the address wraps inside
+ * its own 2^k-aligned block, which is exactly what makes a ring buffer a ring.
+ */
+static uint32_t edma_advance(uint32_t addr, int16_t off, unsigned mod)
+{
+    uint32_t mask;
+
+    if (mod == 0) {
+        return addr + off;
+    }
+    mask = (1u << mod) - 1;
+    return (addr & ~mask) | ((addr + off) & mask);
+}
+
+/* Forward decl: a linked channel is started by setting its TCD_CSR[START]. */
+static void edma_run(MCXNEDMAState *s, int n);
+
+/*
+ * CHANNEL LINKING.  On minor- or major-loop completion a channel can start
+ * ANOTHER channel.  This was not modelled at all, so the stock `channel_link`
+ * example moved NOTHING -- both destination buffers came back all zeros.
+ */
+static void edma_link_channel(MCXNEDMAState *s, unsigned link)
+{
+    if (link >= MCXN_EDMA_CHANNELS || s->in_link) {
+        return;                           /* bound the chain: no link loops */
+    }
+    s->in_link = true;
+    s->ch[link].csr &= ~CH_CSR_DONE;
+    edma_run(s, link);
+    s->in_link = false;
+}
+
+/*
+ * SCATTER/GATHER.  With TCD_CSR[ESG], TCD_DLAST_SGA is not a signed adjustment --
+ * IT IS A POINTER TO THE NEXT TCD, which the engine loads on major completion and
+ * then runs.  Not modelled, so the stock `scatter_gather` and `ping_pong`
+ * examples ran only their FIRST TCD: destination came back "1 2 3 4 0 0 0 0",
+ * half the transfer silently missing.
+ *
+ * The in-memory TCD is 32 bytes, laid out exactly as the channel's TCD registers.
+ */
+static bool edma_load_next_tcd(MCXNEDMAState *s, int n)
+{
+    MCXNEDMAChan *c = &s->ch[n];
+    hwaddr sga = c->tcd_dlast;            /* DLAST_SGA doubles as the pointer */
+    uint8_t tcd[32];
+
+    if (sga == 0 || (sga & 0x1F)) {
+        c->es |= CH_ES_SGE | CH_ES_ERR;   /* scatter/gather config error */
+        return false;
+    }
+    if (dma_memory_read(&address_space_memory, sga, tcd, sizeof(tcd),
+                        MEMTXATTRS_UNSPECIFIED) != MEMTX_OK) {
+        c->es |= CH_ES_SGE | CH_ES_ERR;
+        return false;
+    }
+
+    c->tcd_saddr  = ldl_le_p(tcd + 0x00);
+    c->tcd_soff   = lduw_le_p(tcd + 0x04);
+    c->tcd_attr   = lduw_le_p(tcd + 0x06);
+    c->tcd_nbytes = ldl_le_p(tcd + 0x08);
+    c->tcd_slast  = ldl_le_p(tcd + 0x0C);
+    c->tcd_daddr  = ldl_le_p(tcd + 0x10);
+    c->tcd_doff   = lduw_le_p(tcd + 0x14);
+    c->tcd_citer  = lduw_le_p(tcd + 0x16);
+    c->tcd_dlast  = ldl_le_p(tcd + 0x18);
+    c->tcd_csr    = lduw_le_p(tcd + 0x1C);
+    c->tcd_biter  = lduw_le_p(tcd + 0x1E);
+    return true;
+}
 
 static void edma_update_irq(MCXNEDMAState *s, int n)
 {
@@ -82,7 +177,11 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
     uint32_t ssize = 1u << ATTR_SSIZE(c->tcd_attr);
     uint32_t dsize = 1u << ATTR_DSIZE(c->tcd_attr);
     uint32_t nbytes = c->tcd_nbytes & NBYTES_MASK;
-    uint32_t citer = c->tcd_citer & CITER_MASK;
+    unsigned smod = ATTR_SMOD(c->tcd_attr);
+    unsigned dmod = ATTR_DMOD(c->tcd_attr);
+    bool elink = (c->tcd_citer & CITER_ELINK) != 0;
+    uint32_t cmask = elink ? CITER_ELINK_MASK : CITER_MASK;
+    uint32_t citer = c->tcd_citer & cmask;
     int16_t soff = (int16_t)c->tcd_soff;
     int16_t doff = (int16_t)c->tcd_doff;
     uint32_t saddr = c->tcd_saddr, daddr = c->tcd_daddr;
@@ -209,27 +308,80 @@ static bool edma_minor_loop(MCXNEDMAState *s, int n)
         for (k = 0; k < chunk; k += ssize) {
             address_space_read(&address_space_memory, saddr,
                                MEMTXATTRS_UNSPECIFIED, buf + k, ssize);
-            saddr += soff;
+            saddr = edma_advance(saddr, soff, smod);
         }
         for (k = 0; k < chunk; k += dsize) {
             address_space_write(&address_space_memory, daddr,
                                 MEMTXATTRS_UNSPECIFIED, buf + k, dsize);
-            daddr += doff;
+            daddr = edma_advance(daddr, doff, dmod);
         }
     }
     c->tcd_saddr = saddr;
     c->tcd_daddr = daddr;
 
     citer--;
-    c->tcd_citer = (c->tcd_citer & ~CITER_MASK) | citer;
+    c->tcd_citer = (c->tcd_citer & ~cmask) | citer;
+
+    /* MINOR-loop channel link: kick the linked channel after every minor loop. */
+    if (elink) {
+        edma_link_channel(s, CITER_LINKCH(c->tcd_citer));
+    }
+
     if (citer != 0) {
         return false;                     /* major loop still running */
     }
 
-    /* Major loop complete: apply the final address adjustments and reload. */
+    /* Major loop complete. */
     c->tcd_saddr = saddr + (int32_t)c->tcd_slast;
-    c->tcd_daddr = daddr + (int32_t)c->tcd_dlast;
+    if (!(c->tcd_csr & TCD_CSR_ESG)) {
+        /* Without scatter/gather DLAST is a signed adjustment.  WITH it, DLAST_SGA
+         * is a POINTER to the next TCD and must NOT be added to DADDR. */
+        c->tcd_daddr = daddr + (int32_t)c->tcd_dlast;
+    } else {
+        c->tcd_daddr = daddr;
+    }
     c->tcd_citer = c->tcd_biter;          /* reload major count */
+
+    /* MAJOR-loop channel link. */
+    if (c->tcd_csr & TCD_CSR_MAJORELINK) {
+        edma_link_channel(s, TCD_CSR_MAJORLINKCH(c->tcd_csr));
+    }
+
+    /*
+     * SCATTER/GATHER: load the next TCD.
+     *
+     * ⚠ AND THE CHAIN MUST YIELD TO THE GUEST BETWEEN TCDs.  A ping-pong chain is
+     * CIRCULAR BY DESIGN (TCD A -> B -> A forever, a continuous double-buffer);
+     * the driver's INTMAJOR handler counts iterations and stops it.  Running the
+     * chain synchronously never lets that ISR execute, so the machine SPINS -- my
+     * first version hung the stock ping_pong example outright, having "fixed"
+     * scatter_gather (whose last TCD has ESG=0 and therefore terminates).
+     *
+     * So: load the next TCD, raise the major interrupt, and RE-ARM through the
+     * bottom half.  The guest gets to run its ISR between links, exactly as it
+     * does on silicon.
+     */
+    if (c->tcd_csr & TCD_CSR_ESG) {
+        /*
+         * ⚠ LOAD THE NEXT TCD -- BUT DO NOT RUN IT.
+         *
+         * Real eDMA loads the next TCD on major completion and then STOPS; the
+         * channel must be re-triggered (by a request or a fresh START) to run it.
+         * My first version RE-ARMED the channel itself, which chained the whole
+         * list synchronously.  That "fixed" nothing (scatter_gather already worked
+         * once the modulo and the ELINK-aware CITER were right) and it HUNG the
+         * stock ping_pong example outright: a ping-pong chain is CIRCULAR by
+         * design, and the NXP driver walks it from its own INTMAJOR handler.  My
+         * hardware chaining double-processed a list the driver was already
+         * managing, and the machine spun.
+         *
+         * Found by mutation: DISABLING scatter-gather entirely left the test GREEN
+         * and made ping_pong PASS.  A feature I added, that was not needed, that
+         * broke a working case -- and only breaking it on purpose showed me.
+         */
+        (void)edma_load_next_tcd(s, n);   /* SGE flagged inside on a bad pointer */
+    }
+
     c->csr |= CH_CSR_DONE;
     if (c->tcd_csr & TCD_CSR_DREQ) {
         c->csr &= ~CH_CSR_ERQ;            /* auto-disable the request */
@@ -401,6 +553,7 @@ static void mcxn_edma_service_bh(void *opaque)
         int n;
 
         progress = false;
+
         for (n = 0; n < MCXN_EDMA_CHANNELS; n++) {
             MCXNEDMAChan *c = &s->ch[n];
             uint32_t src = c->mux & CH_MUX_SRC_MASK;
