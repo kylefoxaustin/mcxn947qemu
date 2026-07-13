@@ -237,11 +237,32 @@ static const MemoryRegionOps mcxn_rtc_ops = {
     .impl.max_access_size = 4,
 };
 
+/* RTC DAYS resets to 1, not 0 -- day zero is not a day. */
+static const struct { uint16_t off; uint8_t width; uint32_t val; } rst_tbl[] = {
+    { 0x002, 16, 0x00000001u },   /* DAYS */
+};
+
+/* regs[] is a WORD array and not every register is 32 bits: a 16-bit register at an odd
+ * halfword offset SHARES ITS WORD with its neighbour, so a plain regs[off/4] = val
+ * CLOBBERS THE NEIGHBOUR.  Write into the correct byte lane. */
+static void mcxn_rtc_set_reset(uint32_t *regs, uint16_t off, uint8_t width, uint32_t val)
+{
+    uint32_t *word = &regs[off / 4];
+    int shift = (off & 3) * 8;
+    uint32_t mask = (width == 8) ? 0xFFu : (width == 16) ? 0xFFFFu : 0xFFFFFFFFu;
+
+    *word = (*word & ~(mask << shift)) | ((val & mask) << shift);
+}
+
 static void mcxn_rtc_reset(DeviceState *dev)
 {
     MCXNRTCState *s = MCXN_RTC(dev);
+    int rst_i;
 
     memset(s->regs, 0, sizeof(s->regs));
+    for (rst_i = 0; rst_i < (int)ARRAY_SIZE(rst_tbl); rst_i++) {
+        mcxn_rtc_set_reset(s->regs, rst_tbl[rst_i].off, rst_tbl[rst_i].width, rst_tbl[rst_i].val);
+    }
     qemu_set_irq(s->irq, 0);
 }
 

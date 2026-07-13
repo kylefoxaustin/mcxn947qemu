@@ -501,11 +501,40 @@ static const MemoryRegionOps mcxn_usbfs_ops = {
     .impl.max_access_size = 4,
 };
 
+/* USBFS reset values from the RM (USBCTRL / OBSERVE / KEEP_ALIVE / ADDINFO). */
+static const struct { uint16_t off; uint8_t width; uint32_t val; } rst_tbl[] = {
+    { 0x000,  8, 0x00000004u },   /* PERID */
+    { 0x004,  8, 0x000000FBu },   /* IDCOMP */
+    { 0x008,  8, 0x00000033u },   /* REV */
+    { 0x00C,  8, 0x00000001u },   /* ADDINFO */
+    { 0x100,  8, 0x000000C0u },   /* USBCTRL */
+    { 0x104,  8, 0x00000050u },   /* OBSERVE */
+    { 0x124,  8, 0x00000008u },   /* KEEP_ALIVE_CTRL */
+    { 0x128,  8, 0x00000001u },   /* KEEP_ALIVE_WKCTRL */
+    { 0x144,  8, 0x00000001u },   /* CLK_RECOVER_IRC_EN */
+};
+
+/* regs[] is a WORD array and not every register is 32 bits: a 16-bit register at an odd
+ * halfword offset SHARES ITS WORD with its neighbour, so a plain regs[off/4] = val
+ * CLOBBERS THE NEIGHBOUR.  Write into the correct byte lane. */
+static void mcxn_usbfs_set_reset(uint32_t *regs, uint16_t off, uint8_t width, uint32_t val)
+{
+    uint32_t *word = &regs[off / 4];
+    int shift = (off & 3) * 8;
+    uint32_t mask = (width == 8) ? 0xFFu : (width == 16) ? 0xFFFFu : 0xFFFFFFFFu;
+
+    *word = (*word & ~(mask << shift)) | ((val & mask) << shift);
+}
+
 static void mcxn_usbfs_reset(DeviceState *dev)
 {
     MCXNUSBFSState *s = MCXN_USBFS(dev);
+    int rst_i;
 
     memset(s->regs, 0, sizeof(s->regs));
+    for (rst_i = 0; rst_i < (int)ARRAY_SIZE(rst_tbl); rst_i++) {
+        mcxn_usbfs_set_reset(s->regs, rst_tbl[rst_i].off, rst_tbl[rst_i].width, rst_tbl[rst_i].val);
+    }
     memset(s->odd_rx, 0, sizeof(s->odd_rx));
     memset(s->odd_tx, 0, sizeof(s->odd_tx));
     memset(s->ep, 0, sizeof(s->ep));

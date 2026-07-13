@@ -308,10 +308,9 @@ def parse_cmsis(path):
         collide = set()
 
         def _put(name, off):
-            if name in regs and regs[name] != off:
-                collide.add(name)     # same name, two addresses -> we cannot tell
-            else:
-                regs[name] = off
+            # regs maps name -> SET of offsets.  Nothing is overwritten, nothing is
+            # dropped; the (name, offset) join picks the right one.
+            regs.setdefault(name, set()).add(off)
 
         # (a) plain fields and FIELD arrays.
         for f in re.finditer(
@@ -349,6 +348,15 @@ def parse_cmsis(path):
         #
         # ⚠ A NAME MAY COLLIDE WITH ITSELF INSIDE CMSIS, AND THE LOSER IS SILENT.
         #
+        # ⭐ CORRECTION FROM rt1180emulator, AND HE IS RIGHT: DO NOT DROP THE PAIR.
+        #    "The join is on (name, OFFSET), and THE RM ROW CARRIES ITS OWN OFFSET AND
+        #     PICKS ONE.  Keep every pair."
+        #    My first fix here REFUSED the colliding name outright, which cured the false
+        #    witness by throwing away a register that was perfectly checkable.  The cure
+        #    is to STOP OVERWRITING, not to start REFUSING: keep BOTH (name, offset)
+        #    entries and let the RM's own offset disambiguate.  A DROP IS A GAP; ONLY AN
+        #    OVERWRITE IS A LIE.
+        #
         # ChipIdea's USBHS declares a SCALAR `ENDPTCTRL0` at 0x1C0 AND an array
         # `ENDPTCTRL[7]` starting at 0x1C4.  Expanding the array emits "ENDPTCTRL0"
         # at 0x1C4 -- the SAME NAME as the scalar, at a DIFFERENT ADDRESS -- and a
@@ -364,9 +372,6 @@ def parse_cmsis(path):
         # different offsets.  Drop, don't guess -- the same rule already applied to
         # RM-side contradictions and to >1-type ambiguity.
         #
-        for bad in collide:
-            regs.pop(bad, None)
-
         if regs:
             periph[m.group(2)] = regs
 
@@ -426,8 +431,9 @@ def main(rm_txt, cmsis_h, out_json):
 
     owner = collections.defaultdict(set)
     for t, regs in periph.items():
-        for n, o in regs.items():
-            owner[(n, o)].add(t)
+        for n, offs in regs.items():
+            for o in offs:
+                owner[(n, o)].add(t)
 
     #
     # ⭐ THE RM IS AUTHORITATIVE FOR RESET VALUES.  CMSIS IS AUTHORITATIVE FOR
@@ -450,17 +456,37 @@ def main(rm_txt, cmsis_h, out_json):
     #     * the RM must give that name EXACTLY ONE reset value anywhere in the manual.
     # The ADDRESS then comes from CMSIS, which is the thing CMSIS is for.
     #
+    # For the name-only fallback we need the name to be UNAMBIGUOUS: exactly one type
+    # AND exactly one offset.  A name with two offsets cannot be resolved without one.
     by_name = collections.defaultdict(set)
     for t, regs in periph.items():
-        for n in regs:
-            by_name[n].add(t)
+        for n, offs in regs.items():
+            if len(offs) == 1:
+                by_name[n].add(t)
     rm_reset_by_name = collections.defaultdict(set)
     for name, _o, _w, _a, reset in rows:
         rm_reset_by_name[name].add(reset)
 
+    #
+    # ⭐ WIDTH.  DO NOT KEEP ONLY THE 32-BIT REGISTERS.
+    #
+    # This filter used to be `width != 32 -> skip`, and it threw away 340 rows: 250
+    # sixteen-bit and 90 eight-bit.  Among them THE ENTIRE eDMA TCD BLOCK -- TCD_CSR,
+    # TCD_CITER, TCD_BITER, TCD_SOFF, TCD_DOFF, TCD_ATTR -- which is the HEART of the DMA
+    # engine and the block in which this project has found more silent-wrong-answer bugs
+    # than any other.  THE GATE HAD NEVER ONCE LOOKED AT IT.
+    #
+    # rt1180emulator did this on his tree and the refusal pile contained the MOTOR DRIVE:
+    # eFlexPWM DTCNT0/DTCNT1, the DEAD-TIME counters, reset 0x07FF on silicon and ZERO in
+    # his model.  ZERO DEAD TIME IS A DIRECT SHORT ACROSS THE DC BUS THROUGH BOTH
+    # TRANSISTORS OF AN INVERTER LEG.  Every PWM test green.  All of them 32-bit-blind.
+    #
+    #     ⭐ THE DANGEROUS ZEROS ARE THE ONES WHERE ZERO IS A LEGAL, MEANINGFUL,
+    #        CATASTROPHIC VALUE -- not the ones where it is merely wrong.
+    #
     golden, unmatched, ambiguous, by_name_joins = [], 0, 0, 0
     for name, off, width, acc, reset in rows:
-        if width != 32 or acc not in ("RW", "RO", "R"):
+        if width not in (8, 16, 32) or acc not in ("RW", "RO", "R"):
             continue
 
         types = owner.get((name, off))
@@ -472,7 +498,7 @@ def main(rm_txt, cmsis_h, out_json):
                     and len(rm_reset_by_name[name]) == 1):
                 types = cand
                 t0 = next(iter(cand))
-                cmsis_off = periph[t0][name]     # CMSIS owns the ADDRESS
+                cmsis_off = next(iter(periph[t0][name]))   # CMSIS owns the ADDRESS
                 by_name_joins += 1
             else:
                 unmatched += 1
@@ -485,7 +511,8 @@ def main(rm_txt, cmsis_h, out_json):
         for inst, ity in inst2type.items():
             if ity == t:
                 golden.append({"inst": inst, "reg": name,
-                               "addr": bases[inst] + cmsis_off, "reset": reset})
+                               "addr": bases[inst] + cmsis_off, "reset": reset,
+                               "width": width})
 
     #
     # ⚠ DEDUPE.  The RM gives some peripherals a chapter PER INSTANCE (DMA0 and DMA1 each

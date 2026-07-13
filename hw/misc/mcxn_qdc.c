@@ -96,11 +96,62 @@ static const MemoryRegionOps mcxn_qdc_ops = {
     .impl.max_access_size = 4,
 };
 
+/*
+ * QDC (quadrature decoder) reset values, from the RM.
+ *
+ * ⭐ POSDPER IS THE POSITION-DIFFERENCE *PERIOD* COUNTER -- THE CLOCKS BETWEEN ENCODER
+ *    EDGES -- AND A SPEED OBSERVER DIVIDES BY IT.
+ *
+ * Silicon resets it (and POSDPERBFR/POSDPERH/LASTEDGE/LASTEDGEH/UCOMP/LCOMP) to 0xFFFF:
+ * the MAXIMUM period -- "no edge has been seen; the shaft is not turning".  We reset them
+ * to ZERO, and on a PERIOD register zero does not mean "nothing":
+ *
+ *     ⭐ ZERO CLOCKS BETWEEN EDGES MEANS *INFINITE SPEED*.
+ *
+ * A FOC speed loop reading our reset value computes a divide-by-zero, or an infinite rotor
+ * velocity, BEFORE THE MOTOR HAS MOVED AT ALL.
+ *
+ *     ⭐ THE DANGEROUS ZEROS ARE THE ONES WHERE ZERO IS A LEGAL, MEANINGFUL, CATASTROPHIC
+ *        VALUE -- not the ones where it is merely wrong.
+ *
+ * ⚠ AND THE GATE COULD NOT SEE ANY OF IT: these are 16-BIT registers, and the extractor
+ * kept only 32-bit ones.  rt1180emulator hit the identical 32-bit blindness, and HIS
+ * refusal pile contained the eFlexPWM DEAD-TIME counters -- 0x07FF on silicon, ZERO in his
+ * model.  Zero dead time is A DIRECT SHORT ACROSS THE DC BUS THROUGH BOTH TRANSISTORS OF
+ * AN INVERTER LEG.  Every one of his PWM tests was green.
+ */
+static const struct { uint16_t off; uint8_t width; uint32_t val; } rst_tbl[] = {
+    { 0x024, 16, 0x0000FFFFu },   /* UCOMP */
+    { 0x026, 16, 0x0000FFFFu },   /* LCOMP */
+    { 0x028, 16, 0x0000FFFFu },   /* LASTEDGE */
+    { 0x02A, 16, 0x0000FFFFu },   /* LASTEDGEH */
+    { 0x02C, 16, 0x0000FFFFu },   /* POSDPER */
+    { 0x02E, 16, 0x0000FFFFu },   /* POSDPERBFR */
+    { 0x030, 16, 0x0000FFFFu },   /* POSDPERH */
+};
+
+/* regs[] is a BYTE array here, and these registers are 8/16 bits.  Write little-endian
+ * bytes -- a word store would clobber the neighbouring register that shares the word.
+ * (I did exactly that on the first pass and the reset gate caught the regression on the
+ * very next run.) */
+static void mcxn_qdc_set_reset(uint8_t *regs, uint16_t off, uint8_t width, uint32_t val)
+{
+    int i;
+
+    for (i = 0; i < width / 8; i++) {
+        regs[off + i] = (val >> (8 * i)) & 0xFF;
+    }
+}
+
 static void mcxn_qdc_reset(DeviceState *dev)
 {
     MCXNQDCState *s = MCXN_QDC(dev);
+    int rst_i;
 
     memset(s->regs, 0, sizeof(s->regs));
+    for (rst_i = 0; rst_i < (int)ARRAY_SIZE(rst_tbl); rst_i++) {
+        mcxn_qdc_set_reset(s->regs, rst_tbl[rst_i].off, rst_tbl[rst_i].width, rst_tbl[rst_i].val);
+    }
 }
 
 static void mcxn_qdc_realize(DeviceState *dev, Error **errp)

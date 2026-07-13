@@ -190,10 +190,28 @@ def probe(regs):
     # READER.  A short read is still turned into a VERDICT by the answer-count assertion
     # below -- it cannot become a silent truncation.
     #
+    #
+    # ⭐ READ EACH REGISTER AT ITS TRUE WIDTH.
+    #
+    # This used to issue `readl` for everything -- and the extractor, to keep that honest,
+    # threw away every register that was not 32 bits.  340 rows: 250 sixteen-bit and 90
+    # eight-bit, INCLUDING THE ENTIRE eDMA TCD BLOCK (TCD_CSR, TCD_CITER, TCD_BITER,
+    # TCD_SOFF, TCD_DOFF, TCD_ATTR) -- the heart of the DMA engine, and the block with
+    # more silent-wrong-answer bugs than any other in this tree.  THE GATE HAD NEVER
+    # LOOKED AT IT.
+    #
+    # (rt1180emulator did this on his tree and the 32-bit blindness was hiding the MOTOR
+    # DRIVE: eFlexPWM's DEAD-TIME counters, 0x07FF on silicon, ZERO in his model.  Zero
+    # dead time is a direct short across the DC bus through both transistors of an
+    # inverter leg.  Every PWM test green.)
+    #
+    _CMD = {8: "readb", 16: "readw", 32: "readl"}
+
     def _ask():
         try:
             for r in regs:
-                p.stdin.write("readl 0x%x\n" % r["addr"])
+                p.stdin.write("%s 0x%x\n"
+                              % (_CMD[r.get("width", 32)], r["addr"]))
             p.stdin.flush()
             p.stdin.close()
         except (BrokenPipeError, ValueError):

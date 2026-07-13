@@ -160,6 +160,16 @@ static void usbhs_phydcd_class_init(ObjectClass *klass, const void *data)
 #define HS_ENDPTCOMPLETE 0x1BC  /* W1C */
 #define HS_ENDPTCTRL0   0x1C0   /* ENDPTCTRL[0..7] @ 0x1C0, step 4 */
 
+/*
+ * ENDPTCTRL0 reset = 0x0080_0080: RXE (bit 7) and TXE (bit 23) are SET.
+ *
+ * ⭐ ENDPOINT 0 IS THE CONTROL ENDPOINT AND IT IS ALWAYS ENABLED ON SILICON -- that is
+ * what those bits mean, and it is why they are set out of reset.  We reset the register
+ * to ZERO, so a driver asking "is the control endpoint enabled?" was told NO, BY THE ONE
+ * ENDPOINT THAT CANNOT BE DISABLED.
+ */
+#define HS_ENDPTCTRL0_RESET  0x00800080u
+
 #define USBCMD_RS       (1u << 0)   /* Run/Stop */
 #define USBCMD_RST      (1u << 1)   /* Controller reset, self-clearing */
 #define USBSTS_UI       (1u << 0)   /* USB interrupt (xfer done / setup) */
@@ -492,6 +502,14 @@ static uint64_t usbhs_core_read(void *opaque, hwaddr off, unsigned size)
     case HS_HWTXBUF:    return HS_HWTXBUF_VALUE;
     case HS_HWRXBUF:    return HS_HWRXBUF_VALUE;
     case HS_CAPLENGTH:  return HS_CAPLENGTH_VALUE;
+    /*
+     * HCIVERSION is the UPPER HALFWORD of CAPLENGTH, and the RM lists it as its own
+     * 16-BIT register at 0x102.  We answered only the 32-bit read at 0x100, so a HALFWORD
+     * read of HCIVERSION -- which is exactly how EHCI says to read it -- fell through to
+     * the default and RETURNED ZERO.  The gate could not see that until it learned to
+     * read registers AT THEIR TRUE WIDTH.
+     */
+    case HS_CAPLENGTH + 2: return HS_CAPLENGTH_VALUE >> 16;
     case HS_HCSPARAMS:  return HS_HCSPARAMS_VALUE;
     case HS_HCCPARAMS:  return HS_HCCPARAMS_VALUE;
     case HS_DCIVERSION: return HS_DCIVERSION_VALUE;
@@ -612,6 +630,7 @@ static void usbhs_core_reset(DeviceState *dev)
     MCXNUSBHSCoreState *s = MCXN_USBHS_CORE(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+    s->regs[HS_ENDPTCTRL0 / 4] = HS_ENDPTCTRL0_RESET;
     memset(s->ep, 0, sizeof(s->ep));
     s->enabled = false;
     s->ep0_status_in = false;
