@@ -103,7 +103,7 @@ register-only≈registration/Tier-C.
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
 | gpio | ✓ | ✓ | functional | mcxn-gpio | SKIP |
-| port | ✓ | ✓ | register-only | mcxn-gpio, mcxn-mcuxpresso | SKIP |
+| port | ✓ | ✓ | register-only | mcxn-gpio, mcxn-mcuxpresso, mcxn-port-pads | SKIP |
 | edma | ✓ | ✓ | functional | mcxn-dma, mcxn-dma-nbytes, mcxn-sai-dma, mcxn-dac-dma, mcxn-uart-dma, mcxn-adc-dma, mcxn-lpuart-edma-stock, mcxn-edma-stock | SKIP |
 | inputmux | ✓ | ✓ | functional | mcxn-inputmux-gate, mcxn-adc-hwtrig, mcxn-reset-values | SKIP |
 | pint | ✓ | ◐ | register-only | boot, corpus | SKIP |

@@ -282,6 +282,9 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_PORT; i++) {
         g_autofree char *name = g_strdup_printf("port%d", i);
         object_initialize_child(obj, name, &s->port[i], TYPE_MCXN_PORT);
+        /* The RM's pad reset values DIFFER PER PORT (PORT0's SWD pins are non-zero),
+         * so each PORT must know which one it is. */
+        qdev_prop_set_uint8(DEVICE(&s->port[i]), "port-id", i);
     }
     for (i = 0; i < MCXN_NUM_CTIMER; i++) {
         g_autofree char *name = g_strdup_printf("ctimer%d", i);

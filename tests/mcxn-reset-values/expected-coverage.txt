@@ -1,1 +1,138 @@
-4073
+# PER-INSTANCE COVERAGE MANIFEST -- the CENSUS, not the total.
+#
+# ⭐ A TOTAL CANNOT SEE A MISSING BLOCK.
+#
+# This gate used to assert only the TOTAL register count.  That is a control on the
+# SIZE of the coverage and NOT ON ITS SHAPE: if the eDMA's 336 registers vanished and
+# something else grew by 336, the total would be unchanged and the gate would PASS.
+# (91emulator, who lived it -- their blind-block check went green after they REVERTED
+# the fix, because one block kept the handful of rows that happened to parse.)
+#
+# ⭐ AND A PRESENCE CHECK CANNOT SEE A HALF-EMPTY BLOCK.
+#
+# So this is a CENSUS: every instance, with its COUNT.  (ollama_95_neutron: a ledger of
+# SHAPES said nothing when 179 of 180 tensors stopped offloading -- "a control on the
+# SET, not on the CENSUS".)
+#
+# It fails in EVERY direction:
+#     an instance MISSING          -> FAIL: it went blind
+#     an instance's count DROPPED  -> FAIL: it went half-empty
+#     an instance's count GREW     -> FAIL: good news, but DECLARE it
+#     a NEW instance appeared      -> FAIL: declare it
+#
+# Nothing may change silently.  Regenerate with:  tests/mcxn-reset-values/check.py --bless
+#
+
+ADC0             127
+ADC1             127
+CACHE64_CTRL0    4
+CACHE64_POLSEL0  3
+CAN0             29
+CAN1             29
+CMC0             18
+CMP0             10
+CMP1             10
+CMP2             10
+CMX_PERFMON0     1
+CMX_PERFMON1     1
+CRC0             1
+CTIMER0          11
+CTIMER1          11
+CTIMER2          11
+CTIMER3          11
+CTIMER4          11
+DMA0             168
+DMA1             168
+EIM0             20
+EMVSIM0          17
+EMVSIM1          17
+ENET0            41
+ERM0             19
+FLEXIO0          94
+FLEXSPI0         64
+FREQME0          4
+GPIO0            48
+GPIO1            48
+GPIO2            48
+GPIO3            48
+GPIO4            48
+GPIO5            48
+I3C0             38
+I3C1             38
+INPUTMUX0        110
+INTM0            17
+LPI2C0           27
+LPI2C1           27
+LPI2C2           27
+LPI2C3           27
+LPI2C4           27
+LPI2C5           27
+LPI2C6           27
+LPI2C7           27
+LPI2C8           27
+LPI2C9           27
+LPSPI0           142
+LPSPI1           142
+LPSPI2           142
+LPSPI3           142
+LPSPI4           142
+LPSPI5           142
+LPSPI6           142
+LPSPI7           142
+LPSPI8           142
+LPSPI9           142
+LPTMR0           4
+LPTMR1           4
+LPUART0          21
+LPUART1          21
+LPUART2          21
+LPUART3          21
+LPUART4          21
+LPUART5          21
+LPUART6          21
+LPUART7          21
+LPUART8          21
+LPUART9          21
+LP_FLEXCOMM0     2
+LP_FLEXCOMM1     2
+LP_FLEXCOMM2     2
+LP_FLEXCOMM3     2
+LP_FLEXCOMM4     2
+LP_FLEXCOMM5     2
+LP_FLEXCOMM6     2
+LP_FLEXCOMM7     2
+LP_FLEXCOMM8     2
+LP_FLEXCOMM9     2
+MAILBOX          3
+OPAMP0           1
+OPAMP1           1
+OPAMP2           1
+OSTIMER0         7
+PDM              12
+PLU0             2
+PORT0            12
+PORT1            12
+PORT2            12
+PORT3            12
+PORT4            12
+PORT5            12
+POWERQUAD        44
+RTC0             4
+SAI0             23
+SAI1             23
+SCG0             34
+SCT0             85
+SINC0            9
+SPC0             20
+SYSCON0          88
+TSI0             13
+USBHS1__USBC     39
+USBHS1__USBNC    2
+USBPHY           53
+USDHC0           28
+UTICK0           4
+VBAT0            28
+VREF0            1
+WUU0             10
+WWDT0            5
+WWDT1            5

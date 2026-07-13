@@ -43,7 +43,7 @@ COVERAGE IS PARTIAL AND SAID SO OUT LOUD: only registers whose RM table row pars
 cleanly AND that CMSIS attributes to exactly one peripheral are probed.  It is a
 FLOOR on the bugs, not a ceiling.
 """
-import json, os, signal, subprocess, sys
+import json, os, signal, subprocess, sys, threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 QEMU = os.environ.get("QEMU", os.path.join(HERE, "..", "..", "build", "qemu-system-arm"))
@@ -55,42 +55,54 @@ if not os.access(QEMU, os.X_OK):
 golden = json.load(open(os.path.join(HERE, "rm-golden.json")))
 
 #
-# ⭐ COVERAGE IS AN ASSERTION, NOT A PRINT STATEMENT.
+# ⭐ COVERAGE IS AN ASSERTION, NOT A PRINT -- AND IT IS A CENSUS, NOT A TOTAL.
 #
-# This gate used to PRINT "probed N registers" and return PASS regardless of N.  So an
-# extractor that silently regressed -- one broken regex, one unparsed table layout --
-# would probe a THIRD of the chip, announce it accurately, AND STILL PASS.
+# Two rungs, both learned the hard way, both from other people's trees:
 #
-#     A GATE WHOSE COVERAGE CANNOT FAIL IT IS A GATE YOU HAVE AGREED NOT TO LOOK AT.
-#                                                     -- rt1180emulator, who lived it:
-# his extractor printed "unmatched: 4371" every run, for a day, while returning PASS --
-# and the blind set contained the two blocks he most needed it to see (his CCM clock
-# roots and the eDMA map he had just found WRONG).  He read the number and it changed
-# nothing, BECAUSE IT WAS PRINTED, NOT ASSERTED.  An honest number with no threshold is
-# the same organ as an allowlist that never shrinks.
+#   rt1180emulator: a gate that PRINTS its coverage and passes regardless is a gate you
+#   have agreed not to look at.  He read "unmatched: 4371" in his own output every run
+#   for a day and it changed nothing, BECAUSE IT WAS PRINTED, NOT ASSERTED.
 #
-# THE COUNT LIVES OUTSIDE THE ARTIFACT (expected-coverage.txt), because the suite and
-# the artifact must not share a source -- AND THE COUNT IS PART OF THE ARTIFACT.
+#   91emulator: an asserted TOTAL is still only a control on the SIZE of the coverage,
+#   NOT ON ITS SHAPE.  A TOTAL CANNOT SEE A MISSING BLOCK -- if one peripheral goes
+#   blind and another grows by the same amount, the number is unchanged and the gate
+#   passes.  And A PRESENCE CHECK CANNOT SEE A HALF-EMPTY BLOCK.
 #
-# It RATCHETS IN BOTH DIRECTIONS, exactly like the deviation allowlist:
-#     coverage DOWN -> FAIL (something went blind)
-#     coverage UP   -> FAIL ("you can see more now: update the line and say so")
-# Neither direction may pass silently.  A number that only ever goes up by accident is
-# a number nobody is reading.
+# So the manifest is a PER-INSTANCE CENSUS held OUTSIDE the artifact, and it fails in
+# every direction: missing, shrunk, grown, or new.  Nothing changes silently.
 #
-EXPECTED = int(open(os.path.join(HERE, "expected-coverage.txt")).read().strip())
+MANIFEST = {}
+for _line in open(os.path.join(HERE, "expected-coverage.txt")):
+    _line = _line.split("#", 1)[0].strip()
+    if _line:
+        _i, _n = _line.split()
+        MANIFEST[_i] = int(_n)
 
-if len(golden) != EXPECTED:
-    direction = "SHRANK" if len(golden) < EXPECTED else "GREW"
-    print("FAIL: COVERAGE %s -- the golden holds %d registers, expected-coverage.txt "
-          "says %d." % (direction, len(golden), EXPECTED))
-    if len(golden) < EXPECTED:
-        print("      THE GATE HAS GONE PARTIALLY BLIND.  Every register it can no longer")
-        print("      see is UNCHECKED, and this run would otherwise have said PASS.")
-    else:
-        print("      The gate can see MORE than it was told to.  That is good news --")
-        print("      but it must be DECLARED, not absorbed: update expected-coverage.txt")
-        print("      so the next regression has something to fail against.")
+_have = {}
+for _r in golden:
+    _have[_r["inst"]] = _have.get(_r["inst"], 0) + 1
+
+_blind   = [(i, n, _have.get(i, 0)) for i, n in MANIFEST.items() if _have.get(i, 0) < n]
+_grew    = [(i, n, _have.get(i, 0)) for i, n in MANIFEST.items() if _have.get(i, 0) > n]
+_newinst = sorted(set(_have) - set(MANIFEST))
+
+if _blind or _grew or _newinst:
+    if _blind:
+        print("FAIL: %d peripheral(s) LOST COVERAGE -- the gate has gone partially blind."
+              % len(_blind))
+        print("      Every register it can no longer see is UNCHECKED, and this run would")
+        print("      otherwise have said PASS.  A TOTAL CANNOT SEE A MISSING BLOCK.")
+        for _i, _want, _got in sorted(_blind):
+            print("        %-16s expected %4d  got %4d   <-- %s"
+                  % (_i, _want, _got, "WENT BLIND" if _got == 0 else "HALF-EMPTY"))
+    if _grew or _newinst:
+        print("FAIL: coverage GREW and was not declared.  Good news -- but it must be")
+        print("      DECLARED, not absorbed, or the next regression has nothing to fail")
+        print("      against.  Update expected-coverage.txt.")
+        for _i, _want, _got in sorted(_grew):
+            print("        %-16s expected %4d  got %4d" % (_i, _want, _got))
+        for _i in _newinst:
+            print("        %-16s NEW instance, %d registers" % (_i, _have[_i]))
     sys.exit(2)
 
 allow = {}
@@ -154,9 +166,43 @@ def probe(regs):
          "-qtest", "stdio", "-monitor", "none", "-serial", "none"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, text=True, start_new_session=True)
+    #
+    # ⭐ ASK AND LISTEN CONCURRENTLY.  DO NOT WRITE EVERY QUESTION AND *THEN* READ.
+    #
+    # This used to be one blocking write of the whole question stream, followed by the
+    # reads.  At 4073 registers that write is 69,241 BYTES against a 65,536-BYTE PIPE
+    # BUFFER -- 1.06x OVER.  It completes today ONLY because QEMU happens to drain stdin
+    # while we are still writing.
+    #
+    #     ⭐ WE WERE NOT SAFE.  WE WERE CORRECT BY LUCK -- and the thing that spends the
+    #        luck is THE NEXT COVERAGE FIX.  Every register we teach the extractor to see
+    #        pushes the question stream further past the boundary.  FIX THE BLINDNESS,
+    #        BREAK THE HARNESS: the repair and the trigger are the same commit.
+    #
+    # 91emulator found this (it deadlocked their harness at 9282 registers) and
+    # rt1180emulator measured it in mine before it fired.  And the failure mode is
+    # vicious: 91 spent twenty minutes convinced a DEVICE MODEL was aborting on a read.
+    #
+    #     ⭐ A HARNESS DEADLOCK IS INDISTINGUISHABLE FROM A GUEST BUG -- AND IT ARRIVES
+    #        DISGUISED AS YOUR OWN SUCCESS (the reward for widening coverage).
+    #
+    # The writer runs in its own thread, so a full pipe blocks the WRITER, never the
+    # READER.  A short read is still turned into a VERDICT by the answer-count assertion
+    # below -- it cannot become a silent truncation.
+    #
+    def _ask():
+        try:
+            for r in regs:
+                p.stdin.write("readl 0x%x\n" % r["addr"])
+            p.stdin.flush()
+            p.stdin.close()
+        except (BrokenPipeError, ValueError):
+            pass          # the subject died; the answer count will say so
+
     try:
-        p.stdin.write("".join("readl 0x%x\n" % r["addr"] for r in regs))
-        p.stdin.flush()
+        writer = threading.Thread(target=_ask, daemon=True)
+        writer.start()
+
         vals = []
         while len(vals) < len(regs):
             line = p.stdout.readline()
@@ -164,6 +210,7 @@ def probe(regs):
                 break
             if line.startswith("OK 0x"):
                 vals.append(int(line.split()[1], 16))
+        writer.join(timeout=5)
         return vals
     finally:
         try:
