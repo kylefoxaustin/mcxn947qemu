@@ -6,6 +6,7 @@
 #include "qemu/osdep.h"
 #include "hw/timer/mcxn_lptmr.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev.h"
 #include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
 
@@ -85,6 +86,14 @@ static void lptmr_tick(void *opaque)
         s->base_ns = now;
     }
     lptmr_update_irq(s);
+
+    /*
+     * Pulse the trigger output.  A trigger is an EVENT, not a level: INPUTMUX routes
+     * the edge, and the consumer (ADC/DAC) acts on it once.  Holding it high would
+     * make a single compare match look like a continuous conversion request.
+     */
+    qemu_irq_pulse(s->trigger);
+
     lptmr_reschedule(s, now);
 }
 
@@ -168,6 +177,7 @@ static void mcxn_lptmr_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_LPTMR, 0x1000);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    qdev_init_gpio_out_named(dev, &s->trigger, "trigger", 1);
     timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, lptmr_tick, s);
 }
 

@@ -89,7 +89,7 @@ register-only≈registration/Tier-C.
 
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
-| adc | ✓ | ✓ | operator-driven | mcxn-adc, mcxn-adc-dma, mcxn-adc-fifo | SKIP |
+| adc | ✓ | ✓ | operator-driven | mcxn-adc, mcxn-adc-dma, mcxn-adc-fifo, mcxn-adc-hwtrig | SKIP |
 | cmp | ✓ | ✓ | operator-driven | mcxn-cmp | SKIP |
 | tsi | ✓ | ✓ | operator-driven | mcxn-tsi | SKIP |
 | dac | ✓ | ✓ | functional | mcxn-dac, mcxn-dac-dma | SKIP |
@@ -105,7 +105,7 @@ register-only≈registration/Tier-C.
 | gpio | ✓ | ✓ | functional | mcxn-gpio | SKIP |
 | port | ✓ | ✓ | register-only | mcxn-gpio, mcxn-mcuxpresso | SKIP |
 | edma | ✓ | ✓ | functional | mcxn-dma, mcxn-dma-nbytes, mcxn-sai-dma, mcxn-dac-dma, mcxn-uart-dma, mcxn-adc-dma, mcxn-lpuart-edma-stock, mcxn-edma-stock | SKIP |
-| inputmux | ✓ | ✓ | functional | boot, corpus, mcxn-inputmux-gate, mcxn-reset-values | SKIP |
+| inputmux | ✓ | ✓ | functional | mcxn-inputmux-gate, mcxn-adc-hwtrig, mcxn-reset-values | SKIP |
 | pint | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | intm | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | evtg | ✓ | ◐ | register-only | boot, corpus | SKIP |

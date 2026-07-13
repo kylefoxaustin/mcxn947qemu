@@ -1213,6 +1213,36 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                             src));
         }
     }
+
+    /*
+     * TRIGGER ROUTING:  LPTMR0 compare  ->  INPUTMUX  ->  ADCn_TRIG[0..3].
+     *
+     * "Convert on a timer tick" is THE canonical embedded ADC pattern, and it was
+     * IMPOSSIBLE here: the only way to start a conversion was a CPU write to SWTRIG.
+     * The stock lpadc/edma example attaches LPTMR0 to ADC0_TRIG[0], starts the timer,
+     * arms an eDMA channel and waits -- and the timer ticked, THE TRIGGER WENT
+     * NOWHERE, and not one conversion ever happened.  Nothing logged, nothing
+     * faulted.  A router that routes nothing looks exactly like a router.
+     *
+     * Selector 50 = LPTMR0.  Decoded from NXP's OWN COMPILED DRIVER, not guessed:
+     * kINPUTMUX_Lptmr0ToAdc0Trigger = 0x2800_0032, and INPUTMUX_AttachSignal() is
+     *     *(base + (conn >> 20) + idx * 4) = conn & 0xFFFFF
+     * i.e. "write 50 into the register at offset 0x280" -- which is ADC0_TRIG[0].
+     */
+    qdev_connect_gpio_out_named(DEVICE(&s->lptmr[0]), "trigger", 0,
+                                qdev_get_gpio_in_named(DEVICE(&s->inputmux),
+                                                       "trig-in",
+                                                       MCXN_INPUTMUX_SRC_LPTMR0));
+    for (i = 0; i < MCXN_NUM_ADC && i < 2; i++) {
+        g_autofree char *out = g_strdup_printf("adc%d-trig", i);
+        int t;
+
+        for (t = 0; t < 4; t++) {
+            qdev_connect_gpio_out_named(DEVICE(&s->inputmux), out, t,
+                                        qdev_get_gpio_in_named(
+                                            DEVICE(&s->adc[i]), "trigger", t));
+        }
+    }
 }
 
 static const Property mcxn_soc_properties[] = {

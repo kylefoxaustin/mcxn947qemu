@@ -12,9 +12,11 @@
 #
 # Format:  <INSTANCE> <REGISTER>   # why
 
-# ---- SYSCON0 (62) : clock-tree defaults: CLKSEL=7 means NO SOURCE SELECTED and CLKDIV bit30 is HALT. Reading 0 tells the guest a divider is running and a source is chosen when neither is true.
+# ---- SYSCON0 (64) : clock-tree defaults: CLKSEL=7 means NO SOURCE SELECTED and CLKDIV bit30 is HALT. Reading 0 tells the guest a divider is running and a source is chosen when neither is true.
 SYSCON0        AHBCLKCTRL0          # model=0x00000000 RM=0x00000603
 SYSCON0        SYSTICKCLKSEL0       # model=0x00000000 RM=0x00000007
+SYSCON0        SYSTICKCLKDIV0       # model=0x00000000 RM=0x40000000
+SYSCON0        SYSTICKCLKDIV1       # model=0x00000000 RM=0x40000000
 SYSCON0        TRACECLKDIV          # model=0x00000000 RM=0x40000000
 SYSCON0        TSICLKDIV            # model=0x00000000 RM=0x40000000
 SYSCON0        CLKOUTDIV            # model=0x00000000 RM=0x40000000
@@ -75,53 +77,6 @@ SYSCON0        I3C1FCLKSDIV         # model=0x00000000 RM=0x40000000
 SYSCON0        I3C1FCLKDIV          # model=0x00000000 RM=0x40000000
 SYSCON0        AUTOCLKGATEOVERRIDE  # model=0x00000000 RM=0x0000ffff
 SYSCON0        ECC_ENABLE_CTRL      # model=0x00000000 RM=0x00000003
-
-# ---- INPUTMUX0 (45) : trigger-routing selectors default to 0x7F = NO INPUT CONNECTED. Reading 0 names input 0 instead. DMAn_REQ_ENABLE0..3 IS NOW MODELLED AND GATED (2026-07-12) -- those 8 lines are gone from this list. What remains is TRIGGER ROUTING: the selectors below default to 0x7F = NO INPUT CONNECTED, and reading 0 names input 0 instead. Selector 50 = LPTMR0 (decoded from NXP's own compiled driver: kINPUTMUX_Lptmr0ToAdc0Trigger = 0x28000032 -> write reg 0x280 = 50). Until this is routed, the stock lpadc/edma example -- which triggers conversions from LPTMR0 -- still cannot convert.
-INPUTMUX0      CTIMER0CAP0          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER0CAP1          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER0CAP2          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER0CAP3          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      TIMER0TRIG           # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER1CAP0          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER1CAP1          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER1CAP2          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER1CAP3          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      TIMER1TRIG           # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER2CAP0          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER2CAP1          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER2CAP2          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER2CAP3          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      TIMER2TRIG           # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER3CAP0          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER3CAP1          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER3CAP2          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER3CAP3          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      TIMER3TRIG           # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER4CAP0          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER4CAP1          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER4CAP2          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CTIMER4CAP3          # model=0x00000000 RM=0x0000007f
-INPUTMUX0      TIMER4TRIG           # model=0x00000000 RM=0x0000007f
-INPUTMUX0      CMP0_TRIG            # model=0x00000000 RM=0x0000003f
-INPUTMUX0      DAC0_TRIG            # model=0x00000000 RM=0x0000003f
-INPUTMUX0      DAC1_TRIG            # model=0x00000000 RM=0x0000003f
-INPUTMUX0      DAC2_TRIG            # model=0x00000000 RM=0x0000003f
-INPUTMUX0      PWM0_EXT_CLK         # model=0x00000000 RM=0x00000007
-INPUTMUX0      PWM1_EXT_CLK         # model=0x00000000 RM=0x00000007
-INPUTMUX0      USBFS_TRIG           # model=0x00000000 RM=0x0000000f
-INPUTMUX0      TSI_TRIG             # model=0x00000000 RM=0x00000003
-INPUTMUX0      CMP1_TRIG            # model=0x00000000 RM=0x0000003f
-INPUTMUX0      CMP2_TRIG            # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM0_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM1_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM2_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM3_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM4_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM5_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM6_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM7_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM8_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      FLEXCOMM9_TRIG       # model=0x00000000 RM=0x0000003f
 
 # ---- USBPHY (45) : PWD resets with the power-down bits SET; reading 0 says the PHY is already powered up. VERSION is a fabricated ID (0x02000000 vs 0x05000000).
 USBPHY         PWD                  # model=0x00000000 RM=0x001e1c00
@@ -185,20 +140,6 @@ SPC0           GLITCH_DETECT_SC     # model=0x00000000 RM=0x0000003f
 SPC0           SYSLDO_CFG           # model=0x00000000 RM=0x00000101
 SPC0           DCDC_BURST_CFG       # model=0x00000000 RM=0x01400000
 
-# ---- USBHS1__USBC (12) : FABRICATED IDENTITY/CAPABILITY REGISTERS: ID reads 0x0022fa05 where silicon reads 0xe4a1fa05; HWDEVICE/HWTXBUF/HWRXBUF likewise invented. The part is lying about what it is.
-USBHS1__USBC   ID                   # model=0x0022fa05 RM=0xe4a1fa05
-USBHS1__USBC   HWGENERAL            # model=0x00000000 RM=0x00000015
-USBHS1__USBC   HWDEVICE             # model=0x00000005 RM=0x00000011
-USBHS1__USBC   HWTXBUF              # model=0x80040020 RM=0x80050808
-USBHS1__USBC   HWRXBUF              # model=0x00000020 RM=0x00000808
-USBHS1__USBC   SBUSCFG              # model=0x00000000 RM=0x00000002
-USBHS1__USBC   USBCMD               # model=0x00000000 RM=0x00080000
-USBHS1__USBC   BURSTSIZE            # model=0x00000000 RM=0x00000808
-USBHS1__USBC   CONFIGFLAG           # model=0x00000000 RM=0x00000001
-USBHS1__USBC   PORTSC1              # model=0x00000000 RM=0x1c000004
-USBHS1__USBC   USBMODE              # model=0x00000000 RM=0x00005000
-USBHS1__USBC   ENDPTCTRL0           # model=0x00000000 RM=0x00800080
-
 # ---- VBAT0 (12) : STATUSA/STATUSB/IRQENB fabricated or zero; the 32k oscillator is not modelled (which is also why SCG ROSCVLD has to follow ROSCCM rather than a real oscillator).
 VBAT0          STATUSA              # model=0x00000030 RM=0x00000081
 VBAT0          STATUSB              # model=0x00000000 RM=0x000f003e
@@ -212,6 +153,32 @@ VBAT0          FROLCKB              # model=0x00000000 RM=0x00000001
 VBAT0          LDOCTLB              # model=0x00000000 RM=0x00000007
 VBAT0          LDOLCKB              # model=0x00000000 RM=0x00000001
 VBAT0          WAKLCKB              # model=0x00000000 RM=0x00000001
+
+# ---- FLEXSPI0 (11) : MCR0/MCR1/MCR2/AHBCR defaults and LUTKEY (0x5af05af0, the LUT unlock magic). Reading 0 for LUTKEY means the guest cannot tell a locked LUT from an unlocked one. IPEDCTXCTRL0/1 (reset 5555_5555 / AAAA_AAAA) are the IPED encryption-context controls -- unmodelled with the rest of IPED.
+FLEXSPI0       MCR0                 # model=0x00000000 RM=0xffff8002
+FLEXSPI0       MCR1                 # model=0x00000000 RM=0xffffffff
+FLEXSPI0       MCR2                 # model=0x00000000 RM=0x200081f7
+FLEXSPI0       AHBCR                # model=0x00000000 RM=0x00000018
+FLEXSPI0       LUTKEY               # model=0x00000000 RM=0x5af05af0
+FLEXSPI0       LUTCR                # model=0x00000000 RM=0x00000002
+FLEXSPI0       FLSHCR4              # model=0x00000000 RM=0x000000c3
+FLEXSPI0       STS0                 # model=0x00000003 RM=0x00000002
+FLEXSPI0       STS2                 # model=0x00000000 RM=0x01000100
+FLEXSPI0       IPEDCTXCTRL0         # model=0x00000000 RM=0x55555555
+FLEXSPI0       IPEDCTXCTRL1         # model=0x00000000 RM=0xaaaaaaaa
+
+# ---- USBHS1__USBC (11) : FABRICATED IDENTITY/CAPABILITY REGISTERS: ID reads 0x0022fa05 where silicon reads 0xe4a1fa05; HWDEVICE/HWTXBUF/HWRXBUF likewise invented. The part is lying about what it is.
+USBHS1__USBC   ID                   # model=0x0022fa05 RM=0xe4a1fa05
+USBHS1__USBC   HWGENERAL            # model=0x00000000 RM=0x00000015
+USBHS1__USBC   HWDEVICE             # model=0x00000005 RM=0x00000011
+USBHS1__USBC   HWTXBUF              # model=0x80040020 RM=0x80050808
+USBHS1__USBC   HWRXBUF              # model=0x00000020 RM=0x00000808
+USBHS1__USBC   SBUSCFG              # model=0x00000000 RM=0x00000002
+USBHS1__USBC   USBCMD               # model=0x00000000 RM=0x00080000
+USBHS1__USBC   BURSTSIZE            # model=0x00000000 RM=0x00000808
+USBHS1__USBC   CONFIGFLAG           # model=0x00000000 RM=0x00000001
+USBHS1__USBC   PORTSC1              # model=0x00000000 RM=0x1c000004
+USBHS1__USBC   USBMODE              # model=0x00000000 RM=0x00005000
 
 # ---- USDHC0 (10) : HOST_CTRL_CAP is missing its real capability bits (0x07f3b407 vs 0x07f30000) -- including VOLTAGE SUPPORT, which the SD driver negotiates against. Also BLK_ATT/PROT_CTRL/SYS_CTRL/WTMK_LVL defaults.
 USDHC0         BLK_ATT              # model=0x00000000 RM=0x00010000
@@ -246,17 +213,6 @@ EMVSIM1        CWT_VAL              # model=0x00000000 RM=0x0000ffff
 EMVSIM1        BWT_VAL              # model=0x00000000 RM=0xffffffff
 EMVSIM1        GPCNT0_VAL           # model=0x00000000 RM=0x0000ffff
 EMVSIM1        GPCNT1_VAL           # model=0x00000000 RM=0x0000ffff
-
-# ---- FLEXSPI0 (9) : MCR0/MCR1/MCR2/AHBCR defaults and LUTKEY (0x5af05af0, the LUT unlock magic). Reading 0 for LUTKEY means the guest cannot tell a locked LUT from an unlocked one.
-FLEXSPI0       MCR0                 # model=0x00000000 RM=0xffff8002
-FLEXSPI0       MCR1                 # model=0x00000000 RM=0xffffffff
-FLEXSPI0       MCR2                 # model=0x00000000 RM=0x200081f7
-FLEXSPI0       AHBCR                # model=0x00000000 RM=0x00000018
-FLEXSPI0       LUTKEY               # model=0x00000000 RM=0x5af05af0
-FLEXSPI0       LUTCR                # model=0x00000000 RM=0x00000002
-FLEXSPI0       FLSHCR4              # model=0x00000000 RM=0x000000c3
-FLEXSPI0       STS0                 # model=0x00000003 RM=0x00000002
-FLEXSPI0       STS2                 # model=0x00000000 RM=0x01000100
 
 # ---- ENET0 (7) : MAC defaults (RCR/TCR/etc.) not modelled; the ENET model is driven functionally, not from its reset image.
 ENET0          MAC_CONFIGURATION    # model=0x00000000 RM=0x00008000

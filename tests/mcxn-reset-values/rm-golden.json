@@ -36,6 +36,36 @@
 "reset": 0
 },
 {
+"inst": "ADC0",
+"reg": "CAL_GAR0",
+"addr": 1074844672,
+"reset": 0
+},
+{
+"inst": "ADC0",
+"reg": "CAL_GAR1",
+"addr": 1074844676,
+"reset": 0
+},
+{
+"inst": "ADC0",
+"reg": "CAL_GAR32",
+"addr": 1074844800,
+"reset": 0
+},
+{
+"inst": "ADC0",
+"reg": "CAL_GBR0",
+"addr": 1074844928,
+"reset": 0
+},
+{
+"inst": "ADC0",
+"reg": "CAL_GBR1",
+"addr": 1074844932,
+"reset": 0
+},
+{
 "inst": "ADC1",
 "reg": "IE",
 "addr": 1074847768,
@@ -69,6 +99,36 @@
 "inst": "ADC1",
 "reg": "OFSTRIM",
 "addr": 1074847808,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "CAL_GAR0",
+"addr": 1074848768,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "CAL_GAR1",
+"addr": 1074848772,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "CAL_GAR32",
+"addr": 1074848896,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "CAL_GBR0",
+"addr": 1074849024,
+"reset": 0
+},
+{
+"inst": "ADC1",
+"reg": "CAL_GBR1",
+"addr": 1074849028,
 "reset": 0
 },
 {
@@ -513,6 +573,30 @@
 "inst": "CMC0",
 "reg": "RSTCNT",
 "addr": 1074036892,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "MR0",
+"addr": 1074036896,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "FM0",
+"addr": 1074036912,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "SRAMDIS0",
+"addr": 1074036928,
+"reset": 0
+},
+{
+"inst": "CMC0",
+"reg": "SRAMRET0",
+"addr": 1074036944,
 "reset": 0
 },
 {
@@ -1297,6 +1381,24 @@
 },
 {
 "inst": "ENET0",
+"reg": "MAC_RXQ_CTRL0",
+"addr": 1074790560,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_RXQ_CTRL1",
+"addr": 1074790564,
+"reset": 0
+},
+{
+"inst": "ENET0",
+"reg": "MAC_RXQ_CTRL2",
+"addr": 1074790568,
+"reset": 0
+},
+{
+"inst": "ENET0",
 "reg": "MAC_INTERRUPT_STATUS",
 "addr": 1074790576,
 "reset": 0
@@ -1933,6 +2035,18 @@
 },
 {
 "inst": "FLEXSPI0",
+"reg": "IPEDCTXCTRL0",
+"addr": 1074562304,
+"reset": 1431655765
+},
+{
+"inst": "FLEXSPI0",
+"reg": "IPEDCTXCTRL1",
+"addr": 1074562308,
+"reset": 2863311530
+},
+{
+"inst": "FLEXSPI0",
 "reg": "IPEDCTX0IV0",
 "addr": 1074562336,
 "reset": 0
@@ -2097,54 +2211,6 @@
 "inst": "FLEXSPI0",
 "reg": "IPEDCTX6END",
 "addr": 1074562540,
-"reset": 0
-},
-{
-"inst": "FMU0TEST",
-"reg": "FCCOB0",
-"addr": 1074016272,
-"reset": 0
-},
-{
-"inst": "FMU0TEST",
-"reg": "FCCOB1",
-"addr": 1074016276,
-"reset": 0
-},
-{
-"inst": "FMU0TEST",
-"reg": "FCCOB2",
-"addr": 1074016280,
-"reset": 0
-},
-{
-"inst": "FMU0TEST",
-"reg": "FCCOB3",
-"addr": 1074016284,
-"reset": 0
-},
-{
-"inst": "FMU0TEST",
-"reg": "FCCOB4",
-"addr": 1074016288,
-"reset": 0
-},
-{
-"inst": "FMU0TEST",
-"reg": "FCCOB5",
-"addr": 1074016292,
-"reset": 0
-},
-{
-"inst": "FMU0TEST",
-"reg": "FCCOB6",
-"addr": 1074016296,
-"reset": 0
-},
-{
-"inst": "FMU0TEST",
-"reg": "FCCOB7",
-"addr": 1074016300,
 "reset": 0
 },
 {
@@ -3286,6 +3352,30 @@
 "reg": "CMP0_TRIG",
 "addr": 1073767008,
 "reset": 63
+},
+{
+"inst": "INPUTMUX0",
+"reg": "ADC1_TRIG0",
+"addr": 1073767104,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "ADC1_TRIG1",
+"addr": 1073767108,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "ADC1_TRIG2",
+"addr": 1073767112,
+"reset": 127
+},
+{
+"inst": "INPUTMUX0",
+"reg": "ADC1_TRIG3",
+"addr": 1073767116,
+"reset": 127
 },
 {
 "inst": "INPUTMUX0",
@@ -7404,6 +7494,30 @@
 "reset": 0
 },
 {
+"inst": "PORT0",
+"reg": "PCR16",
+"addr": 1074880704,
+"reset": 0
+},
+{
+"inst": "PORT0",
+"reg": "PCR17",
+"addr": 1074880708,
+"reset": 0
+},
+{
+"inst": "PORT0",
+"reg": "PCR20",
+"addr": 1074880720,
+"reset": 0
+},
+{
+"inst": "PORT0",
+"reg": "PCR21",
+"addr": 1074880724,
+"reset": 0
+},
+{
 "inst": "PORT1",
 "reg": "GPCLR",
 "addr": 1074884624,
@@ -7437,6 +7551,30 @@
 "inst": "PORT1",
 "reg": "EDCR",
 "addr": 1074884680,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "PCR16",
+"addr": 1074884800,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "PCR17",
+"addr": 1074884804,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "PCR20",
+"addr": 1074884816,
+"reset": 0
+},
+{
+"inst": "PORT1",
+"reg": "PCR21",
+"addr": 1074884820,
 "reset": 0
 },
 {
@@ -7476,6 +7614,30 @@
 "reset": 0
 },
 {
+"inst": "PORT2",
+"reg": "PCR16",
+"addr": 1074888896,
+"reset": 0
+},
+{
+"inst": "PORT2",
+"reg": "PCR17",
+"addr": 1074888900,
+"reset": 0
+},
+{
+"inst": "PORT2",
+"reg": "PCR20",
+"addr": 1074888912,
+"reset": 0
+},
+{
+"inst": "PORT2",
+"reg": "PCR21",
+"addr": 1074888916,
+"reset": 0
+},
+{
 "inst": "PORT3",
 "reg": "GPCLR",
 "addr": 1074892816,
@@ -7509,6 +7671,30 @@
 "inst": "PORT3",
 "reg": "EDCR",
 "addr": 1074892872,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "PCR16",
+"addr": 1074892992,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "PCR17",
+"addr": 1074892996,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "PCR20",
+"addr": 1074893008,
+"reset": 0
+},
+{
+"inst": "PORT3",
+"reg": "PCR21",
+"addr": 1074893012,
 "reset": 0
 },
 {
@@ -7548,6 +7734,30 @@
 "reset": 0
 },
 {
+"inst": "PORT4",
+"reg": "PCR16",
+"addr": 1074897088,
+"reset": 0
+},
+{
+"inst": "PORT4",
+"reg": "PCR17",
+"addr": 1074897092,
+"reset": 0
+},
+{
+"inst": "PORT4",
+"reg": "PCR20",
+"addr": 1074897104,
+"reset": 0
+},
+{
+"inst": "PORT4",
+"reg": "PCR21",
+"addr": 1074897108,
+"reset": 0
+},
+{
 "inst": "PORT5",
 "reg": "GPCLR",
 "addr": 1074012176,
@@ -7581,6 +7791,30 @@
 "inst": "PORT5",
 "reg": "EDCR",
 "addr": 1074012232,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "PCR16",
+"addr": 1074012352,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "PCR17",
+"addr": 1074012356,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "PCR20",
+"addr": 1074012368,
+"reset": 0
+},
+{
+"inst": "PORT5",
+"reg": "PCR21",
+"addr": 1074012372,
 "reset": 0
 },
 {
@@ -8383,6 +8617,18 @@
 },
 {
 "inst": "SYSCON0",
+"reg": "SYSTICKCLKDIV0",
+"addr": 1073742592,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
+"reg": "SYSTICKCLKDIV1",
+"addr": 1073742596,
+"reset": 1073741824
+},
+{
+"inst": "SYSCON0",
 "reg": "TRACECLKDIV",
 "addr": 1073742600,
 "reset": 1073741824
@@ -9130,12 +9376,6 @@
 "reg": "ENDPTCOMPLETE",
 "addr": 1074835900,
 "reset": 0
-},
-{
-"inst": "USBHS1__USBC",
-"reg": "ENDPTCTRL0",
-"addr": 1074835904,
-"reset": 8388736
 },
 {
 "inst": "USBHS1__USBNC",

@@ -26,6 +26,14 @@ struct MCXNLPTMRState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq     irq;
+    /*
+     * LPTMR's compare match is not only an interrupt -- it is a TRIGGER OUTPUT,
+     * routed through INPUTMUX to the ADC/DAC/CMP.  "Convert on a timer tick" is THE
+     * canonical embedded pattern, and the stock lpadc/edma example is built on it.
+     * Without this line the timer fires, the trigger goes nowhere, and the ADC never
+     * converts -- silently.
+     */
+    qemu_irq     trigger;
     QEMUTimer    timer;
     Clock       *clk;
 

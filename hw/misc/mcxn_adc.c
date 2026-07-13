@@ -114,6 +114,7 @@
  * differential conversions".  (FIFO_SEL_B, bit 2, only applies to dual
  * single-ended mode, CMDL[CTYPE]=11b, which this model does not implement.) */
 #define TCTRL_FIFO_SEL_A (1u << 1)
+#define TCTRL_HTEN       (1u << 0)   /* CMSIS ADC_TCTRL_HTEN: Trigger Enable */
 /* RESFIFO CMDSRC field (which command produced the entry). */
 #define RESFIFO_CMDSRC_SHIFT 24
 #define RESFIFO_CMDSRC_MASK  0xFu
@@ -283,6 +284,34 @@ static void mcxn_adc_do_conversion(MCXNADCState *s, uint32_t swtrig)
      * FWMARK == 0.
      */
     mcxn_adc_update_status(s);
+}
+
+/*
+ * A HARDWARE trigger arrived on TCTRLn, routed here by INPUTMUX from (e.g.) an LPTMR
+ * compare match.
+ *
+ * ⚠ THIS PATH DID NOT EXIST.  The ONLY way to start a conversion was a SWTRIG write
+ * from the CPU -- so "convert on a timer tick", the single most common thing an ADC
+ * is asked to do, was impossible.  The stock lpadc/edma example attaches LPTMR0 to
+ * ADC0_TRIG[0], starts the timer, arms an eDMA channel, and waits: the timer ticked,
+ * the trigger went nowhere, and NOT ONE CONVERSION EVER HAPPENED.  Nothing logged,
+ * nothing faulted.  It just sat there.
+ *
+ * TCTRLn[HTEN] gates it: a routed trigger that the guest has not ENABLED must not
+ * convert.  (The RM calls the bit "Trigger Enable" and the SDK sets it in
+ * LPADC_SetConvTriggerConfig via kLPADC_TriggerEnable.)
+ */
+static void mcxn_adc_hw_trigger(void *opaque, int trig, int level)
+{
+    MCXNADCState *s = MCXN_ADC(opaque);
+
+    if (!level || trig < 0 || trig >= 4) {
+        return;                    /* a trigger is an edge, not a level */
+    }
+    if (!(s->regs[(R_TCTRL0 + trig * 4) / 4] & TCTRL_HTEN)) {
+        return;                    /* routed, but the guest has not armed it */
+    }
+    mcxn_adc_do_conversion(s, 1u << trig);
 }
 
 static uint64_t mcxn_adc_read(void *opaque, hwaddr offset, unsigned size)
@@ -491,6 +520,7 @@ static void mcxn_adc_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_ADC, MCXN_ADC_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    qdev_init_gpio_in_named(dev, mcxn_adc_hw_trigger, "trigger", 4);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[0]);  /* -> eDMA 21/23 */
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);  /* -> eDMA 22/24 */
 }
