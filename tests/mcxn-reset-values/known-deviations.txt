@@ -76,7 +76,7 @@ SYSCON0        I3C1FCLKDIV          # model=0x00000000 RM=0x40000000
 SYSCON0        AUTOCLKGATEOVERRIDE  # model=0x00000000 RM=0x0000ffff
 SYSCON0        ECC_ENABLE_CTRL      # model=0x00000000 RM=0x00000003
 
-# ---- INPUTMUX0 (53) : trigger-routing selectors default to 0x7F = NO INPUT CONNECTED. Reading 0 names input 0 instead. Also DMA0_REQ_ENABLE0/1 (reset FFFF_FFFF) gate every eDMA request and are unmodelled -- our request lines are UNGATED, i.e. MORE PERMISSIVE THAN SILICON.
+# ---- INPUTMUX0 (45) : trigger-routing selectors default to 0x7F = NO INPUT CONNECTED. Reading 0 names input 0 instead. DMAn_REQ_ENABLE0..3 IS NOW MODELLED AND GATED (2026-07-12) -- those 8 lines are gone from this list. What remains is TRIGGER ROUTING: the selectors below default to 0x7F = NO INPUT CONNECTED, and reading 0 names input 0 instead. Selector 50 = LPTMR0 (decoded from NXP's own compiled driver: kINPUTMUX_Lptmr0ToAdc0Trigger = 0x28000032 -> write reg 0x280 = 50). Until this is routed, the stock lpadc/edma example -- which triggers conversions from LPTMR0 -- still cannot convert.
 INPUTMUX0      CTIMER0CAP0          # model=0x00000000 RM=0x0000007f
 INPUTMUX0      CTIMER0CAP1          # model=0x00000000 RM=0x0000007f
 INPUTMUX0      CTIMER0CAP2          # model=0x00000000 RM=0x0000007f
@@ -122,14 +122,6 @@ INPUTMUX0      FLEXCOMM6_TRIG       # model=0x00000000 RM=0x0000003f
 INPUTMUX0      FLEXCOMM7_TRIG       # model=0x00000000 RM=0x0000003f
 INPUTMUX0      FLEXCOMM8_TRIG       # model=0x00000000 RM=0x0000003f
 INPUTMUX0      FLEXCOMM9_TRIG       # model=0x00000000 RM=0x0000003f
-INPUTMUX0      DMA0_REQ_ENABLE0     # model=0x00000000 RM=0xffffffff
-INPUTMUX0      DMA0_REQ_ENABLE1     # model=0x00000000 RM=0xffffffff
-INPUTMUX0      DMA0_REQ_ENABLE2     # model=0x00000000 RM=0xffffffff
-INPUTMUX0      DMA0_REQ_ENABLE3     # model=0x00000000 RM=0x03ffffff
-INPUTMUX0      DMA1_REQ_ENABLE0     # model=0x00000000 RM=0xffffffff
-INPUTMUX0      DMA1_REQ_ENABLE1     # model=0x00000000 RM=0xffffffff
-INPUTMUX0      DMA1_REQ_ENABLE2     # model=0x00000000 RM=0xffffffff
-INPUTMUX0      DMA1_REQ_ENABLE3     # model=0x00000000 RM=0x03ffffff
 
 # ---- USBPHY (45) : PWD resets with the power-down bits SET; reading 0 says the PHY is already powered up. VERSION is a fabricated ID (0x02000000 vs 0x05000000).
 USBPHY         PWD                  # model=0x00000000 RM=0x001e1c00

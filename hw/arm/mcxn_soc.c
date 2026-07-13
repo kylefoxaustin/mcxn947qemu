@@ -189,7 +189,6 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_CDOG,     0x400BB000 },   /* CDOG0 */
     { TYPE_MCXN_CDOG,     0x400BC000 },   /* CDOG1 */
     { TYPE_MCXN_EWM,      0x400C0000 },
-    { TYPE_MCXN_INPUTMUX, 0x40006000 },
     { TYPE_MCXN_EVTG,     0x400D2000 },
     { TYPE_MCXN_PLU,      0x40034000 },
     { TYPE_MCXN_FREQME,   0x40011000 },
@@ -297,6 +296,7 @@ static void mcxn_soc_instance_init(Object *obj)
     object_initialize_child(obj, "sinc0", &s->sinc0, TYPE_MCXN_SINC);
     object_initialize_child(obj, "pdm0", &s->pdm0, TYPE_MCXN_PDM);
     object_initialize_child(obj, "ostimer0", &s->ostimer0, TYPE_MCXN_OSTIMER);
+    object_initialize_child(obj, "inputmux0", &s->inputmux, TYPE_MCXN_INPUTMUX);
     for (i = 0; i < MCXN_NUM_EDMA; i++) {
         g_autofree char *name = g_strdup_printf("edma%d", i);
         object_initialize_child(obj, name, &s->edma[i], TYPE_MCXN_EDMA);
@@ -638,6 +638,28 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      mcxn_lptmr_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->lptmr_s_alias[i]);
+    }
+
+    /*
+     * INPUTMUX0.  Realized BEFORE the eDMAs so its gate outputs exist, but WIRED
+     * after them (see below): qdev_get_gpio_in_named() only resolves once the
+     * TARGET is realized, and sysbus_connect_irq() only once the SOURCE is.  The
+     * ordering is a constraint in BOTH directions, which is exactly how the
+     * peripheral DMA request wiring got silently dropped once already.
+     */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->inputmux), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->inputmux), 0, 0x40006000);
+    {
+        MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->inputmux), 0);
+
+        memory_region_init_alias(&s->inputmux_s_alias, OBJECT(dev),
+                                 "mcxn.inputmux.s", mr, 0,
+                                 memory_region_size(mr));
+        memory_region_add_subregion(system_memory,
+                                    0x40006000 + MCXN_SECURE_ALIAS,
+                                    &s->inputmux_s_alias);
     }
 
     /* eDMA DMA0..1: 16 channels each, channel IRQs to cpu0 NVIC. */
@@ -1163,6 +1185,33 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 2,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
                                             MCXN_DMA_REQ_LPFLEXCOMM0_RX + 2 * i));
+    }
+
+    /*
+     * INPUTMUX gates every one of those request lines.
+     *
+     * DMAn_REQ_ENABLE0..3 is one bit per request source, and it decides whether a
+     * peripheral's request reaches the engine AT ALL (RM: "0: DMA request to DMA0
+     * and response from DMA0 are blocked").  It resets to all-enabled, which is why
+     * nothing broke while it was unmodelled -- and also why it was worth modelling:
+     * an UNGATED model is MORE PERMISSIVE THAN THE SILICON, so a guest that CLOSES a
+     * gate sees the request keep coming.  That is the silent-wrong-answer class
+     * inverted: it does not fail here, IT FAILS ON THE BOARD.
+     *
+     * Wired last, with the rest of the DMA request lines, because
+     * qdev_get_gpio_in_named() needs the TARGET realized and qdev_connect_gpio_out
+     * needs the SOURCE realized -- an ordering constraint in both directions.
+     */
+    for (i = 0; i < MCXN_NUM_EDMA; i++) {
+        g_autofree char *gate = g_strdup_printf("dma%d-req-enable", i);
+        int src;
+
+        for (src = 0; src < MCXN_EDMA_REQ_SOURCES; src++) {
+            qdev_connect_gpio_out_named(DEVICE(&s->inputmux), gate, src,
+                                        qdev_get_gpio_in_named(
+                                            DEVICE(&s->edma[i]), "req-enable",
+                                            src));
+        }
     }
 }
 

@@ -596,6 +596,12 @@ static void mcxn_edma_service_bh(void *opaque)
             if (!s->req_level[src]) {
                 continue;               /* nothing is asking this channel */
             }
+            if (!s->req_enabled[src]) {
+                /* INPUTMUX_DMAn_REQ_ENABLE has this source's bit CLEAR: the
+                 * request is blocked before it ever reaches the engine.  Silicon
+                 * drops it here; so do we. */
+                continue;
+            }
             /*
              * One minor loop per request, as the hardware does.  Writing into
              * the peripheral makes it re-evaluate its FIFO and update its
@@ -624,6 +630,28 @@ static void mcxn_edma_service_bh(void *opaque)
  * We only latch the level here and kick the bottom half; see above for why the
  * transfer itself must not happen on this call stack.
  */
+/*
+ * INPUTMUX told us whether request source `src` is allowed through at all.
+ * This is a GATE, not a request: it does not schedule anything by itself, but a
+ * source that has just been re-enabled may already be asserting, so kick the
+ * bottom half and let the service loop re-evaluate.
+ */
+static void mcxn_edma_req_enable(void *opaque, int src, int level)
+{
+    MCXNEDMAState *s = MCXN_EDMA(opaque);
+
+    if (src < 0 || src >= MCXN_EDMA_REQ_SOURCES) {
+        return;
+    }
+    if (s->req_enabled[src] == !!level) {
+        return;
+    }
+    s->req_enabled[src] = level;
+    if (level && s->req_level[src]) {
+        qemu_bh_schedule(s->bh);
+    }
+}
+
 static void mcxn_edma_req(void *opaque, int src, int level)
 {
     MCXNEDMAState *s = MCXN_EDMA(opaque);
@@ -656,6 +684,8 @@ static void mcxn_edma_reset(DeviceState *dev)
     memset(s->ch_grpri, 0, sizeof(s->ch_grpri));
     memset(s->ch, 0, sizeof(s->ch));
     memset(s->req_level, 0, sizeof(s->req_level));
+    /* INPUTMUX resets with every request line ENABLED (see the header). */
+    memset(s->req_enabled, 1, sizeof(s->req_enabled));
 }
 
 static void mcxn_edma_realize(DeviceState *dev, Error **errp)
@@ -665,6 +695,8 @@ static void mcxn_edma_realize(DeviceState *dev, Error **errp)
 
     /* One input per MCX N DMA request-mux source: peripherals drive these. */
     qdev_init_gpio_in(dev, mcxn_edma_req, MCXN_EDMA_REQ_SOURCES);
+    qdev_init_gpio_in_named(dev, mcxn_edma_req_enable, "req-enable",
+                            MCXN_EDMA_REQ_SOURCES);
     s->bh = qemu_bh_new(mcxn_edma_service_bh, s);
 
     /* Management page (0x0) + 16 channels x 0x1000 = 0x11000. */

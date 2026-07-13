@@ -76,6 +76,23 @@ struct MCXNEDMAState {
      * rather than re-entering it. */
     bool req_level[MCXN_EDMA_REQ_SOURCES];
 
+    /*
+     * INPUTMUX gates EVERY peripheral DMA request: INPUTMUX_DMAn_REQ_ENABLE0..3,
+     * one bit per request source, reset FFFF_FFFF/FFFF_FFFF/FFFF_FFFF/03FF_FFFF
+     * (i.e. all 122 lines ENABLED out of reset).  RM: "0: DMA request to DMA0 and
+     * response from DMA0 are blocked.  1: DMA request and response are enabled."
+     *
+     * ⚠ This gate did not exist, so our request lines were UNGATED.  That is not a
+     * harmless simplification -- it is the silent-wrong-answer class INVERTED: the
+     * model was MORE PERMISSIVE THAN THE SILICON, so a developer who forgot the
+     * enable got a working transfer here and a dead one on the board.  A model that
+     * is too forgiving does not fail safe; IT SHIPS THE BUG TO THE HARDWARE.
+     *
+     * Defaults to all-enabled so a machine that never writes INPUTMUX behaves
+     * exactly as silicon does out of reset.
+     */
+    bool req_enabled[MCXN_EDMA_REQ_SOURCES];
+
     /* Requests are serviced from a bottom half: a peripheral raises its line
      * from inside its own MMIO write, and writing back into it on that call
      * stack is a re-entrant access that QEMU's guard silently DROPS. */

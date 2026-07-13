@@ -13,6 +13,7 @@
 #include "hw/arm/armv7m.h"
 #include "hw/char/mcxn_lpuart.h"
 #include "hw/misc/mcxn_scg.h"
+#include "hw/misc/mcxn_inputmux.h"
 #include "hw/misc/mcxn_syscon.h"
 #include "hw/misc/mcxn_spc.h"
 #include "hw/misc/mcxn_port.h"
@@ -112,6 +113,7 @@ struct MCXNState {
     MCXNFMUState    fmu0;                      /* flash management unit */
     MCXNOSTimerState ostimer0;                 /* OS event timer */
     MCXNEDMAState   edma[MCXN_NUM_EDMA];        /* DMA0..1 (eDMA) */
+    MCXNInputMuxState inputmux;                 /* INPUTMUX0: trigger + DMA gating */
     MCXNADCState    adc[MCXN_NUM_ADC];           /* ADC0..1 (LPADC) */
     MCXNCMPState    cmp[MCXN_NUM_CMP];           /* CMP0..2 (LPCMP) */
     MCXNTSIState    tsi[MCXN_NUM_TSI];           /* TSI0 (touch sense) */
@@ -158,6 +160,7 @@ struct MCXNState {
     MemoryRegion fmu0_s_alias;                    /* secure alias of FMU */
     MemoryRegion ostimer0_s_alias;                /* secure alias of OSTIMER */
     MemoryRegion edma_s_alias[MCXN_NUM_EDMA];     /* secure aliases of eDMA */
+    MemoryRegion inputmux_s_alias;                /* secure alias of INPUTMUX0 */
     MemoryRegion adc_s_alias[MCXN_NUM_ADC];       /* secure aliases of ADC0..1 */
     MemoryRegion cmp_s_alias[MCXN_NUM_CMP];       /* secure aliases of CMP0..2 */
     MemoryRegion tsi_s_alias[MCXN_NUM_TSI];       /* secure aliases of TSI0 */
