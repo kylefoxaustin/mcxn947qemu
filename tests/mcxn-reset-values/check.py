@@ -43,7 +43,7 @@ COVERAGE IS PARTIAL AND SAID SO OUT LOUD: only registers whose RM table row pars
 cleanly AND that CMSIS attributes to exactly one peripheral are probed.  It is a
 FLOOR on the bugs, not a ceiling.
 """
-import json, os, subprocess, sys
+import json, os, signal, subprocess, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 QEMU = os.environ.get("QEMU", os.path.join(HERE, "..", "..", "build", "qemu-system-arm"))
@@ -129,12 +129,31 @@ def probe(regs):
     # process stuck in a driver), and the answer-count assertion below turns the kill
     # into a FAILED VERDICT rather than a silent short read.
     #
+    # ⚠ AND KILL THE PROCESS *GROUP*, NOT THE PROCESS.
+    #
+    # `timeout` is now the child; QEMU is its GRANDchild.  A p.kill() sends SIGKILL to
+    # `timeout`, which dies INSTANTLY WITHOUT FORWARDING ANYTHING -- and QEMU is
+    # reparented to init and RUNS FOREVER.
+    #
+    #     ⭐ THE FIX FOR THE WEDGE CREATED A LEAK.  I added `timeout -s KILL` to stop a
+    #        hung subject from parking the gate (ollama's finding), and in doing so I
+    #        put a process between me and the thing I was killing.  Five orphaned QEMUs
+    #        accumulated on a SHARED BOX in five hours; 91emulator reaped two more of
+    #        mine, one of which had been spinning at 99.9% CPU FOR 18 HOURS, quietly
+    #        poisoning the host load of everyone else's benchmarks.
+    #
+    #     "An orphaned process of your own is a second tenant that the fence is
+    #      structurally blind to, BECAUSE IT IS WEARING YOUR BADGE."  -- ollama_95_neutron
+    #
+    # start_new_session puts the whole chain in its own process group, so killpg reaches
+    # BOTH the wrapper and the subject.  A cleanup that cannot reach what it created is
+    # not a cleanup.
     p = subprocess.Popen(
         ["timeout", "-s", "KILL", "120",
          QEMU, "-M", "frdm-mcxn947", "-display", "none", "-accel", "qtest",
          "-qtest", "stdio", "-monitor", "none", "-serial", "none"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, text=True)
+        stderr=subprocess.DEVNULL, text=True, start_new_session=True)
     try:
         p.stdin.write("".join("readl 0x%x\n" % r["addr"] for r in regs))
         p.stdin.flush()
@@ -147,7 +166,10 @@ def probe(regs):
                 vals.append(int(line.split()[1], 16))
         return vals
     finally:
-        p.kill()
+        try:
+            os.killpg(os.getpgid(p.pid), signal.SIGKILL)   # the wrapper AND the subject
+        except (ProcessLookupError, PermissionError):
+            pass
         p.wait()
 
 
