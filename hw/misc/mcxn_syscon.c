@@ -175,12 +175,121 @@ static const MemoryRegionOps mcxn_syscon_ops = {
     .impl.max_access_size = 4,
 };
 
+/*
+ * SYSCON reset values, TAKEN FROM THE RM'S REGISTER MAP.
+ *
+ * ⚠ A CLOCK SELECTOR THAT RESETS TO 0 IS NOT "UNCONFIGURED" -- IT NAMES A REAL
+ * SOURCE, AND THE SDK WILL HAND OUT ITS FREQUENCY.
+ *
+ * Every *CLKSEL resets to 7, which means NO SOURCE SELECTED, and every *CLKDIV
+ * resets with bit 30 (HALT) SET.  We reset them all to zero, and the SDK reads them:
+ *
+ *     uint32_t CLOCK_GetCTimerClkFreq(uint32_t id) {
+ *         switch (SYSCON->CTIMERCLKSEL[id]) {
+ *             case 0U: freq = CLOCK_GetClk1MFreq(); break;   <-- 1 MHz!
+ *             ...
+ *             default: freq = 0U; break;                     <-- what 7 gives
+ *         }
+ *         return freq / div;
+ *     }
+ *
+ * So a guest that asks for the clock of a CTimer/WDT/OSTIMER/MICFIL it never
+ * configured gets, on silicon, 0 Hz -- and its driver asserts or bails, AND THE
+ * DEVELOPER FINDS OUT.  On this model it got a PLAUSIBLE, WRONG, NON-ZERO frequency
+ * (1 MHz, 16 kHz, 12 MHz), computed a bogus divider from it, and RAN THE TIMER AT
+ * THE WRONG RATE, SILENTLY.
+ *
+ * That is worse than the SIRCCSR bug that started this audit.  THAT one hard-faulted,
+ * which is loud.  THIS one returns a confident wrong number.
+ *
+ * CPUCTRL (reset 0x28 = CPU1CLKEN | CPU1RSTEN: clocked, but held in reset) also
+ * mattered: firmware that only does `CPUCTRL &= ~CPU1RSTEN`, relying on CLKEN being
+ * SET OUT OF RESET as it is on silicon, WOULD NEVER HAVE STARTED CPU1 here.
+ *
+ * Generated from the reference manual by the same extractor that backs
+ * tests/mcxn-reset-values, so it cannot drift into invention.
+ */
+static const struct { uint16_t off; uint32_t val; } syscon_reset[] = {
+    { 0x200, 0x00000603u },   /* AHBCLKCTRL0 */
+    { 0x260, 0x00000007u },   /* SYSTICKCLKSEL0 */
+    { 0x300, 0x40000000u },   /* SYSTICKCLKDIV0 */
+    { 0x304, 0x40000000u },   /* SYSTICKCLKDIV1 */
+    { 0x308, 0x40000000u },   /* TRACECLKDIV */
+    { 0x37C, 0x40000000u },   /* TSICLKDIV */
+    { 0x384, 0x40000000u },   /* CLKOUTDIV */
+    { 0x388, 0x40000000u },   /* FROHFDIV */
+    { 0x398, 0x40000000u },   /* USB0CLKDIV */
+    { 0x3B4, 0x40000000u },   /* SCTCLKDIV */
+    { 0x3C4, 0x40000000u },   /* PLLCLKDIV */
+    { 0x3E4, 0x40000000u },   /* PLL1CLK0DIV */
+    { 0x3E8, 0x40000000u },   /* PLL1CLK1DIV */
+    { 0x400, 0x00020410u },   /* NVM_CTRL */
+    { 0x52C, 0x00000007u },   /* PLLCLKDIVSEL */
+    { 0x530, 0x00000007u },   /* I3C0FCLKSEL */
+    { 0x534, 0x00000007u },   /* I3C0FCLKSTCSEL */
+    { 0x538, 0x40000000u },   /* I3C0FCLKSTCDIV */
+    { 0x53C, 0x40000000u },   /* I3C0FCLKSDIV */
+    { 0x540, 0x40000000u },   /* I3C0FCLKDIV */
+    { 0x548, 0x0000000Fu },   /* MICFILFCLKSEL */
+    { 0x54C, 0x40000000u },   /* MICFILFCLKDIV */
+    { 0x560, 0x00000007u },   /* FLEXIOCLKSEL */
+    { 0x564, 0x40000000u },   /* FLEXIOCLKDIV */
+    { 0x5A0, 0x00000007u },   /* FLEXCAN0CLKSEL */
+    { 0x5A8, 0x00000007u },   /* FLEXCAN1CLKSEL */
+    { 0x5AC, 0x40000000u },   /* FLEXCAN1CLKDIV */
+    { 0x5B0, 0x00000007u },   /* ENETRMIICLKSEL */
+    { 0x5B4, 0x40000000u },   /* ENETRMIICLKDIV */
+    { 0x5B8, 0x00000007u },   /* ENETPTPREFCLKSEL */
+    { 0x5BC, 0x40000000u },   /* ENETPTPREFCLKDIV */
+    { 0x5D4, 0x00000001u },   /* EWM0CLKSEL */
+    { 0x5D8, 0x00000003u },   /* WDT1CLKSEL */
+    { 0x5DC, 0x40000000u },   /* WDT1CLKDIV */
+    { 0x5E0, 0x00000003u },   /* OSTIMERCLKSEL */
+    { 0x5F0, 0x00000007u },   /* CMP0FCLKSEL */
+    { 0x5F4, 0x40000000u },   /* CMP0FCLKDIV */
+    { 0x5F8, 0x00000007u },   /* CMP0RRCLKSEL */
+    { 0x5FC, 0x40000000u },   /* CMP0RRCLKDIV */
+    { 0x600, 0x00000007u },   /* CMP1FCLKSEL */
+    { 0x604, 0x40000000u },   /* CMP1FCLKDIV */
+    { 0x608, 0x00000007u },   /* CMP1RRCLKSEL */
+    { 0x60C, 0x40000000u },   /* CMP1RRCLKDIV */
+    { 0x610, 0x00000007u },   /* CMP2FCLKSEL */
+    { 0x614, 0x40000000u },   /* CMP2FCLKDIV */
+    { 0x618, 0x00000007u },   /* CMP2RRCLKSEL */
+    { 0x61C, 0x40000000u },   /* CMP2RRCLKDIV */
+    { 0x800, 0x00000028u },   /* CPUCTRL */
+    { 0x824, 0x00000031u },   /* LPCAC_CTRL */
+    { 0x880, 0x00000007u },   /* SAI0CLKSEL */
+    { 0x884, 0x00000007u },   /* SAI1CLKSEL */
+    { 0x888, 0x40000000u },   /* SAI0CLKDIV */
+    { 0x88C, 0x40000000u },   /* SAI1CLKDIV */
+    { 0x890, 0x00000007u },   /* EMVSIM0CLKSEL */
+    { 0x894, 0x00000007u },   /* EMVSIM1CLKSEL */
+    { 0x898, 0x40000000u },   /* EMVSIM0CLKDIV */
+    { 0x89C, 0x40000000u },   /* EMVSIM1CLKDIV */
+    { 0xB30, 0x00000007u },   /* I3C1FCLKSEL */
+    { 0xB34, 0x00000007u },   /* I3C1FCLKSTCSEL */
+    { 0xB38, 0x40000000u },   /* I3C1FCLKSTCDIV */
+    { 0xB3C, 0x40000000u },   /* I3C1FCLKSDIV */
+    { 0xB40, 0x40000000u },   /* I3C1FCLKDIV */
+    { 0xE04, 0x0000FFFFu },   /* AUTOCLKGATEOVERRIDE */
+    { 0xE44, 0x00000003u },   /* ECC_ENABLE_CTRL */
+};
+
 static void mcxn_syscon_reset(DeviceState *dev)
 {
     MCXNSysconState *s = MCXN_SYSCON(dev);
+    int i;
 
     memset(s->regs, 0, sizeof(s->regs));
-    s->cpuctrl = 0;
+    for (i = 0; i < (int)ARRAY_SIZE(syscon_reset); i++) {
+        s->regs[syscon_reset[i].off / 4] = syscon_reset[i].val;
+    }
+
+    /* CPUCTRL lives in its own field (the CPU1 release path reads it), so the table
+     * above cannot reach it.  CPU1CLKEN|CPU1RSTEN = clocked but held in reset, which
+     * still evaluates to want_run == false.  See the comment above. */
+    s->cpuctrl = 0x28;
     s->cpboot = 0;
     s->cpu1_running = false;
 }
