@@ -103,8 +103,7 @@ RANGE  = re.compile(r'^([0-9A-F]{1,5})h\s*-\s*([0-9A-F]{1,5})h$')
 #   tool's own output.
 #
 # prefix AND suffix must agree at both ends, or you are expanding a coincidence.
-ELEMS = re.compile(r'\(([A-Za-z0-9_]*?)(\d+)([A-Za-z_]*)\s*-\s*'
-                   r'([A-Za-z0-9_]*?)(\d+)([A-Za-z_]*)\)\s*$')
+ELEMS = re.compile(r'\(([A-Za-z0-9_]+)\s*-\s*([A-Za-z0-9_]+)\)\s*$')
 
 # An array row where the RANGE and the NAME share a line.
 ARRAY  = re.compile(r'^([0-9A-F]{1,5})h\s*-\s*([0-9A-F]{1,5})h\s+(.*)$')
@@ -114,23 +113,77 @@ ACCESS = re.compile(r'^(RW|RO|WO|W1C|R|W)$')
 RESET  = re.compile(r'^([0-9A-F]{4}_[0-9A-F]{4}|[0-9A-F]{2}_[0-9A-F]{4}|[0-9A-F]{1,16})h$')
 
 
+_RUNS = re.compile(r'\d+|\D+')
+
+
+def _index_of(name_a, name_b):
+    """Which run of digits is the ARRAY INDEX?  Answer: THE ONE THAT VARIES.
+
+    ⭐ DO NOT ASK WHERE THE INDEX IS.  ASK WHAT ACTUALLY CHANGES.
+
+    rt1180emulator and I each guessed, from our own manual's habits, and each was
+    SILENTLY WRONG ON THE OTHER'S SILICON:
+
+        "index = the FIRST digit run"  -> breaks  ADC1_TRIG0 - ADC1_TRIG3
+                                          (splits as ADC / 1 / _TRIG0; drops all of them)
+        "index = the LAST digit run"   -> breaks  CLOCK_ROOT0_STATUS0
+                                                  - CLOCK_ROOT73_STATUS0
+                                          (the varying run is in the MIDDLE, and the name
+                                           ALSO ENDS IN A DIGIT; drops all 74)
+
+    HIS FIX FOR MY BUG HAD MY BUG, POINTING THE OTHER WAY.  We each hard-coded our own
+    document's habits and called it a parser.
+
+        ⭐ THE ANSWER IS NOT IN THE NAME.  IT IS IN THE PAIR.
+
+    So: split BOTH endpoints into runs of digits/non-digits and compare them.  EXACTLY
+    ONE digit run may differ -- that is the index, wherever it happens to sit.  Anything
+    else is REFUSED:
+
+        CTX0_CTR0 - CTX3_CTR1   -> TWO runs vary.  It is a 2-D array, NO SINGLE STRIDE
+                                   DESCRIBES IT, and any regex that "finds the index"
+                                   would confidently emit a wrong one.  DROP, AND COUNT.
+
+    A WRONG GOLDEN MAKES THE CHECKER LIE, AND THEN YOUR ORACLE IS THE THING THAT NEEDS
+    AN ORACLE.  This cannot be wrong about where the index is, BECAUSE IT NEVER HAS TO
+    DECIDE.  (rt1180emulator, b4f99a0917.)
+
+    Returns (runs, position, first, last) or None.
+    """
+    ra = _RUNS.findall(name_a)
+    rb = _RUNS.findall(name_b)
+    if len(ra) != len(rb):
+        return None
+
+    diff = [i for i, (x, y) in enumerate(zip(ra, rb)) if x != y]
+    if len(diff) != 1:
+        return None                  # 0 = not a range at all; >1 = 2-D array, REFUSE
+    i = diff[0]
+    if not (ra[i].isdigit() and rb[i].isdigit()):
+        return None                  # the thing that varies is not an index
+    return ra, i, int(ra[i]), int(rb[i])
+
+
 def _expand(lo, hi, desc, width, acc, reset):
     """Expand one array row into its elements, or return [] if it isn't one."""
     m = ELEMS.search(desc)
     if not m:
         return []
-    pre_a, ia, suf_a, pre_b, ib, suf_b = m.groups()
-    # Both ends must name the SAME register family, or we are expanding a
-    # coincidence.  (rt1180emulator's infix case: P0DR - P31DR.)
-    if pre_a != pre_b or suf_a != suf_b:
+    got = _index_of(m.group(1), m.group(2))
+    if not got:
         return []
-    first, last = int(ia), int(ib)
+    runs, pos, first, last = got
     n = last - first + 1
     if n < 2 or hi <= lo:
         return []
     step = (hi - lo) // (n - 1)
-    return [("%s%d%s" % (pre_a, first + k, suf_a), lo + k * step, width, acc, reset)
-            for k in range(n)]
+
+    out = []
+    for k in range(n):
+        parts = list(runs)
+        parts[pos] = str(first + k)
+        out.append(("".join(parts), lo + k * step, width, acc, reset))
+    return out
 
 
 def parse_rm(path):

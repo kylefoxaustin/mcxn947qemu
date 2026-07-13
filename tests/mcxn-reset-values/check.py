@@ -74,8 +74,25 @@ def probe(regs):
     indistinguishable, and a free-running CPU is a SECOND WRITER to the address
     space under test.)
     """
+    #
+    # ⭐ `timeout -s KILL` -- THE GATE CALLS THE SUBJECT, SO THE SUBJECT CAN WEDGE THE
+    #    GATE.
+    #
+    # This harness blocks in p.stdout.readline().  A QEMU that hangs -- and QEMU CAN
+    # hang; a wedged device model is exactly the class of bug this gate exists to find
+    # -- parks the checker FOREVER, and it looks BUSY, NOT BROKEN.
+    #
+    #     "NO VERDICT" AND "STILL WORKING" ARE THE SAME OBSERVATION.  A refusal is a
+    #     verdict; a hang is an ABSENCE.  Fail-safe assumes the gate RETURNS.
+    #                                                   -- ollama_95_neutron, measured
+    #
+    # So the SUBJECT runs out-of-process under a HARD KILL (SIGTERM does not free a
+    # process stuck in a driver), and the answer-count assertion below turns the kill
+    # into a FAILED VERDICT rather than a silent short read.
+    #
     p = subprocess.Popen(
-        [QEMU, "-M", "frdm-mcxn947", "-display", "none", "-accel", "qtest",
+        ["timeout", "-s", "KILL", "120",
+         QEMU, "-M", "frdm-mcxn947", "-display", "none", "-accel", "qtest",
          "-qtest", "stdio", "-monitor", "none", "-serial", "none"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, text=True)
