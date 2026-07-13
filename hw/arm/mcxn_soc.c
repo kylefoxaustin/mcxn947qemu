@@ -303,6 +303,10 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_EDMA; i++) {
         g_autofree char *name = g_strdup_printf("edma%d", i);
         object_initialize_child(obj, name, &s->edma[i], TYPE_MCXN_EDMA);
+        /* CH_SBR[MID] -- the BUS MASTER ID -- differs per instance (RM: DMA0=6, DMA1=7),
+         * and Linux read-modify-writes that register, so a wrong reset gets laundered
+         * into the guest's own configuration. */
+        qdev_prop_set_uint8(DEVICE(&s->edma[i]), "dma-id", i);
     }
     for (i = 0; i < MCXN_NUM_ADC; i++) {
         g_autofree char *name = g_strdup_printf("adc%d", i);

@@ -487,6 +487,22 @@ def main(rm_txt, cmsis_h, out_json):
                 golden.append({"inst": inst, "reg": name,
                                "addr": bases[inst] + cmsis_off, "reset": reset})
 
+    #
+    # ⚠ DEDUPE.  The RM gives some peripherals a chapter PER INSTANCE (DMA0 and DMA1 each
+    # get their own), so the SAME register is emitted once per chapter -- and the join
+    # then fans each row out across every instance, producing the register TWICE per
+    # instance.  168 duplicates, all in agreement, but they inflate the CENSUS (making a
+    # block look twice as covered as it is) and they double the question stream, which is
+    # the thing that just pushed us past the pipe buffer.
+    #
+    # They AGREE here.  If they ever disagree, that is an RM contradiction and the check
+    # above has already dropped it -- so a surviving duplicate is safe to collapse.
+    #
+    seen = {}
+    for g in golden:
+        seen[(g["inst"], g["reg"])] = g
+    golden = list(seen.values())
+
     golden.sort(key=lambda x: (x["inst"], x["addr"]))
     json.dump(golden, open(out_json, "w"), indent=0)
 

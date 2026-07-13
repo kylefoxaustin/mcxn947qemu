@@ -2557,26 +2557,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "MP_CSR",
-"addr": 1074266112,
-"reset": 3211264
-},
-{
-"inst": "DMA0",
 "reg": "MP_ES",
 "addr": 1074266116,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "MP_ES",
-"addr": 1074266116,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "MP_INT",
-"addr": 1074266120,
 "reset": 0
 },
 {
@@ -2593,26 +2575,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "MP_HRS",
-"addr": 1074266124,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH0_CSR",
 "addr": 1074270208,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH0_CSR",
-"addr": 1074270208,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH0_ES",
-"addr": 1074270212,
 "reset": 0
 },
 {
@@ -2629,26 +2593,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH0_INT",
-"addr": 1074270216,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH0_PRI",
 "addr": 1074270224,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH0_PRI",
-"addr": 1074270224,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH0_MUX",
-"addr": 1074270228,
 "reset": 0
 },
 {
@@ -2665,26 +2611,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH1_CSR",
-"addr": 1074274304,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH1_ES",
 "addr": 1074274308,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH1_ES",
-"addr": 1074274308,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH1_INT",
-"addr": 1074274312,
 "reset": 0
 },
 {
@@ -2701,26 +2629,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH1_PRI",
-"addr": 1074274320,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH1_MUX",
 "addr": 1074274324,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH1_MUX",
-"addr": 1074274324,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH2_CSR",
-"addr": 1074278400,
 "reset": 0
 },
 {
@@ -2737,26 +2647,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH2_ES",
-"addr": 1074278404,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH2_INT",
 "addr": 1074278408,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH2_INT",
-"addr": 1074278408,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH2_PRI",
-"addr": 1074278416,
 "reset": 0
 },
 {
@@ -2773,26 +2665,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH2_MUX",
-"addr": 1074278420,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH3_CSR",
 "addr": 1074282496,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH3_CSR",
-"addr": 1074282496,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH3_ES",
-"addr": 1074282500,
 "reset": 0
 },
 {
@@ -2809,26 +2683,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH3_INT",
-"addr": 1074282504,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH3_PRI",
 "addr": 1074282512,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH3_PRI",
-"addr": 1074282512,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH3_MUX",
-"addr": 1074282516,
 "reset": 0
 },
 {
@@ -2845,26 +2701,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH4_CSR",
-"addr": 1074286592,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH4_ES",
 "addr": 1074286596,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH4_ES",
-"addr": 1074286596,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH4_INT",
-"addr": 1074286600,
 "reset": 0
 },
 {
@@ -2881,26 +2719,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH4_PRI",
-"addr": 1074286608,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH4_MUX",
 "addr": 1074286612,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH4_MUX",
-"addr": 1074286612,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH5_CSR",
-"addr": 1074290688,
 "reset": 0
 },
 {
@@ -2917,26 +2737,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH5_ES",
-"addr": 1074290692,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH5_INT",
 "addr": 1074290696,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH5_INT",
-"addr": 1074290696,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH5_PRI",
-"addr": 1074290704,
 "reset": 0
 },
 {
@@ -2953,26 +2755,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH5_MUX",
-"addr": 1074290708,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH6_CSR",
 "addr": 1074294784,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH6_CSR",
-"addr": 1074294784,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH6_ES",
-"addr": 1074294788,
 "reset": 0
 },
 {
@@ -2989,26 +2773,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH6_INT",
-"addr": 1074294792,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH6_PRI",
 "addr": 1074294800,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH6_PRI",
-"addr": 1074294800,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH6_MUX",
-"addr": 1074294804,
 "reset": 0
 },
 {
@@ -3025,26 +2791,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH7_CSR",
-"addr": 1074298880,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH7_ES",
 "addr": 1074298884,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH7_ES",
-"addr": 1074298884,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH7_INT",
-"addr": 1074298888,
 "reset": 0
 },
 {
@@ -3061,26 +2809,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH7_PRI",
-"addr": 1074298896,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH7_MUX",
 "addr": 1074298900,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH7_MUX",
-"addr": 1074298900,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH8_CSR",
-"addr": 1074302976,
 "reset": 0
 },
 {
@@ -3097,26 +2827,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH8_ES",
-"addr": 1074302980,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH8_INT",
 "addr": 1074302984,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH8_INT",
-"addr": 1074302984,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH8_PRI",
-"addr": 1074302992,
 "reset": 0
 },
 {
@@ -3133,26 +2845,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH8_MUX",
-"addr": 1074302996,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH9_CSR",
 "addr": 1074307072,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH9_CSR",
-"addr": 1074307072,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH9_ES",
-"addr": 1074307076,
 "reset": 0
 },
 {
@@ -3169,26 +2863,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH9_INT",
-"addr": 1074307080,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH9_PRI",
 "addr": 1074307088,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH9_PRI",
-"addr": 1074307088,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH9_MUX",
-"addr": 1074307092,
 "reset": 0
 },
 {
@@ -3205,26 +2881,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH10_CSR",
-"addr": 1074311168,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH10_ES",
 "addr": 1074311172,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH10_ES",
-"addr": 1074311172,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH10_INT",
-"addr": 1074311176,
 "reset": 0
 },
 {
@@ -3241,26 +2899,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH10_PRI",
-"addr": 1074311184,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH10_MUX",
 "addr": 1074311188,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH10_MUX",
-"addr": 1074311188,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH11_CSR",
-"addr": 1074315264,
 "reset": 0
 },
 {
@@ -3277,26 +2917,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH11_ES",
-"addr": 1074315268,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH11_INT",
 "addr": 1074315272,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH11_INT",
-"addr": 1074315272,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH11_PRI",
-"addr": 1074315280,
 "reset": 0
 },
 {
@@ -3313,26 +2935,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH11_MUX",
-"addr": 1074315284,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH12_CSR",
 "addr": 1074319360,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH12_CSR",
-"addr": 1074319360,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH12_ES",
-"addr": 1074319364,
 "reset": 0
 },
 {
@@ -3349,26 +2953,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH12_INT",
-"addr": 1074319368,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH12_PRI",
 "addr": 1074319376,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH12_PRI",
-"addr": 1074319376,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH12_MUX",
-"addr": 1074319380,
 "reset": 0
 },
 {
@@ -3385,26 +2971,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH13_CSR",
-"addr": 1074323456,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH13_ES",
 "addr": 1074323460,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH13_ES",
-"addr": 1074323460,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH13_INT",
-"addr": 1074323464,
 "reset": 0
 },
 {
@@ -3421,26 +2989,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH13_PRI",
-"addr": 1074323472,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH13_MUX",
 "addr": 1074323476,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH13_MUX",
-"addr": 1074323476,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH14_CSR",
-"addr": 1074327552,
 "reset": 0
 },
 {
@@ -3457,26 +3007,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH14_ES",
-"addr": 1074327556,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH14_INT",
 "addr": 1074327560,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH14_INT",
-"addr": 1074327560,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH14_PRI",
-"addr": 1074327568,
 "reset": 0
 },
 {
@@ -3493,26 +3025,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH14_MUX",
-"addr": 1074327572,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH15_CSR",
 "addr": 1074331648,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH15_CSR",
-"addr": 1074331648,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH15_ES",
-"addr": 1074331652,
 "reset": 0
 },
 {
@@ -3529,26 +3043,8 @@
 },
 {
 "inst": "DMA0",
-"reg": "CH15_INT",
-"addr": 1074331656,
-"reset": 0
-},
-{
-"inst": "DMA0",
 "reg": "CH15_PRI",
 "addr": 1074331664,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH15_PRI",
-"addr": 1074331664,
-"reset": 0
-},
-{
-"inst": "DMA0",
-"reg": "CH15_MUX",
-"addr": 1074331668,
 "reset": 0
 },
 {
@@ -3565,26 +3061,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "MP_CSR",
-"addr": 1074397184,
-"reset": 3211264
-},
-{
-"inst": "DMA1",
 "reg": "MP_ES",
 "addr": 1074397188,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "MP_ES",
-"addr": 1074397188,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "MP_INT",
-"addr": 1074397192,
 "reset": 0
 },
 {
@@ -3601,26 +3079,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "MP_HRS",
-"addr": 1074397196,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH0_CSR",
 "addr": 1074401280,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH0_CSR",
-"addr": 1074401280,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH0_ES",
-"addr": 1074401284,
 "reset": 0
 },
 {
@@ -3637,26 +3097,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH0_INT",
-"addr": 1074401288,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH0_PRI",
 "addr": 1074401296,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH0_PRI",
-"addr": 1074401296,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH0_MUX",
-"addr": 1074401300,
 "reset": 0
 },
 {
@@ -3673,26 +3115,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH1_CSR",
-"addr": 1074405376,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH1_ES",
 "addr": 1074405380,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH1_ES",
-"addr": 1074405380,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH1_INT",
-"addr": 1074405384,
 "reset": 0
 },
 {
@@ -3709,26 +3133,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH1_PRI",
-"addr": 1074405392,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH1_MUX",
 "addr": 1074405396,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH1_MUX",
-"addr": 1074405396,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH2_CSR",
-"addr": 1074409472,
 "reset": 0
 },
 {
@@ -3745,26 +3151,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH2_ES",
-"addr": 1074409476,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH2_INT",
 "addr": 1074409480,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH2_INT",
-"addr": 1074409480,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH2_PRI",
-"addr": 1074409488,
 "reset": 0
 },
 {
@@ -3781,26 +3169,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH2_MUX",
-"addr": 1074409492,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH3_CSR",
 "addr": 1074413568,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH3_CSR",
-"addr": 1074413568,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH3_ES",
-"addr": 1074413572,
 "reset": 0
 },
 {
@@ -3817,26 +3187,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH3_INT",
-"addr": 1074413576,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH3_PRI",
 "addr": 1074413584,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH3_PRI",
-"addr": 1074413584,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH3_MUX",
-"addr": 1074413588,
 "reset": 0
 },
 {
@@ -3853,26 +3205,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH4_CSR",
-"addr": 1074417664,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH4_ES",
 "addr": 1074417668,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH4_ES",
-"addr": 1074417668,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH4_INT",
-"addr": 1074417672,
 "reset": 0
 },
 {
@@ -3889,26 +3223,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH4_PRI",
-"addr": 1074417680,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH4_MUX",
 "addr": 1074417684,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH4_MUX",
-"addr": 1074417684,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH5_CSR",
-"addr": 1074421760,
 "reset": 0
 },
 {
@@ -3925,26 +3241,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH5_ES",
-"addr": 1074421764,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH5_INT",
 "addr": 1074421768,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH5_INT",
-"addr": 1074421768,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH5_PRI",
-"addr": 1074421776,
 "reset": 0
 },
 {
@@ -3961,26 +3259,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH5_MUX",
-"addr": 1074421780,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH6_CSR",
 "addr": 1074425856,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH6_CSR",
-"addr": 1074425856,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH6_ES",
-"addr": 1074425860,
 "reset": 0
 },
 {
@@ -3997,26 +3277,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH6_INT",
-"addr": 1074425864,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH6_PRI",
 "addr": 1074425872,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH6_PRI",
-"addr": 1074425872,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH6_MUX",
-"addr": 1074425876,
 "reset": 0
 },
 {
@@ -4033,26 +3295,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH7_CSR",
-"addr": 1074429952,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH7_ES",
 "addr": 1074429956,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH7_ES",
-"addr": 1074429956,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH7_INT",
-"addr": 1074429960,
 "reset": 0
 },
 {
@@ -4069,26 +3313,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH7_PRI",
-"addr": 1074429968,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH7_MUX",
 "addr": 1074429972,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH7_MUX",
-"addr": 1074429972,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH8_CSR",
-"addr": 1074434048,
 "reset": 0
 },
 {
@@ -4105,26 +3331,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH8_ES",
-"addr": 1074434052,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH8_INT",
 "addr": 1074434056,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH8_INT",
-"addr": 1074434056,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH8_PRI",
-"addr": 1074434064,
 "reset": 0
 },
 {
@@ -4141,26 +3349,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH8_MUX",
-"addr": 1074434068,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH9_CSR",
 "addr": 1074438144,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH9_CSR",
-"addr": 1074438144,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH9_ES",
-"addr": 1074438148,
 "reset": 0
 },
 {
@@ -4177,26 +3367,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH9_INT",
-"addr": 1074438152,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH9_PRI",
 "addr": 1074438160,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH9_PRI",
-"addr": 1074438160,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH9_MUX",
-"addr": 1074438164,
 "reset": 0
 },
 {
@@ -4213,26 +3385,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH10_CSR",
-"addr": 1074442240,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH10_ES",
 "addr": 1074442244,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH10_ES",
-"addr": 1074442244,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH10_INT",
-"addr": 1074442248,
 "reset": 0
 },
 {
@@ -4249,26 +3403,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH10_PRI",
-"addr": 1074442256,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH10_MUX",
 "addr": 1074442260,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH10_MUX",
-"addr": 1074442260,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH11_CSR",
-"addr": 1074446336,
 "reset": 0
 },
 {
@@ -4285,26 +3421,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH11_ES",
-"addr": 1074446340,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH11_INT",
 "addr": 1074446344,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH11_INT",
-"addr": 1074446344,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH11_PRI",
-"addr": 1074446352,
 "reset": 0
 },
 {
@@ -4321,26 +3439,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH11_MUX",
-"addr": 1074446356,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH12_CSR",
 "addr": 1074450432,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH12_CSR",
-"addr": 1074450432,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH12_ES",
-"addr": 1074450436,
 "reset": 0
 },
 {
@@ -4357,26 +3457,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH12_INT",
-"addr": 1074450440,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH12_PRI",
 "addr": 1074450448,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH12_PRI",
-"addr": 1074450448,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH12_MUX",
-"addr": 1074450452,
 "reset": 0
 },
 {
@@ -4393,26 +3475,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH13_CSR",
-"addr": 1074454528,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH13_ES",
 "addr": 1074454532,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH13_ES",
-"addr": 1074454532,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH13_INT",
-"addr": 1074454536,
 "reset": 0
 },
 {
@@ -4429,26 +3493,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH13_PRI",
-"addr": 1074454544,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH13_MUX",
 "addr": 1074454548,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH13_MUX",
-"addr": 1074454548,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH14_CSR",
-"addr": 1074458624,
 "reset": 0
 },
 {
@@ -4465,26 +3511,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH14_ES",
-"addr": 1074458628,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH14_INT",
 "addr": 1074458632,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH14_INT",
-"addr": 1074458632,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH14_PRI",
-"addr": 1074458640,
 "reset": 0
 },
 {
@@ -4501,26 +3529,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH14_MUX",
-"addr": 1074458644,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH15_CSR",
 "addr": 1074462720,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH15_CSR",
-"addr": 1074462720,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH15_ES",
-"addr": 1074462724,
 "reset": 0
 },
 {
@@ -4537,26 +3547,8 @@
 },
 {
 "inst": "DMA1",
-"reg": "CH15_INT",
-"addr": 1074462728,
-"reset": 0
-},
-{
-"inst": "DMA1",
 "reg": "CH15_PRI",
 "addr": 1074462736,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH15_PRI",
-"addr": 1074462736,
-"reset": 0
-},
-{
-"inst": "DMA1",
-"reg": "CH15_MUX",
-"addr": 1074462740,
 "reset": 0
 },
 {

@@ -22,7 +22,6 @@
 #
 # Nothing may change silently.  Regenerate with:  tests/mcxn-reset-values/check.py --bless
 #
-
 ADC0             127
 ADC1             127
 CACHE64_CTRL0    4
@@ -41,8 +40,8 @@ CTIMER1          11
 CTIMER2          11
 CTIMER3          11
 CTIMER4          11
-DMA0             168
-DMA1             168
+DMA0             84
+DMA1             84
 EIM0             20
 EMVSIM0          17
 EMVSIM1          17

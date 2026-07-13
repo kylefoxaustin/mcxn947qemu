@@ -93,6 +93,12 @@ struct MCXNEDMAState {
      */
     bool req_enabled[MCXN_EDMA_REQ_SOURCES];
 
+    /*
+     * Which eDMA this is.  CH_SBR[MID] -- the BUS MASTER ID -- is PER-INSTANCE:
+     * the RM gives DMA0 a reset of 6 and DMA1 a reset of 7.
+     */
+    uint8_t dma_id;
+
     /* Requests are serviced from a bottom half: a peripheral raises its line
      * from inside its own MMIO write, and writing back into it on that call
      * stack is a re-entrant access that QEMU's guard silently DROPS. */

@@ -7,6 +7,7 @@
 #include "qemu/log.h"
 #include "hw/dma/mcxn_edma.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 #include "qemu/main-loop.h"
 #include "system/address-spaces.h"
@@ -25,6 +26,38 @@
 #define R_CH_ES    0x04
 #define R_CH_INT   0x08
 #define R_CH_SBR   0x0C
+
+/*
+ * CH_SBR[MID] (bits 4:0, CMSIS DMA_CH_SBR_MID_MASK) is the BUS MASTER ID, and its reset
+ * value is PER-INSTANCE: the RM gives DMA0 6 and DMA1 7.  We reset it to ZERO -- a
+ * different bus master entirely.
+ *
+ * ⭐ AND CH_SBR IS A REGISTER THE GUEST READ-MODIFY-WRITES.  Linux's fsl-edma does:
+ *
+ *       val  = edma_readl_chreg(chan, ch_sbr);   // reads OUR value
+ *       val |= EDMA_V3_CH_SBR_RD;                // ORs its own direction bit in
+ *       edma_writel_chreg(chan, val, ch_sbr);    // writes it back
+ *
+ * so it READ OUR ZERO AND WROTE IT BACK AS ITS OWN CONFIGURATION -- every subsequent
+ * transfer issued under the wrong master ID (wrong bus attributes, wrong security
+ * domain).  Nothing failed here, because nothing in THIS model reads those bits.  It
+ * fails on hardware.
+ *
+ *     ⭐ A REGISTER THE GUEST READ-MODIFY-WRITES IS THE ONE PLACE A ZERO RESET VALUE
+ *        SURVIVES INTO THE GUEST'S OWN STATE.  A zero reset is not the absence of a
+ *        claim -- and the RMW registers are where the claim gets LAUNDERED.
+ *                                                    (91emulator, same bug, same week)
+ *
+ * ⚠ AND THE RESET-VALUE GATE COULD NOT SEE THIS.  Its golden stores ONE reset per
+ * register name and SHARES IT ACROSS INSTANCES, so the RM giving CH_SBR two values (6
+ * and 7) looked like a CONTRADICTION and the extractor REFUSED all 16 of them --
+ * correctly, because a wrong golden makes the checker lie.  But A REFUSAL IS NOT A
+ * CHECK: the whole refusal pile turned out to be exactly this register, and nobody was
+ * looking at it.  GREP YOUR GOLDEN FOR WHAT THE EXTRACTOR SKIPPED.
+ */
+#define CH_SBR_MID_MASK  0x1Fu
+#define EDMA_MID_DMA0    6u   /* RM: DMA0 CH_SBR reset = 0000_0006h */
+#define EDMA_MID_DMA1    7u   /* RM: DMA1 CH_SBR reset = 0000_0007h */
 #define R_CH_PRI   0x10
 #define R_CH_MUX   0x14
 #define R_TCD_SADDR 0x20
@@ -684,6 +717,14 @@ static void mcxn_edma_reset(DeviceState *dev)
     memset(s->ch_grpri, 0, sizeof(s->ch_grpri));
     memset(s->ch, 0, sizeof(s->ch));
     memset(s->req_level, 0, sizeof(s->req_level));
+    {
+        int ch;
+
+        for (ch = 0; ch < MCXN_EDMA_CHANNELS; ch++) {
+            s->ch[ch].sbr = (s->dma_id ? EDMA_MID_DMA1 : EDMA_MID_DMA0)
+                            & CH_SBR_MID_MASK;
+        }
+    }
     /* INPUTMUX resets with every request line ENABLED (see the header). */
     memset(s->req_enabled, 1, sizeof(s->req_enabled));
 }
@@ -748,9 +789,15 @@ static const VMStateDescription vmstate_mcxn_edma = {
     },
 };
 
+static const Property mcxn_edma_properties[] = {
+    DEFINE_PROP_UINT8("dma-id", MCXNEDMAState, dma_id, 0),
+};
+
 static void mcxn_edma_class_init(ObjectClass *klass, const void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
+
+    device_class_set_props(dc, mcxn_edma_properties);
 
     dc->realize = mcxn_edma_realize;
     device_class_set_legacy_reset(dc, mcxn_edma_reset);

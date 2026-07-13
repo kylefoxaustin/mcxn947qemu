@@ -208,6 +208,10 @@
 #define LPI2C_MFSR      0x5C  /* RO */
 #define LPI2C_MTDR      0x60  /* WO */
 #define LPI2C_MRDR      0x70  /* RO */
+#define LPI2C_MRDROR    0x78  /* RO -- NON-DESTRUCTIVE alias of MRDR */
+#define LPI2C_SASR      0x150 /* RO -- slave address status */
+#define LPI2C_SRDR      0x170 /* RO -- slave receive data */
+#define LPI2C_SRDROR    0x178 /* RO -- NON-DESTRUCTIVE alias of SRDR */
 
 #define LPI2C_MCR_MEN   0x1u
 #define LPI2C_MCR_RST   0x2u
@@ -486,6 +490,35 @@ static uint64_t mcxn_lpi2c_read(MCXNLPUARTState *s, hwaddr offset)
     case LPI2C_MIER:   return s->i2c_mier;
     case LPI2C_MCFGR1: return s->i2c_mcfgr1;
     case LPI2C_MFSR:   return s->i2c_rx_full ? (1u << 16) : 0;  /* RXCOUNT=1 */
+    /*
+     * ⚠ MRDR WAS RIGHT AND ITS ALIAS WAS WRONG, WHICH IS THE WHOLE POINT.
+     *
+     * MRDROR is the NON-DESTRUCTIVE alias of MRDR -- a peek that does not pop.  It was
+     * not modelled at all, so it fell through to the default and RETURNED ZERO.  And
+     * zero is not "nothing": RXEMPTY is bit 14, so zero means THE RECEIVE FIFO HAS DATA.
+     *
+     *     ⭐ AN UNMODELLED REGISTER IS NOT A FREE REGISTER.  IT STILL ANSWERS -- AND
+     *        ZERO IS AN ANSWER.  (91emulator, who shipped the identical bug: their MRDR
+     *        was correct and its alias was not.)
+     *
+     * A driver that polls the non-destructive alias -- exactly what an alias is FOR --
+     * saw RXEMPTY clear and read a PHANTOM BYTE out of an empty FIFO.
+     *
+     * The slave registers (SASR/SRDR/SRDROR) are likewise unmodelled, and likewise were
+     * answering "data available" to anyone who asked.  We do not model the LPI2C slave
+     * engine, so they now report HONESTLY EMPTY.  A missing feature that says "empty" is
+     * a gap; a missing feature that says "here is a byte" is a lie.
+     */
+    case LPI2C_MRDROR:
+        /* peek, no pop */
+        return s->i2c_rx_full ? s->i2c_mrdr : LPI2C_MRDR_RXEMPTY;
+
+    case LPI2C_SASR:
+    case LPI2C_SRDR:
+    case LPI2C_SRDROR:
+        /* The slave engine is not modelled.  It is EMPTY, and it says so. */
+        return LPI2C_MRDR_RXEMPTY;
+
     case LPI2C_MRDR: {
         uint32_t v;
         if (s->i2c_rx_full) {
