@@ -50,6 +50,7 @@ struct MCXNSysconState {
     Clock *fro12m_in;
     Clock *frohf_in;
     Clock *ctimer_clk[5];
+    Clock *sct_clk;
     uint32_t cpuctrl;                    /* CPU Control            (off 0x800) */
     uint32_t cpboot;                     /* Coprocessor Boot Addr  (off 0x804) */
     bool     cpu1_running;

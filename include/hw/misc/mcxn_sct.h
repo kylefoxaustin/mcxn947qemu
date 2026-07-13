@@ -15,6 +15,7 @@
 #define HW_MISC_MCXN_SCT_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qemu/timer.h"
 #include "qom/object.h"
 
@@ -29,6 +30,7 @@ struct MCXNSCTState {
 
     /*< public >*/
     MemoryRegion iomem;
+    Clock       *clk;   /* driven by SYSCON[SCTCLKSEL]/[SCTCLKDIV] */
     qemu_irq     irq;           /* SCT0_IRQn */
     QEMUTimer    event_timer;
     int64_t next_event_ns; /* deadline: periodic timers must not drift */   /* periodic match/limit event 0 */

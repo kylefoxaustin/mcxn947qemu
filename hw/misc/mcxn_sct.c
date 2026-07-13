@@ -13,6 +13,8 @@
 #include "qemu/timer.h"
 #include "hw/misc/mcxn_sct.h"
 #include "hw/core/irq.h"
+#include "hw/core/clock.h"
+#include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
 
 /* Register offsets (CMSIS SCT_Type). */
@@ -62,7 +64,31 @@
  * 150 MHz) rather than a free-floating constant.  The PRESCALER RATIO IS EXACT; the
  * absolute frequency is the assumption.  Say so, don't hide it.
  */
-#define SCT_CLOCK_HZ  150000000   /* = SoC sysclk (mcxn_frdm.c), a stated assumption */
+/*
+ * ⚠ THIS USED TO BE:  #define SCT_CLOCK_HZ 150000000  -- "= SoC sysclk, a stated
+ * assumption" -- and the comment SIX LINES ABOVE IT said, correctly:
+ *
+ *     "Per the RM the counter is clocked from the SCT clock (SYSCON SCTCLKSEL /
+ *      SCTCLKDIV) divided by CTRL[PRE_L]."
+ *
+ * IT NAMED THE REGISTER THAT DECIDES THE RATE AND THEN IGNORED IT.  Every stock NXP
+ * example does CLOCK_AttachClk(kFRO_HF_to_SCT) -- selector 3, FRO_HF, 48 MHz -- and we
+ * ticked the SCT at 150 MHz.  3.1x TOO FAST, silently.
+ *
+ *     ⭐ AND THE TEST COULD NOT SEE IT, BECAUSE THE TEST TOOK THE SAME ASSUMPTION.
+ *        tests/mcxn-sct predicts SysTick ticks as (MATCHREL+1)*(PRE_L+1) -- which is
+ *        only true if the SCT clock EQUALS the CPU clock.  That is THIS MODEL'S
+ *        CONSTANT, not silicon's.  Model and test were wrong together, and the test
+ *        passed.
+ *
+ *        A MIRROR THAT DECLARES ITSELF IS STILL A MIRROR.  (rt1180emulator shipped the
+ *        identical specimen: a PWM golden that said, in its own comment, "if PWM_CLK
+ *        were wrong, this golden would be wrong in exactly the same direction AND STILL
+ *        PASS."  It was.  It did.)
+ *
+ * The rate now comes from SYSCON.  There is NO DEFAULT: 0 Hz means no source selected,
+ * and an SCT with no clock DOES NOT COUNT.
+ */
 #define SCT_CTRL_PRE_L_MASK   0x00001FE0u
 #define SCT_CTRL_PRE_L_SHIFT  5
 
@@ -95,8 +121,13 @@ static int64_t mcxn_sct_period_ns(MCXNSCTState *s)
     /* CTRL[PRE_L] divides the counter clock by PRE_L + 1. */
     int64_t pre = ((ctrl & SCT_CTRL_PRE_L_MASK) >> SCT_CTRL_PRE_L_SHIFT) + 1;
     int64_t ticks = limit * pre;
-    int64_t ns = ticks * 1000000000LL / SCT_CLOCK_HZ;
+    uint32_t hz = s->clk ? clock_get_hz(s->clk) : 0;
+    int64_t ns;
 
+    if (!hz) {
+        return 0;                       /* no clock selected: the SCT does not count */
+    }
+    ns = ticks * 1000000000LL / hz;
     return ns < 1 ? 1 : ns;
 }
 
@@ -110,8 +141,15 @@ static void mcxn_sct_event_tick(void *opaque)
     /* Re-arm from the previous DEADLINE, never from "now": re-adding the
      * callback's dispatch latency every period makes the error accumulate, so the
      * event rate runs systematically slow and drifts without bound. */
-    s->next_event_ns += mcxn_sct_period_ns(s);
-    timer_mod(&s->event_timer, s->next_event_ns);
+    {
+        int64_t period = mcxn_sct_period_ns(s);
+
+        if (period <= 0) {
+            return;      /* no clock selected -- the counter has stopped */
+        }
+        s->next_event_ns += period;
+        timer_mod(&s->event_timer, s->next_event_ns);
+    }
 }
 
 static uint64_t mcxn_sct_read(void *opaque, hwaddr offset, unsigned size)
@@ -154,9 +192,14 @@ static void mcxn_sct_write(void *opaque, hwaddr offset, uint64_t value,
         if (!(v & (SCT_CTRL_HALT_L_MASK | SCT_CTRL_STOP_L_MASK))) {
             /* Anchor the first deadline; the callback derives every later one
              * from it, so the event rate cannot drift. */
-            s->next_event_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                               mcxn_sct_period_ns(s);
-            timer_mod(&s->event_timer, s->next_event_ns);
+            int64_t period = mcxn_sct_period_ns(s);
+
+            if (period > 0) {
+                s->next_event_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + period;
+                timer_mod(&s->event_timer, s->next_event_ns);
+            } else {
+                timer_del(&s->event_timer);   /* no clock: it does not count */
+            }
         } else {
             timer_del(&s->event_timer);
         }
@@ -236,11 +279,26 @@ static void mcxn_sct_class_init(ObjectClass *klass, const void *data)
     dc->vmsd = &vmstate_mcxn_sct;
 }
 
+/*
+ * ⚠ THE CLOCK INPUT MUST EXIST BEFORE ANYTHING CAN CONNECT TO IT, so it is created in
+ * instance_init -- NOT in realize.  Putting it in realize gave:
+ *     "Can not find clock-in 'clk' for device type 'mcxn-sct'"
+ * because the SoC connects BEFORE realize (qdev_connect_clock_in asserts !realized).
+ * Two constraints pointing in opposite directions, one more time.
+ */
+static void mcxn_sct_init(Object *obj)
+{
+    MCXNSCTState *s = MCXN_SCT(obj);
+
+    s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
+}
+
 static const TypeInfo mcxn_sct_types[] = {
     {
         .name          = TYPE_MCXN_SCT,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNSCTState),
+        .instance_init = mcxn_sct_init,
         .class_init    = mcxn_sct_class_init,
     },
 };

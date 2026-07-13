@@ -55,6 +55,8 @@
  * confident, plausible, completely bogus measurement out of it.  A number you cannot
  * explain is not evidence.  GO AND READ THE ADDRESS.
  */
+#define SYSCON_SCTCLKSEL      0x2F0   /* CMSIS SYSCON_Type */
+#define SYSCON_SCTCLKDIV      0x3B4
 #define SYSCON_CTIMERCLKSEL0  0x26C
 #define SYSCON_CTIMERCLKDIV0  0x3D0
 #define CTIMER_COUNT          5
@@ -95,6 +97,29 @@ static uint32_t mcxn_syscon_ctimer_src(MCXNSysconState *s, int n)
     }
 }
 
+/*
+ * The SCT clock mux, mirroring CLOCK_GetSctClkFreq() (fsl_clock.c).  Every stock
+ * example does CLOCK_AttachClk(kFRO_HF_to_SCT) -- selector 3, FRO_HF, 48 MHz -- and we
+ * ticked the SCT at 150 MHz: 3.1x TOO FAST.
+ */
+static uint32_t mcxn_syscon_sct_src(MCXNSysconState *s)
+{
+    uint32_t sel = s->regs[SYSCON_SCTCLKSEL / 4] & 0x7u;
+
+    switch (sel) {
+    case 3:  return clock_get_hz(s->frohf_in);      /* CLOCK_GetFroHfFreq() */
+    case 0:
+    case 7:  return 0;                              /* no source selected */
+    default:
+        qemu_log_mask(LOG_UNIMP,
+            "mcxn-syscon: SCT clock source %u (PLL0/ExtClk/PLL1/SAI) is not modelled. "
+            "Reporting 0 Hz -- THE SCT WILL NOT RUN -- rather than substituting a "
+            "plausible rate, which would make every period it produces silently "
+            "wrong.\n", sel);
+        return 0;
+    }
+}
+
 static void mcxn_syscon_update_clocks(MCXNSysconState *s)
 {
     uint32_t sel = s->regs[SYSCON_OSTIMERCLKSEL / 4] & 0x7u;
@@ -120,6 +145,18 @@ static void mcxn_syscon_update_clocks(MCXNSysconState *s)
             src /= (div & CLKDIV_DIV_MASK) + 1;
         }
         clock_update_hz(s->ctimer_clk[n], src);
+    }
+
+    {
+        uint32_t div = s->regs[SYSCON_SCTCLKDIV / 4];
+        uint32_t src = mcxn_syscon_sct_src(s);
+
+        if (div & CLKDIV_HALT) {
+            src = 0;
+        } else {
+            src /= (div & CLKDIV_DIV_MASK) + 1;
+        }
+        clock_update_hz(s->sct_clk, src);
     }
 }
 #include "hw/core/cpu.h"
@@ -267,6 +304,7 @@ static void mcxn_syscon_write(void *opaque, hwaddr offset, uint64_t value,
         s->regs[offset / 4] = value;
         /* Any selector or divider CHANGES A PERIPHERAL'S ACTUAL RATE. */
         if (offset == SYSCON_OSTIMERCLKSEL ||
+            offset == SYSCON_SCTCLKSEL || offset == SYSCON_SCTCLKDIV ||
             (offset >= SYSCON_CTIMERCLKSEL0 &&
              offset <  SYSCON_CTIMERCLKSEL0 + 4 * CTIMER_COUNT) ||
             (offset >= SYSCON_CTIMERCLKDIV0 &&
@@ -451,6 +489,7 @@ static void mcxn_syscon_realize(DeviceState *dev, Error **errp)
             s->ctimer_clk[n] = qdev_init_clock_out(dev, nm);
         }
     }
+    s->sct_clk = qdev_init_clock_out(dev, "sct-clk");
 }
 
 static const VMStateDescription vmstate_mcxn_syscon = {

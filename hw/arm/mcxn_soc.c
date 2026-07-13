@@ -1062,6 +1062,14 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     }
 
     /* SCT (SCTimer/PWM): match/limit event interrupt to cpu0 NVIC. */
+    /*
+     * The SCT's rate is DECIDED by SYSCON[SCTCLKSEL]/[SCTCLKDIV].  It was hardwired to
+     * a 150 MHz constant while its own source comment NAMED those very registers --
+     * and every stock example does CLOCK_AttachClk(kFRO_HF_to_SCT), 48 MHz.  3.1x too
+     * fast, and the test could not see it because the test shared the assumption.
+     */
+    qdev_connect_clock_in(DEVICE(&s->sct0), "clk",
+                          qdev_get_clock_out(DEVICE(&s->syscon), "sct-clk"));
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->sct0), errp)) {
         return;
     }
