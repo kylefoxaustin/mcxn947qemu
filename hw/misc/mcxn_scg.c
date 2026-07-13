@@ -11,6 +11,8 @@
 #include "qemu/osdep.h"
 #include "qemu/log.h"
 #include "hw/misc/mcxn_scg.h"
+#include "hw/core/clock.h"
+#include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
 
 /* Register offsets */
@@ -46,6 +48,49 @@
 #define SCG_SPLLLOCK_CNFG 0x618
 #define SCG_SPLLSSCG1     0x628
 #define SCG_LDOCSR        0x800
+#define SCG_FIRCCFG       0x308
+
+#define SIRCCSR_PERIPH_EN (1u << 5)   /* SIRC_CLK_PERIPH_EN */
+#define FIRCCSR_FIRCEN    (1u << 0)
+#define FIRCCFG_RANGE     (1u << 0)
+
+#define FRO12M_HZ    12000000u
+#define FROHF_48_HZ  48000000u
+#define FROHF_144_HZ 144000000u
+
+/*
+ * Publish the source clocks SCG actually produces.  This mirrors the SDK's own
+ * logic exactly (fsl_clock.c):
+ *
+ *   CLOCK_GetFro12MFreq(): SIRCCSR[SIRC_CLK_PERIPH_EN] ? 12000000 : 0
+ *   CLOCK_GetFroHfFreq() : !FIRCCSR[FIRCEN] ? 0
+ *                        : FIRCCFG[RANGE]   ? 144000000 : 48000000
+ *
+ * ⚠ IT MUST MIRROR IT EXACTLY, AND THAT IS THE WHOLE POINT.  The GUEST computes the
+ * rate from these same registers and programs its timers from the answer.  If our
+ * timer ticks at a DIFFERENT rate than the one the driver computed, every delay it
+ * derives is wrong BY THAT RATIO -- and nothing anywhere says a word.  That is not a
+ * missing feature, it is a SILENT WRONG ANSWER, and it was live: CTIMER ignored its
+ * selector and ran at sysclk, so a driver told "you are on FRO_HF, 48 MHz" got a
+ * timer running at 150 MHz -- every CTIMER delay 3.1x too short.
+ */
+static void mcxn_scg_update_clocks(MCXNSCGState *s)
+{
+    uint32_t sirccsr = s->regs[SCG_SIRCCSR >> 2];
+    uint32_t firccsr = s->regs[SCG_FIRCCSR >> 2];
+    uint32_t firccfg = s->regs[SCG_FIRCCFG >> 2];
+    uint32_t hf;
+
+    clock_update_hz(s->fro12m,
+                    (sirccsr & SIRCCSR_PERIPH_EN) ? FRO12M_HZ : 0);
+
+    if (!(firccsr & FIRCCSR_FIRCEN)) {
+        hf = 0;
+    } else {
+        hf = (firccfg & FIRCCFG_RANGE) ? FROHF_144_HZ : FROHF_48_HZ;
+    }
+    clock_update_hz(s->frohf, hf);
+}
 
 #define SCG_VERID_VALUE  0x06010000u
 
@@ -127,6 +172,11 @@ static void mcxn_scg_write(void *opaque, hwaddr off,
         return;
     }
     s->regs[off >> 2] = value;
+
+    /* Any of these three CHANGES A SOURCE CLOCK'S RATE.  Re-derive and propagate. */
+    if (off == SCG_SIRCCSR || off == SCG_FIRCCSR || off == SCG_FIRCCFG) {
+        mcxn_scg_update_clocks(s);
+    }
 }
 
 static const MemoryRegionOps mcxn_scg_ops = {
@@ -200,6 +250,8 @@ static void mcxn_scg_reset(DeviceState *dev)
     s->regs[SCG_SPLLLOCK_CNFG >> 2]  = 0x00004F4Cu;
     s->regs[SCG_SPLLSSCG1 >> 2]      = 0x80000000u;
     s->regs[SCG_LDOCSR >> 2]         = 0x00000008u;
+
+    mcxn_scg_update_clocks(s);
 }
 
 static void mcxn_scg_realize(DeviceState *dev, Error **errp)
@@ -209,6 +261,9 @@ static void mcxn_scg_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_scg_ops, s,
                           TYPE_MCXN_SCG, MCXN_SCG_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+
+    s->fro12m = qdev_init_clock_out(dev, "fro12m");
+    s->frohf  = qdev_init_clock_out(dev, "frohf");
 }
 
 static const VMStateDescription vmstate_mcxn_scg = {

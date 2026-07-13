@@ -45,6 +45,11 @@ struct MCXNSysconState {
      * a default that made the missing wiring invisible.
      */
     Clock *ostimer_clk;
+
+    /* Source clocks in from SCG, muxed out to the peripherals per *CLKSEL. */
+    Clock *fro12m_in;
+    Clock *frohf_in;
+    Clock *ctimer_clk[5];
     uint32_t cpuctrl;                    /* CPU Control            (off 0x800) */
     uint32_t cpboot;                     /* Coprocessor Boot Addr  (off 0x804) */
     bool     cpu1_running;

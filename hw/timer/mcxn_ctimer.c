@@ -41,8 +41,23 @@ static bool ctimer_running(MCXNCTimerState *s)
 
 static uint32_t ctimer_freq(MCXNCTimerState *s)
 {
-    uint32_t hz = s->clk ? clock_get_hz(s->clk) : 0;
-    return hz ? hz : 150000000;   /* fallback if the clock tree isn't driven */
+    /*
+     * ⚠ THIS USED TO BE:  return hz ? hz : 150000000;
+     *                     -- "fallback if the clock tree isn't driven"
+     *
+     * The clock tree WAS not driven, so the fallback fired always and the CTIMER ran
+     * at sysclk regardless of SYSCON[CTIMERCLKSEL].  Real firmware does
+     * CLOCK_AttachClk(kFRO_HF_to_CTIMER0), computes its match values from
+     * CLOCK_GetCTimerClkFreq() = 48 MHz, and we ticked it at 150 MHz -- EVERY CTIMER
+     * DELAY 3.1x TOO SHORT, silently.  Measured with SysTick before the fix: 12011
+     * ticks where the SDK's own arithmetic expects 150000.
+     *
+     * THE FALLBACK WAS THE CAMOUFLAGE, and it even said so in its own comment: it
+     * announced that the clock tree might not be driven, and then quietly made that
+     * fact invisible.  There is no default now.  0 Hz means NO CLOCK SELECTED (which
+     * is CTIMERCLKSEL's reset state) and a timer with no clock DOES NOT RUN.
+     */
+    return s->clk ? clock_get_hz(s->clk) : 0;
 }
 
 /* Live tc/pc at time `now`, without committing to state. */

@@ -524,6 +524,17 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         object_property_set_link(OBJECT(&s->syscon), "cpu1",
                                  OBJECT(s->armv7m[1].cpu), &error_abort);
     }
+    /*
+     * THE CLOCK TREE:  SCG (sources)  ->  SYSCON (the *CLKSEL muxes)  ->  peripherals.
+     *
+     * SCG must be realized first so its output clocks exist; SYSCON must not be
+     * realized yet, because qdev_connect_clock_in() asserts !dev->realized.
+     */
+    qdev_connect_clock_in(DEVICE(&s->syscon), "fro12m",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "fro12m"));
+    qdev_connect_clock_in(DEVICE(&s->syscon), "frohf",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "frohf"));
+
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->syscon), errp)) {
         return;
     }
@@ -592,7 +603,18 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         DeviceState *t = DEVICE(&s->ctimer[i]);
         g_autofree char *aname = g_strdup_printf("mcxn.ctimer%d.s", i);
 
-        qdev_connect_clock_in(t, "clk", s->sysclk);
+        /*
+         * The CTIMER's rate is DECIDED by SYSCON[CTIMERCLKSEL[i]] / CTIMERCLKDIV[i]
+         * -- and this used to be hardwired to sysclk, so the selector did nothing.
+         * Real firmware does CLOCK_AttachClk(kFRO_HF_to_CTIMER0), computes its match
+         * values from CLOCK_GetCTimerClkFreq() = 48 MHz, and we ticked it at 150 MHz:
+         * EVERY DELAY 3.1x TOO SHORT, silently.  Measured with SysTick before the fix:
+         * 12011 ticks where the SDK's own arithmetic expects 150000.
+         */
+        g_autofree char *cn = g_strdup_printf("ctimer%d-clk", i);
+
+        qdev_connect_clock_in(t, "clk",
+                              qdev_get_clock_out(DEVICE(&s->syscon), cn));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->ctimer[i]), errp)) {
             return;
         }

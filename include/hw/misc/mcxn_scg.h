@@ -11,6 +11,7 @@
 #define HW_MISC_MCXN_SCG_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_SCG "mcxn-scg"
@@ -25,6 +26,18 @@ struct MCXNSCGState {
     /*< public >*/
     MemoryRegion iomem;
     uint32_t regs[MCXN_SCG_SIZE / 4];
+
+    /*
+     * THE SOURCE CLOCKS SCG ACTUALLY PRODUCES.  SYSCON muxes these to the
+     * peripherals per its *CLKSEL registers.  Both are DERIVED from registers the
+     * guest writes -- never asserted by us:
+     *
+     *   fro12m : 12 MHz, gated by SIRCCSR[SIRC_CLK_PERIPH_EN]
+     *   frohf  : 0 if !FIRCCSR[FIRCEN]; 144 MHz if FIRCCFG[RANGE]; else 48 MHz
+     *            (fsl_clock.c: CLOCK_GetFroHfFreq -- the SDK's own logic, mirrored)
+     */
+    Clock *fro12m;
+    Clock *frohf;
 };
 
 #endif /* HW_MISC_MCXN_SCG_H */

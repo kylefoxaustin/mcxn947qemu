@@ -47,10 +47,59 @@
 #define OSC32K_HZ    32768u      /* FRDM-MCXN947 32.768 kHz crystal */
 #define CLK1M_HZ     1000000u    /* fsl_clock.c: CLOCK_GetClk1MFreq() */
 
+/*
+ * CTIMERCLKSEL[5] @0x26C (step 4) and CTIMERCLKDIV[5] @0x3D0 (step 4), from CMSIS.
+ *
+ * ⚠ THESE ADDRESSES WERE READ OUT OF THE HEADER, NOT REMEMBERED.  Probing this bug I
+ * first typed 0x40000570 and 0x40004000 from memory -- both WRONG -- and got a
+ * confident, plausible, completely bogus measurement out of it.  A number you cannot
+ * explain is not evidence.  GO AND READ THE ADDRESS.
+ */
+#define SYSCON_CTIMERCLKSEL0  0x26C
+#define SYSCON_CTIMERCLKDIV0  0x3D0
+#define CTIMER_COUNT          5
+#define CLKDIV_DIV_MASK       0xFFu
+#define CLKDIV_HALT           (1u << 30)
+
+/*
+ * The CTIMER clock mux, mirroring the SDK's CLOCK_GetCTimerClkFreq() EXACTLY.
+ *
+ * IT MUST MIRROR IT EXACTLY, AND THAT IS THE WHOLE POINT.  The GUEST computes its
+ * clock rate from these same registers and programs its match values from the answer.
+ * If our timer ticks at a rate the driver did not compute, EVERY DELAY IT DERIVES IS
+ * WRONG BY THAT RATIO, silently.  And it was: CTIMER ignored this selector entirely
+ * and ran at sysclk, so firmware told "you are on FRO_HF at 48 MHz" got a timer
+ * running at 150 MHz -- measured, with SysTick: 12011 ticks where the SDK's own
+ * arithmetic expects 150000.
+ *
+ * Sources we can derive EXACTLY are derived.  The rest (PLL0/PLL1/SAI/...) are NOT
+ * GUESSED: they resolve to 0 Hz and say so, loudly, once.  A stopped timer is a bug
+ * you find in an hour; a timer running at a plausible wrong rate ships.
+ */
+static uint32_t mcxn_syscon_ctimer_src(MCXNSysconState *s, int n)
+{
+    uint32_t sel = s->regs[(SYSCON_CTIMERCLKSEL0 / 4) + n] & 0xFu;
+
+    switch (sel) {
+    case 0:  return CLK1M_HZ;                       /* CLOCK_GetClk1MFreq()  */
+    case 3:  return clock_get_hz(s->frohf_in);      /* CLOCK_GetFroHfFreq()  */
+    case 4:  return clock_get_hz(s->fro12m_in);     /* CLOCK_GetFro12MFreq() */
+    case 7:  return 0;                              /* none selected (reset) */
+    default:
+        qemu_log_mask(LOG_UNIMP,
+            "mcxn-syscon: CTIMER%d clock source %u (PLL0/PLL1/SAI/LPOSC) is not "
+            "modelled.  Reporting 0 Hz -- THE TIMER WILL NOT RUN -- rather than "
+            "substituting a plausible rate, which would make every delay this "
+            "driver computes silently wrong.\n", n, sel);
+        return 0;
+    }
+}
+
 static void mcxn_syscon_update_clocks(MCXNSysconState *s)
 {
     uint32_t sel = s->regs[SYSCON_OSTIMERCLKSEL / 4] & 0x7u;
     uint32_t hz;
+    int n;
 
     switch (sel) {
     case 0:  hz = CLK16K_HZ; break;
@@ -59,6 +108,19 @@ static void mcxn_syscon_update_clocks(MCXNSysconState *s)
     default: hz = 0;         break;   /* no source selected -- the timer STOPS */
     }
     clock_update_hz(s->ostimer_clk, hz);
+
+    for (n = 0; n < CTIMER_COUNT; n++) {
+        uint32_t div = s->regs[(SYSCON_CTIMERCLKDIV0 / 4) + n];
+        uint32_t src = mcxn_syscon_ctimer_src(s, n);
+
+        /* CLKDIV[30] = HALT: the divider output is stopped. */
+        if (div & CLKDIV_HALT) {
+            src = 0;
+        } else {
+            src /= (div & CLKDIV_DIV_MASK) + 1;
+        }
+        clock_update_hz(s->ctimer_clk[n], src);
+    }
 }
 #include "hw/core/cpu.h"
 #include "target/arm/cpu.h"
@@ -203,7 +265,12 @@ static void mcxn_syscon_write(void *opaque, hwaddr offset, uint64_t value,
         break;
     default:
         s->regs[offset / 4] = value;
-        if (offset == SYSCON_OSTIMERCLKSEL) {
+        /* Any selector or divider CHANGES A PERIPHERAL'S ACTUAL RATE. */
+        if (offset == SYSCON_OSTIMERCLKSEL ||
+            (offset >= SYSCON_CTIMERCLKSEL0 &&
+             offset <  SYSCON_CTIMERCLKSEL0 + 4 * CTIMER_COUNT) ||
+            (offset >= SYSCON_CTIMERCLKDIV0 &&
+             offset <  SYSCON_CTIMERCLKDIV0 + 4 * CTIMER_COUNT)) {
             mcxn_syscon_update_clocks(s);   /* the selector DECIDES THE RATE */
         }
         break;
@@ -331,6 +398,32 @@ static void mcxn_syscon_reset(DeviceState *dev)
         s->regs[syscon_reset[i].off / 4] = syscon_reset[i].val;
     }
 
+    /*
+     * CTIMERCLKSEL's RESET VALUE IS "u" -- UNDEFINED -- IN THE RM.  (Its reset column
+     * literally says "See section", and the section's diagram shows u bits.  The
+     * extractor behind tests/mcxn-reset-values SKIPPED this register rather than
+     * invent a value for it, which is exactly what it should have done.)
+     *
+     * So this is a CHOICE, not a lookup, and the guardrail decides it:
+     *
+     *   reset to 0 (= clk1M)  -> firmware that FORGETS CLOCK_AttachClk() gets a
+     *                            working timer HERE and undefined behaviour on
+     *                            SILICON.  MORE PERMISSIVE THAN THE PART: the bug
+     *                            passes here and ships.
+     *   reset to 7 (= "No clock", the RM's own encoding: "111b - No clock")
+     *                         -> that firmware gets a STOPPED TIMER, immediately,
+     *                            loudly, and fixes it in an hour.
+     *
+     *     ⭐ WHERE SILICON IS UNDEFINED, PICK THE VALUE THAT EXPOSES THE GUEST'S
+     *        MISTAKE, NOT THE ONE THAT HIDES IT.
+     *
+     * Every stock example calls CLOCK_AttachClk(kFRO_HF_to_CTIMERn) before using a
+     * CTIMER.  Firmware that does not is relying on a value the RM does not promise.
+     */
+    for (i = 0; i < CTIMER_COUNT; i++) {
+        s->regs[(SYSCON_CTIMERCLKSEL0 / 4) + i] = 7;   /* "No clock" */
+    }
+
     mcxn_syscon_update_clocks(s);   /* OSTIMERCLKSEL resets to 3 = NO CLOCK */
 
     /* CPUCTRL lives in its own field (the CPU1 release path reads it), so the table
@@ -350,6 +443,14 @@ static void mcxn_syscon_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
 
     s->ostimer_clk = qdev_init_clock_out(dev, "ostimer-clk");
+    {
+        int n;
+
+        for (n = 0; n < CTIMER_COUNT; n++) {
+            g_autofree char *nm = g_strdup_printf("ctimer%d-clk", n);
+            s->ctimer_clk[n] = qdev_init_clock_out(dev, nm);
+        }
+    }
 }
 
 static const VMStateDescription vmstate_mcxn_syscon = {
@@ -379,11 +480,34 @@ static void mcxn_syscon_class_init(ObjectClass *klass, const void *data)
     device_class_set_props(dc, mcxn_syscon_properties);
 }
 
+/* A source clock's rate changed upstream in SCG -- re-derive every peripheral's. */
+static void mcxn_syscon_src_changed(void *opaque, ClockEvent event)
+{
+    mcxn_syscon_update_clocks(MCXN_SYSCON(opaque));
+}
+
+static void mcxn_syscon_init(Object *obj)
+{
+    MCXNSysconState *s = MCXN_SYSCON(obj);
+
+    /*
+     * Clock INPUTS must exist before anything can connect to them, so they are
+     * created here in instance_init -- not in realize.  (And the connect itself must
+     * happen BEFORE the target is realized: qdev_connect_clock_in() asserts
+     * !dev->realized, the MIRROR IMAGE of the GPIO rule.)
+     */
+    s->fro12m_in = qdev_init_clock_in(DEVICE(obj), "fro12m",
+                                      mcxn_syscon_src_changed, s, ClockUpdate);
+    s->frohf_in  = qdev_init_clock_in(DEVICE(obj), "frohf",
+                                      mcxn_syscon_src_changed, s, ClockUpdate);
+}
+
 static const TypeInfo mcxn_syscon_types[] = {
     {
         .name          = TYPE_MCXN_SYSCON,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNSysconState),
+        .instance_init = mcxn_syscon_init,
         .class_init    = mcxn_syscon_class_init,
     },
 };
