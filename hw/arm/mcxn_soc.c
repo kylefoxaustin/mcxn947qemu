@@ -1072,6 +1072,20 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     }
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */
+    /*
+     * The OSTIMER's rate is DECIDED by SYSCON[OSTIMERCLKSEL] -- 16k / 32k / 1M / none.
+     * The device DECLARED this Clock input and the SoC NEVER CONNECTED IT, so the
+     * device fell back to a hardcoded 1 MHz and the selector did nothing at all.
+     *
+     * ⚠ qdev_connect_clock_in() ASSERTS !dev->realized -- it must run BEFORE the
+     * target is realized, which is the MIRROR IMAGE of the GPIO rule
+     * (qdev_get_gpio_in() needs the target ALREADY realized).  The two constraints
+     * point in OPPOSITE directions, and getting it wrong the other way is what
+     * silently dropped the peripheral DMA request wiring once already.
+     */
+    qdev_connect_clock_in(DEVICE(&s->ostimer0), "clk",
+                          qdev_get_clock_out(DEVICE(&s->syscon), "ostimer-clk"));
+
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->ostimer0), errp)) {
         return;
     }

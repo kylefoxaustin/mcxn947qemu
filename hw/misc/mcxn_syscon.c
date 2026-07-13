@@ -17,7 +17,49 @@
 #include "qemu/main-loop.h"
 #include "hw/misc/mcxn_syscon.h"
 #include "hw/core/qdev-properties.h"
+#include "hw/core/clock.h"
+#include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
+
+/*
+ * The OSTIMER's clock, per the SDK's own selector (fsl_clock.c):
+ *
+ *     uint32_t CLOCK_GetOstimerClkFreq(void) {
+ *         switch (SYSCON->OSTIMERCLKSEL) {
+ *             case 0U: freq = CLOCK_GetClk16KFreq(...);  break;   -- 16 000 Hz
+ *             case 1U: freq = CLOCK_GetOsc32KFreq(...);  break;   -- 32 768 Hz
+ *             case 2U: freq = CLOCK_GetClk1MFreq();      break;   --  1 000 000 Hz
+ *             default: freq = 0U;                        break;   -- NO CLOCK
+ *         }
+ *     }
+ *
+ * OSTIMERCLKSEL RESETS TO 3, i.e. DEFAULT, i.e. NO CLOCK SELECTED.  A timer with no
+ * clock DOES NOT RUN, and saying so is the whole point: the model used to hardcode
+ * 1 MHz and ignore this register completely, so a guest selecting the 16 kHz source
+ * got a timer 62x too fast and nothing said a word.
+ *
+ * 16000 and 1000000 are the SDK's own constants, not ours.  32768 is the FRDM board's
+ * crystal.  Sources we do not model resolve to 0 Hz -- HONESTLY STOPPED, never
+ * silently defaulted.
+ */
+#define SYSCON_OSTIMERCLKSEL  0x5E0
+#define CLK16K_HZ    16000u      /* fsl_clock.c: CLOCK_GetClk16KFreq() */
+#define OSC32K_HZ    32768u      /* FRDM-MCXN947 32.768 kHz crystal */
+#define CLK1M_HZ     1000000u    /* fsl_clock.c: CLOCK_GetClk1MFreq() */
+
+static void mcxn_syscon_update_clocks(MCXNSysconState *s)
+{
+    uint32_t sel = s->regs[SYSCON_OSTIMERCLKSEL / 4] & 0x7u;
+    uint32_t hz;
+
+    switch (sel) {
+    case 0:  hz = CLK16K_HZ; break;
+    case 1:  hz = OSC32K_HZ; break;
+    case 2:  hz = CLK1M_HZ;  break;
+    default: hz = 0;         break;   /* no source selected -- the timer STOPS */
+    }
+    clock_update_hz(s->ostimer_clk, hz);
+}
 #include "hw/core/cpu.h"
 #include "target/arm/cpu.h"
 
@@ -161,6 +203,9 @@ static void mcxn_syscon_write(void *opaque, hwaddr offset, uint64_t value,
         break;
     default:
         s->regs[offset / 4] = value;
+        if (offset == SYSCON_OSTIMERCLKSEL) {
+            mcxn_syscon_update_clocks(s);   /* the selector DECIDES THE RATE */
+        }
         break;
     }
 }
@@ -286,6 +331,8 @@ static void mcxn_syscon_reset(DeviceState *dev)
         s->regs[syscon_reset[i].off / 4] = syscon_reset[i].val;
     }
 
+    mcxn_syscon_update_clocks(s);   /* OSTIMERCLKSEL resets to 3 = NO CLOCK */
+
     /* CPUCTRL lives in its own field (the CPU1 release path reads it), so the table
      * above cannot reach it.  CPU1CLKEN|CPU1RSTEN = clocked but held in reset, which
      * still evaluates to want_run == false.  See the comment above. */
@@ -301,6 +348,8 @@ static void mcxn_syscon_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_syscon_ops, s,
                           TYPE_MCXN_SYSCON, MCXN_SYSCON_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
+
+    s->ostimer_clk = qdev_init_clock_out(dev, "ostimer-clk");
 }
 
 static const VMStateDescription vmstate_mcxn_syscon = {

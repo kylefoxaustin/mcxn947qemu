@@ -39,8 +39,22 @@ static uint64_t gray_to_bin(uint64_t g)
 
 static uint32_t ostimer_freq(MCXNOSTimerState *s)
 {
-    uint32_t hz = s->clk ? clock_get_hz(s->clk) : 0;
-    return hz ? hz : OSTIMER_HZ;
+    /*
+     * ⚠ THIS USED TO BE:  return hz ? hz : OSTIMER_HZ;   (OSTIMER_HZ = 1 MHz)
+     *
+     * The Clock input existed and THE SoC NEVER CONNECTED IT, so `hz` was always 0
+     * and the fallback fired every single time.  THE FALLBACK WAS THE CAMOUFLAGE: the
+     * model had exactly the right structure and a default that made the missing
+     * wiring invisible.  A guest that selected the 16 kHz source (OSTIMERCLKSEL = 0)
+     * got a timer running at 1 MHz -- SIXTY-TWO TIMES TOO FAST -- and nothing said a
+     * word, because the register that chooses the rate WAS NOT CONSUMED BY ANYTHING.
+     *
+     * SYSCON now drives this clock from OSTIMERCLKSEL, and there is NO DEFAULT.  0 Hz
+     * means NO SOURCE SELECTED (which is the RESET state, OSTIMERCLKSEL = 3) and a
+     * timer with no clock DOES NOT RUN.  Silently substituting a plausible rate for a
+     * clock nobody turned on is the exact bug this file used to have.
+     */
+    return s->clk ? clock_get_hz(s->clk) : 0;
 }
 
 static uint64_t ostimer_count(MCXNOSTimerState *s, int64_t now)

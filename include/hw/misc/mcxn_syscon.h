@@ -13,6 +13,7 @@
 #define HW_MISC_MCXN_SYSCON_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qom/object.h"
 #include "target/arm/cpu-qom.h"
 
@@ -28,6 +29,22 @@ struct MCXNSysconState {
     /*< public >*/
     MemoryRegion iomem;
     uint32_t regs[MCXN_SYSCON_SIZE / 4]; /* permissive backing for other regs */
+
+    /*
+     * THE CLOCK TREE, as far as it is modelled.
+     *
+     * SYSCON's *CLKSEL registers do not merely record a choice -- THEY DECIDE THE
+     * RATE THE PERIPHERAL ACTUALLY RUNS AT.  Until now nothing consumed them, and the
+     * OSTIMER simply hardcoded 1 MHz:
+     *
+     *     return hz ? hz : OSTIMER_HZ;     -- and its Clock was NEVER CONNECTED
+     *
+     * so `hz` was always 0 and THE FALLBACK WAS THE CAMOUFLAGE.  A guest that selected
+     * the 16 kHz source got a timer running at 1 MHz -- SIXTY-TWO TIMES TOO FAST --
+     * and nothing said a word.  The model had the right structure (a Clock input) and
+     * a default that made the missing wiring invisible.
+     */
+    Clock *ostimer_clk;
     uint32_t cpuctrl;                    /* CPU Control            (off 0x800) */
     uint32_t cpboot;                     /* Coprocessor Boot Addr  (off 0x804) */
     bool     cpu1_running;
