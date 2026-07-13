@@ -126,6 +126,17 @@
     (PSELID_UARTPRESENT | PSELID_SPIPRESENT | PSELID_I2CPRESENT)
 
 /*
+ * PSELID[ID] (bits 31:12) -- the block identifying itself.  RM reset for the whole
+ * register is 0x0010_3070: the three PRESENT bits (0x70), the ID field (0x103000),
+ * and PERSEL = 0 (NO FUNCTION SELECTED).
+ *
+ * We returned 0x71: the present bits, NO ID AT ALL, and PERSEL = 1 (LPUART already
+ * chosen).  Both halves were wrong -- the part under-reported what it is, and it
+ * claimed a function selection the guest had not made.
+ */
+#define PSELID_ID_VALUE  0x00103000u
+
+/*
  * VERID/PARAM are read by some HALs to size the FIFO.  Values are plausible
  * MCX-class constants; refine against the RM if a HAL ever depends on them.
  */
@@ -587,7 +598,7 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
 
     /* Wrapper registers are common to every function selection. */
     if (offset == LPFLEXCOMM_PSELID) {
-        return s->pselid | PSELID_PRESENT_BITS;
+        return s->pselid | PSELID_PRESENT_BITS | PSELID_ID_VALUE;
     }
     if (offset == LPFLEXCOMM_ISTAT) {
         return mcxn_flexcomm_istat(s);
@@ -865,7 +876,13 @@ static void mcxn_lpuart_reset(DeviceState *dev)
 
     s->global = s->pincfg = s->ctrl = 0;
     s->match = s->modir = s->fifo = s->water = 0;
-    s->pselid = PERSEL_LPUART;   /* default selection for a console instance */
+    /*
+     * PERSEL resets to 0 = NO FUNCTION SELECTED (RM).  The decode falls through to
+     * the LPUART register map on PERSEL 0, so the console still works -- but the
+     * register now REPORTS what silicon reports, instead of claiming a selection the
+     * guest never made.
+     */
+    s->pselid = 0;
     s->reir = s->teir = s->hdcr = s->tocr = 0;
     /* Reset values from the RM, not zero -- see LPUART_BAUD_RESET above. */
     s->baud = LPUART_BAUD_RESET;

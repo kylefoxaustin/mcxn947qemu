@@ -34,8 +34,37 @@
 /* Event 0 (the modelled match/limit event) in EVFLAG/EVEN. */
 #define SCT_EV0   (1u << 0)
 
-/* Nominal SCT counter clock: 10 ns/tick (~100 MHz) for the modelled period. */
-#define SCT_TICK_NS  10
+/*
+ * The SCT counter clock.
+ *
+ * ⚠ THIS USED TO BE AN INVENTED 10 ns/tick ("nominal ~100 MHz") -- a number that
+ * appears NOWHERE in the RM.  It is the IDENTICAL bug already fixed in the eFlexPWM
+ * (hw/misc/mcxn_pwm.c), and I fixed it THERE and left it sitting HERE.
+ *
+ *     ⭐ A FIX APPLIED IN ONE PLACE IS NOT A FIX.  The PWM's own comment says "THIS
+ *        USED TO BE AN INVENTED 10 ns/tick" and the sibling file still had the
+ *        constant, verbatim, with the same word ("nominal") standing over it.
+ *
+ * And the word is the tell.  "nominal", "plausible", "reasonable", "best-effort",
+ * "approximate" -- THESE ARE THE WORDS YOU USE WHEN YOU MEAN FABRICATED.  Grepping
+ * the tree for that vocabulary is what found this.
+ *
+ * WORSE: THE PRESCALER WAS NOT MODELLED AT ALL.  CTRL[PRE_L] (bits 12:5, CMSIS
+ * SCT_CTRL_PRE_L_MASK = 0x1FE0) divides the counter clock by PRE_L+1, and this model
+ * ignored it completely -- so a driver asking for a 256x slower count got EXACTLY THE
+ * SAME RATE, silently.  That is the same collapsed oracle that made the eFlexPWM
+ * carrier "verified" while its prescaler did not exist: a test that never sweeps the
+ * axis cannot see that the axis is not wired up.
+ *
+ * Per the RM the counter is clocked from the SCT clock (SYSCON SCTCLKSEL/SCTCLKDIV)
+ * divided by CTRL[PRE_L]+1.  The clock tree is NOT MODELLED, so the input rate is a
+ * DOCUMENTED ASSUMPTION tied to the SoC system clock (mcxn_frdm.c drives sysclk at
+ * 150 MHz) rather than a free-floating constant.  The PRESCALER RATIO IS EXACT; the
+ * absolute frequency is the assumption.  Say so, don't hide it.
+ */
+#define SCT_CLOCK_HZ  150000000   /* = SoC sysclk (mcxn_frdm.c), a stated assumption */
+#define SCT_CTRL_PRE_L_MASK   0x00001FE0u
+#define SCT_CTRL_PRE_L_SHIFT  5
 
 static inline uint32_t sct_ld32(MCXNSCTState *s, hwaddr off)
 {
@@ -62,9 +91,13 @@ static void mcxn_sct_update_irq(MCXNSCTState *s)
 static int64_t mcxn_sct_period_ns(MCXNSCTState *s)
 {
     int64_t limit = (int64_t)sct_ld32(s, SCT_MATCHREL0) + 1;
-    int64_t ns = limit * SCT_TICK_NS;
+    uint32_t ctrl = sct_ld32(s, SCT_CTRL);
+    /* CTRL[PRE_L] divides the counter clock by PRE_L + 1. */
+    int64_t pre = ((ctrl & SCT_CTRL_PRE_L_MASK) >> SCT_CTRL_PRE_L_SHIFT) + 1;
+    int64_t ticks = limit * pre;
+    int64_t ns = ticks * 1000000000LL / SCT_CLOCK_HZ;
 
-    return ns < 1000 ? 1000 : ns;
+    return ns < 1 ? 1 : ns;
 }
 
 /* One match/limit event: set event-0 flag and re-arm. */

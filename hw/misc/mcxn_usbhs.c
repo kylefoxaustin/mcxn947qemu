@@ -181,12 +181,39 @@ static void usbhs_phydcd_class_init(ObjectClass *klass, const void *data)
 /*
  * EHCI capability constants for this controller.  CAPLENGTH = 0x40 (operational
  * registers begin 0x40 past CAPLENGTH, i.e. at 0x140) with HCIVERSION 0x0100 in
- * the upper half-word.  Values are the documented NXP/Chipidea defaults; mark
- * as approximate where the RM register-diagram reset was not machine-readable.
+ * the upper half-word.
+ *
+ * ⚠ THESE WERE FABRICATED, AND THE COMMENT ABOVE THEM SAID SO IN A WORD I DID NOT
+ * HEAR MYSELF USE: "mark as APPROXIMATE where the RM reset was not machine-readable".
+ *
+ *     ⭐ "APPROXIMATE", "NOMINAL", "PLAUSIBLE", "REASONABLE", "BEST-EFFORT" ARE THE
+ *        WORDS YOU USE WHEN YOU MEAN FABRICATED.  Grepping the tree for that
+ *        vocabulary is what found these -- the register file was lying about WHAT
+ *        THE PART IS, and it had annotated its own lie.
+ *
+ * And they were not even self-consistent: DCCPARAMS said "8 EP" while HWDEVICE
+ * reported DEVEP = 2.  TWO REGISTERS DESCRIBING THE SAME SILICON, DISAGREEING WITH
+ * EACH OTHER -- which is what invention looks like from the inside.
+ *
+ * The real values, from the RM's reset column (read back and diffed by
+ * tests/mcxn-reset-values, whose golden IS the reference manual):
+ *
+ *   ID       0xE4A1FA05   (we said 0x0022FA05 -- not even the right part)
+ *   HWDEVICE 0x00000011   DC=1, DEVEP=8.  WE SAID 0x05: DEVEP = 2.  A driver that
+ *                         sizes its endpoint arrays from this saw A QUARTER of the
+ *                         endpoints the silicon has.
+ *   HWTXBUF  0x80050808   TX burst/buffer geometry (we said 0x80040020)
+ *   HWRXBUF  0x00000808   RX burst/buffer geometry (we said 0x00000020)
+ *   HWGENERAL 0x00000015  (we returned 0)
  */
-#define HS_ID_VALUE          0x0022FA05u   /* ID/NID/REVISION, RM-approximate */
+#define HS_ID_VALUE          0xE4A1FA05u   /* RM reset */
+#define HS_HWGENERAL_VALUE   0x00000015u   /* RM reset */
+#define HS_HWHOST_VALUE      0x10020001u   /* RM reset (this one WAS right) */
+#define HS_HWDEVICE_VALUE    0x00000011u   /* RM reset: DC=1, DEVEP=8 */
+#define HS_HWTXBUF_VALUE     0x80050808u   /* RM reset */
+#define HS_HWRXBUF_VALUE     0x00000808u   /* RM reset */
 #define HS_CAPLENGTH_VALUE   0x01000040u   /* HCIVERSION:0x0100, CAPLENGTH:0x40 */
-#define HS_HCSPARAMS_VALUE   0x00010011u   /* 1 port, host capable, approximate */
+#define HS_HCSPARAMS_VALUE   0x00010011u   /* RM reset (this one WAS right) */
 #define HS_HCCPARAMS_VALUE   0x00000006u   /* async sched park + prog frame list */
 #define HS_DCIVERSION_VALUE  0x00000001u
 #define HS_DCCPARAMS_VALUE   0x00000188u   /* device capable, host capable, 8 EP */
@@ -459,11 +486,11 @@ static uint64_t usbhs_core_read(void *opaque, hwaddr off, unsigned size)
 
     switch (off) {
     case HS_ID:         return HS_ID_VALUE;
-    case HS_HWGENERAL:  return 0;
-    case HS_HWHOST:     return 0x10020001u;   /* host present, approximate */
-    case HS_HWDEVICE:   return 0x00000005u;   /* device present, approximate */
-    case HS_HWTXBUF:    return 0x80040020u;   /* approximate */
-    case HS_HWRXBUF:    return 0x00000020u;   /* approximate */
+    case HS_HWGENERAL:  return HS_HWGENERAL_VALUE;
+    case HS_HWHOST:     return HS_HWHOST_VALUE;
+    case HS_HWDEVICE:   return HS_HWDEVICE_VALUE;
+    case HS_HWTXBUF:    return HS_HWTXBUF_VALUE;
+    case HS_HWRXBUF:    return HS_HWRXBUF_VALUE;
     case HS_CAPLENGTH:  return HS_CAPLENGTH_VALUE;
     case HS_HCSPARAMS:  return HS_HCSPARAMS_VALUE;
     case HS_HCCPARAMS:  return HS_HCCPARAMS_VALUE;

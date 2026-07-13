@@ -12,54 +12,6 @@
 #
 # Format:  <INSTANCE> <REGISTER>   # why
 
-
-# ---- USBPHY (45) : PWD resets with the power-down bits SET; reading 0 says the PHY is already powered up. VERSION is a fabricated ID (0x02000000 vs 0x05000000).
-USBPHY         PWD                  # model=0x00000000 RM=0x001e1c00
-USBPHY         PWD_SET              # model=0x00000000 RM=0x001e1c00
-USBPHY         PWD_CLR              # model=0x00000000 RM=0x001e1c00
-USBPHY         PWD_TOG              # model=0x00000000 RM=0x001e1c00
-USBPHY         TX                   # model=0x00000000 RM=0x10070707
-USBPHY         TX_SET               # model=0x00000000 RM=0x10070707
-USBPHY         TX_CLR               # model=0x00000000 RM=0x10070707
-USBPHY         TX_TOG               # model=0x00000000 RM=0x10070707
-USBPHY         CTRL                 # model=0x00000000 RM=0xc0000000
-USBPHY         CTRL_SET             # model=0x00000000 RM=0xc0000000
-USBPHY         CTRL_CLR             # model=0x00000000 RM=0xc0000000
-USBPHY         CTRL_TOG             # model=0x00000000 RM=0xc0000000
-USBPHY         DEBUG0               # model=0x00000000 RM=0x7f180000
-USBPHY         DEBUG0_SET           # model=0x00000000 RM=0x7f180000
-USBPHY         DEBUG0_CLR           # model=0x00000000 RM=0x7f180000
-USBPHY         DEBUG0_TOG           # model=0x00000000 RM=0x7f180000
-USBPHY         VERSION              # model=0x02000000 RM=0x05000000
-USBPHY         IP                   # model=0x00000000 RM=0x00060000
-USBPHY         IP_SET               # model=0x00000000 RM=0x00060000
-USBPHY         IP_CLR               # model=0x00000000 RM=0x00060000
-USBPHY         IP_TOG               # model=0x00000000 RM=0x00060000
-USBPHY         PLL_SIC              # model=0x00000000 RM=0x00912000
-USBPHY         PLL_SIC_SET          # model=0x00000000 RM=0x00912000
-USBPHY         PLL_SIC_CLR          # model=0x00000000 RM=0x00912000
-USBPHY         PLL_SIC_TOG          # model=0x00000000 RM=0x00912000
-USBPHY         USB1_VBUS_DETECT     # model=0x00000000 RM=0x00700004
-USBPHY         USB1_VBUS_DETECT_SET # model=0x00000000 RM=0x00700004
-USBPHY         USB1_VBUS_DETECT_CLR # model=0x00000000 RM=0x00700004
-USBPHY         USB1_VBUS_DETECT_TOG # model=0x00000000 RM=0x00700004
-USBPHY         USB1_VBUS_DET_STAT   # model=0x00000000 RM=0x00000001
-USBPHY         USB1_VBUS_DET_STAT_SET # model=0x00000000 RM=0x00000001
-USBPHY         USB1_VBUS_DET_STAT_CLR # model=0x00000000 RM=0x00000001
-USBPHY         USB1_VBUS_DET_STAT_TOG # model=0x00000000 RM=0x00000001
-USBPHY         USB1_CHRG_DETECT     # model=0x00000000 RM=0x80180000
-USBPHY         USB1_CHRG_DETECT_SET # model=0x00000000 RM=0x80180000
-USBPHY         USB1_CHRG_DETECT_CLR # model=0x00000000 RM=0x80180000
-USBPHY         USB1_CHRG_DETECT_TOG # model=0x00000000 RM=0x80180000
-USBPHY         ANACTRL              # model=0x00000000 RM=0x02000400
-USBPHY         ANACTRL_SET          # model=0x00000000 RM=0x02000400
-USBPHY         ANACTRL_CLR          # model=0x00000000 RM=0x02000400
-USBPHY         ANACTRL_TOG          # model=0x00000000 RM=0x02000400
-USBPHY         PFDA                 # model=0x00000000 RM=0x01010101
-USBPHY         PFDA_SET             # model=0x00000000 RM=0x01010101
-USBPHY         PFDA_CLR             # model=0x00000000 RM=0x01010101
-USBPHY         PFDA_TOG             # model=0x00000000 RM=0x01010101
-
 # ---- SPC0 (13) : power-controller defaults (ACTIVE_CFG etc.). Unmodelled; the guest RMWs them and silently drops bits it never knew it had.
 SPC0           CNTRL                # model=0x00000000 RM=0x00000007
 SPC0           SRAMCTL              # model=0x00000000 RM=0x00000001
@@ -75,8 +27,7 @@ SPC0           GLITCH_DETECT_SC     # model=0x00000000 RM=0x0000003f
 SPC0           SYSLDO_CFG           # model=0x00000000 RM=0x00000101
 SPC0           DCDC_BURST_CFG       # model=0x00000000 RM=0x01400000
 
-# ---- VBAT0 (12) : STATUSA/STATUSB/IRQENB fabricated or zero; the 32k oscillator is not modelled (which is also why SCG ROSCVLD has to follow ROSCCM rather than a real oscillator).
-VBAT0          STATUSA              # model=0x00000030 RM=0x00000081
+# ---- VBAT0 (11) : STATUSA/STATUSB/IRQENB fabricated or zero; the 32k oscillator is not modelled (which is also why SCG ROSCVLD has to follow ROSCCM rather than a real oscillator).
 VBAT0          STATUSB              # model=0x00000000 RM=0x000f003e
 VBAT0          IRQENB               # model=0x00000000 RM=0x000fffff
 VBAT0          WAKENB               # model=0x00000000 RM=0x000fffff
@@ -88,44 +39,6 @@ VBAT0          FROLCKB              # model=0x00000000 RM=0x00000001
 VBAT0          LDOCTLB              # model=0x00000000 RM=0x00000007
 VBAT0          LDOLCKB              # model=0x00000000 RM=0x00000001
 VBAT0          WAKLCKB              # model=0x00000000 RM=0x00000001
-
-# ---- FLEXSPI0 (11) : MCR0/MCR1/MCR2/AHBCR defaults and LUTKEY (0x5af05af0, the LUT unlock magic). Reading 0 for LUTKEY means the guest cannot tell a locked LUT from an unlocked one. IPEDCTXCTRL0/1 (reset 5555_5555 / AAAA_AAAA) are the IPED encryption-context controls -- unmodelled with the rest of IPED.
-FLEXSPI0       MCR0                 # model=0x00000000 RM=0xffff8002
-FLEXSPI0       MCR1                 # model=0x00000000 RM=0xffffffff
-FLEXSPI0       MCR2                 # model=0x00000000 RM=0x200081f7
-FLEXSPI0       AHBCR                # model=0x00000000 RM=0x00000018
-FLEXSPI0       LUTKEY               # model=0x00000000 RM=0x5af05af0
-FLEXSPI0       LUTCR                # model=0x00000000 RM=0x00000002
-FLEXSPI0       FLSHCR4              # model=0x00000000 RM=0x000000c3
-FLEXSPI0       STS0                 # model=0x00000003 RM=0x00000002
-FLEXSPI0       STS2                 # model=0x00000000 RM=0x01000100
-FLEXSPI0       IPEDCTXCTRL0         # model=0x00000000 RM=0x55555555
-FLEXSPI0       IPEDCTXCTRL1         # model=0x00000000 RM=0xaaaaaaaa
-
-# ---- USBHS1__USBC (11) : FABRICATED IDENTITY/CAPABILITY REGISTERS: ID reads 0x0022fa05 where silicon reads 0xe4a1fa05; HWDEVICE/HWTXBUF/HWRXBUF likewise invented. The part is lying about what it is.
-USBHS1__USBC   ID                   # model=0x0022fa05 RM=0xe4a1fa05
-USBHS1__USBC   HWGENERAL            # model=0x00000000 RM=0x00000015
-USBHS1__USBC   HWDEVICE             # model=0x00000005 RM=0x00000011
-USBHS1__USBC   HWTXBUF              # model=0x80040020 RM=0x80050808
-USBHS1__USBC   HWRXBUF              # model=0x00000020 RM=0x00000808
-USBHS1__USBC   SBUSCFG              # model=0x00000000 RM=0x00000002
-USBHS1__USBC   USBCMD               # model=0x00000000 RM=0x00080000
-USBHS1__USBC   BURSTSIZE            # model=0x00000000 RM=0x00000808
-USBHS1__USBC   CONFIGFLAG           # model=0x00000000 RM=0x00000001
-USBHS1__USBC   PORTSC1              # model=0x00000000 RM=0x1c000004
-USBHS1__USBC   USBMODE              # model=0x00000000 RM=0x00005000
-
-# ---- USDHC0 (10) : HOST_CTRL_CAP is missing its real capability bits (0x07f3b407 vs 0x07f30000) -- including VOLTAGE SUPPORT, which the SD driver negotiates against. Also BLK_ATT/PROT_CTRL/SYS_CTRL/WTMK_LVL defaults.
-USDHC0         BLK_ATT              # model=0x00000000 RM=0x00010000
-USDHC0         PROT_CTRL            # model=0x00000000 RM=0x08800020
-USDHC0         SYS_CTRL             # model=0x00000000 RM=0x0080800f
-USDHC0         HOST_CTRL_CAP        # model=0x07f30000 RM=0x07f3b407
-USDHC0         WTMK_LVL             # model=0x00000000 RM=0x08100810
-USDHC0         MIX_CTRL             # model=0x00000000 RM=0x80000000
-USDHC0         DLL_STATUS           # model=0x00000000 RM=0x00000200
-USDHC0         VEND_SPEC            # model=0x00000000 RM=0x30007809
-USDHC0         VEND_SPEC2           # model=0x00000000 RM=0x00019006
-USDHC0         TUNING_CTRL          # model=0x00000000 RM=0x00212800
 
 # ---- EMVSIM0 (9) : EMVSIM is RETRACTED (no ISO-7816 card model upstream); its reset values are unmodelled with the rest of it.
 EMVSIM0        DIVISOR              # model=0x00000000 RM=0x00000174
@@ -149,15 +62,6 @@ EMVSIM1        BWT_VAL              # model=0x00000000 RM=0xffffffff
 EMVSIM1        GPCNT0_VAL           # model=0x00000000 RM=0x0000ffff
 EMVSIM1        GPCNT1_VAL           # model=0x00000000 RM=0x0000ffff
 
-# ---- ENET0 (7) : MAC defaults (RCR/TCR/etc.) not modelled; the ENET model is driven functionally, not from its reset image.
-ENET0          MAC_CONFIGURATION    # model=0x00000000 RM=0x00008000
-ENET0          MAC_LPI_TIMERS_CONTROL # model=0x00000000 RM=0x03e80000
-ENET0          MAC_ONEUS_TIC_COUNTER # model=0x00000000 RM=0x00000063
-ENET0          MAC_VERSION          # model=0x00000051 RM=0x00001052
-ENET0          MAC_ADDRESS0_HIGH    # model=0x00000000 RM=0x8000ffff
-ENET0          MAC_ADDRESS0_LOW     # model=0x00000000 RM=0xffffffff
-ENET0          MAC_TIMESTAMP_CONTROL # model=0x00000000 RM=0x00002000
-
 # ---- TSI0 (7) : touch-sense defaults not modelled.
 TSI0           GENCS                # model=0x00000000 RM=0x02001000
 TSI0           SINC                 # model=0x00000000 RM=0x00070001
@@ -166,6 +70,14 @@ TSI0           SSC1                 # model=0x00000000 RM=0x00600040
 TSI0           SSC2                 # model=0x00000000 RM=0x10080101
 TSI0           BASELINE             # model=0x00000000 RM=0x00010000
 TSI0           SHIELD               # model=0x00000000 RM=0x04000000
+
+# ---- ENET0 (6) : MAC defaults (RCR/TCR/etc.) not modelled; the ENET model is driven functionally, not from its reset image.
+ENET0          MAC_CONFIGURATION    # model=0x00000000 RM=0x00008000
+ENET0          MAC_LPI_TIMERS_CONTROL # model=0x00000000 RM=0x03e80000
+ENET0          MAC_ONEUS_TIC_COUNTER # model=0x00000000 RM=0x00000063
+ENET0          MAC_ADDRESS0_HIGH    # model=0x00000000 RM=0x8000ffff
+ENET0          MAC_ADDRESS0_LOW     # model=0x00000000 RM=0xffffffff
+ENET0          MAC_TIMESTAMP_CONTROL # model=0x00000000 RM=0x00002000
 
 # ---- LPI2C0 (6) : LPI2C slave registers (+0x900: SCR/SSR/SASR/SRDR) are not modelled; there is also no I2C bus between FlexComm instances.
 LPI2C0         MSR                  # model=0x00000000 RM=0x00000001
@@ -247,19 +159,13 @@ LPI2C9         SASR                 # model=0x00000000 RM=0x00004000
 LPI2C9         SRDR                 # model=0x00000000 RM=0x00004000
 LPI2C9         SRDROR               # model=0x00000000 RM=0x00004000
 
-# ---- CAN0 (5) : MCR fabricated (0xd900000f vs 0xd890000f); CTRL2/CTRL1_PN/FLT_DLC/FDCTRL defaults missing.
-CAN0           MCR                  # model=0xd900000f RM=0xd890000f
-CAN0           CTRL2                # model=0x00000000 RM=0x00a00000
-CAN0           CTRL1_PN             # model=0x00000000 RM=0x00000100
-CAN0           FLT_DLC              # model=0x00000000 RM=0x00000008
-CAN0           FDCTRL               # model=0x00000000 RM=0x80000100
-
-# ---- CAN1 (5) : MCR fabricated (0xd900000f vs 0xd890000f); CTRL2/CTRL1_PN/FLT_DLC/FDCTRL defaults missing.
-CAN1           MCR                  # model=0xd900000f RM=0xd890000f
-CAN1           CTRL2                # model=0x00000000 RM=0x00a00000
-CAN1           CTRL1_PN             # model=0x00000000 RM=0x00000100
-CAN1           FLT_DLC              # model=0x00000000 RM=0x00000008
-CAN1           FDCTRL               # model=0x00000000 RM=0x80000100
+# ---- USBHS1__USBC (6) : FABRICATED IDENTITY/CAPABILITY REGISTERS: ID reads 0x0022fa05 where silicon reads 0xe4a1fa05; HWDEVICE/HWTXBUF/HWRXBUF likewise invented. The part is lying about what it is.
+USBHS1__USBC   SBUSCFG              # model=0x00000000 RM=0x00000002
+USBHS1__USBC   USBCMD               # model=0x00000000 RM=0x00080000
+USBHS1__USBC   BURSTSIZE            # model=0x00000000 RM=0x00000808
+USBHS1__USBC   CONFIGFLAG           # model=0x00000000 RM=0x00000001
+USBHS1__USBC   PORTSC1              # model=0x00000000 RM=0x1c000004
+USBHS1__USBC   USBMODE              # model=0x00000000 RM=0x00005000
 
 # ---- LPSPI0 (5) : remaining LPSPI defaults not yet taken from the RM (TCR is fixed; these are the rest).
 LPSPI0         DER                  # model=0x00001000 RM=0x00000000
@@ -355,50 +261,36 @@ PDM            DC_CTRL              # model=0x00000000 RM=0x000000ff
 USBHS1__USBNC  CTRL1                # model=0x00000000 RM=0x30001000
 USBHS1__USBNC  HSIC_CTRL            # model=0x00000000 RM=0x10004084
 
+# ---- USBPHY (2) : PWD resets with the power-down bits SET; reading 0 says the PHY is already powered up. VERSION is a fabricated ID (0x02000000 vs 0x05000000).
+USBPHY         CTRL                 # model=0x00000000 RM=0xc0000000
+USBPHY         VERSION              # model=0x02000000 RM=0x05000000
+
 # ---- ADC0 (1) : CFG reset 0x00800000 reads 0.
 ADC0           CFG                  # model=0x00000000 RM=0x00800000
 
 # ---- ADC1 (1) : CFG reset 0x00800000 reads 0.
 ADC1           CFG                  # model=0x00000000 RM=0x00800000
 
+# ---- CAN0 (1) : MCR fabricated (0xd900000f vs 0xd890000f); CTRL2/CTRL1_PN/FLT_DLC/FDCTRL defaults missing.
+CAN0           MCR                  # model=0xd900000f RM=0xd890000f
+
+# ---- CAN1 (1) : MCR fabricated (0xd900000f vs 0xd890000f); CTRL2/CTRL1_PN/FLT_DLC/FDCTRL defaults missing.
+CAN1           MCR                  # model=0xd900000f RM=0xd890000f
+
+# ---- FLEXSPI0 (1) : MCR0/MCR1/MCR2/AHBCR defaults and LUTKEY (0x5af05af0, the LUT unlock magic). Reading 0 for LUTKEY means the guest cannot tell a locked LUT from an unlocked one. IPEDCTXCTRL0/1 (reset 5555_5555 / AAAA_AAAA) are the IPED encryption-context controls -- unmodelled with the rest of IPED.
+FLEXSPI0       STS2                 # model=0x00000000 RM=0x01000100
+
 # ---- FREQME0 (1) : frequency-measure defaults not modelled.
 FREQME0        MAX                  # model=0x00000000 RM=0x7fffffff
-
-# ---- LP_FLEXCOMM0 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM0   PSELID               # model=0x00000071 RM=0x00103070
-
-# ---- LP_FLEXCOMM1 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM1   PSELID               # model=0x00000071 RM=0x00103070
-
-# ---- LP_FLEXCOMM2 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM2   PSELID               # model=0x00000071 RM=0x00103070
-
-# ---- LP_FLEXCOMM3 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM3   PSELID               # model=0x00000071 RM=0x00103070
-
-# ---- LP_FLEXCOMM4 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM4   PSELID               # model=0x00000071 RM=0x00103070
-
-# ---- LP_FLEXCOMM5 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM5   PSELID               # model=0x00000071 RM=0x00103070
-
-# ---- LP_FLEXCOMM6 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM6   PSELID               # model=0x00000071 RM=0x00103070
-
-# ---- LP_FLEXCOMM7 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM7   PSELID               # model=0x00000071 RM=0x00103070
-
-# ---- LP_FLEXCOMM8 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM8   PSELID               # model=0x00000071 RM=0x00103070
-
-# ---- LP_FLEXCOMM9 (1) : PSELID: model 0x71 vs RM 0x00103070 -- PERSEL defaults to LPUART-selected where silicon selects NONE, and the capability bits differ.
-LP_FLEXCOMM9   PSELID               # model=0x00000071 RM=0x00103070
 
 # ---- SAI0 (1) : TCSR bits 0x00030000 are fabricated (RM resets TCSR to 0).
 SAI0           TCSR                 # model=0x00030000 RM=0x00000000
 
 # ---- SAI1 (1) : TCSR bits 0x00030000 are fabricated (RM resets TCSR to 0).
 SAI1           TCSR                 # model=0x00030000 RM=0x00000000
+
+# ---- USDHC0 (1) : HOST_CTRL_CAP is missing its real capability bits (0x07f3b407 vs 0x07f30000) -- including VOLTAGE SUPPORT, which the SD driver negotiates against. Also BLK_ATT/PROT_CTRL/SYS_CTRL/WTMK_LVL defaults.
+USDHC0         DLL_STATUS           # model=0x00000000 RM=0x00000200
 
 # ---- VREF0 (1) : CSR bit31 is FABRICATED READY -- same class as the SCG 'always valid' bug just fixed; VREF should earn it.
 VREF0          CSR                  # model=0x80000000 RM=0x00000000

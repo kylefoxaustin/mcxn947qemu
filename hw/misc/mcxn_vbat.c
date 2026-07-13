@@ -50,6 +50,19 @@
 
 /* Level "ready" bits that always read ready in the model. */
 #define VBAT_STATUSA_READY (VBAT_STATUSA_LDO_RDY | VBAT_STATUSA_OSC_RDY)
+#define VBAT_STATUSA_POR_DET (1u << 0)   /* a power-on reset really did just happen */
+
+/* The ENABLE bits the READY bits must follow (CMSIS VBAT_Type). */
+#define VBAT_OSCCTLA   0x100
+#define VBAT_LDOCTLA   0x200
+#define OSCCTLA_OSC_EN (1u << 0)
+#define LDOCTLA_LDO_EN (1u << 1)
+
+/*
+ * RM reset: STATUSA = 0x81.  Bit 0 is POR_DET -- and that one is TRUE, a power-on
+ * reset genuinely just happened.  LDO_RDY (bit 4) and OSC_RDY (bit 5) are NOT set.
+ */
+#define VBAT_STATUSA_RESET 0x00000081u
 
 #define VBAT_VERID_VALUE  0x02000000u
 
@@ -61,9 +74,37 @@ static uint64_t mcxn_vbat_read(void *opaque, hwaddr off, unsigned size)
     switch (off) {
     case VBAT_VERID:
         return VBAT_VERID_VALUE;
-    case VBAT_STATUSA:
-        /* Oscillator and LDO are always ready in the model. */
-        return v | VBAT_STATUSA_READY;
+    case VBAT_STATUSA: {
+        /*
+         * ⚠ THIS USED TO BE:  return v | VBAT_STATUSA_READY;
+         *                     -- "Oscillator and LDO are always ready in the model."
+         *
+         * "Always ready" is a FABRICATED ASSERTION, and it is the THIRD instance of
+         * this exact class in this tree today -- SCG reported four oscillators VALID
+         * that nobody turned on, and SYSCON handed out a 1 MHz clock nobody selected.
+         * Every time, the mechanism was the same: WE GAVE THE GUEST SOMETHING IT HAD
+         * NOT EARNED, and the guest believed us.
+         *
+         * The RM agrees this was wrong: STATUSA resets to 0x81, and LDO_RDY (bit 4)
+         * and OSC_RDY (bit 5) are NOT among those bits.  Bit 0 (POR_DET) IS -- and
+         * that one is TRUE: a power-on reset really did just happen.
+         *
+         * So READY now FOLLOWS ENABLE.  Firmware still never spins -- the LDO and the
+         * oscillator are ready the instant they are enabled, which is the right
+         * emulation of a settling time we do not model -- but they are NOT ready
+         * BEFORE that, and code that asks "is the 32 kHz crystal running?" now gets
+         * the truth instead of a yes it never asked for.
+         */
+        uint32_t rdy = 0;
+
+        if (s->regs[VBAT_OSCCTLA >> 2] & OSCCTLA_OSC_EN) {
+            rdy |= VBAT_STATUSA_OSC_RDY;
+        }
+        if (s->regs[VBAT_LDOCTLA >> 2] & LDOCTLA_LDO_EN) {
+            rdy |= VBAT_STATUSA_LDO_RDY;
+        }
+        return (v & ~VBAT_STATUSA_READY) | rdy;
+    }
     default:
         return v;
     }
@@ -110,7 +151,10 @@ static const MemoryRegionOps mcxn_vbat_ops = {
 static void mcxn_vbat_reset(DeviceState *dev)
 {
     MCXNVBATState *s = MCXN_VBAT(dev);
+
     memset(s->regs, 0, sizeof(s->regs));
+    /* RM: STATUSA resets to 0x81 -- POR_DET set (true!), the READY bits clear. */
+    s->regs[VBAT_STATUSA >> 2] = VBAT_STATUSA_RESET;
 }
 
 static void mcxn_vbat_realize(DeviceState *dev, Error **errp)

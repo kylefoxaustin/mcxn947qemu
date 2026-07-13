@@ -131,12 +131,26 @@
 #define PHY_ID2_VALUE    0xC120u  /* LAN8741: OUI 0x1F0, model 0x12, rev 0 */
 
 /*
- * Read-only identification constants.  The RM does not document an explicit
- * MAC_VERSION reset value; 0x51 (DesignWare ENET QoS core v5.10, NXP user
- * version 0) is the conventional value for this IP generation.  GUESSED — to be
- * confirmed against silicon / the SDK if a driver checks it.
+ * Read-only identification constants.
+ *
+ * ⚠ THIS COMMENT USED TO SAY, IN CAPITALS:
+ *
+ *     "The RM does not document an explicit MAC_VERSION reset value; 0x51 ... is the
+ *      conventional value for this IP generation.  GUESSED -- to be confirmed against
+ *      silicon / the SDK if a driver checks it."
+ *
+ * The RM DOES document it.  It is 0x0000_1052 (SNPSVER 0x52, USERVER 0x10), and a
+ * machine-readable extractor found it in seconds -- the one now living in
+ * tests/mcxn-reset-values.  So the note was WRONG about the manual as well as about
+ * the value.
+ *
+ *     ⭐ AN HONESTLY-DOCUMENTED GUESS IS STILL A GUESS.  THE FLAG DISCHARGED THE
+ *        ANXIETY AND THE GAP STAYED.  (rt1180emulator's rule, and here it is in my
+ *        own tree: I wrote "GUESSED -- to be confirmed", felt appropriately careful,
+ *        and then never confirmed it.  Writing down that you are unsure is not the
+ *        same as going and looking.)
  */
-#define MAC_VERSION_VALUE  0x00000051u
+#define MAC_VERSION_VALUE  0x00001052u   /* RM reset */
 
 static void mcxn_enet_update_irq(MCXNEnetState *s)
 {
