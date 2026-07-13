@@ -334,8 +334,26 @@ static uint64_t mcxn_adc_read(void *opaque, hwaddr offset, unsigned size)
          * is no analog gain error to correct in a model, and inventing a non-zero
          * trim would make the guest apply a correction for a distortion that does
          * not exist.
+         *
+         * ⚠ BUT RDY WAS HARDWIRED -- `return GCC_RDY;` -- AND THE RM RESETS GCC TO 0.
+         *
+         * That is a FABRICATED READY, and it is the FOURTH instance of that exact
+         * class in this tree (SCG's "always valid/locked" oscillators, VBAT's "always
+         * ready" LDO, SYSCON's clock nobody selected -- and now this one, WHICH I
+         * WROTE TODAY, in the fix for a different bug).  Every time, the mechanism is
+         * identical: WE HAND THE GUEST SOMETHING IT HAS NOT EARNED AND IT BELIEVES US.
+         * A part that says "my gain calibration is complete" before anyone asked for
+         * one is lying, and firmware that reads GCC without calibrating gets a
+         * trim it never computed.
+         *
+         * It was invisible until the golden's coverage doubled: GCC is an ARRAY
+         * register, and the extractor could not see array rows.  COVERAGE IS A FLOOR.
+         *
+         * RDY now FOLLOWS THE CALIBRATION ACTUALLY BEING REQUESTED (STAT[CAL_RDY],
+         * which CTRL[CAL_REQ]/[CALOFS] sets).  The SDK still never spins: calibration
+         * completes the instant it is asked for.  But it is not complete BEFORE.
          */
-        return GCC_RDY;
+        return (s->regs[R_STAT / 4] & STAT_CAL_RDY) ? GCC_RDY : 0;
 
     case R_VERID:
         return ADC_VERID_VALUE;

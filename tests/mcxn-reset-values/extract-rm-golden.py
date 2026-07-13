@@ -85,12 +85,52 @@ SPDX-License-Identifier: GPL-2.0-or-later
 import collections, json, re, sys
 
 SINGLE = re.compile(r'^([0-9A-F]{1,5})h$')
-ARRAY  = re.compile(r'^([0-9A-F]{1,5})h\s*-\s*([0-9A-F]{1,5})h\s+.*'
-                    r'\(([A-Za-z0-9_]*?)(\d+)\s*-\s*[A-Za-z0-9_]*?(\d+)\)$')
+RANGE  = re.compile(r'^([0-9A-F]{1,5})h\s*-\s*([0-9A-F]{1,5})h$')
+
+# "(ADC1_TRIG0 - ADC1_TRIG3)"  and also INFIX indices: "(P0DR - P31DR)".
+#
+# ⚠ THE SUFFIX MUST CONTAIN NO DIGITS.  That single constraint is what forces (\d+)
+# to be the LAST digit run, and it is the difference between a working regex and a
+# silently broken one:
+#
+#   A non-greedy prefix grabs the FIRST digit run, so "ADC1_TRIG0" splits as
+#   ADC / 1 / _TRIG0 -- and the two ends' suffixes then disagree (_TRIG0 vs _TRIG3),
+#   so the row REFUSES TO EXPAND and every ADCn_TRIG register vanishes from the
+#   golden.  I wrote exactly that regex while adding rt1180emulator's infix support,
+#   AND MY OWN ANCHOR GATE CAUGHT IT ON THE NEXT RUN -- a register that used to be in
+#   the golden was not.  THE GATE CAUGHT A BUG IN THE GATE.  That is the whole reason
+#   the anchors exist, and it is why they must be HAND-READ and never taken from the
+#   tool's own output.
+#
+# prefix AND suffix must agree at both ends, or you are expanding a coincidence.
+ELEMS = re.compile(r'\(([A-Za-z0-9_]*?)(\d+)([A-Za-z_]*)\s*-\s*'
+                   r'([A-Za-z0-9_]*?)(\d+)([A-Za-z_]*)\)\s*$')
+
+# An array row where the RANGE and the NAME share a line.
+ARRAY  = re.compile(r'^([0-9A-F]{1,5})h\s*-\s*([0-9A-F]{1,5})h\s+(.*)$')
 NAME   = re.compile(r'^.*\(([A-Za-z0-9_]+)\)$')
 WIDTH  = re.compile(r'^(8|16|32|64)$')
 ACCESS = re.compile(r'^(RW|RO|WO|W1C|R|W)$')
 RESET  = re.compile(r'^([0-9A-F]{4}_[0-9A-F]{4}|[0-9A-F]{2}_[0-9A-F]{4}|[0-9A-F]{1,16})h$')
+
+
+def _expand(lo, hi, desc, width, acc, reset):
+    """Expand one array row into its elements, or return [] if it isn't one."""
+    m = ELEMS.search(desc)
+    if not m:
+        return []
+    pre_a, ia, suf_a, pre_b, ib, suf_b = m.groups()
+    # Both ends must name the SAME register family, or we are expanding a
+    # coincidence.  (rt1180emulator's infix case: P0DR - P31DR.)
+    if pre_a != pre_b or suf_a != suf_b:
+        return []
+    first, last = int(ia), int(ib)
+    n = last - first + 1
+    if n < 2 or hi <= lo:
+        return []
+    step = (hi - lo) // (n - 1)
+    return [("%s%d%s" % (pre_a, first + k, suf_a), lo + k * step, width, acc, reset)
+            for k in range(n)]
 
 
 def parse_rm(path):
@@ -99,22 +139,43 @@ def parse_rm(path):
     lines = [l for l in lines if l]
     rows, arrays, i = [], 0, 0
 
-    while i < len(lines) - 4:
+    while i < len(lines) - 5:
+        # (a) ARRAY, range and name on ONE line:
+        #        "2C0h - 2CCh ADC Trigger Input Connections (ADC1_TRIG0 - ADC1_TRIG3)"
         a = ARRAY.match(lines[i])
         if a and WIDTH.match(lines[i+1]) and ACCESS.match(lines[i+2]) \
              and RESET.match(lines[i+3]):
-            lo, hi = int(a.group(1), 16), int(a.group(2), 16)
-            stem, first, last = a.group(3), int(a.group(4)), int(a.group(5))
-            n = last - first + 1
-            if n > 1 and hi > lo:
-                step = (hi - lo) // (n - 1)
-                w, acc = int(lines[i+1]), lines[i+2]
-                rst = int(lines[i+3].rstrip('h').replace('_', ''), 16)
-                for k in range(n):
-                    rows.append(("%s%d" % (stem, first + k), lo + k * step, w, acc, rst))
+            got = _expand(int(a.group(1), 16), int(a.group(2), 16), a.group(3),
+                          int(lines[i+1]), lines[i+2],
+                          int(lines[i+3].rstrip('h').replace('_', ''), 16))
+            if got:
+                rows.extend(got)
                 arrays += 1
                 i += 4
                 continue
+
+        # (b) ARRAY, range and name on SEPARATE lines:
+        #        "80h - FCh"
+        #        "Interrupt Control Register a (ICR0 - ICR31)"
+        #     ⚠ rt1180emulator hit this porting the tool: the one-line regex matched
+        #     NOTHING in his manual, the tool printed "0 array ranges expanded" and a
+        #     CONFIDENT GOLDEN with every array register on the chip missing.  That is
+        #     THIS FILE'S OWN GOTCHA -- "you will assume it probes every register" --
+        #     landing inside the port of the fix for it.  A parser is a model of a
+        #     document, AND IT IS A DIFFERENT DOCUMENT.
+        r = RANGE.match(lines[i])
+        if r and WIDTH.match(lines[i+2]) and ACCESS.match(lines[i+3]) \
+             and RESET.match(lines[i+4]):
+            got = _expand(int(r.group(1), 16), int(r.group(2), 16), lines[i+1],
+                          int(lines[i+2]), lines[i+3],
+                          int(lines[i+4].rstrip('h').replace('_', ''), 16))
+            if got:
+                rows.extend(got)
+                arrays += 1
+                i += 5
+                continue
+
+        # (c) a plain single register.
         m = SINGLE.match(lines[i])
         if m:
             nm = NAME.match(lines[i+1])
@@ -153,8 +214,21 @@ def parse_cmsis(path):
         if regs:
             periph[m.group(2)] = regs
 
-    bases = {m.group(1): int(m.group(2), 16) for m in
-             re.finditer(r'#define (\w+)_BASE\s+\(?\(?(0x[0-9A-Fa-f]+)u?\)?', src)}
+    #
+    # ⚠ TRUSTZONE DEFINES EVERY BASE TWICE -- secure (0x5xxx_xxxx) and non-secure
+    # (0x4xxx_xxxx) -- and a dict comprehension keeps WHICHEVER THE FILE DEFINES LAST.
+    # Ours landed on the non-secure alias BY ACCIDENT OF FILE ORDERING.  rt1180emulator
+    # caught this porting the tool ("derived, not lucky") and he is right: take the
+    # LOWER of any pair that differs by exactly the secure-address offset.  A result
+    # that is correct by luck is a result you have not checked.
+    #
+    bases = {}
+    for m in re.finditer(r'#define (\w+)_BASE\s+\(?\(?(0x[0-9A-Fa-f]+)u?\)?', src):
+        name, val = m.group(1), int(m.group(2), 16)
+        if name in bases:
+            bases[name] = min(bases[name], val)   # non-secure alias
+        else:
+            bases[name] = val
     inst2type = {}
     for m in re.finditer(r'#define (\w+)_BASE_PTRS\s+\{([^}]*)\}', src):
         for inst in re.findall(r'\b(\w+)\b', m.group(2)):
@@ -166,6 +240,33 @@ def parse_cmsis(path):
 def main(rm_txt, cmsis_h, out_json):
     rows, arrays = parse_rm(rm_txt)
     periph, bases, inst2type = parse_cmsis(cmsis_h)
+
+    #
+    # ⭐ THE REFERENCE MANUAL CONTRADICTS ITSELF, AND THE JOIN CANNOT SEE IT.
+    #
+    # The same (name, offset) appears with DIFFERENT reset values in different
+    # chapters -- because generic names repeat across peripherals.  On MCX N:
+    #     VERID @0x000 -> FOURTEEN different values.  PARAM @0x004 -> twelve.
+    # On rt1180: MP_CSR @0h -> 0031_0000h (DMA3) AND 0040_0000h (DMA4).
+    #
+    # Dropping rows that CMSIS attributes to >1 peripheral TYPE catches most of these
+    # -- BY LUCK.  It does NOT catch the case where CMSIS IS UNAMBIGUOUS AND THE
+    # MANUAL IS NOT, and there the tool would emit ONE OF THE VALUES ARBITRARILY AND
+    # CALL IT A GOLDEN.
+    #
+    #     ⭐ A WRONG GOLDEN IS WORSE THAN A MISSING ONE.  It makes the CHECKER lie,
+    #        and then your oracle is the thing that needs an oracle.
+    #
+    # That is this file's own rule, applied one level deeper than this file applied
+    # it.  rt1180emulator found it porting the tool.  So: detect RM-side conflicts,
+    # DROP THEM, and COUNT WHAT WE DROPPED.
+    #
+    seen = collections.defaultdict(set)
+    for name, off, _w, _a, reset in rows:
+        seen[(name, off)].add(reset)
+    contradictory = {k for k, v in seen.items() if len(v) > 1}
+    rm_conflicts = sum(1 for r in rows if (r[0], r[1]) in contradictory)
+    rows = [r for r in rows if (r[0], r[1]) not in contradictory]
 
     owner = collections.defaultdict(set)
     for t, regs in periph.items():
@@ -192,7 +293,13 @@ def main(rm_txt, cmsis_h, out_json):
     golden.sort(key=lambda x: (x["inst"], x["addr"]))
     json.dump(golden, open(out_json, "w"), indent=0)
 
-    print("RM rows parsed            : %d  (%d array ranges expanded)" % (len(rows), arrays))
+    print("RM rows parsed            : %d  (%d array ranges expanded)"
+          % (len(rows) + rm_conflicts, arrays))
+    print("  RM SELF-CONTRADICTORY   : %d rows across %d (name,offset) keys -- DROPPED."
+          % (rm_conflicts, len(contradictory)))
+    print("                            (the manual gives the SAME register two different")
+    print("                             reset values.  A WRONG golden makes the CHECKER")
+    print("                             lie, so we refuse to pick one.)")
     print("  unmatched in CMSIS      : %d   (RM names a register CMSIS does not, there)" % unmatched)
     print("  ambiguous (>1 periph)   : %d   (DROPPED, not guessed)" % ambiguous)
     print("golden                    : %d registers, %d instances -> %s"

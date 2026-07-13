@@ -53,6 +53,14 @@
  * tests/mcxn-reset-values, whose golden IS the reference manual.
  */
 static const struct { uint16_t off; uint32_t val; } im_reset[] = {
+    { 0x000, 0x0000007Fu },   /* SCT0_INMUX0 */
+    { 0x004, 0x0000007Fu },   /* SCT0_INMUX1 */
+    { 0x008, 0x0000007Fu },   /* SCT0_INMUX2 */
+    { 0x00C, 0x0000007Fu },   /* SCT0_INMUX3 */
+    { 0x010, 0x0000007Fu },   /* SCT0_INMUX4 */
+    { 0x014, 0x0000007Fu },   /* SCT0_INMUX5 */
+    { 0x018, 0x0000007Fu },   /* SCT0_INMUX6 */
+    { 0x01C, 0x0000007Fu },   /* SCT0_INMUX7 */
     { 0x020, 0x0000007Fu },   /* CTIMER0CAP0 */
     { 0x024, 0x0000007Fu },   /* CTIMER0CAP1 */
     { 0x028, 0x0000007Fu },   /* CTIMER0CAP2 */
@@ -68,6 +76,14 @@ static const struct { uint16_t off; uint32_t val; } im_reset[] = {
     { 0x068, 0x0000007Fu },   /* CTIMER2CAP2 */
     { 0x06C, 0x0000007Fu },   /* CTIMER2CAP3 */
     { 0x070, 0x0000007Fu },   /* TIMER2TRIG */
+    { 0x0C0, 0x0000007Fu },   /* PINTSEL0 */
+    { 0x0C4, 0x0000007Fu },   /* PINTSEL1 */
+    { 0x0C8, 0x0000007Fu },   /* PINTSEL2 */
+    { 0x0CC, 0x0000007Fu },   /* PINTSEL3 */
+    { 0x0D0, 0x0000007Fu },   /* PINTSEL4 */
+    { 0x0D4, 0x0000007Fu },   /* PINTSEL5 */
+    { 0x0D8, 0x0000007Fu },   /* PINTSEL6 */
+    { 0x0DC, 0x0000007Fu },   /* PINTSEL7 */
     { 0x1A0, 0x0000007Fu },   /* CTIMER3CAP0 */
     { 0x1A4, 0x0000007Fu },   /* CTIMER3CAP1 */
     { 0x1A8, 0x0000007Fu },   /* CTIMER3CAP2 */
@@ -102,6 +118,14 @@ static const struct { uint16_t off; uint32_t val; } im_reset[] = {
     { 0x680, 0x0000003Fu },   /* FLEXCOMM7_TRIG */
     { 0x6A0, 0x0000003Fu },   /* FLEXCOMM8_TRIG */
     { 0x6C0, 0x0000003Fu },   /* FLEXCOMM9_TRIG */
+    { 0x6E0, 0x0000007Fu },   /* FLEXIO_TRIG0 */
+    { 0x6E4, 0x0000007Fu },   /* FLEXIO_TRIG1 */
+    { 0x6E8, 0x0000007Fu },   /* FLEXIO_TRIG2 */
+    { 0x6EC, 0x0000007Fu },   /* FLEXIO_TRIG3 */
+    { 0x6F0, 0x0000007Fu },   /* FLEXIO_TRIG4 */
+    { 0x6F4, 0x0000007Fu },   /* FLEXIO_TRIG5 */
+    { 0x6F8, 0x0000007Fu },   /* FLEXIO_TRIG6 */
+    { 0x6FC, 0x0000007Fu },   /* FLEXIO_TRIG7 */
     { 0x700, 0xFFFFFFFFu },   /* DMA0_REQ_ENABLE0 */
     { 0x710, 0xFFFFFFFFu },   /* DMA0_REQ_ENABLE1 */
     { 0x720, 0xFFFFFFFFu },   /* DMA0_REQ_ENABLE2 */
