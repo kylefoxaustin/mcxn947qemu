@@ -63,6 +63,39 @@
  * INIT/VAL1 relationship are EXACT; only the base rate is an assumption, and it
  * is now a traceable one.
  */
+/*
+ * ⭐ VERIFIED AGAINST THE GUEST, NOT ASSUMED -- AND IT IS CORRECT.
+ *
+ * The SCT next door was ticking 3.1x too fast because it had a SELECTOR
+ * (SYSCON[SCTCLKSEL]) that the model ignored, and its test shared the model's
+ * assumption, so both were wrong together and the test passed.  I went looking for the
+ * same bug here.  IT IS NOT HERE, and saying so plainly is worth as much as a fix:
+ *
+ *   * fsl_pwm's source is CLOCK_GetFreq(kCLOCK_BusClk), and the SDK resolves that to
+ *     CLOCK_GetCoreSysClkFreq() -- THE FlexPWM HAS NO SELECTOR OF ITS OWN.  It runs on
+ *     the core/bus clock, which is also what SysTick counts.
+ *   * I broke the stock pwm example at PWM_SetupPwm under gdb and read the argument the
+ *     GUEST computed from the registers IT had programmed:
+ *
+ *         srcClock_Hz = 150000000
+ *
+ *     which is exactly what this model ticks at.  They agree BECAUSE BOTH ARE RIGHT,
+ *     not because both are fabricated.  (And tests/mcxn-pwm's golden -- SysTick ticks
+ *     == (VAL1+1) << PRSC -- rests on "PWM clock == SysTick clock", which is a genuine
+ *     silicon fact here, not a shared assumption smuggled in from the model.)
+ *
+ * ⚠ BUT IT IS CORRECT BY CONFIGURATION, NOT BY DERIVATION, AND THAT IS A NAMED GAP.
+ *
+ * This is a CONSTANT.  It does not FOLLOW.  It is right because BOARD_InitBootClocks
+ * happens to leave the core at 150 MHz; firmware that reconfigures the core clock would
+ * have its SDK compute a different srcClock_Hz while this model kept ticking at 150 MHz.
+ * Closing that means modelling the CORE clock itself as derived from SCG -- which also
+ * feeds SysTick and the CPU -- and that is the last unbuilt piece of the tree.
+ *
+ *     ⭐ A RESULT THAT IS CORRECT BY LUCK IS A RESULT YOU HAVE NOT CHECKED.  I checked.
+ *        It is correct by CONFIGURATION, which is luck with a name -- so the gap is
+ *        recorded here as a decision, not discharged by a flag.
+ */
 #define PWM_IPBUS_HZ       150000000u  /* = MCXN947_SYSCLK_HZ (mcxn_frdm.c) */
 #define PWM_TICK_NS        10
 
