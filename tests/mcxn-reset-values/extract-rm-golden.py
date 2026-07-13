@@ -243,27 +243,130 @@ def parse_rm(path):
     return rows, arrays
 
 
+# A struct array inside a peripheral typedef:   "  } CH[16];"
+STRUCT_ARRAY_END = re.compile(r'^\s*\}\s*(\w+)\[(\w+)\]\s*;', re.M)
+
+
+def _member_names(field, struct_name, idx):
+    """Candidate RM names for element `idx` of a STRUCT ARRAY member.
+
+    ⚠ THERE IS NO SINGLE CONVENTION, SO DO NOT GUESS ONE.
+
+    CMSIS declares the eDMA channel block as `struct { ... } CH[16]`, and the RM
+    names its members TWO different ways in the SAME struct:
+
+        CMSIS  CH_CSR   (in CH[16])  ->  RM  CH0_CSR  ... CH15_CSR
+        CMSIS  TCD_CSR  (in CH[16])  ->  RM  TCD0_CSR ... TCD15_CSR
+
+    -- the index goes after the FIRST token, and the token is NOT the struct's name.
+    Other peripherals append it instead (ADC's CMD[15] -> CMDL1, CMDH1, 1-BASED).
+
+    So EMIT EVERY PLAUSIBLE CANDIDATE AND LET THE (name, offset) JOIN DECIDE.  A wrong
+    candidate name matches NO RM row and is harmless -- the offset has to agree too, so
+    this can only ADD CORRECT JOINS, NEVER INVENT ONE.  Guessing a single convention is
+    what would produce a wrong golden, and A WRONG GOLDEN MAKES THE CHECKER LIE.
+    """
+    out = set()
+    head, sep, tail = field.partition("_")
+    if sep:
+        out.add("%s%d_%s" % (head, idx, tail))       # CH_CSR -> CH0_CSR; TCD_CSR -> TCD0_CSR
+    out.add("%s%d" % (field, idx))                   # CMDL   -> CMDL0
+    out.add("%s%d" % (field, idx + 1))               # CMDL   -> CMDL1  (1-based)
+    out.add("%s%d_%s" % (struct_name, idx, field)) if False else None
+    return out
+
+
+def _count(tok, src):
+    """Element count: a literal, or a #define'd COUNT macro."""
+    if tok.isdigit():
+        return int(tok)
+    m = re.search(r'#define\s+%s\s+\(?(\d+)' % re.escape(tok), src)
+    return int(m.group(1)) if m else 0
+
+
 def parse_cmsis(path):
     """peripheral type -> {register: offset}, plus bases and instance->type.
 
-    ARRAYS ARE EXPANDED.  CMSIS writes `ADC1_TRIG[4]` with one offset and a step;
-    the RM names each element.  Miss this and every array register on the chip is
-    invisible to the join -- silently.
+    ARRAYS ARE EXPANDED -- BOTH KINDS, and missing either one silently blinds the gate
+    to an entire register class:
+
+      * FIELD arrays   `__IO uint32_t ADC1_TRIG[4];`
+      * STRUCT arrays  `struct { __IO uint32_t CH_CSR; ... } CH[16];`
+
+    ⭐ THE SECOND ONE HID THE ENTIRE eDMA CHANNEL BLOCK FROM THIS GATE -- the very
+    block in which this project found more silent-wrong-answer bugs than any other
+    (a dead ERQ, a START that ran the whole major loop, a dropped NBYTES remainder, an
+    unmodelled ATTR modulo).  THE GATE THAT EXISTS TO CATCH THAT CLASS COULD NOT LOOK
+    AT IT.  rt1180emulator hit the identical blindness on his CCM clock roots and named
+    it; both of us had it, in the same week, in the same tool.
     """
     src = open(path, errors="replace").read()
     periph = {}
     for m in re.finditer(r'typedef struct \{(.*?)\} (\w+)_Type;', src, re.S):
+        body = m.group(1)
         regs = {}
+        collide = set()
+
+        def _put(name, off):
+            if name in regs and regs[name] != off:
+                collide.add(name)     # same name, two addresses -> we cannot tell
+            else:
+                regs[name] = off
+
+        # (a) plain fields and FIELD arrays.
         for f in re.finditer(
                 r'__[IO]+\s+\w+\s+(\w+)\s*(?:\[(\d+)\])?\s*;\s*/\*\*<[^*]*?'
                 r'(?:array )?offset:\s*(0x[0-9A-Fa-f]+)'
-                r'(?:[^*]*?array step:\s*(0x[0-9A-Fa-f]+))?', m.group(1)):
+                r'(?:[^*]*?array step:\s*(0x[0-9A-Fa-f]+))?', body):
             name, n, off = f.group(1), f.group(2), int(f.group(3), 16)
             if n:
                 step = int(f.group(4), 16) if f.group(4) else 4
                 for k in range(int(n)):
-                    regs["%s%d" % (name, k)] = off + k * step
-            regs[name] = off
+                    _put("%s%d" % (name, k), off + k * step)
+            _put(name, off)
+
+        # (b) STRUCT arrays.  Each inner field already carries its own
+        #     "array offset" and "array step" (the step being the STRUCT's stride),
+        #     so we only need the element COUNT and the member names.
+        for sa in STRUCT_ARRAY_END.finditer(body):
+            sname, count = sa.group(1), sa.group(2)
+            n = _count(count, src)
+            if not n:
+                continue
+            # fields declared before this closing brace, with an array step
+            for f in re.finditer(
+                    r'__[IO]+\s+\w+\s+(\w+)\s*;\s*/\*\*<[^*]*?'
+                    r'array offset:\s*(0x[0-9A-Fa-f]+)'
+                    r'[^*]*?array step:\s*(0x[0-9A-Fa-f]+)',
+                    body[:sa.start()]):
+                fname = f.group(1)
+                base, step = int(f.group(2), 16), int(f.group(3), 16)
+                for k in range(n):
+                    for cand in _member_names(fname, sname, k):
+                        if cand not in regs:
+                            _put(cand, base + k * step)
+
+        #
+        # ⚠ A NAME MAY COLLIDE WITH ITSELF INSIDE CMSIS, AND THE LOSER IS SILENT.
+        #
+        # ChipIdea's USBHS declares a SCALAR `ENDPTCTRL0` at 0x1C0 AND an array
+        # `ENDPTCTRL[7]` starting at 0x1C4.  Expanding the array emits "ENDPTCTRL0"
+        # at 0x1C4 -- the SAME NAME as the scalar, at a DIFFERENT ADDRESS -- and a
+        # plain dict keeps whichever was written last.  That produced a golden entry
+        # for ENDPTCTRL0 at the WRONG ADDRESS, and the gate then reported a "lie" in
+        # a register that was perfectly correct.
+        #
+        #     ⭐ THAT IS THE ONE THING THIS TOOL MUST NEVER DO.  A WRONG GOLDEN MAKES
+        #        THE CHECKER LIE, AND THEN YOUR ORACLE IS THE THING THAT NEEDS AN
+        #        ORACLE.  A missing register is a gap; a wrong one is a false witness.
+        #
+        # So: build with collision detection, and DROP any name CMSIS gives two
+        # different offsets.  Drop, don't guess -- the same rule already applied to
+        # RM-side contradictions and to >1-type ambiguity.
+        #
+        for bad in collide:
+            regs.pop(bad, None)
+
         if regs:
             periph[m.group(2)] = regs
 
@@ -326,22 +429,63 @@ def main(rm_txt, cmsis_h, out_json):
         for n, o in regs.items():
             owner[(n, o)].add(t)
 
-    golden, unmatched, ambiguous = [], 0, 0
+    #
+    # ⭐ THE RM IS AUTHORITATIVE FOR RESET VALUES.  CMSIS IS AUTHORITATIVE FOR
+    #    ADDRESSES.  USE EACH SOURCE FOR WHAT IT ACTUALLY KNOWS.
+    #
+    # Joining on (name, offset) assumes the RM's offset column is always relative to
+    # the PERIPHERAL base.  IT IS NOT.  The eDMA chapter numbers the CHANNEL SUB-BLOCK
+    # FROM ZERO -- its row for CH0_CSR..CH15_CSR literally reads "0h - F000h" -- while
+    # CMSIS places CH_CSR at 0x1000.  Same register, same manual, two different bases.
+    #
+    # The offset join therefore produced NO MATCH and SILENTLY DROPPED THE ENTIRE eDMA
+    # CHANNEL BLOCK: the very block in which this project has found more silent-wrong-
+    # answer bugs than any other.  THE GATE THAT EXISTS TO CATCH THAT CLASS COULD NOT
+    # LOOK AT IT.  (It never produced a WRONG golden -- a mismatched offset matches
+    # nothing -- but an invisible register is not a checked one.)
+    #
+    # So: try (name, offset) first, and fall back to NAME ALONE under conditions strict
+    # enough that a wrong join is impossible:
+    #     * the name must map to EXACTLY ONE CMSIS peripheral type, and
+    #     * the RM must give that name EXACTLY ONE reset value anywhere in the manual.
+    # The ADDRESS then comes from CMSIS, which is the thing CMSIS is for.
+    #
+    by_name = collections.defaultdict(set)
+    for t, regs in periph.items():
+        for n in regs:
+            by_name[n].add(t)
+    rm_reset_by_name = collections.defaultdict(set)
+    for name, _o, _w, _a, reset in rows:
+        rm_reset_by_name[name].add(reset)
+
+    golden, unmatched, ambiguous, by_name_joins = [], 0, 0, 0
     for name, off, width, acc, reset in rows:
-        types = owner.get((name, off))
-        if not types:
-            unmatched += 1
+        if width != 32 or acc not in ("RW", "RO", "R"):
             continue
+
+        types = owner.get((name, off))
+        cmsis_off = off
+        if not types:
+            # Fall back to name-only, under the strict conditions above.
+            cand = by_name.get(name)
+            if (cand and len(cand) == 1
+                    and len(rm_reset_by_name[name]) == 1):
+                types = cand
+                t0 = next(iter(cand))
+                cmsis_off = periph[t0][name]     # CMSIS owns the ADDRESS
+                by_name_joins += 1
+            else:
+                unmatched += 1
+                continue
         if len(types) > 1:
             ambiguous += 1          # DROP, never guess -- and count what you dropped
             continue
-        if width != 32 or acc not in ("RW", "RO", "R"):
-            continue
+
         t = next(iter(types))
         for inst, ity in inst2type.items():
             if ity == t:
                 golden.append({"inst": inst, "reg": name,
-                               "addr": bases[inst] + off, "reset": reset})
+                               "addr": bases[inst] + cmsis_off, "reset": reset})
 
     golden.sort(key=lambda x: (x["inst"], x["addr"]))
     json.dump(golden, open(out_json, "w"), indent=0)
@@ -355,6 +499,7 @@ def main(rm_txt, cmsis_h, out_json):
     print("                             lie, so we refuse to pick one.)")
     print("  unmatched in CMSIS      : %d   (RM names a register CMSIS does not, there)" % unmatched)
     print("  ambiguous (>1 periph)   : %d   (DROPPED, not guessed)" % ambiguous)
+    print("  joined by NAME (RM used a sub-block offset base): %d" % by_name_joins)
     print("golden                    : %d registers, %d instances -> %s"
           % (len(golden), len({g['inst'] for g in golden}), out_json))
     print()

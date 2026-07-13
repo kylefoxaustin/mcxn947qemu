@@ -54,6 +54,45 @@ if not os.access(QEMU, os.X_OK):
 
 golden = json.load(open(os.path.join(HERE, "rm-golden.json")))
 
+#
+# ⭐ COVERAGE IS AN ASSERTION, NOT A PRINT STATEMENT.
+#
+# This gate used to PRINT "probed N registers" and return PASS regardless of N.  So an
+# extractor that silently regressed -- one broken regex, one unparsed table layout --
+# would probe a THIRD of the chip, announce it accurately, AND STILL PASS.
+#
+#     A GATE WHOSE COVERAGE CANNOT FAIL IT IS A GATE YOU HAVE AGREED NOT TO LOOK AT.
+#                                                     -- rt1180emulator, who lived it:
+# his extractor printed "unmatched: 4371" every run, for a day, while returning PASS --
+# and the blind set contained the two blocks he most needed it to see (his CCM clock
+# roots and the eDMA map he had just found WRONG).  He read the number and it changed
+# nothing, BECAUSE IT WAS PRINTED, NOT ASSERTED.  An honest number with no threshold is
+# the same organ as an allowlist that never shrinks.
+#
+# THE COUNT LIVES OUTSIDE THE ARTIFACT (expected-coverage.txt), because the suite and
+# the artifact must not share a source -- AND THE COUNT IS PART OF THE ARTIFACT.
+#
+# It RATCHETS IN BOTH DIRECTIONS, exactly like the deviation allowlist:
+#     coverage DOWN -> FAIL (something went blind)
+#     coverage UP   -> FAIL ("you can see more now: update the line and say so")
+# Neither direction may pass silently.  A number that only ever goes up by accident is
+# a number nobody is reading.
+#
+EXPECTED = int(open(os.path.join(HERE, "expected-coverage.txt")).read().strip())
+
+if len(golden) != EXPECTED:
+    direction = "SHRANK" if len(golden) < EXPECTED else "GREW"
+    print("FAIL: COVERAGE %s -- the golden holds %d registers, expected-coverage.txt "
+          "says %d." % (direction, len(golden), EXPECTED))
+    if len(golden) < EXPECTED:
+        print("      THE GATE HAS GONE PARTIALLY BLIND.  Every register it can no longer")
+        print("      see is UNCHECKED, and this run would otherwise have said PASS.")
+    else:
+        print("      The gate can see MORE than it was told to.  That is good news --")
+        print("      but it must be DECLARED, not absorbed: update expected-coverage.txt")
+        print("      so the next regression has something to fail against.")
+    sys.exit(2)
+
 allow = {}
 with open(os.path.join(HERE, "known-deviations.txt")) as f:
     for line in f:
@@ -128,7 +167,8 @@ new  = [k for k in mismatched if k not in allow]
 # permanent certificate for 400 wrong answers.
 stale = [k for k in allow if k not in mismatched]
 
-print("probed %d registers against the RM (golden = the reference manual)" % len(golden))
+print("probed %d registers against the RM (golden = the reference manual)  [asserted]"
+      % len(golden))
 print("  matching        : %d" % (len(golden) - len(mismatched)))
 print("  known deviations: %d   <-- THIS NUMBER MUST GO DOWN" % (len(mismatched) - len(new)))
 

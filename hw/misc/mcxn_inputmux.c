@@ -102,6 +102,16 @@ static const struct { uint16_t off; uint32_t val; } im_reset[] = {
     { 0x300, 0x0000003Fu },   /* DAC0_TRIG */
     { 0x320, 0x0000003Fu },   /* DAC1_TRIG */
     { 0x340, 0x0000003Fu },   /* DAC2_TRIG */
+    { 0x360, 0x0000003Fu },   /* QDC0_TRIG */
+    { 0x364, 0x0000003Fu },   /* QDC0_HOME */
+    { 0x368, 0x0000003Fu },   /* QDC0_INDEX */
+    { 0x36C, 0x0000003Fu },   /* QDC0_PHASEB */
+    { 0x370, 0x0000003Fu },   /* QDC0_PHASEA */
+    { 0x380, 0x0000003Fu },   /* QDC1_TRIG */
+    { 0x384, 0x0000003Fu },   /* QDC1_HOME */
+    { 0x388, 0x0000003Fu },   /* QDC1_INDEX */
+    { 0x38C, 0x0000003Fu },   /* QDC1_PHASEB */
+    { 0x390, 0x0000003Fu },   /* QDC1_PHASEA */
     { 0x420, 0x00000007u },   /* PWM0_EXT_CLK */
     { 0x424, 0x00000007u },   /* PWM1_EXT_CLK */
     { 0x480, 0x0000000Fu },   /* USBFS_TRIG */
