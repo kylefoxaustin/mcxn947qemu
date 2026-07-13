@@ -148,10 +148,41 @@ static uint64_t mcxn_scg_read(void *opaque, hwaddr off, unsigned size)
     case SCG_SPLLCSR:
         return (v & SPLLCSR_PWR_CLK) ? (v | SCG_READY) : v;
 
-    /* SIRC and FIRC ARE running out of reset; their VLD is in the reset value. */
+    /*
+     * SIRC really is running out of reset -- its VLD (bit 24) is IN ITS RESET VALUE
+     * (0x0100_0020), which is where it belongs.
+     *
+     * ⚠ FIRC IS NOT, AND I FABRICATED ITS VLD FOR A DAY BECAUSE I COULD NOT READ THE
+     * RESET VALUE.  The RM's summary row for FIRCCSR says "See section", and the
+     * section's bit diagram does not survive pdftotext -- so I left `v | SCG_READY`
+     * with a note that I had no authoritative value and would not guess one.
+     *
+     * That was the right call about the VALUE and the wrong call about the BEHAVIOUR,
+     * and the tool told me so only once it started COUNTING the rows the manual
+     * DECLINES to answer (91emulator: "a refusal is not a check -- and an UNCOUNTED
+     * refusal is not even a refusal").  FIRCCSR was one of 179 rows that were not
+     * dropped, not refused, but INVISIBLE.
+     *
+     * THE DRIVER ANSWERS WHAT THE MANUAL WOULD NOT (fsl_clock.c:159-168):
+     *
+     *     SCG0->FIRCCSR |= SCG_FIRCCSR_FIRCEN_MASK;          // enable it
+     *     while ((SCG0->FIRCCSR & SCG_FIRCCSR_FIRCVLD_MASK) == 0U) { }   // THEN wait
+     *
+     * It enables FIRC and only then spins on VLD.  A part whose FIRC is already valid
+     * before anyone enabled it would make that spin meaningless.
+     *
+     *     ⭐ A HEADER IS A CLAIM ABOUT THE SILICON; A DRIVER IS A CLAIM ABOUT WHAT THE
+     *        SILICON MUST DO.  WHEN THEY DISAGREE -- OR WHEN THE MANUAL IS SILENT --
+     *        THE DRIVER WINS.                                    (rt1180emulator)
+     *
+     * So FIRC's VLD now FOLLOWS ITS ENABLE, like SOSC/ROSC/APLL/SPLL.  Firmware still
+     * never spins: it is valid the instant it is enabled.  It is simply not valid
+     * BEFORE.  (This is the FIFTH fabricated-ready in this tree, and the last one.)
+     */
     case SCG_SIRCCSR:
-    case SCG_FIRCCSR:
         return v | SCG_READY;
+    case SCG_FIRCCSR:
+        return (v & FIRCCSR_FIRCEN) ? (v | SCG_READY) : v;
     default:
         return v;
     }

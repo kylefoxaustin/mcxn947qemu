@@ -187,10 +187,28 @@ def _expand(lo, hi, desc, width, acc, reset):
 
 
 def parse_rm(path):
-    """(name, offset, width, access, reset) for every register row we can read."""
+    """(name, offset, width, access, reset) for every register row we can read.
+
+    Also returns the DEFERRED list: rows that parse in EVERY column EXCEPT the reset
+    value, because the manual writes "See section" there instead of a number.
+
+    ⭐ A REFUSAL IS NOT A CHECK -- AND AN UNCOUNTED REFUSAL IS NOT EVEN A REFUSAL.
+                                                                (91emulator)
+
+    Those rows never matched the row pattern at all.  They were not dropped, they were
+    INVISIBLE: not in the golden, not in the refusal list, not in ANY number this tool
+    printed.  And the RM writes "See section" for a reason -- usually because THE RESET
+    VALUE DEPENDS ON THE INSTANCE, which is precisely the shape that was hiding the PORT
+    PCR pads (PORT0 = 0x1143 = the SWD debug pins, PORT1-5 = 0).  I found those BY
+    ACCIDENT, chasing a different lead, because my own tool could not tell me they
+    existed.
+
+    They are now COUNTED and PRINTED, so the next one is found on purpose.
+    """
     lines = [l.strip() for l in open(path, errors="replace")]
     lines = [l for l in lines if l]
     rows, arrays, i = [], 0, 0
+    deferred = []
 
     while i < len(lines) - 5:
         # (a) ARRAY, range and name on ONE line:
@@ -239,8 +257,18 @@ def parse_rm(path):
                              int(lines[i+4].rstrip('h').replace('_', ''), 16)))
                 i += 5
                 continue
+
+        # (d) THE DEFERRED ROWS.  Everything parses except the reset cell, because the
+        #     manual says "See section" -- typically because the value is PER-INSTANCE.
+        #     Count them.  An uncounted refusal is not even a refusal.
+        m2 = SINGLE.match(lines[i]) or RANGE.match(lines[i])
+        if m2:
+            nm = NAME.match(lines[i+1])
+            if nm and WIDTH.match(lines[i+2]) and ACCESS.match(lines[i+3]) \
+                  and not RESET.match(lines[i+4]):
+                deferred.append((nm.group(1), lines[i+4]))
         i += 1
-    return rows, arrays
+    return rows, arrays, deferred
 
 
 # A struct array inside a peripheral typedef:   "  } CH[16];"
@@ -399,7 +427,7 @@ def parse_cmsis(path):
 
 
 def main(rm_txt, cmsis_h, out_json):
-    rows, arrays = parse_rm(rm_txt)
+    rows, arrays, deferred = parse_rm(rm_txt)
     periph, bases, inst2type = parse_cmsis(cmsis_h)
 
     #
@@ -545,6 +573,26 @@ def main(rm_txt, cmsis_h, out_json):
     print("  joined by NAME (RM used a sub-block offset base): %d" % by_name_joins)
     print("golden                    : %d registers, %d instances -> %s"
           % (len(golden), len({g['inst'] for g in golden}), out_json))
+    print()
+    if deferred:
+        names = sorted({n for n, _c in deferred})
+        print()
+        print("⚠ DEFERRED BY THE MANUAL : %d rows (%d distinct registers) whose reset cell"
+              % (len(deferred), len(names)))
+        print("  says 'See section' instead of a number -- USUALLY BECAUSE THE VALUE IS")
+        print("  PER-INSTANCE, which is exactly the shape that was hiding the PORT PCR pads")
+        print("  (PORT0 = 0x1143 -- THE SWD DEBUG PINS).  These are NOT in the golden and")
+        print("  NOTHING CHECKS THEM.  A refusal is not a check, and an UNCOUNTED refusal")
+        print("  is not even a refusal.  Triage them by hand:")
+        print("    %s" % ", ".join(names[:16]))
+        if len(names) > 16:
+            print("    ... and %d more" % (len(names) - 16))
+        with open(out_json.replace(".json", "-deferred.txt"), "w") as f:
+            f.write("# Rows the MANUAL declines to answer ('See section').\n"
+                    "# NOT in the golden.  NOTHING CHECKS THEM.  Triage by hand.\n")
+            for n in names:
+                f.write("%s\n" % n)
+        print("  -> %s" % out_json.replace(".json", "-deferred.txt"))
     print()
     print("⚠ COVERAGE IS A FLOOR, NOT A CEILING.  Rows whose table layout did not")
     print("  parse are INVISIBLE to every check built on this file.  Validate against")
