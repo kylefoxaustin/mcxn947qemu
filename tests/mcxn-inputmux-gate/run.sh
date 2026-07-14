@@ -13,7 +13,7 @@ command -v "$CC" >/dev/null 2>&1 || { echo "SKIP: $CC not found"; exit 0; }
       -Wall -T "$HERE/link.ld" "$HERE/main.c" -o "$ELF"
 # -icount: a deterministic instrument.  A gate test whose verdict depends on host
 # load is not an instrument, it is a mood.
-OUT="$(timeout 90 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
+OUT="$(timeout -k 5 90 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
         -serial stdio -kernel "$ELF" -no-reboot 2>/dev/null || true)"
 echo "--- guest output ---"; echo "$OUT"; echo "--------------------"
 echo "$OUT" | grep -q "GATE PASS" && { echo "PASS"; exit 0; } || { echo "FAIL"; exit 1; }

@@ -69,7 +69,7 @@ NAMES=("DMA0.CH0_SBR" "DMA0.CH15_SBR" "DMA1.CH0_SBR"
        "LPI2C0.MRDR" "LPI2C0.MRDROR" "LPI2C0.SASR" "LPI2C0.SRDR" "LPI2C0.SRDROR")
 WANT=(6 6 7 16384 16384 16384 16384 16384)
 
-mapfile -t V < <(timeout 60 "$QEMU" -M frdm-mcxn947 -display none -accel qtest \
+mapfile -t V < <(timeout -k 5 60 "$QEMU" -M frdm-mcxn947 -display none -accel qtest \
                      -qtest stdio -monitor none -serial none < "$QS" 2>/dev/null \
                  | grep -oE '^OK 0x[0-9a-f]+' | cut -d' ' -f2)
 

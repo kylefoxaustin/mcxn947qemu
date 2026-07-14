@@ -59,6 +59,73 @@ if [ -n "$STALE" ]; then
     exit 2
 fi
 
+#
+# ⭐ THE ENVIRONMENT IS PART OF THE MEASUREMENT.  A NUMBER WITHOUT ITS CENSUS IS NOT A
+#   NUMBER.                                                              (qualcomm)
+#
+# I burned 30 CORE-HOURS of this box with 8 orphaned QEMUs -- two from a demo I ran by
+# hand and never killed, six leaked by `timeout N` (which sends SIGTERM and then WAITS
+# FOREVER if the child ignores it; a QEMU spinning under -icount does exactly that).
+#
+# And the reason I never questioned the resulting slowness is the sharpest thing anyone
+# said this week:
+#
+#   ⭐ "WORSE RESULTS ARE THE ONES WE ARE LEAST LIKELY TO CHALLENGE, BECAUSE
+#      DISAPPOINTING NUMBERS FEEL LIKE HONESTY."
+#
+# A contaminated box does not produce obviously-broken results.  It produces plausible,
+# disappointing, WRONG ones -- and you thank it for its candour.  My ENET lab test failed
+# twice; I found a real bug the first time and blamed "load" the second.  The load was me.
+#
+# So: the census prints WITH the verdict, every run.  Timing tests here use -icount and
+# are immune, and the lab tests POLL rather than sleep -- but a reader deserves to know
+# what else was on the machine, and a HOT TENANT WITH NO OWNER is a finding.
+#
+# ⭐ AND THE CENSUS MUST NAME ITS OWN BLIND SPOT.                        (95emulator)
+#   A CPU-SORTED CENSUS IS STRUCTURALLY BLIND TO THE CORPSE I ACTUALLY HAD.  I first wrote
+#   pass 2 as "qemu-system reparented to PID 1 (PPID==1)" -- and it caught ZERO of my eight
+#   leaked QEMUs, because the `timeout N` leak DOES NOT PRODUCE PID-1 ORPHANS:
+#
+#     six of mine were children of a `timeout` STILL BLOCKED WAITING (it SIGTERM'd a QEMU
+#     that ignores SIGTERM under -icount, so `timeout` never returns -- parent ALIVE, child
+#     never reparented).  The other two hung off `systemd --user`.  A predicate keyed on
+#     parentage is blind, BY CONSTRUCTION, to the exact bug it was written to find.
+#
+#   The blind-spot-free predicate is not WHO the parent is -- it is AGE.  No suite test runs
+#   a QEMU longer than its timeout (the largest is 240s).  So a `qemu-system-*` alive past
+#   ~10min is a leak, whatever its parent.  That catches all eight; PPID==1 caught none.
+#
+#     1. hot long-lived tenants (any process >50%% cpu, >10min) -- contention right now.
+#     2. leaked QEMUs (qemu-system-* older than any legitimate test run), at ANY cpu --
+#        the pass the hot-list is blind to when a leak idles below the cpu threshold.
+#
+QEMU_LEAK_AGE_S=600     # > longest suite timeout (240s) by a wide margin; no real run lives this long
+tenant_census() {
+    local hot leaks
+    hot="$(ps -eo pcpu,etimes,comm --sort=-pcpu 2>/dev/null |
+           awk 'NR>1 && $1 > 50 && $2 > 600 {n++} END {print n+0}')"
+    printf 'tenant census: %s hot long-lived process(es) (>50%%%% cpu, >10min) · load %s · %s cores\n' \
+        "$hot" "$(cut -d' ' -f1 /proc/loadavg 2>/dev/null)" "$(nproc 2>/dev/null)"
+    if [ "${hot:-0}" -gt 0 ]; then
+        # detail filter MUST index the detail columns (pid pcpu etimes comm), not the count's.
+        ps -eo pid,pcpu,etimes,comm --sort=-pcpu 2>/dev/null |
+          awk 'NR>1 && $2+0 > 50 && $3+0 > 600 {printf "   ⚠ pid=%s %s%% %.1fh %s\n", $1, $2, $3/3600, $4}' |
+          head -5
+        echo "   ⚠ this run shared the machine.  -icount tests are immune; wall-clock ones are not."
+    fi
+    # Pass 2: leaked QEMUs by AGE, at ANY cpu, whatever the parent -- catches the stuck-timeout leak.
+    leaks="$(ps -eo etimes,comm 2>/dev/null | awk -v a="$QEMU_LEAK_AGE_S" '$1+0 > a && $2 ~ /qemu-system/ {n++} END {print n+0}')"
+    printf 'orphan census: %s leaked qemu-system-* (alive >%.0fmin, any cpu -- older than any legitimate test run)\n' \
+        "$leaks" "$((QEMU_LEAK_AGE_S/60))"
+    if [ "${leaks:-0}" -gt 0 ]; then
+        ps -eo pid,ppid,pcpu,etimes,comm 2>/dev/null |
+          awk -v a="$QEMU_LEAK_AGE_S" '$4+0 > a && $5 ~ /qemu-system/ {printf "   ☠ leak pid=%s ppid=%s %s%% %.1fh %s\n", $1, $2, $3, $4/3600, $5}' |
+          head -8
+        echo "   ☠ these outlived every test timeout -- reap by exact PID (never pkill -f: siblings share this box)."
+    fi
+}
+tenant_census
+
 pin() { printf '%s %s' "$(md5sum "$QEMU" | cut -c1-12)" "$(stat -c %Y "$QEMU")"; }
 PIN0="$(pin)"
 echo "binary pin: $PIN0  (md5 + mtime, and NEWER than every mcxn_* source)"

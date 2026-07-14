@@ -10,7 +10,7 @@ command -v "$CC" >/dev/null || { echo "SKIP: no $CC"; exit 0; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 "$CC" -mcpu=cortex-m33 -mthumb -nostdlib -nostartfiles -ffreestanding -O2 -Wall \
   -T tests/mcxn-mrt/link.ld tests/mcxn-mrt/main.c -o "$T/mrt.elf" || { echo "SKIP: build failed"; exit 0; }
-OUT="$(timeout 120 build/qemu-system-arm -M frdm-mcxn947 -icount shift=3 -display none \
+OUT="$(timeout -k 5 120 build/qemu-system-arm -M frdm-mcxn947 -icount shift=3 -display none \
         -monitor none -serial stdio -kernel "$T/mrt.elf" -no-reboot 2>/dev/null || true)"
 echo "$OUT" | grep -E 'MRT '
 echo "$OUT" | grep -q "MRT PASS" && { echo "PASS"; exit 0; } || { echo "FAIL"; exit 1; }

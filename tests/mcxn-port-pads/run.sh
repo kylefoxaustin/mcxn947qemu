@@ -52,7 +52,7 @@ for c in "${CASES[@]}"; do
     printf 'readl 0x%x\n' $(( ${BASE[$1]} + 0x80 + 4 * $2 )) >> "$QS"
 done
 
-mapfile -t V < <(timeout 60 "$QEMU" -M frdm-mcxn947 -display none -accel qtest \
+mapfile -t V < <(timeout -k 5 60 "$QEMU" -M frdm-mcxn947 -display none -accel qtest \
                      -qtest stdio -monitor none -serial none < "$QS" 2>/dev/null \
                  | grep -oE '^OK 0x[0-9a-f]+' | cut -d' ' -f2)
 

@@ -56,7 +56,7 @@ check() {
     elf=$(find "$BASE/$ex" -name '*.elf' 2>/dev/null | head -1)
     [ -n "$elf" ] || { echo "  SKIP  $ex (not built)"; return 0; }
     ser=$(mktemp)
-    timeout 15 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
+    timeout -k 5 15 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
         -serial "file:$ser" -kernel "$elf" -no-reboot >/dev/null 2>&1 || true
     out=$(tr '\r' '\n' < "$ser" | grep -vE '^[[:space:]]*$' | tail -1)
     rm -f "$ser"

@@ -17,7 +17,7 @@ E1="${ELF%.elf}-1.elf"; E2="${ELF%.elf}-2.elf"
       -Wall -DNODE_ID=2 -T "$HERE/link.ld" "$HERE/main.c" -o "$E2"
 PORT=$(( (RANDOM % 20000) + 20000 ))
 O1="$(mktemp)"; O2="$(mktemp)"
-qrun() { timeout 9 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
+qrun() { timeout -k 5 9 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
         -serial stdio -nic "socket,$1,model=mcxn-enet,mac=52:54:00:00:00:0$2" \
         -kernel "$3" -no-reboot; }
 qrun "listen=127.0.0.1:$PORT" 1 "$E1" >"$O1" 2>/dev/null & P1=$!

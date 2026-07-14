@@ -65,7 +65,7 @@ fail=0
 # qtest protocol; it answers FAIL Unknown command).  A crashing QEMU was my exit
 # path, and the harness read its answers off the wire and called it a PASS.
 QOUT="$(printf 'readl %s\n' "$(printf '0x%x' $SIRCCSR)" \
-        | timeout 30 "$QEMU" -M frdm-mcxn947 -display none -accel qtest -qtest stdio \
+        | timeout -k 5 30 "$QEMU" -M frdm-mcxn947 -display none -accel qtest -qtest stdio \
               -monitor none -serial none 2>/dev/null || true)"
 got=$(echo "$QOUT" | grep -oE '^OK 0x[0-9a-f]+' | cut -d' ' -f2 | tail -1)
 if [ "$(printf '%d' "$got" 2>/dev/null || echo -1)" -eq "$(printf '%d' $EXPECT)" ]; then
@@ -104,7 +104,7 @@ QS="$(mktemp)"
   printf 'writel 0x%x 0x3\n' $APLLCSR # APLLPWREN | APLLCLKEN
   printf 'readl 0x%x\n' $APLLCSR      # [5] NOW locked
 } > "$QS"
-mapfile -t V < <(timeout 30 "$QEMU" -M frdm-mcxn947 -display none -accel qtest \
+mapfile -t V < <(timeout -k 5 30 "$QEMU" -M frdm-mcxn947 -display none -accel qtest \
                      -qtest stdio -monitor none -serial none < "$QS" 2>/dev/null \
                  | grep -oE '^OK 0x[0-9a-f]+' | cut -d' ' -f2)
 rm -f "$QS"
@@ -129,7 +129,7 @@ if [ ! -f "$ELF" ]; then
     exit $fail
 fi
 
-timeout 15 "$QEMU" -M frdm-mcxn947 -display none -monitor none -no-reboot \
+timeout -k 5 15 "$QEMU" -M frdm-mcxn947 -display none -monitor none -no-reboot \
     -serial "file:$TMP/out.txt" -kernel "$ELF" >/dev/null 2>&1 || true
 OUT="$(tr -d '\r' < "$TMP/out.txt" 2>/dev/null)"
 

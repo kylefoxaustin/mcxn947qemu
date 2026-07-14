@@ -12,7 +12,7 @@ command -v "$CC" >/dev/null 2>&1 || { echo "SKIP: $CC not found"; exit 0; }
 # BOTH FlexCANs on ONE can-bus: CAN0 transmits, CAN1 receives, so the frame
 # travels the real board-to-board path (not the separate loopback code path —
 # mutation testing showed a loopback test cannot catch bus-path bugs).
-OUT="$(timeout 20 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
+OUT="$(timeout -k 5 20 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
         -object can-bus,id=cb -machine canbus0=cb,canbus1=cb \
         -serial stdio -kernel "$ELF" -no-reboot 2>/dev/null || true)"
 echo "--- guest output ---"; echo "$OUT"; echo "--------------------"

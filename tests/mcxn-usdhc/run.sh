@@ -37,7 +37,7 @@ open(sys.argv[1], 'wb').write(buf)
 PY
 
 # --- pass 1: with a real card ----------------------------------------------
-OUT="$(timeout 30 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
+OUT="$(timeout -k 5 30 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
         -serial stdio -kernel "$ELF" -no-reboot \
         -drive if=none,id=sd0,format=raw,file="$IMG" \
         -device sd-card,drive=sd0 2>/dev/null || true)"
@@ -61,7 +61,7 @@ print("host-side check: block 1 in the image file is byte-exact")
 PY
 
 # --- pass 3: an empty slot must time out, not answer -----------------------
-OUT2="$(timeout 30 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
+OUT2="$(timeout -k 5 30 "$QEMU" -M frdm-mcxn947 -display none -monitor none \
         -serial stdio -kernel "$ELF" -no-reboot 2>/dev/null || true)"
 echo "--- guest output (no card) ---"; echo "$OUT2"; echo "------------------------------"
 if ! echo "$OUT2" | grep -q "USDHC NOCARD"; then

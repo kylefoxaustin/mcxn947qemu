@@ -45,7 +45,7 @@ for elf in "${elfs[@]}"; do
     #     no verdict in the output    -> INCONCLUSIVE, never scored as a failure
     #
     # A killed run is not a caught bug, and an empty result is not a pass.
-    OUT="$(timeout 120 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
+    OUT="$(timeout -k 5 120 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
             -serial stdio -kernel "$elf" -no-reboot </dev/null 2>/dev/null || true)"
 
     if echo "$OUT" | grep -q "PROJECT EXECUTION SUCCESSFUL"; then

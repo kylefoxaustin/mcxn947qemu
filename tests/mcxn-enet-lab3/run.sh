@@ -60,7 +60,7 @@ O1=$(mktemp); O2=$(mktemp); O3=$(mktemp)
 trap 'rm -f "$O1" "$O2" "$O3"; rm -rf "$BUILDDIR"' EXIT
 
 node() { # <elf> <mac> <out>
-  timeout 12 "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+  timeout -k 5 12 "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
     -nic socket,mcast=$MCAST,model=mcxn-enet,mac=$2 \
     -kernel "$1" -no-reboot >"$3" 2>/dev/null &
 }

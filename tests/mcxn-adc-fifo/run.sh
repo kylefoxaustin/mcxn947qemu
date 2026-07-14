@@ -97,7 +97,7 @@ FCTRL0=$(r 0x0E0); CMDL1=$(r 0x100); RESFIFO0=$(r 0x300)
 # framework does, and then CHECKS IT GOT EVERY ANSWER IT ASKED FOR -- because a
 # truncated conversation and a correct one differ only in the answers you never
 # notice are missing.
-OUT="$(timeout 30 "$QEMU" -M frdm-mcxn947 -display none -accel qtest -qtest stdio \
+OUT="$(timeout -k 5 30 "$QEMU" -M frdm-mcxn947 -display none -accel qtest -qtest stdio \
          -monitor none -serial none < /tmp/adc-fifo-qt.$$ 2>/dev/null || true)"
 rm -f /tmp/adc-fifo-qt.$$
 mapfile -t V < <(echo "$OUT" | grep -oE '^OK 0x[0-9a-f]+' | cut -d' ' -f2)

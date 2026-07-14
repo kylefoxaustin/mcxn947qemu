@@ -15,7 +15,7 @@ command -v "$CC" >/dev/null 2>&1 || { echo "SKIP: $CC not found"; exit 0; }
 # NON-DETERMINISTIC instrument tracks HOST time.  A golden compared against a noisy
 # measurement gives a confident, reproducible-looking, WRONG answer.  (Without it
 # this test reads 5301 ticks where the RM says 2052, and the number changes per run.)
-OUT="$(timeout 120 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
+OUT="$(timeout -k 5 120 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
         -serial stdio -kernel "$ELF" -no-reboot 2>/dev/null || true)"
 echo "--- guest output ---"; echo "$OUT"; echo "--------------------"
 echo "$OUT" | grep -q "SCT PASS" && { echo "PASS"; exit 0; } || { echo "FAIL"; exit 1; }

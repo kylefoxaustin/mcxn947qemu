@@ -46,7 +46,7 @@ fi
 [ -f "$ELF" ] || { echo "SKIP: could not build the stock example"; exit 0; }
 
 MSG="ABCDEFGH"     # the example echoes every 8 characters
-OUT="$( (printf '%s' "$MSG"; sleep 6) | timeout 20 "$QEMU" -M frdm-mcxn947 \
+OUT="$( (printf '%s' "$MSG"; sleep 6) | timeout -k 5 20 "$QEMU" -M frdm-mcxn947 \
         -display none -monitor none -serial stdio -kernel "$ELF" -no-reboot \
         2>/dev/null || true )"
 

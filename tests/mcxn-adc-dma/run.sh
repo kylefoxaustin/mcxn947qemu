@@ -16,7 +16,7 @@ command -v "$CC" >/dev/null 2>&1 || { echo "SKIP: $CC not found"; exit 0; }
 # the eDMA drained the ADC FIFO between triggers, and a test whose verdict depends
 # on host load is not an instrument, it is a mood.  (Under -icount it failed 4/4 --
 # which is how the depth-1-FIFO data-loss bug finally got caught.)
-OUT="$(timeout 90 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
+OUT="$(timeout -k 5 90 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
         -serial stdio -kernel "$ELF" -no-reboot 2>/dev/null || true)"
 echo "--- guest output ---"; echo "$OUT"; echo "--------------------"
 echo "$OUT" | grep -q "ADCDMA PASS" && { echo "PASS"; exit 0; } || { echo "FAIL"; exit 1; }
