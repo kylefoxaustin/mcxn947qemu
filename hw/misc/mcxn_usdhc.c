@@ -138,16 +138,47 @@
 #define ADMA_ACT_TRAN  (2u << 4)
 #define ADMA_ACT_LINK  (3u << 4)
 
-/* Best-effort capability advertisement (not boot-gating). */
 /*
- * HOST_CTRL_CAP: the part telling software WHAT IT CAN DO.  RM reset 0x07F3B407.
+ * HOST_CTRL_CAP: the part telling software WHAT IT CAN DO.  RM reset 0x07F3_B407.
  *
- * ⚠ We returned 0x07F30000 -- the upper half right, THE LOW HALF ZEROED.  Those low
- * bits are SDR50_SUPPORT (b0), SDR104_SUPPORT (b1), DDR50_SUPPORT (b2) and the
- * tuning fields: the UHS-I speed modes.  A capability register that under-reports is
- * a part lying about what it is, and the SD driver negotiates against it.
+ * ⚠ I HAD THIS EXACTLY BACKWARDS, AND I WROTE THE BACKWARDS REASONING DOWN.
+ *
+ *   The old comment argued: "we return 0x07F3_0000 with the low half zeroed; those bits
+ *   are SDR50/SDR104/DDR50 and the tuning fields.  A CAPABILITY REGISTER THAT
+ *   UNDER-REPORTS IS A PART LYING ABOUT WHAT IT IS."  So I "fixed" it TO THE RM VALUE.
+ *
+ *   ⭐ THAT IS THE TRAP, AND IT IS THE ONE 91emulator PAID FOR WITH A BOOT FAILURE.
+ *     Their gate said the same thing about the same register; they set it to the RM
+ *     value; and QEMU's OWN sdhci_check_capareg() REFUSED TO START -- because the value
+ *     advertises hardware the model does not implement.  TWO ORACLES DISAGREED AND THE
+ *     ONE THAT REFUSED TO BOOT WAS RIGHT.  My uSDHC is a private model: THERE IS NO SUCH
+ *     ASSERTION HERE TO CATCH ME.
+ *
+ *   ⭐ ON A CAPABILITY REGISTER, MATCHING THE REFERENCE MANUAL IS THE BUG -- unless you
+ *     also implement the chip behind it.  UNDER-REPORTING is a model that promises less
+ *     than the silicon.  OVER-REPORTING IS A PROMISE THE EMULATOR MAKES ON THE CHIP'S
+ *     BEHALF, AND THE GUEST WILL HOLD US TO IT.
+ *
+ * WHAT WE ACTUALLY IMPLEMENT: ADMA2 against a REAL sd-card, high speed, the standard
+ * voltages and bus widths.  THERE IS NO TUNING ENGINE AT ALL -- no CMD19, no sampling
+ * window, no SDR104/DDR50 path; `USDHC_TUNING_CTRL` is a storage location and nothing
+ * more.  A driver that saw SDR104 would switch the card to it and then run the tuning
+ * procedure into a model that has none.
+ *
+ * So we clear EXACTLY the UHS-I capability bits and NOTHING ELSE -- ADMAS/DMAS/HSS/SRS,
+ * the voltages (VS33/VS30/VS18) and the max block length stay as the RM gives them,
+ * because those we DO deliver.
+ *
+ * ⇒ DECISION, not a gap.  The silicon has these modes; this model does not, yet.  When
+ *   the tuning engine lands, these bits come back WITH it -- and not one moment before.
  */
-#define HOST_CTRL_CAP_VALUE  0x07F3B407u   /* RM reset */
+#define CAP_UHS_I_UNIMPLEMENTED  \
+    (0x1u    /* SDR50_SUPPORT    */ | \
+     0x2u    /* SDR104_SUPPORT   */ | \
+     0x4u    /* DDR50_SUPPORT    */ | \
+     0x2000u /* USE_TUNING_SDR50 */)
+
+#define HOST_CTRL_CAP_VALUE  (0x07F3B407u & ~CAP_UHS_I_UNIMPLEMENTED)
 
 static void mcxn_usdhc_update_irq(MCXNUSDHCState *s)
 {

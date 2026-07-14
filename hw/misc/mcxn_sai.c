@@ -18,7 +18,8 @@
  *
  * The transmit/receive data and FIFO words are otherwise permissively backed.
  * Offsets and bit masks come from the MCXN947 CMSIS header (I2S_Type).  VERID
- * and PARAM are read-only constants; the VERID value is best-effort for this
+ * and PARAM are read-only constants; PARAM's FIFO field is DERIVED from the modelled
+ * depth so it cannot drift.  VERID is UNVERIFIED (the RM does not document it) for this
  * SAI revision (firmware does not gate on it).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
@@ -85,9 +86,31 @@
 #define CSR_IE_TO_FLAG_SHIFT  8
 #define CSR_STICKY_FLAGS  (CSR_FEF | CSR_SEF | CSR_WSF)
 
-/* Best-effort constants (firmware does not gate boot on these). */
-#define SAI_VERID_VALUE  0x03010000u   /* major=3, minor=1 (best-effort) */
-#define SAI_PARAM_VALUE  0x00050302u   /* FIFO=32, channels=2 (best-effort) */
+/*
+ * ⚠ THESE WERE LABELLED "best-effort".  That word, and its friends "plausible" and
+ *   "nominal", are in this tree's guardrails as THE WORDS YOU USE WHEN YOU MEAN
+ *   FABRICATED -- and I had written all three, in three different files.
+ *
+ * PARAM's FIFO field turned out to be CORRECT (bits 11:8 = 3 -> 2^3 = 8 words, which is
+ * exactly MCXN_SAI_FIFO_DEPTH).  The value was right; the LABEL was the lie, and the fact
+ * that it was right was LUCK -- a hand-typed constant sitting next to the real depth,
+ * free to drift the moment either changed.
+ *
+ *   ⭐ A CAPABILITY REGISTER THAT IS A CONSTANT CAN DRIFT FROM THE THING IT DESCRIBES.
+ *     ONE COMPUTED FROM IT CANNOT.  (The old comment even said "FIFO=32" while encoding 8.
+ *     The comment had ALREADY drifted from the value it was describing.)
+ *
+ * VERID is a different problem and it is NOT fixed here: the RM does not give it, and a
+ * version register is exactly where 91emulator found themselves "reaching into the driver
+ * to switch off a branch I did not want to implement".  Ours is not doing that -- nothing
+ * in the SAI path branches on it -- but it remains UNVERIFIED and is named as such rather
+ * than dressed up.
+ */
+#define SAI_FIFO_EXP     3u            /* 2^3 = 8 = MCXN_SAI_FIFO_DEPTH; asserted below */
+#define SAI_VERID_VALUE  0x03010000u   /* ⚠ UNVERIFIED: the RM does not document VERID */
+#define SAI_PARAM_VALUE  ((5u << 16) | (SAI_FIFO_EXP << 8) | 2u)  /* frame=5, FIFO=2^3, 2 chans */
+
+QEMU_BUILD_BUG_ON((1u << SAI_FIFO_EXP) != MCXN_SAI_FIFO_DEPTH);
 
 /*
  * The word period, derived from the registers firmware programmed:

@@ -137,11 +137,57 @@
 #define PSELID_ID_VALUE  0x00103000u
 
 /*
- * VERID/PARAM are read by some HALs to size the FIFO.  Values are plausible
+ * VERID/PARAM are read by some HALs to size the FIFO.  PARAM is DERIVED from the
+ * modelled FIFO depth (see below) so the two cannot contradict each other.
  * MCX-class constants; refine against the RM if a HAL ever depends on them.
  */
 #define LPUART_VERID_VALUE  0x04010003u
-#define LPUART_PARAM_VALUE  0x00000404u  /* TX/RX FIFO depth fields */
+/*
+ * ⚠ THIS USED TO BE 0x0000_0404, WITH THE COMMENT "Values are plausible".
+ *
+ *   ⭐ "PLAUSIBLE" IS THE WORD YOU USE WHEN YOU MEAN FABRICATED.  It is in this tree's
+ *     own guardrails, and I wrote the rule and then wrote the word.
+ *
+ * And once the RX FIFO became REAL (8 deep, per RM FIFO[RXFIFOSIZE]=010b -> "010b - 8"),
+ * that fabrication became a CONTRADICTION: FIFO said 8, PARAM said 4.
+ *   ⭐ TWO REGISTERS THAT DESCRIBE ONE RESOURCE MUST NOT DISAGREE.
+ *
+ * THE RM IS SILENT ON LPUART PARAM.  It has no row in the register summary and no field
+ * description anywhere in 3763 pages -- which is why it never appeared in the reset-value
+ * golden, and why the fabrication survived.  AND NO DRIVER READS IT: not the MCUXpresso
+ * SDK, not Zephyr.  So there is no manual to quote and no driver to ask.
+ *
+ * MY FIRST FIX WAS 0x0808 (a literal depth of 8), argued from CMSIS making PARAM's fields
+ * EIGHT BITS WIDE -- "a 2^n code needs only 4 bits, so 8 bits must mean a literal".
+ * ⚠ THAT ARGUMENT IS FALSE, AND THE RM SAYS SO: LPSPI's RXFIFO IS ALSO 8 BITS (15:8) AND
+ *   IS EXPLICITLY 2^n -- "the maximum number of words is 2**RXFIFO".  I had built a
+ *   derivation out of a coincidence and was one build from shipping it.
+ *
+ * All THREE FIFO-size fields the RM does document -- LPI2C's MRXFIFO/MTXFIFO, LPSPI's
+ * RXFIFO/TXFIFO -- are 2^n.  But I cannot PROVE LPUART's is, so I do not have to:
+ *
+ *      value    if 2^n (the family convention)        if a literal depth
+ *      -----    ------------------------------        ------------------
+ *      0x0808   2^8 = 256 -- A CATASTROPHIC OVER-      8  (correct)
+ *               PROMISE: a 256-deep FIFO we do not have
+ *      0x0303   8 -- correct, and AGREES WITH FIFO     3  (an UNDER-report of 8)
+ *
+ *   ⭐ I DO NOT NEED TO RESOLVE THE ENCODING.  I NEED THE VALUE WHOSE FAILURE MODE IS
+ *     UNDER-REPORTING.  On a capability register, under-reporting is a model that
+ *     promises less than the chip; OVER-reporting is A PROMISE THE EMULATOR MAKES ON THE
+ *     SILICON'S BEHALF, and the guest will hold us to it.  (91emulator, who learned this
+ *     when QEMU refused to boot rather than let them advertise hardware they had not
+ *     built.)
+ *
+ * DERIVED, NOT WRITTEN DOWN: PARAM follows MCXN_LPUART_FIFO_DEPTH.  A capability register
+ * that is a CONSTANT can drift from the thing it describes; one COMPUTED FROM it cannot.
+ */
+#define LPUART_PARAM_FIFO_EXP 3u   /* 2^3 = 8 = MCXN_LPUART_FIFO_DEPTH; asserted below */
+#define LPUART_PARAM_VALUE  ((LPUART_PARAM_FIFO_EXP << 8) | LPUART_PARAM_FIFO_EXP)
+
+/* The exponent and the depth are two statements about ONE FIFO.  Make it impossible for
+ * them to disagree: if the depth changes and the exponent does not, this fails to BUILD. */
+QEMU_BUILD_BUG_ON((1u << LPUART_PARAM_FIFO_EXP) != MCXN_LPUART_FIFO_DEPTH);
 
 /* PERSEL function selections (LP_FLEXCOMM_PERIPH_T, CMSIS enum). */
 #define PERSEL_LPSPI    2u
@@ -189,7 +235,31 @@
 #define LPSPI_RSR_RXEMPTY 0x2u
 
 #define LPSPI_VERID_VALUE  0x01010004u
-#define LPSPI_PARAM_VALUE  0x00040404u  /* PCSNUM=4, RX/TX FIFO depth exp=4 */
+/*
+ * ⚠ THIS USED TO BE 0x0004_0404 -- "RX/TX FIFO depth exp=4", i.e. 2^4 = SIXTEEN words.
+ *   THE MODEL HOLDS ONE BYTE (`spi_rx_full`).  We advertised a 16-deep FIFO and shipped
+ *   a single register.
+ *
+ *   And the RM is explicit about the encoding here (unlike LPUART's PARAM, which it does
+ *   not document at all):
+ *
+ *       RXFIFO: "Indicates the maximum number of words in the receive FIFO.
+ *                The maximum number of words is 2**RXFIFO."
+ *
+ *   The SDK's idiom is LPSPI_GetTxFifoSize() = 1U << (PARAM & TXFIFO_MASK), and drivers
+ *   push that many words before they bother to check TDF.  ⇒ A GUEST BELIEVING US WOULD
+ *   PUSH SIXTEEN WORDS INTO A ONE-WORD REGISTER AND DROP FIFTEEN OF THEM, SILENTLY.
+ *
+ *   ⭐ UNDER-REPORTING IS A MODEL THAT PROMISES LESS THAN THE CHIP.  OVER-REPORTING IS A
+ *     PROMISE THE EMULATOR MAKES ON THE SILICON'S BEHALF -- AND THE GUEST WILL HOLD US TO
+ *     IT.  So we now report what we actually DELIVER: 2^0 = 1 word.
+ *
+ *   This is a DECISION, not a gap: the real silicon has deeper FIFOs, and when this model
+ *   grows them, this value must grow with them.  Filed, with the reason, so the next
+ *   person to look does not "fix" it back to the datasheet and re-arm the bug.
+ *   (PCSNUM=4 is a pin count, not a FIFO promise, and is left alone.)
+ */
+#define LPSPI_PARAM_VALUE  0x00040000u  /* PCSNUM=4; RX/TX FIFO exp=0 -> 1 word, as modelled */
 
 /* === LPI2C register offsets (PERSEL = 3, controller/master view) =========== */
 #define LPI2C_VERID     0x00  /* RO */
@@ -238,7 +308,13 @@
 #define LPI2C_CMD_START    4u   /* generate (re)START + transmit address; 4..7 are START variants */
 
 #define LPI2C_VERID_VALUE  0x01000003u
-#define LPI2C_PARAM_VALUE  0x00000202u  /* M TX/RX FIFO depth exp=2 (4 deep) */
+/*
+ * ⚠ THIS USED TO BE 0x0000_0202 -- 2^2 = FOUR words each way.  The model holds ONE byte
+ *   (`i2c_rx_full`).  RM, explicitly: "Configures the number of words in the controller
+ *   receive FIFO to 2**MRXFIFO."  Same over-promise as LPSPI, smaller blast radius.
+ *   Report what we deliver: 2^0 = 1.  A DECISION, with its reason -- see LPSPI above.
+ */
+#define LPI2C_PARAM_VALUE  0x00000000u  /* M TX/RX FIFO exp=0 -> 1 word, as modelled */
 
 /* Dynamic LPSPI status: latched W1C flags plus the always-current TDF/RDF. */
 /*

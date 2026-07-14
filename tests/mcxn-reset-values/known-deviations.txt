@@ -31,6 +31,11 @@
 # the ratchet only turns one way.
 
 #==========================================================================
+# DECISION (1) -- deliberate, defended, and the reason is the point.
+#==========================================================================
+USDHC0         HOST_CTRL_CAP        # DECISION: we clear SDR50|SDR104|DDR50|USE_TUNING_SDR50 because THERE IS NO TUNING ENGINE IN THIS MODEL (no CMD19, no sampling window; TUNING_CTRL is storage). The RM value advertises UHS-I modes the guest would then try to USE. On a capability register, matching the RM IS the bug unless you implement the chip behind it -- 91emulator set this same register to the RM value and QEMU's own sdhci_check_capareg() REFUSED TO BOOT. We have no such assertion to catch us. Under-report: safe. Over-report: a promise the emulator makes on the silicon's behalf. These bits come back WITH the tuning engine, not before.
+
+#==========================================================================
 # UNTRIAGED (76) -- ⚠ IN BLOCKS WE MODEL -- these can LIE.  THIS LIST MUST SHRINK.
 #==========================================================================
 ADC0           CFG                  # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00800000)
