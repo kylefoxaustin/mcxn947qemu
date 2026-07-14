@@ -96,7 +96,25 @@
  *        It is correct by CONFIGURATION, which is luck with a name -- so the gap is
  *        recorded here as a decision, not discharged by a flag.
  */
-#define PWM_IPBUS_HZ       150000000u  /* = MCXN947_SYSCLK_HZ (mcxn_frdm.c) */
+/*
+ * ⚠ SOURCED, NOT MEASURED — AND LAW 1 SAYS A CITATION IS A HYPOTHESIS, NOT A RESULT.
+ *
+ *   150 MHz is the board's sysclk (mcxn_frdm.c), which is itself a documented ASSUMPTION:
+ *   the clock tree is not modelled.  I once recorded this constant as "VERIFIED CORRECT
+ *   via gdb -- the guest passes srcClock_Hz = 150000000".
+ *
+ *     ⭐ THAT VERIFIED THE SDK'S ASSUMPTION AGAINST MY ASSUMPTION.  Two documents
+ *       agreeing is not a measurement; it is a CONSENSUS OF CITATIONS.
+ *
+ *   ✅ What IS measured: the PWM's carrier scales EXACTLY with the prescaler.  tests/
+ *      mcxn-pwm sweeps PRSC = 0/1/3 and measures 32780 / 65555 / 262210 SysTick ticks
+ *      against a predicted (VAL1+1) << PRSC -- and the prediction is in TICKS, in which
+ *      this constant cancels.  (Note they are 32780 and not 32776: MEASURED numbers are
+ *      never exactly round.  An exact ratio is the fingerprint of multiplication.)
+ *
+ *   ⚠ What is NOT: the carrier's frequency in Hz.  That inherits this assumption whole.
+ */
+#define PWM_IPBUS_HZ       150000000u  /* ⚠ ASSUMPTION (= board sysclk), not measured */
 #define PWM_TICK_NS        10
 
 /* Top-level (shared) registers. */

@@ -21,7 +21,19 @@
 #define CTRL_INTENA   (1u << 1)
 
 /* The OSTIMER runs on the 1 MHz clk_1m by default. */
-#define OSTIMER_HZ 1000000u
+/*
+ * ⚠ THERE USED TO BE A `#define OSTIMER_HZ 1000000u` HERE, AND IT IS GONE.
+ *
+ *   It was the fallback in `return hz ? hz : OSTIMER_HZ;` -- deleted when the fallback
+ *   was.  But the CONSTANT survived the fallback, unreferenced except by the comment
+ *   that names it, sitting in the header of the file for the next person to reach for.
+ *
+ *     ⭐ A DEAD FABRICATION IS STILL AMMUNITION.  An invented number that nothing reads
+ *       is one refactor away from being an invented number that something does.
+ *
+ *   (Kyle's LAW 1: an unlabelled untestable number is forbidden.  The cheapest way to
+ *   label one is to not have it.)
+ */
 
 static uint64_t bin_to_gray(uint64_t n)
 {
@@ -40,7 +52,7 @@ static uint64_t gray_to_bin(uint64_t g)
 static uint32_t ostimer_freq(MCXNOSTimerState *s)
 {
     /*
-     * ⚠ THIS USED TO BE:  return hz ? hz : OSTIMER_HZ;   (OSTIMER_HZ = 1 MHz)
+     * ⚠ THIS USED TO BE:  return hz ? hz : 1000000;   (an invented 1 MHz)
      *
      * The Clock input existed and THE SoC NEVER CONNECTED IT, so `hz` was always 0
      * and the fallback fired every single time.  THE FALLBACK WAS THE CAMOUFLAGE: the

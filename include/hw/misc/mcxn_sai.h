@@ -29,10 +29,10 @@
  * gives one to LPUART and to FlexCAN, and none to the SAI), and inventing one
  * would be fabricating silicon.  Default off; the operator opts in.
  *
- * The MCLK figure below is a documented modelling assumption: the real one comes
- * from the clock tree, which this machine does not model.  The word RATE is
- * derived from the registers firmware programs; only the master clock it is
- * divided from is nominal.
+ * ⚠ The MCLK figure below is an ASSUMPTION, not a measurement, and it is labelled as
+ * one on the number itself (Kyle's LAW 1).  The word RATE is DERIVED from the registers
+ * firmware programs -- and every RATIO the SAI produces is MEASURED, because MCLK
+ * cancels out of a ratio.  ABSOLUTE rates in Hz are assumptions.  Quote accordingly.
  *
  * Offsets/bits from the MCXN947 CMSIS header (I2S_Type).
  *
@@ -51,10 +51,35 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNSAIState, MCXN_SAI)
 #define MCXN_SAI_SIZE      0x1000
 #define MCXN_SAI_FIFO_DEPTH 8      /* TCR1[TFW] is 3 bits -> 8 words */
 
-/* Nominal audio master clock (12.288 MHz is the standard 48 kHz-family MCLK).
- * The clock tree is not modelled; the word rate is still derived from the
- * dividers firmware programs. */
-#define MCXN_SAI_MCLK_HZ   12288000u
+/*
+ * ⚠ NOT MEASURED. NOT DERIVED. AN ASSUMPTION — AND LABELLED AS ONE, ON THE NUMBER.
+ *
+ *   Kyle's LAW 1: "If you truly CANNOT test it, that's allowed -- but you LABEL it, ON
+ *   THE NUMBER, IN THE SAME BREATH.  An unlabelled untestable number is forbidden."
+ *
+ *   This used to say "Nominal audio master clock".  ⭐ AND "NOMINAL" IS THE EUPHEMISM,
+ *   NOT THE ADMISSION.  This tree's own guardrails list it beside "plausible" and
+ *   "best-effort" as THE WORDS YOU USE WHEN YOU MEAN FABRICATED -- so a label written in
+ *   that word is a label that DISGUISES.  It reads like a fact and is not one.
+ *
+ * WHAT IS TRUE, AND WHAT IS NOT:
+ *
+ *   ✅ MEASURED: every RATIO the SAI produces.  The word period scales exactly with
+ *      (TCR2[DIV] + 1) and with TCR5[W0W]+1, and TCR2[BYP] gives divide-by-one -- and
+ *      MCLK CANCELS OUT of every one of those.  tests/mcxn-sai measures them:
+ *      DIV=15 drains in 50016 SysTick ticks, DIV=15+BYP in 1578.  That is 31.7x against
+ *      an ideal 32.0 -- and it is 31.7 and NOT 32.000 precisely BECAUSE it was measured.
+ *
+ *   ⚠ NOT MEASURED: every ABSOLUTE rate.  12.288 MHz is the standard 48 kHz-family MCLK
+ *      on this class of part, but THE CLOCK TREE IS NOT MODELLED and no real silicon was
+ *      consulted.  It is a SOURCED assumption -- and per LAW 1, "a citation is a
+ *      HYPOTHESIS, not a result."  If firmware asks this model what sample rate it is
+ *      actually producing in Hz, THE ANSWER IS AN ASSUMPTION WEARING A NUMBER.
+ *
+ *   ⇒ Anything downstream that multiplies by this constant inherits the assumption.
+ *     A ratio does not.  Say which one you are quoting.
+ */
+#define MCXN_SAI_MCLK_HZ   12288000u   /* ⚠ ASSUMPTION, not a measurement — see above */
 
 struct MCXNSAIState {
     /*< private >*/
