@@ -241,6 +241,66 @@
 #define LPI2C_PARAM_VALUE  0x00000202u  /* M TX/RX FIFO depth exp=2 (4 deep) */
 
 /* Dynamic LPSPI status: latched W1C flags plus the always-current TDF/RDF. */
+/*
+ * ⭐ THE RX FIFO IS REAL NOW, AND THE WATERMARK IS WHY IT MATTERS.
+ *
+ * RM, on STAT[RDRF], verbatim:
+ *   "This field becomes 1 when the number of datawords in the receive buffer is
+ *    GREATER THAN the number [in WATER[RXWATER]]."
+ *
+ * RXWATER resets to 0, so RDRF degenerates to "any byte present" -- which is EXACTLY
+ * what a depth-1 holding register does.  That is why a one-byte model passed 70 suites
+ * while advertising an 8-deep FIFO: NOTHING WE TEST EVER SET A WATERMARK.  The
+ * capability was a promise nobody had called in yet.
+ *
+ * FIFO[RXFE] gates the FIFO: with it clear the receiver is a single dataword, which is
+ * what the hardware does too -- so the depth is not a constant, it is a FUNCTION OF
+ * THE GUEST'S OWN CONFIGURATION, and we must ask it rather than assume it.
+ */
+#define FIFO_RXFLUSH 0x00004000u   /* CMSIS LPUART_FIFO_RXFLUSH_MASK */
+#define FIFO_TXFLUSH 0x00008000u   /* CMSIS LPUART_FIFO_TXFLUSH_MASK */
+#define FIFO_RXEMPT  0x00400000u   /* CMSIS LPUART_FIFO_RXEMPT_MASK  */
+#define FIFO_TXEMPT  0x00800000u   /* CMSIS LPUART_FIFO_TXEMPT_MASK  */
+
+static inline unsigned lpuart_rx_depth(MCXNLPUARTState *s)
+{
+    return (s->fifo & FIFO_RXFE) ? MCXN_LPUART_FIFO_DEPTH : 1;
+}
+
+static inline unsigned lpuart_rxwater(MCXNLPUARTState *s)
+{
+    return (s->water >> 16) & 0x7;   /* CMSIS LPUART_WATER_RXWATER_MASK/SHIFT */
+}
+
+/* RM: RDRF is a LEVEL -- "datawords in the receive buffer GREATER THAN RXWATER". */
+static inline bool lpuart_rdrf(MCXNLPUARTState *s)
+{
+    return s->rx_count > lpuart_rxwater(s);
+}
+
+static bool lpuart_rx_push(MCXNLPUARTState *s, uint8_t ch)
+{
+    if (s->rx_count >= lpuart_rx_depth(s)) {
+        return false;               /* caller raises STAT[OR]; the byte is LOST */
+    }
+    s->rx_fifo[(s->rx_head + s->rx_count) % MCXN_LPUART_FIFO_DEPTH] = ch;
+    s->rx_count++;
+    return true;
+}
+
+static uint8_t lpuart_rx_pop(MCXNLPUARTState *s)
+{
+    uint8_t ch;
+
+    if (!s->rx_count) {
+        return 0;
+    }
+    ch = s->rx_fifo[s->rx_head];
+    s->rx_head = (s->rx_head + 1) % MCXN_LPUART_FIFO_DEPTH;
+    s->rx_count--;
+    return ch;
+}
+
 static uint32_t mcxn_lpspi_status(MCXNLPUARTState *s)
 {
     uint32_t sr = s->spi_sr;
@@ -301,7 +361,7 @@ static uint32_t mcxn_flexcomm_istat(MCXNLPUARTState *s)
         if (s->ctrl & (CTRL_TIE | CTRL_TCIE)) {
             istat |= ISTAT_UARTTX;
         }
-        if ((s->ctrl & CTRL_RIE) && s->rx_full) {
+        if ((s->ctrl & CTRL_RIE) && lpuart_rdrf(s)) {
             istat |= ISTAT_UARTRX;
         }
         break;
@@ -354,7 +414,7 @@ static void mcxn_flexcomm_update_dma(MCXNLPUARTState *s)
          * loop completes and TCD_CSR[DREQ] clears ERQ — which is exactly how a
          * real UART TX DMA drains a buffer. */
         tx = (s->baud & BAUD_TDMAE) != 0;
-        rx = (s->baud & BAUD_RDMAE) && s->rx_full;
+        rx = (s->baud & BAUD_RDMAE) && lpuart_rdrf(s);
         break;
     }
 
@@ -673,27 +733,36 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
         r = 0;
         break;
     case LPUART_STAT:
-        /* TX always ready; RDRF reflects the 1-byte rx holding register. */
+        /*
+         * TX drains to the chardev instantly, so TXCOUNT is always 0 and TDRE is
+         * always set -- an infinitely fast transmitter, which is the honest emulation
+         * of a baud rate we do not model.
+         *
+         * RDRF is NOT "a byte arrived".  It is a LEVEL against the watermark, and
+         * modelling it as "a byte arrived" is what let a 1-deep receiver impersonate
+         * an 8-deep one for as long as nobody set RXWATER.
+         */
         r = STAT_TDRE | STAT_TC;
-        if (s->rx_full) {
+        if (lpuart_rdrf(s)) {
             r |= STAT_RDRF;
         }
+        r |= s->stat_or;          /* sticky overrun: a byte was DROPPED */
         break;
     case LPUART_CTRL:
         r = s->ctrl;
         break;
     case LPUART_DATA:
     case LPUART_DATARO:
-        r = s->rx_byte;
-        if (!s->rx_full) {
+        r = s->rx_count ? s->rx_fifo[s->rx_head] : 0;
+        if (!s->rx_count) {
             /* DATA[RXEMPT] (bit 12).  RM reset 0x0000_1000: an empty receiver SAYS
              * it is empty.  Reading 0 instead means "byte 0x00 was received", and a
              * guest polling DATA rather than STAT cannot tell those apart -- a
              * fabricated NUL in the input stream. */
             r |= LPUART_DATA_RXEMPT;
         }
-        if (offset == LPUART_DATA && s->rx_full) {
-            s->rx_full = false;
+        if (offset == LPUART_DATA && s->rx_count) {
+            (void)lpuart_rx_pop(s);
             mcxn_flexcomm_update_irq(s);
             /* The holding register is free again — tell the chardev to resume
              * delivering buffered input, or a continuous RX stream stalls after
@@ -708,13 +777,26 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
         r = s->modir;
         break;
     case LPUART_FIFO:
-        r = (s->fifo & ~LPUART_FIFO_SIZES_MASK) | LPUART_FIFO_SIZES | FIFO_TXEMPT;
-        if (!s->rx_full) {
+        /*
+         * FIFO is a CAPABILITY register: RXFIFOSIZE/TXFIFOSIZE are read-only and
+         * describe the hardware.  RXEMPT/TXEMPT are LIVE and must follow the FIFO --
+         * a constant "empty" is a lie the moment there is anything in it.
+         */
+        r = (s->fifo & ~LPUART_FIFO_SIZES_MASK) | LPUART_FIFO_SIZES;
+        if (!s->rx_count) {
             r |= FIFO_RXEMPT;
         }
+        r |= FIFO_TXEMPT;          /* TX drains instantly: always empty */
         break;
     case LPUART_WATER:
-        r = s->water;
+        /*
+         * TXWATER/RXWATER are the guest's; TXCOUNT/RXCOUNT are OURS and read-only.
+         * A stored WATER that never reports a count is a register that cannot answer
+         * the one question a FIFO driver asks it: HOW MANY BYTES ARE THERE?
+         */
+        r = s->water & 0x00070007u;              /* TXWATER [2:0], RXWATER [18:16] */
+        r |= ((uint32_t)s->rx_count & 0xF) << 24; /* RXCOUNT [27:24] */
+                                                  /* TXCOUNT [11:8] stays 0 */
         break;
     case LPUART_REIR:
         r = s->reir;
@@ -777,7 +859,8 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
         if (value & GLOBAL_RST) {
             /* Software reset: clear the model's writable state. */
             s->ctrl = s->baud = s->fifo = s->water = 0;
-            s->rx_full = false;
+            s->rx_head = s->rx_count = 0;
+            s->stat_or = 0;
             mcxn_flexcomm_update_irq(s);
         }
         break;
@@ -829,9 +912,24 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
          * init, and storing the written value would let software overwrite the
          * part's own description of its FIFO depth. */
         s->fifo = value & ~LPUART_FIFO_SIZES_MASK;
+        /*
+         * RXFLUSH/TXFLUSH are momentary strobes, not state.  A driver that flushes a
+         * stale FIFO and then finds its bytes still there is being lied to about the
+         * one operation whose entire purpose is to make the buffer empty.
+         */
+        if (value & FIFO_RXFLUSH) {
+            s->rx_count = 0;
+            s->rx_head = 0;
+            s->fifo &= ~FIFO_RXFLUSH;
+            qemu_chr_fe_accept_input(&s->chr);   /* room again: pull queued input */
+        }
+        s->fifo &= ~FIFO_TXFLUSH;                /* TX has nothing to flush */
+        mcxn_flexcomm_update_irq(s);   /* RXFE just changed the DEPTH, so RDRF may move */
         break;
     case LPUART_WATER:
-        s->water = value;
+        /* Only the watermarks are writable.  The counts are the hardware's. */
+        s->water = value & 0x00070007u;
+        mcxn_flexcomm_update_irq(s);   /* RDRF is a LEVEL vs RXWATER: it may move NOW */
         break;
     case LPUART_REIR:
         s->reir = value;
@@ -887,20 +985,55 @@ static const MemoryRegionOps mcxn_lpuart_ops = {
 static int mcxn_lpuart_can_rx(void *opaque)
 {
     MCXNLPUARTState *s = MCXN_LPUART(opaque);
-    /* Accept a byte only when the receiver is enabled and the holding reg is
-     * empty (single-entry model). */
-    return (s->ctrl & CTRL_RE) && !s->rx_full;
+
+    /*
+     * Offer the REAL free space.  This used to return a single slot, so QEMU handed
+     * us one byte at a time and an 8-deep FIFO could never actually hold 8 bytes --
+     * the flow control silently enforced the depth-1 model the FIFO register denied.
+     */
+    if (!(s->ctrl & CTRL_RE)) {
+        return 0;
+    }
+    return lpuart_rx_depth(s) - s->rx_count;
 }
 
 static void mcxn_lpuart_rx(void *opaque, const uint8_t *buf, int size)
 {
     MCXNLPUARTState *s = MCXN_LPUART(opaque);
+    int i;
 
-    if (size > 0) {
-        s->rx_byte = buf[0];
-        s->rx_full = true;
-        mcxn_flexcomm_update_irq(s);
+    for (i = 0; i < size; i++) {
+        if (!lpuart_rx_push(s, buf[i])) {
+            /*
+             * ⭐ FAIL TO THE GUEST, NOT JUST THE LOG.  The byte is GONE.  STAT[OR] is
+             *   the block's own documented, non-gating channel for exactly this, and
+             *   a receiver that drops data silently is indistinguishable from a
+             *   sender that never sent it.
+             */
+            /*
+             * ⚠ STATED GAP: A SOCKET-BACKED LPUART CANNOT REACH THIS.
+             *
+             * can_receive() reports our free space, so QEMU BACKPRESSURES the sender
+             * and HOLDS the byte rather than handing it to us.  Real silicon has no
+             * such flow control -- a byte on the wire arrives whether or not there is
+             * room, and STAT[OR] fires.  So this path is correct and, with a chardev
+             * backend, UNREACHABLE: we never lose data, and the guest never sees an
+             * overrun it WOULD see on the board.
+             *
+             * That is a divergence in the FORGIVING direction, and it is the chardev
+             * abstraction's, not ours -- but it is ours to STATE.  A backend that
+             * ignores can_receive (or a future in-model line-rate) reaches this, and
+             * when it does, the guest learns the truth through the block's own
+             * documented, non-gating channel rather than losing bytes in silence.
+             */
+            s->stat_or |= STAT_OR;
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "mcxn_lpuart: RX overrun -- byte 0x%02x dropped "
+                          "(depth %u, RXFE=%d)\n",
+                          buf[i], lpuart_rx_depth(s), !!(s->fifo & FIFO_RXFE));
+        }
     }
+    mcxn_flexcomm_update_irq(s);
 }
 
 static void mcxn_lpuart_reset(DeviceState *dev)
@@ -921,8 +1054,9 @@ static void mcxn_lpuart_reset(DeviceState *dev)
     s->baud = LPUART_BAUD_RESET;
     s->tosr = LPUART_TOSR_RESET;
     s->timeout[0] = s->timeout[1] = s->timeout[2] = s->timeout[3] = 0;
-    s->rx_byte = 0;
-    s->rx_full = false;
+    memset(s->rx_fifo, 0, sizeof(s->rx_fifo));
+    s->rx_head = s->rx_count = 0;
+    s->stat_or = 0;
 
     /* LPSPI / LPI2C function state. */
     s->spi_cr = s->spi_sr = s->spi_ier = 0;
@@ -960,8 +1094,8 @@ static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_lpuart = {
     .name = TYPE_MCXN_LPUART,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(global, MCXNLPUARTState),
         VMSTATE_UINT32(pincfg, MCXNLPUARTState),
@@ -971,6 +1105,16 @@ static const VMStateDescription vmstate_mcxn_lpuart = {
         VMSTATE_UINT32(modir, MCXNLPUARTState),
         VMSTATE_UINT32(fifo, MCXNLPUARTState),
         VMSTATE_UINT32(water, MCXNLPUARTState),
+        /*
+         * The RX FIFO MUST migrate.  91emulator's sdhci `vendor_spec` was "not in the
+         * vmstate at all", so a snapshot came back with the hardware desynced from the
+         * register controlling it.  Buffered bytes are state; state that is not
+         * migrated is state that silently vanishes across a snapshot.
+         */
+        VMSTATE_UINT8_ARRAY(rx_fifo, MCXNLPUARTState, MCXN_LPUART_FIFO_DEPTH),
+        VMSTATE_UINT8(rx_head, MCXNLPUARTState),
+        VMSTATE_UINT8(rx_count, MCXNLPUARTState),
+        VMSTATE_UINT32(stat_or, MCXNLPUARTState),
         VMSTATE_UINT32(pselid, MCXNLPUARTState),
         VMSTATE_UINT32(reir, MCXNLPUARTState),
         VMSTATE_UINT32(teir, MCXNLPUARTState),
@@ -978,8 +1122,6 @@ static const VMStateDescription vmstate_mcxn_lpuart = {
         VMSTATE_UINT32(tocr, MCXNLPUARTState),
         VMSTATE_UINT32(tosr, MCXNLPUARTState),
         VMSTATE_UINT32_ARRAY(timeout, MCXNLPUARTState, 4),
-        VMSTATE_UINT8(rx_byte, MCXNLPUARTState),
-        VMSTATE_BOOL(rx_full, MCXNLPUARTState),
         /* LPSPI function */
         VMSTATE_UINT32(spi_cr, MCXNLPUARTState),
         VMSTATE_UINT32(spi_sr, MCXNLPUARTState),

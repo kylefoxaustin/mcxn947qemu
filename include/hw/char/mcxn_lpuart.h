@@ -22,6 +22,9 @@
 #define TYPE_MCXN_LPUART "mcxn-lpuart"
 OBJECT_DECLARE_SIMPLE_TYPE(MCXNLPUARTState, MCXN_LPUART)
 
+/* RM: FIFO[RXFIFOSIZE] resets to 010b, and the RM's table reads "010b - 8". */
+#define MCXN_LPUART_FIFO_DEPTH 8
+
 struct MCXNLPUARTState {
     /*< private >*/
     SysBusDevice parent_obj;
@@ -65,8 +68,26 @@ struct MCXNLPUARTState {
     uint32_t tosr;       /* Timeout Status            @0x5C */
     uint32_t timeout[4]; /* Timeout 0..3              @0x60..0x6C */
 
-    uint8_t  rx_byte;
-    bool     rx_full;
+    /*
+     * ⚠ THE RX PATH USED TO BE A SINGLE BYTE (`rx_byte` + `rx_full`) WHILE THE FIFO
+     *   REGISTER ADVERTISED AN 8-DEEP RECEIVE FIFO.  The advertisement was CORRECT --
+     *   RM FIFO reset = 0x00C0_0022, RXFIFOSIZE = 010b, and the RM's own table reads
+     *   "010b - 8" -- so the model told the truth about the CHIP and a lie about
+     *   ITSELF.
+     *
+     *   ⭐ A CAPABILITY REGISTER IS A CONTRACT.  We promised eight and delivered one.
+     *
+     *   And it was INVISIBLE, because RDRF means "RXCOUNT > RXWATER" (RM, verbatim)
+     *   and RXWATER resets to 0 -- so with no watermark set, depth-1 and depth-8
+     *   behave identically.  Nothing in 70 suites ever set a watermark.  A driver
+     *   that did (enable RXFE, RXWATER=3, wait for RDRF, read 4) was woken on the
+     *   FIRST byte and read three stale ones: SILENT DATA CORRUPTION on the console
+     *   UART, the most-exercised block in the tree.
+     */
+    uint8_t  rx_fifo[MCXN_LPUART_FIFO_DEPTH];
+    uint8_t  rx_head;
+    uint8_t  rx_count;
+    uint32_t stat_or;    /* STAT[OR]: sticky overrun -- a byte arrived with no room */
 
     /*
      * LP_FLEXCOMM SPI / I2C function state.  The same 4 KiB window decodes as
