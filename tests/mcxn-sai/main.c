@@ -67,6 +67,24 @@ static void putdec(uint32_t v)
 #define SAI_TCSR (*(volatile uint32_t *)(SAI0 + 0x08))
 #define SAI_TCR1 (*(volatile uint32_t *)(SAI0 + 0x0C))
 #define SAI_TCR2 (*(volatile uint32_t *)(SAI0 + 0x10))
+/*
+ * ⭐ TCR2[BCD] -- BIT CLOCK DIRECTION.  RM: "0b - Generate externally in Target mode;
+ *   1b - Generate internally in Controller mode."
+ *
+ * THIS TEST USED TO WRITE TCR2 WITHOUT IT -- i.e. IT CONFIGURED THE SAI AS A *TARGET*,
+ * WHERE THE BIT CLOCK COMES FROM AN EXTERNAL CODEC -- AND THEN ASSERTED THE CONTROLLER'S
+ * DIVIDER MATH.  The model applied the divider unconditionally, so BOTH HALVES OF THE
+ * LOOP SHARED THE SAME WRONG BELIEF, and the test was green for it.
+ *
+ * On this board the SAI drives a TXD->RXD jumper: there is no codec, so THE SAI IS THE
+ * CONTROLLER -- nothing else could possibly generate the clock.  Say so.
+ *
+ * (93emulator: "CHECK BCD BEFORE YOU WRITE ONE LINE OF DIVIDER MATH.  IF IT IS 0, THE
+ *  ANSWER IS NOT IN THIS DEVICE." -- their SAI is a bit-clock slave and their RM-correct
+ *  divider formula was a fabrication with a citation attached.)
+ */
+#define TCR2_BCD  (1u << 24)   /* generate the bit clock internally: we are the controller */
+#define TCR2_BYP  (1u << 23)   /* bypass the divider: bit clock = divide-by-one of MCLK */
 #define SAI_TCR5 (*(volatile uint32_t *)(SAI0 + 0x1C))
 #define SAI_TDR0 (*(volatile uint32_t *)(SAI0 + 0x20))
 #define SAI_TFR0 (*(volatile uint32_t *)(SAI0 + 0x40))
@@ -99,7 +117,7 @@ void cpu0_main(void)
     puts_("SAI test\r\n");
 
     /* 32-bit words at the fastest bit clock: a short word period keeps it brisk. */
-    SAI_TCR2 = 0;                 /* DIV = 0                              */
+    SAI_TCR2 = TCR2_BCD;                 /* DIV = 0                              */
     SAI_TCR5 = (31u << 16);       /* W0W = 31 -> 32-bit words             */
     SAI_RCR5 = (31u << 16);
     SAI_TCR1 = 0;                 /* TFW = 0: ask for data once drained   */
@@ -205,7 +223,7 @@ void cpu0_main(void)
             SAI_TCSR = 0;                       /* transmitter off       */
             SAI_TCSR = CSR_FR;                  /* flush the FIFO        */
             SAI_RCSR = CSR_FR;
-            SAI_TCR2 = divs[k];                 /* bit-clock divider     */
+            SAI_TCR2 = TCR2_BCD | divs[k];                 /* bit-clock divider     */
             SAI_TCR5 = ((uint32_t)w0w[k] << 16); /* word length           */
             SAI_RCR5 = ((uint32_t)w0w[k] << 16);
 
@@ -223,6 +241,92 @@ void cpu0_main(void)
 
             drain[k] = (t0 - t1) & SYST_MASK;   /* SysTick counts DOWN   */
             SAI_TCSR = 0;
+        }
+
+        /*
+         * ⭐ AND THE TWO GATES THE DIVIDER SITS BEHIND, WHICH THIS TEST NEVER TOUCHED.
+         *
+         * ① TARGET MODE (TCR2[BCD] = 0): the RM says the bit clock is "generated
+         *    externally".  On this board there is no codec -- the SAI drives a TXD->RXD
+         *    jumper -- so in Target mode THERE IS NO BIT CLOCK AT ALL and nothing may be
+         *    clocked out.  The model used to divide MCLK anyway and drain the FIFO
+         *    happily, producing a word rate the hardware could never generate.
+         *
+         *    ⚠ AND THIS TEST CONFIGURED TARGET MODE AND THEN ASSERTED CONTROLLER MATH.
+         *      Both halves of the loop shared the same wrong belief; that is why it was
+         *      green.  Now: a Target-mode transmitter must NOT drain.
+         *
+         * ② BYP (TCR2[BYP] = 1): "bypasses the bit clock divider ... divide-by-one".
+         *    With DIV=15 and BYP set, the word must come out at the BYPASSED (fast)
+         *    rate, not the divided one -- so the drain must be much QUICKER than row 2
+         *    (DIV=15) even though the divider says otherwise.
+         */
+        SAI_TCSR = 0;
+        SAI_TCSR = CSR_FR;
+        SAI_RCSR = CSR_FR;
+        SAI_TCR2 = 0;                           /* BCD = 0: TARGET mode -- no clock */
+        SAI_TCR5 = ((uint32_t)15 << 16);
+        for (i = 0; i < FIFO_DEPTH; i++) {
+            SAI_TDR0 = 0x3000u + i;
+        }
+        SAI_TCSR = CSR_EN;                      /* "enable" a transmitter with no clock */
+        for (d = 0; d < 2000000; d++) {
+        }
+        puts_("  TARGET mode (BCD=0): TX FIFO still holds ");
+        putdec(TFR_COUNT(SAI_TFR0));
+        puts_(" words (must be ");
+        putdec(FIFO_DEPTH);
+        puts_(" -- no clock, no data)\r\n");
+        ok &= (TFR_COUNT(SAI_TFR0) == FIFO_DEPTH);   /* NOTHING may be clocked out */
+        SAI_TCSR = 0;
+
+        {
+            uint32_t t0, t1, byp_drain, div15_drain;
+            int r;
+
+            /*
+             * ⭐ THE ONLY BASELINE THAT PROVES BYP DOES ANYTHING IS *THE SAME DIV WITH
+             *   BYPASS OFF*.  My first attempt compared BYP(DIV=15) against the sweep's
+             *   row 2 -- which is DIV=**0** -- so it was really measuring divide-by-1 vs
+             *   divide-by-2, got exactly 2.0x, and I nearly "fixed" a CORRECT MODEL
+             *   because my test had the wrong baseline.
+             *
+             *     ⭐ A TEST WITH THE WRONG BASELINE INDICTS THE MODEL FOR ITS OWN ERROR.
+             *
+             *   Same DIV, bypass on vs off: divide-by-1 against divide-by-32.  Anything
+             *   less than a large ratio means BYP is being ignored.
+             */
+            for (r = 0; r < 2; r++) {
+                SAI_TCSR = 0;
+                SAI_TCSR = CSR_FR;
+                SAI_RCSR = CSR_FR;
+                SAI_TCR2 = TCR2_BCD | (r ? TCR2_BYP : 0u) | 15u;   /* DIV=15 both times */
+                SAI_TCR5 = ((uint32_t)15 << 16);
+                SAI_RCR5 = ((uint32_t)15 << 16);
+                for (i = 0; i < FIFO_DEPTH; i++) {
+                    SAI_TDR0 = 0x4000u + i;
+                }
+                t0 = SYST_CVR;
+                SAI_TCSR = CSR_EN;
+                for (d = 0; d < 200000000 && TFR_COUNT(SAI_TFR0) != 0; d++) {
+                }
+                t1 = SYST_CVR;
+                SAI_TCSR = 0;
+                if (r) {
+                    byp_drain = (t0 - t1) & SYST_MASK;
+                } else {
+                    div15_drain = (t0 - t1) & SYST_MASK;
+                }
+            }
+
+            puts_("  DIV=15: drain ");
+            putdec(div15_drain);
+            puts_(" ticks;  DIV=15 + BYP: ");
+            putdec(byp_drain);
+            puts_(" ticks (bypass = divide-by-1 vs divide-by-32)\r\n");
+            /* divide-by-32 vs divide-by-1.  Demand at least 8x -- generous, because the
+             * polling loop's own overhead floors the bypassed measurement. */
+            ok &= (byp_drain * 8u < div15_drain);
         }
 
         /* Period must scale as BITS * (DIV+1), relative to row 0.  mul/2 is

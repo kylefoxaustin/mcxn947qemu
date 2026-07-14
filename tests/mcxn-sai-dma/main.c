@@ -65,6 +65,23 @@ static void puts_(const char *s)
 #define SAI_TCSR (*(volatile uint32_t *)(SAI0 + 0x08))
 #define SAI_TCR1 (*(volatile uint32_t *)(SAI0 + 0x0C))
 #define SAI_TCR2 (*(volatile uint32_t *)(SAI0 + 0x10))
+/*
+ * ⭐ TCR2[BCD] -- BIT CLOCK DIRECTION.  RM: "0b - Generate externally in Target mode;
+ *   1b - Generate internally in Controller mode."
+ *
+ * THIS TEST USED TO WRITE TCR2 WITHOUT IT -- i.e. IT CONFIGURED THE SAI AS A *TARGET*,
+ * WHERE THE BIT CLOCK COMES FROM AN EXTERNAL CODEC -- AND THEN ASSERTED THE CONTROLLER'S
+ * DIVIDER MATH.  The model applied the divider unconditionally, so BOTH HALVES OF THE
+ * LOOP SHARED THE SAME WRONG BELIEF, and the test was green for it.
+ *
+ * On this board the SAI drives a TXD->RXD jumper: there is no codec, so THE SAI IS THE
+ * CONTROLLER -- nothing else could possibly generate the clock.  Say so.
+ *
+ * (93emulator: "CHECK BCD BEFORE YOU WRITE ONE LINE OF DIVIDER MATH.  IF IT IS 0, THE
+ *  ANSWER IS NOT IN THIS DEVICE." -- their SAI is a bit-clock slave and their RM-correct
+ *  divider formula was a fabrication with a citation attached.)
+ */
+#define TCR2_BCD  (1u << 24)   /* generate the bit clock internally: we are the controller */
 #define SAI_TCR5 (*(volatile uint32_t *)(SAI0 + 0x1C))
 #define SAI_TDR0_ADDR (SAI0 + 0x20)
 #define SAI_TFR0 (*(volatile uint32_t *)(SAI0 + 0x40))
@@ -131,7 +148,7 @@ void cpu0_main(void)
     samples[6] = 0x0BADF00Du; samples[7] = 0xFEEDFACEu;
 
     /* --- SAI: 32-bit words, fastest bit clock, TX FIFO asks at half ------- */
-    SAI_TCR2 = 0;                  /* DIV = 0                                */
+    SAI_TCR2 = TCR2_BCD;                  /* DIV = 0                                */
     SAI_TCR5 = (31u << 16);        /* 32-bit words                           */
     SAI_RCR5 = (31u << 16);
     SAI_TCR1 = 4;                  /* TFW = 4: ask for data at the halfway mark */

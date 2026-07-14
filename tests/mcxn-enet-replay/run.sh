@@ -26,6 +26,19 @@ QEMU=build/qemu-system-arm; CC=${CC:-arm-none-eabi-gcc}; L3="$HERE/../mcxn-enet-
 command -v "$CC" >/dev/null || { echo "SKIP: no $CC"; exit 0; }
 T=$(mktemp -d); trap 'rm -rf "$T"; kill -KILL -${P1:-0} -${P2:-0} -${P3:-0} 2>/dev/null' EXIT
 
+# ⭐ POLL FOR THE CONDITION, DO NOT SLEEP A GUESS.  A fixed `sleep` is generous on an idle
+#   box and TOO SHORT inside a full suite run, where a dozen QEMUs compete -- which is
+#   exactly how mcxn-enet-peer4 passed 3/3 standalone and FAILED in run-all.sh.
+#   A flaky test is a bug you have agreed to see only SOMETIMES.
+wait_for() {  # <file> <pattern> <count> <max_seconds>
+    local f="$1" pat="$2" want="$3" max="$4" i
+    for i in $(seq 1 $((max * 5))); do
+        [ "$(grep -c "$pat" "$f" 2>/dev/null || echo 0)" -ge "$want" ] && return 0
+        sleep 0.2
+    done
+    return 1
+}
+
 B() { "$CC" -mcpu=cortex-m33 -mthumb -nostdlib -nostartfiles -ffreestanding -O2 -Wall \
    -DMY_ETHERTYPE=$1 -DPEER_A=$2 -DPEER_B=$3 -DMY_MAC_LSB=$4 ${6:-} \
    -T "$L3/link.ld" "$L3/main.c" -o "$5"; }
@@ -43,7 +56,8 @@ rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio 
 P1=$(rn "$T/mcx.elf"  54:27:8d:00:00:01 "$T/1.log")
 P2=$(rn "$T/liar.elf" 54:27:8d:00:00:02 "$T/2.log")
 P3=$(rn "$T/i95.elf"  54:27:8d:00:00:03 "$T/3.log")
-sleep 10
+wait_for "$T/1.log" 'PAYLOAD-REPLAY' 20 40 || echo "   (timed out waiting for replays)"
+sleep 1
 kill -KILL -"$P1" -"$P2" -"$P3" 2>/dev/null
 
 wf=$(grep -cE 'BAD-MAGIC|SELF-ET-MISMATCH|BAD-PATTERN' "$T/1.log")
@@ -73,7 +87,8 @@ rn2() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio
 Q1=$(rn2 "$T/mcx.elf"  54:27:8d:00:00:01 "$T/4.log")
 Q2=$(rn2 "$T/long.elf" 54:27:8d:00:00:02 "$T/5.log")
 Q3=$(rn2 "$T/i95.elf"  54:27:8d:00:00:03 "$T/6.log")
-sleep 9
+wait_for "$T/4.log" 'BAD-LENGTH' 20 40 || echo "   (timed out waiting for oversized frames)"
+sleep 1
 kill -KILL -"$Q1" -"$Q2" -"$Q3" 2>/dev/null
 lenbad=$(grep -c 'BAD-LENGTH' "$T/4.log")
 content=$(grep -cE 'BAD-MAGIC|SELF-ET-MISMATCH|BAD-PATTERN|PAYLOAD-REPLAY' "$T/4.log")

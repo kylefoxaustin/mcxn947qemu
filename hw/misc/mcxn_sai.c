@@ -115,25 +115,74 @@
 QEMU_BUILD_BUG_ON((1u << SAI_FIFO_EXP) >
                   ARRAY_SIZE(((MCXNSAIState *)0)->tx_fifo));
 
+/* TCR2[BCD] (bit 24): 0 = bit clock generated EXTERNALLY (Target mode)
+ *                     1 = generated INTERNALLY from MCLK (Controller mode)
+ * TCR2[BYP] (bit 23): 1 = BYPASS the divider; the bit clock is divide-by-one of MCLK. */
+#define TCR2_BCD     (1u << 24)
+#define TCR2_BYP     (1u << 23)
+
 /*
  * The word period, derived from the registers firmware programmed:
  *   bit clock = MCLK / (2 * (TCR2[DIV] + 1)),  a word is TCR5[W0W] + 1 bits.
- * Only MCLK is a nominal (the clock tree is not modelled); the RATE follows the
- * configuration, so a firmware that programs a different divider really does get
- * a different rate.
+ *
+ * ⚠ THE DIVIDER USED TO BE APPLIED UNCONDITIONALLY, AND THAT IS TWO BUGS.
+ *
+ * ① TCR2[BCD] = 0 IS *TARGET* MODE: THE BIT CLOCK COMES FROM OUTSIDE THE CHIP.
+ *    The RM: "0b - Generate externally in Target mode."  On a codec board the wm8962
+ *    drives BCLK/LRCLK and the rate is set in the CODEC over I2C -- it is NOT DERIVABLE
+ *    FROM ANY SAI REGISTER.  We were dividing MCLK anyway and producing a word rate the
+ *    hardware would never have generated.
+ *
+ *      ⭐ CHECK BCD BEFORE YOU WRITE ONE LINE OF DIVIDER MATH.  IF IT IS 0, THE ANSWER
+ *        IS NOT IN THIS DEVICE.                                       (93emulator)
+ *
+ *    93 nearly shipped that exact divider formula as a fix -- correct, RM-cited, and a
+ *    FABRICATION on their board, because it agrees with itself at the one rate anyone
+ *    tests.  ⭐ A FORMULA THAT IS CORRECT AT THE POINT YOU TESTED IT IS NOT A FORMULA
+ *    YOU HAVE TESTED.
+ *
+ *    ⚠ AND OUR OWN TEST HAD THE SAME MISUNDERSTANDING: it wrote TCR2 WITHOUT BCD -- i.e.
+ *      configured the SAI as a TARGET -- and then asserted the CONTROLLER's divider math.
+ *      Both halves of the loop shared the same wrong belief, which is exactly why it was
+ *      green.  (95emulator's "my self-test booted three copies of my own tool.")
+ *
+ *    ⇒ STATED GAP: there is no codec model on this board, so in Target mode there is NO
+ *      BIT CLOCK AT ALL.  We return 0 -- no transfer -- and say so on the guest-visible
+ *      error channel, rather than inventing a clock the board does not have.
+ *      NEVER INVENT A PEER.
+ *
+ * ② TCR2[BYP] = 1 BYPASSES THE DIVIDER ("the internal bit clock is divide-by-one").
+ *    We divided anyway.
+ *
+ * And the two fallbacks that used to live here -- `if (!bclk) bclk = 1;` and
+ * `ns < 100 ? 100 : ns` -- are GONE.  A `?:` is not a safety net; it is a place for a bug
+ * to live where no test will ever look.  A clock that is not running must be VISIBLY not
+ * running, not floored to a plausible tick.
  */
 static int64_t sai_word_period_ns(MCXNSAIState *s)
 {
-    uint32_t div  = TCR2_DIV(s->regs[SAI_TCR2 >> 2]);
+    uint32_t tcr2 = s->regs[SAI_TCR2 >> 2];
     uint32_t bits = TCR5_W0W(s->regs[SAI_TCR5 >> 2]) + 1;
-    uint64_t bclk = MCXN_SAI_MCLK_HZ / (2u * (div + 1u));
-    int64_t ns;
+    uint64_t bclk;
+
+    if (!(tcr2 & TCR2_BCD)) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "mcxn_sai: TCR2[BCD]=0 (Target mode): the bit clock is generated "
+                      "EXTERNALLY and this board has no codec model -- there is no bit "
+                      "clock, so no data is clocked. Set BCD=1 for Controller mode.\n");
+        return 0;                      /* no clock: the transmitter does not run */
+    }
+
+    if (tcr2 & TCR2_BYP) {
+        bclk = MCXN_SAI_MCLK_HZ;       /* divider bypassed: divide-by-one */
+    } else {
+        bclk = MCXN_SAI_MCLK_HZ / (2u * (TCR2_DIV(tcr2) + 1u));
+    }
 
     if (!bclk) {
-        bclk = 1;
+        return 0;                      /* no clock is no clock -- say so */
     }
-    ns = (int64_t)((uint64_t)bits * 1000000000ULL / bclk);
-    return ns < 100 ? 100 : ns;    /* floor: never a zero-length period */
+    return (int64_t)((uint64_t)bits * 1000000000ULL / bclk);
 }
 
 /* TCSR/RCSR flags computed from REAL FIFO occupancy, not asserted. */
@@ -210,6 +259,7 @@ static void mcxn_sai_update_irq(MCXNSAIState *s)
  */
 static void mcxn_sai_word_tick(void *opaque)
 {
+    int64_t period;
     MCXNSAIState *s = opaque;
     uint32_t tcsr = s->regs[SAI_TCSR >> 2];
     uint32_t rcsr = s->regs[SAI_RCSR >> 2];
@@ -240,10 +290,28 @@ static void mcxn_sai_word_tick(void *opaque)
         }
     }
 
-    /* Re-arm from the DEADLINE: a word clock that re-adds its dispatch latency
-     * every word drifts, and the sample rate is a contract. */
-    s->next_word_ns += sai_word_period_ns(s);
-    timer_mod(&s->word_timer, s->next_word_ns);
+    /*
+     * Re-arm from the DEADLINE: a word clock that re-adds its dispatch latency every
+     * word drifts, and the sample rate is a contract.
+     *
+     * ⚠ AND A PERIOD OF ZERO MUST NOT BE ARMED.  sai_word_period_ns() returns 0 when
+     *   there is NO BIT CLOCK (Target mode, no codec).  `next_word_ns += 0` does not
+     *   advance, so timer_mod() would schedule a deadline already in the past, fire
+     *   immediately, and do it again -- forever.
+     *
+     *     ⭐ RETURNING 0 FOR "NO CLOCK" TURNS A DEAD CLOCK INTO AN INFINITE ONE.
+     *
+     *   I introduced exactly that while removing a `?:` floor that had been hiding the
+     *   degenerate case.  A clock that is not running must not be running -- not running
+     *   INFINITELY FAST.
+     */
+    period = sai_word_period_ns(s);
+    if (period > 0) {
+        s->next_word_ns += period;
+        timer_mod(&s->word_timer, s->next_word_ns);
+    } else {
+        timer_del(&s->word_timer);      /* no clock: the transmitter does not run */
+    }
     mcxn_sai_update_irq(s);
 }
 
@@ -354,11 +422,24 @@ static void mcxn_sai_write(void *opaque, hwaddr off, uint64_t value,
             bool te = (cur & CSR_EN) != 0;
 
             if (te && !was_te) {
-                /* The bit clock starts: words now leave the FIFO at the rate
-                 * firmware configured.  Anchor the first deadline. */
-                s->next_word_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                  sai_word_period_ns(s);
-                timer_mod(&s->word_timer, s->next_word_ns);
+                /*
+                 * The bit clock starts: words now leave the FIFO at the rate firmware
+                 * configured.  Anchor the first deadline.
+                 *
+                 * ⚠ UNLESS THERE IS NO BIT CLOCK.  In Target mode (TCR2[BCD]=0) the
+                 *   clock comes from an external codec this board does not have, so
+                 *   ENABLING the transmitter starts NOTHING -- exactly as on silicon,
+                 *   where TE with no BCLK clocks no data.  Arming a zero-period timer
+                 *   here would fire it immediately and forever.
+                 */
+                int64_t period = sai_word_period_ns(s);
+
+                if (period > 0) {
+                    s->next_word_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + period;
+                    timer_mod(&s->word_timer, s->next_word_ns);
+                } else {
+                    timer_del(&s->word_timer);
+                }
             } else if (!te && was_te) {
                 timer_del(&s->word_timer);
             }

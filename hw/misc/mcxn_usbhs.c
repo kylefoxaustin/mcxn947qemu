@@ -485,6 +485,12 @@ static const MCXNUsbBackendOps usbhs_be_ops = {
 
 /* ---- MMIO --------------------------------------------------------------- */
 
+/* PORTSC1[PSPD]: 00 Full, 01 Low, 10 High, 11 Undefined. */
+#define PORTSC1_PSPD_SHIFT   26
+#define PORTSC1_PSPD_MASK    (3u << PORTSC1_PSPD_SHIFT)
+#define PORTSC1_PSPD_HIGH    (2u << PORTSC1_PSPD_SHIFT)
+#define USBCMD_RS            (1u << 0)   /* Run/Stop */
+
 static uint64_t usbhs_core_read(void *opaque, hwaddr off, unsigned size)
 {
     MCXNUSBHSCoreState *s = MCXN_USBHS_CORE(opaque);
@@ -495,6 +501,31 @@ static uint64_t usbhs_core_read(void *opaque, hwaddr off, unsigned size)
     }
 
     switch (off) {
+    case 0x184: {
+        /*
+         * ⭐ PSPD IS A STATUS FIELD, SO IT MUST FOLLOW THE PORT -- NOT SIT AT A CONSTANT.
+         *
+         *   Its reset value (Undefined) is honest: at power-on nothing has enumerated and
+         *   the speed genuinely is not known.  But leaving it there forever would be the
+         *   mirror of the bug we just fixed -- a driver polling for a definite speed
+         *   would never get one.
+         *
+         *   This is a HIGH-SPEED controller and the model links at high speed, so once
+         *   the guest starts the controller (USBCMD[RS]) the port is operating and PSPD
+         *   reports the speed we ACTUALLY run at.  Before that it says UNDEFINED, which
+         *   is the truth.
+         *
+         *   (We used to return 0 here, which on this field is not "no answer" -- it is
+         *   FULL SPEED.  A driver would have sized its endpoints for 64-byte packets on
+         *   a controller that does 512.)
+         */
+        uint32_t portsc = s->regs[0x184 / 4];
+
+        if (s->regs[HS_USBCMD / 4] & USBCMD_RS) {
+            portsc = (portsc & ~PORTSC1_PSPD_MASK) | PORTSC1_PSPD_HIGH;
+        }
+        return portsc;
+    }
     case HS_ID:         return HS_ID_VALUE;
     case HS_HWGENERAL:  return HS_HWGENERAL_VALUE;
     case HS_HWHOST:     return HS_HWHOST_VALUE;
@@ -625,11 +656,61 @@ static const MemoryRegionOps usbhs_core_ops = {
     .impl.max_access_size = 4,
 };
 
+/*
+ * ⚠ THE CORE CAME UP AS memset(0), AND ZERO IS A LEGAL, MEANINGFUL, WRONG VALUE ON
+ *   HALF OF THESE.  RM reset values, derived -- never invented.
+ *
+ * ☠ PORTSC1 IS THE ONE THAT MATTERS.  RM reset = 0x1C00_0004:
+ *
+ *      PE   (bit 2)      = 1   "In Device mode: the device port is always enabled"
+ *      PSPD (bits 27:26) = 3   UNDEFINED   (00=Full  01=Low  10=High  11=Undefined)
+ *      PTW  (bit 28)     = 1   16-bit UTMI
+ *
+ *   We returned ZERO.  On PSPD, zero does not mean "no answer" -- IT MEANS FULL SPEED.
+ *
+ *     ⭐ A DRIVER ASKING A HIGH-SPEED CONTROLLER "WHAT SPEED DID I ENUMERATE AT?" GOT
+ *       BACK A CONFIDENT "FULL SPEED", AND WOULD HAVE SIZED ITS ENDPOINTS FOR 64-BYTE
+ *       PACKETS INSTEAD OF 512.
+ *
+ *   ⭐ AND THE RM'S RESET VALUE IS *MORE HONEST THAN OUR ZERO*: it says UNDEFINED --
+ *     "the speed is not known yet" -- where we said "Full Speed", which is an answer.
+ *     A ZERO IS NOT THE ABSENCE OF A CLAIM.  ON AN ENCODED FIELD IT IS WHICHEVER CLAIM
+ *     HAPPENS TO BE ENCODED AS ZERO.
+ *
+ *   PSPD is a STATUS field, so it does not stay at its reset value: it FOLLOWS the port.
+ *   See the read handler -- undefined until the controller runs, then the speed we
+ *   actually operate at.  (A config register's reset value is a FACT; a status
+ *   register's is a DESCRIPTION OF A STATE, and copying it into a model that is not in
+ *   that state is a fabrication.)
+ *
+ * The rest are CONFIG registers the vendor driver READ-MODIFY-WRITES, so our zeros were
+ * being laundered into the guest's own state (93emulator's class):
+ *
+ *      USBCMD  ITC = 8      -- interrupt threshold; our 0 = "interrupt immediately"
+ *      BURSTSIZE   = 0x0808 -- TX/RX burst of 8; our 0 = a zero-length burst
+ *      SBUSCFG     = 2      -- AHB burst config
+ *      CONFIGFLAG  CF = 1   -- port routed to this controller
+ *      USBMODE     = 0x5000
+ */
+static const struct { uint16_t off; uint32_t val; } usbhs_core_reset_vals[] = {
+    { 0x090, 0x00000002u },   /* SBUSCFG                                        */
+    { 0x140, 0x00080000u },   /* USBCMD      ITC = 8                            */
+    { 0x160, 0x00000808u },   /* BURSTSIZE   TX/RX burst = 8                    */
+    { 0x180, 0x00000001u },   /* CONFIGFLAG  CF = 1                             */
+    { 0x184, 0x1C000004u },   /* PORTSC1     PE=1, PSPD=Undefined, PTW=16-bit   */
+    { 0x1A8, 0x00005000u },   /* USBMODE                                        */
+};
+
 static void usbhs_core_reset(DeviceState *dev)
 {
     MCXNUSBHSCoreState *s = MCXN_USBHS_CORE(dev);
 
+    int rv;
+
     memset(s->regs, 0, sizeof(s->regs));
+    for (rv = 0; rv < (int)ARRAY_SIZE(usbhs_core_reset_vals); rv++) {
+        s->regs[usbhs_core_reset_vals[rv].off / 4] = usbhs_core_reset_vals[rv].val;
+    }
     s->regs[HS_ENDPTCTRL0 / 4] = HS_ENDPTCTRL0_RESET;
     memset(s->ep, 0, sizeof(s->ep));
     s->enabled = false;
@@ -714,7 +795,19 @@ static void usbhs_nc_reset(DeviceState *dev)
 {
     MCXNUSBHSNcState *s = MCXN_USBHS_NC(dev);
 
+    /*
+     * USBNC (the non-core wrapper) RM reset values.  Derived from the manual, never
+     * invented.  These are mostly reserved/undocumented bits -- but a zero is still a
+     * CLAIM, and the vendor driver read-modify-writes CTRL1 (wakeup enables), so our
+     * zeros were being laundered into the guest's own state.  Nothing in this model
+     * READS them, which is precisely what made them safe to get wrong for so long:
+     *
+     *   ⭐ A DEAD REGISTER HAS NO BUGS -- UNTIL YOU FIX SOMETHING DOWNSTREAM OF IT.
+     *     (91emulator, who watched exactly this detonate two blocks over.)
+     */
     memset(s->regs, 0, sizeof(s->regs));
+    s->regs[0x000 / 4] = 0x30001000u;   /* CTRL1     */
+    s->regs[0x010 / 4] = 0x10004084u;   /* HSIC_CTRL */
 }
 
 static void usbhs_nc_realize(DeviceState *dev, Error **errp)

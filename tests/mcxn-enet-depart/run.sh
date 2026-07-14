@@ -26,6 +26,19 @@ L3="$HERE/../mcxn-enet-lab3"
 command -v "$CC" >/dev/null || { echo "SKIP: no $CC"; exit 0; }
 
 T=$(mktemp -d); trap 'rm -rf "$T"; kill -KILL -$P1 -$P3 2>/dev/null' EXIT
+
+# ⭐ POLL FOR THE CONDITION, DO NOT SLEEP A GUESS.  A fixed `sleep` is generous on an idle
+#   box and TOO SHORT inside a full suite run, where a dozen QEMUs compete -- which is
+#   exactly how mcxn-enet-peer4 passed 3/3 standalone and FAILED in run-all.sh.
+#   A flaky test is a bug you have agreed to see only SOMETIMES.
+wait_for() {  # <file> <pattern> <count> <max_seconds>
+    local f="$1" pat="$2" want="$3" max="$4" i
+    for i in $(seq 1 $((max * 5))); do
+        [ "$(grep -c "$pat" "$f" 2>/dev/null || echo 0)" -ge "$want" ] && return 0
+        sleep 0.2
+    done
+    return 1
+}
 build() {
   "$CC" -mcpu=cortex-m33 -mthumb -nostdlib -nostartfiles -ffreestanding -O2 -Wall \
     -DMY_ETHERTYPE=$1 -DPEER_A=$2 -DPEER_B=$3 -DMY_MAC_LSB=$4 \
@@ -44,7 +57,13 @@ rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio 
 P1=$(rn "$T/mcx.elf" 54:27:8d:00:00:01 "$T/1.log")
 P2=$(rn "$T/rt.elf"  54:27:8d:00:00:02 "$T/2.log")
 P3=$(rn "$T/i95.elf" 54:27:8d:00:00:03 "$T/3.log")
-sleep 6
+# ⭐ KILL FROM A *KNOWN* STATE, NOT A GUESSED ONE.  A fixed `sleep 6` assumes the segment
+#   has reached steady state by then -- true on an idle box, not under a full suite run.
+#   Wait until mcx has actually SEEN both peers, then depart one.  Otherwise the test can
+#   kill a peer that was never established, and "it never arrived" and "it departed" become
+#   the same observation -- which is the exact bug this suite exists to prevent.
+wait_for "$T/1.log" 'ENET-LAB3 PASS' 1 40 || { echo "INCONCLUSIVE: the segment never reached steady state"; exit 1; }
+sleep 1
 
 pre1=$(grep -c LOST "$T/1.log"); pre3=$(grep -c LOST "$T/3.log")
 kill -KILL -"$P2" 2>/dev/null || kill -KILL "$P2" 2>/dev/null
@@ -53,7 +72,8 @@ if kill -0 "$P2" 2>/dev/null; then
     echo "INCONCLUSIVE: the peer did not die -- the kill did not reach it."
     exit 1     # a kill that does not kill is not a departure, and not a result
 fi
-sleep 5
+wait_for "$T/1.log" 'ENET-LAB3 LOST' 1 40 || true
+sleep 1
 
 a=$(grep -c '0x88b6 went quiet' "$T/1.log")   # the peer we KILLED
 b=$(grep -c '0x88b7 went quiet' "$T/1.log")   # the peer still ALIVE
