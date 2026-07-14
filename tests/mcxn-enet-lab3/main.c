@@ -37,6 +37,31 @@
 #ifndef PEER_B
 #define PEER_B 0x88B7u          /* imx95  */
 #endif
+/*
+ * ⭐ A FOURTH PEER, BECAUSE AN ABSENCE OF REJECTION IS NOT AN ACCEPTANCE.
+ *
+ * This firmware knew about exactly THREE ethertypes.  When 91emulator's imx91 node
+ * (0x88B8) joined holobench's lab, `is_beacon_et()` returned false on every one of its
+ * frames, so `frame_ok()` bailed at the first line and NEVER READ THEIR BODY.
+ *
+ * holobench's interop matrix then showed "mcx never rejected imx91" -- and that was read
+ * as mcx ACCEPTING them.  It was not.
+ *
+ *   ⭐ "mcx NEVER REJECTED imx91" AND "mcx NEVER LOOKED AT imx91" ARE THE SAME CELL.
+ *     (91emulator, catching their own rule -- "we never fired on IPv6 and there was no
+ *      IPv6 are the same log" -- being missed in someone else's table.)
+ *
+ * Their beacon had never been read by an implementation they did not author, which is the
+ * only kind of oracle that can see a body you got wrong.  Now it has one.
+ *
+ * ⚠ AND THE HOLE WAS OPENED BY MY OWN IPv6 FIX.  Before is_beacon_et() I body-checked
+ *   EVERY frame, so I would at least have EVALUATED 0x88B8.  I traded "shouts at IPv6"
+ *   for "blind to a fourth peer" -- the same root cause both times: a hardcoded world.
+ *   PEER_C is the seam; set it and the node sees one more.
+ */
+#ifndef PEER_C
+#define PEER_C 0                /* 0 = absent.  imx91 is 0x88B8. */
+#endif
 #ifndef MY_MAC_LSB
 #define MY_MAC_LSB 0x01
 #endif
@@ -92,6 +117,83 @@
 #define MEM32(a) (*(volatile uint32_t *)(uintptr_t)(a))
 #define MEM8(a)  (*(volatile uint8_t  *)(uintptr_t)(a))
 
+/*
+ * ⭐ IF A PEER SET IS A CONSTANT, EVERY FUTURE NODE IS A FIRMWARE RELEASE. (95emulator)
+ *
+ * PEER_A/B/C are compile-time, so when imx91 (0x88B8) joined the lab this firmware went
+ * BLIND to it -- and the fix was a rebuild, a restage, a new hash and a new announcement.
+ * 95's node takes its peer list from argv; a bare-metal M33 has no argv, but it has a
+ * memory map and QEMU has `-device loader`.
+ *
+ * So: a PEER TABLE in SRAM, seeded from the launch line, read once at boot.
+ *
+ *     -device loader,addr=0x20007f00,data=0x52454550,data-len=4   <- 'PEER' (LE)
+ *     -device loader,addr=0x20007f04,data=3,data-len=4            <- count
+ *     -device loader,addr=0x20007f08,data=0x88b6,data-len=4       <- peers...
+ *     -device loader,addr=0x20007f0c,data=0x88b7,data-len=4
+ *     -device loader,addr=0x20007f10,data=0x88b8,data-len=4
+ *
+ * ⭐ ONE PINNED IMAGE, ANY SEGMENT.  The topology lives in the launch line where the lab
+ *   can SEE it; the binary stays a constant the lab can PIN.  (91emulator's rule, which I
+ *   agreed with and then did not implement -- and it cost the fleet a stale artifact.)
+ *
+ * With no table present the compile-time defaults stand, so every existing suite is
+ * unchanged and a node with no launch-line config still works.
+ */
+#define PEERTAB      0x20007F00u
+#define PEERTAB_MAGIC 0x52454550u      /* 'PEER', little-endian */
+#define PEERTAB_MAX  8u
+
+static uint32_t peer_et[PEERTAB_MAX];
+static uint32_t peer_n;
+
+static void peers_init(void)
+{
+    uint32_t i;
+
+    if (MEM32(PEERTAB) == PEERTAB_MAGIC) {
+        uint32_t n = MEM32(PEERTAB + 4);
+
+        if (n > PEERTAB_MAX) {
+            n = PEERTAB_MAX;           /* a table that overruns is a table we truncate */
+        }
+        for (i = 0; i < n; i++) {
+            peer_et[i] = MEM32(PEERTAB + 8 + 4 * i);
+        }
+        peer_n = n;
+        return;
+    }
+
+    /* No table: fall back to the compile-time set. */
+    peer_et[0] = PEER_A;
+    peer_et[1] = PEER_B;
+    peer_n = 2;
+    if (PEER_C) {
+        peer_et[2] = PEER_C;
+        peer_n = 3;
+    }
+}
+
+/* Which slot is this peer, or -1?  Everything downstream is indexed by SLOT, so a peer
+ * set of any size costs no code -- which is the entire point of a runtime table. */
+static int peer_idx(uint32_t et)
+{
+    uint32_t i;
+
+    for (i = 0; i < peer_n; i++) {
+        if (et == peer_et[i]) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+static int is_peer(uint32_t et)
+{
+    return peer_idx(et) >= 0;
+}
+
+
 #define NVIC_ISER4 (*(volatile uint32_t *)0xE000E110u)
 #define ENET_IRQ 139
 
@@ -121,7 +223,9 @@ static void puthex2(uint8_t v)
 }
 
 static volatile uint32_t got;
-static volatile uint32_t seen_a, seen_b;
+static volatile uint32_t seen_slot[PEERTAB_MAX];
+static uint32_t last_ms[PEERTAB_MAX];   /* ms we last heard each peer */
+static int had_slot[PEERTAB_MAX];        /* were we holding them a moment ago? */
 
 void enet_handler(void)
 {
@@ -134,6 +238,21 @@ void enet_handler(void)
 }
 
 static uint32_t tx_seq;
+
+/*
+ * BEACON_LONG arms this node to send a frame whose first 64 bytes are a FLAWLESS beacon
+ * -- right magic, right self-ethertype, right fill, fresh sequence -- inside a LONGER
+ * frame.  Every content check passes.  Only the LENGTH clause can see it.
+ *
+ * This is rt1180's 1000-byte frame, and it is the impostor 95emulator admitted would have
+ * sailed into their peer set: "I read the source for the four fields I thought to look up,
+ * and used my instincts for the fifth."
+ */
+#ifdef BEACON_LONG
+#define TX_LEN 128u
+#else
+#define TX_LEN FRAME_LEN
+#endif
 
 static void arm_tx(void)
 {
@@ -158,8 +277,8 @@ static void arm_tx(void)
     MEM8(TXBUF + 22) = (tx_seq >> 8) & 0xFF;
     MEM8(TXBUF + 23) = tx_seq & 0xFF;
 
-    MEM32(TXDESC + 8) = TDES2_IOC | FRAME_LEN;
-    MEM32(TXDESC + 12) = TDES3_OWN | TDES3_FD | TDES3_LD | FRAME_LEN;
+    MEM32(TXDESC + 8) = TDES2_IOC | TX_LEN;
+    MEM32(TXDESC + 12) = TDES3_OWN | TDES3_FD | TDES3_LD | TX_LEN;
     TXDESC_TAIL = TXDESC + 16;
 }
 
@@ -186,10 +305,11 @@ static void arm_tx(void)
 #define BAD_SELF_ET  2
 #define BAD_PATTERN  3
 #define BAD_REPLAY   4
+#define BAD_LEN      5
 
 /* Highest sequence number seen from each peer.  A beacon's seq only ever goes UP. */
-static uint32_t seq_a, seq_b;
-static int have_a, have_b;
+static uint32_t seq_slot[PEERTAB_MAX];
+static int have_slot[PEERTAB_MAX];
 static uint32_t gaps;
 
 /*
@@ -220,7 +340,30 @@ static uint32_t gaps;
 /* Is this ethertype part of the beacon protocol at all? */
 static int is_beacon_et(uint32_t et)
 {
-    return et == MY_ETHERTYPE || et == PEER_A || et == PEER_B;
+    return et == MY_ETHERTYPE || is_peer(et);
+}
+
+/*
+ * ⭐ A CHECKER IS ONLY AS INDEPENDENT AS ITS *WEAKEST* CLAUSE.            (95emulator)
+ *
+ * This checker read bytes 12..63 unconditionally and NEVER LOOKED AT THE RECEIVED FRAME
+ * LENGTH.  A 1000-byte frame whose first 64 bytes happened to form a valid beacon would
+ * have sailed straight through -- and rt1180 was, in fact, putting 1000-byte frames on
+ * the wire.  95emulator confessed exactly this hole in their own node ("I read mcx's
+ * source for the FOUR fields I thought to look up, and used my instincts for the FIFTH")
+ * and their rule found it in mine:
+ *
+ *   ⭐ A PARTIAL DERIVATION FEELS EXACTLY LIKE A COMPLETE ONE FROM THE INSIDE.
+ *     READING THE SOURCE PROTECTS YOU ONLY FOR THE QUESTIONS YOU THOUGHT TO ASK IT.
+ *
+ * The eQOS RX descriptor writes the packet length back in RDES3[14:0].  The contract says
+ * 64 bytes.  Anything else is not this protocol, however convincing its first 64 bytes.
+ */
+#define RDES3_PL_MASK 0x00007FFFu
+
+static uint32_t rx_len(void)
+{
+    return MEM32(RXDESC + 12) & RDES3_PL_MASK;
 }
 
 static int frame_ok(uint32_t et)
@@ -258,6 +401,12 @@ static int frame_ok(uint32_t et)
         return BAD_OK;
     }
 
+    /* The contract says 64 bytes.  A longer frame is not a beacon with extra on the end;
+     * it is a different frame that happens to start like one. */
+    if (rx_len() != FRAME_LEN) {
+        return BAD_LEN;
+    }
+
     magic = ((uint32_t)MEM8(RXBUF + 14) << 24) | ((uint32_t)MEM8(RXBUF + 15) << 16) |
             ((uint32_t)MEM8(RXBUF + 16) << 8)  |  (uint32_t)MEM8(RXBUF + 17);
     if (magic != BEACON_MAGIC) {
@@ -279,12 +428,14 @@ static int frame_ok(uint32_t et)
     seq = ((uint32_t)MEM8(RXBUF + 20) << 24) | ((uint32_t)MEM8(RXBUF + 21) << 16) |
           ((uint32_t)MEM8(RXBUF + 22) << 8)  |  (uint32_t)MEM8(RXBUF + 23);
 
-    if (et == PEER_A) {
-        last = &seq_a; have = &have_a;
-    } else if (et == PEER_B) {
-        last = &seq_b; have = &have_b;
-    } else {
-        return BAD_OK;          /* not a peer we track; well-formed is all we can say */
+    {
+        int slot = peer_idx(et);
+
+        if (slot < 0) {
+            return BAD_OK;      /* our own ethertype; well-formed is all we can say */
+        }
+        last = &seq_slot[slot];
+        have = &have_slot[slot];
     }
 
     if (*have && seq <= *last) {
@@ -396,9 +547,8 @@ void cpu0_main(void)
 {
     int i;
     volatile int d;
-    uint32_t last_a = 0, last_b = 0;  /* ms at which we last heard each peer */
     uint32_t last_tx = 0;             /* ms at which we last beaconed */
-    int had_a = 0, had_b = 0;         /* were we holding them a moment ago? */
+
 
     LP_CTRL = CTRL_TE;
     puts_("ENET-LAB3 up: broadcasting ethertype 0x");
@@ -491,6 +641,7 @@ void cpu0_main(void)
     NVIC_ISER4 = (1u << (ENET_IRQ - 128));
     __asm__ volatile ("cpsie i");
 
+    peers_init();
     clock_init();
     rearm_rx();
 
@@ -585,7 +736,7 @@ void cpu0_main(void)
                  * tokens holobench's scorer actually keys on -- PASS / CORRUPT / LOST
                  * -- are all rare, and they stay.
                  */
-                if ((et == PEER_A && !had_a) || (et == PEER_B && !had_b)) {
+                if (peer_idx(et) >= 0 && !had_slot[peer_idx(et)]) {
                     puts_("ENET-LAB3 rx: ethertype 0x");
                     puthex2((et >> 8) & 0xFF); puthex2(et & 0xFF);
                     puts_(" src ");
@@ -621,6 +772,8 @@ void cpu0_main(void)
                         puts_("BAD-MAGIC");
                     } else if (bad == BAD_SELF_ET) {
                         puts_("SELF-ET-MISMATCH");
+                    } else if (bad == BAD_LEN) {
+                        puts_("BAD-LENGTH");
                     } else {
                         puts_("BAD-PATTERN");
                     }
@@ -638,19 +791,33 @@ void cpu0_main(void)
                     }
                     puts_("\r\n");
                 } else {
-                    if (et == PEER_A) {
-                        seen_a = 1;
-                        last_a = now_ms;   /* fresh evidence, timestamped */
-                        had_a = 1;
-                    }
-                    if (et == PEER_B) {
-                        seen_b = 1;
-                        last_b = now_ms;
-                        had_b = 1;
+                    {
+                        int sl = peer_idx(et);
+
+                        if (sl >= 0) {
+                            seen_slot[sl] = 1;
+                            last_ms[sl] = now_ms;   /* fresh evidence, timestamped */
+                            had_slot[sl] = 1;
+                        }
                     }
                 }
 
-                if (seen_a && seen_b) {
+                /*
+                 * PASS requires EVERY CONFIGURED peer.  With PEER_C absent (0) this is
+                 * exactly the old two-peer condition, so the 3-node suites are unchanged;
+                 * with PEER_C set, a node that cannot see imx91 does not get to say it
+                 * saw the segment.
+                 */
+                {
+                    uint32_t k;
+                    int all = peer_n > 0;
+
+                    for (k = 0; k < peer_n; k++) {
+                        if (!seen_slot[k]) {
+                            all = 0;
+                        }
+                    }
+                    if (all) {
                     /*
                      * Re-earned, never latched -- an assertion that has already passed
                      * cannot fail again, so this one keeps having to be true
@@ -680,7 +847,10 @@ void cpu0_main(void)
                         puthex2((now_ms >> 8) & 0xFF);  puthex2(now_ms & 0xFF);
                         puts_("\r\n");
                     }
-                    seen_a = seen_b = 0;   /* re-arm; keep the segment alive */
+                    for (k = 0; k < peer_n; k++) {
+                        seen_slot[k] = 0;      /* re-arm; keep the segment alive */
+                    }
+                    }
                 }
             }
             rearm_rx();
@@ -690,21 +860,20 @@ void cpu0_main(void)
          * Age each peer.  A peer we WERE holding and have not heard from in PEER_HOLD
          * scans has DEPARTED -- and we say so, once, out loud.
          */
-        if (had_a && (now_ms - last_a) > PEER_HOLD_MS) {
-            puts_("ENET-LAB3 LOST: peer 0x");
-            puthex2((PEER_A >> 8) & 0xFF); puthex2(PEER_A & 0xFF);
-            puts_(" went quiet\r\n");
-            had_a = 0;
-            seen_a = 0;
-        }
-        if (had_b && (now_ms - last_b) > PEER_HOLD_MS) {
-            puts_("ENET-LAB3 LOST: peer 0x");
-            puthex2((PEER_B >> 8) & 0xFF); puthex2(PEER_B & 0xFF);
-            puts_(" went quiet\r\n");
-            had_b = 0;
-            seen_b = 0;
-        }
+        {
+            uint32_t k;
 
+            for (k = 0; k < peer_n; k++) {
+                if (had_slot[k] && (now_ms - last_ms[k]) > PEER_HOLD_MS) {
+                    puts_("ENET-LAB3 LOST: peer 0x");
+                    puthex2((peer_et[k] >> 8) & 0xFF);
+                    puthex2(peer_et[k] & 0xFF);
+                    puts_(" went quiet\r\n");
+                    had_slot[k] = 0;
+                    seen_slot[k] = 0;
+                }
+            }
+        }
     }
 }
 

@@ -82,8 +82,53 @@ static volatile uint32_t t_fire;
 
 void osevent_handler(void){ OSCTRL = OSCTRL | 1u; t_fire = SYST_CVR; fired = 1; }
 
-/* Arm a match COUNTS ahead and return the SysTick ticks it took to arrive. */
-#define COUNTS 100u
+/*
+ * Arm a match COUNTS ahead and return the SysTick ticks it took to arrive.
+ *
+ * ⚠ THIS MEASUREMENT WAS FLAKY, AND A +/-5% WINDOW WAS HIDING IT.
+ *
+ *   Ten runs under -icount gave 624, 624, 630 -- and -icount is supposed to make virtual
+ *   time REPRODUCIBLE.  The raw counts said why:
+ *
+ *       1 MHz : 14861 SysTick ticks   (golden 15000 -- SHORT BY 139)
+ *       16 kHz: 937511               (golden 937500 -- essentially exact)
+ *
+ *   139 ticks at 150 MHz is ~0.93 us: ALMOST EXACTLY ONE 1 MHz TIMER TICK.  We arm the
+ *   match by reading the FREE-RUNNING counter and adding COUNTS -- so the interval we
+ *   measure is (COUNTS - phase) ticks, where `phase` is wherever in the current tick we
+ *   happened to arm.  The phase error is at most ONE TICK, i.e. 1/COUNTS of the interval.
+ *   With COUNTS = 100 that is 1% -- and 1% of 62.5 is exactly the 624-vs-630 we saw.
+ *   At 16 kHz one tick is 9375 SysTick ticks, so the same absolute error is invisible
+ *   against a 937500-tick interval.  Hence the asymmetry, and hence the flake.
+ *
+ *     ⭐ A WIDE TOLERANCE DOES NOT MAKE A NOISY MEASUREMENT ACCURATE.
+ *       IT MAKES THE NOISE INVISIBLE.  (rt1180emulator: A RANGE IS NOT A GOLDEN.)
+ *
+ *   And this is the delay-loop crutch wearing a different hat: a flaky test is a bug you
+ *   have agreed to see only SOMETIMES, and the +/-5% window WAS the camouflage.
+ *
+ *   The phase error is bounded by one tick, so it shrinks as 1/COUNTS.
+ *
+ * ⚠ AND MY FIRST FIX WAS COUNTS = 2000, WHICH BROKE IT WORSE: SYSTICK IS 24-BIT.  At
+ *   16 kHz one timer tick is 9375 SysTick ticks, so 2000 of them need 18,750,000 --
+ *   ABOVE THE 16,777,215 THE COUNTER CAN HOLD.  It WRAPPED, and the ratio came out 65.
+ *
+ *     ⭐ A MEASUREMENT THAT OVERFLOWED IS NOT A SMALL MEASUREMENT. IT IS A WRONG ONE.
+ *
+ *   I removed a phase error and introduced an overflow, and the only reason I caught it
+ *   is that I had JUST tightened the window -- the old +/-5% would have been fooled by 65
+ *   too, but I would have been looking at a number I had stopped questioning.
+ *
+ *   COUNTS = 1500 keeps the 16 kHz interval at 14,062,500 ticks (inside the 24-bit
+ *   counter, with margin), puts the phase error at 1/1500 = 0.07% per measurement
+ *   (~0.1% on the ratio), and lets the window close from +/-5% to +/-0.5% -- ten times
+ *   tighter, and now it CATCHES a selector or divider that is even 1% wrong.
+ *
+ *   The overflow is GUARDED, not assumed away: an interval that does not fit is a FAIL
+ *   with its own message, never a quietly-wrong ratio.
+ */
+#define SYST_MAX_SAFE 0xF00000u   /* leave headroom below the 24-bit wrap */
+#define COUNTS 1500u
 static uint32_t measure(uint32_t sel)
 {
     uint32_t t0, cur, g;
@@ -130,9 +175,15 @@ void cpu0_main(void)
      * ratio of 1.0 and fails right here.  The old test could not have noticed,
      * because it never changed the selector and never measured anything.
      */
+    /* ⭐ AN OVERFLOWED MEASUREMENT IS NOT A SMALL ONE -- IT IS A WRONG ONE.  Refuse it. */
+    if (t_16k >= SYST_MAX_SAFE || t_1m >= SYST_MAX_SAFE) {
+        puts_("  SysTick OVERFLOW: the interval does not fit in 24 bits\r\n");
+        ok = 0;
+    }
+
     ratio_x10 = t_1m ? (t_16k * 10u) / t_1m : 0;
     puts_("  ratio x10 = "); putdec(ratio_x10); puts_(" (expect 625 = 62.5x)\r\n");
-    ok &= (ratio_x10 > 594 && ratio_x10 < 656);   /* 62.5x +/- 5% */
+    ok &= (ratio_x10 > 621 && ratio_x10 < 629);   /* 62.5x +/- 0.5% -- see COUNTS */
 
     puts_(ok ? "OSTIMER PASS\r\n" : "OSTIMER FAIL\r\n");
     for(;;){}

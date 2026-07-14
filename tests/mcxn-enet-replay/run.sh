@@ -32,6 +32,8 @@ B() { "$CC" -mcpu=cortex-m33 -mthumb -nostdlib -nostartfiles -ffreestanding -O2 
 B 0x88B5 0x88B6 0x88B7 0x01 "$T/mcx.elf"  || { echo "SKIP: build failed"; exit 0; }
 B 0x88B7 0x88B5 0x88B6 0x03 "$T/i95.elf"  || { echo "SKIP: build failed"; exit 0; }
 B 0x88B6 0x88B5 0x88B7 0x02 "$T/liar.elf" -DBEACON_REPLAY || { echo "SKIP: build failed"; exit 0; }
+B 0x88B6 0x88B5 0x88B7 0x02 "$T/long.elf" -DBEACON_LONG || { echo "SKIP: build failed"; exit 0; }
+cmp -s "$T/long.elf" "$T/mcx.elf" && { echo "FAIL: BEACON_LONG did not land"; exit 1; }
 cmp -s "$T/liar.elf" "$T/mcx.elf" && { echo "FAIL: the liar is byte-identical to the honest node -- BEACON_REPLAY did not land"; exit 1; }
 
 M="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
@@ -62,5 +64,22 @@ rc=0
 [ "$lost" -eq 1 ] || { echo "FAIL: the replaying peer was not declared lost (got $lost)"; rc=1; }
 [ "$live" -eq 0 ] || { echo "FAIL: the HONEST peer was accused ($live) -- a manufactured departure"; rc=1; }
 echo "   well-formed stale frames: $wf   replays caught: $rp   passes: $ps   liar declared lost: $lost"
-[ $rc -eq 0 ] && echo "PASS: a stale frame is a VALID frame, and only freshness sees it"
+
+# ── ② A FLAWLESS BEACON IN AN OVERSIZED FRAME.  Every content clause passes; only the
+#    LENGTH clause can see it.  This is rt1180's 1000-byte frame.
+M2="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
+rn2() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+   -nic socket,mcast=$M2,model=mcxn-enet,mac=$2 -kernel "$1" -no-reboot >"$3" 2>/dev/null & echo $!; }
+Q1=$(rn2 "$T/mcx.elf"  54:27:8d:00:00:01 "$T/4.log")
+Q2=$(rn2 "$T/long.elf" 54:27:8d:00:00:02 "$T/5.log")
+Q3=$(rn2 "$T/i95.elf"  54:27:8d:00:00:03 "$T/6.log")
+sleep 9
+kill -KILL -"$Q1" -"$Q2" -"$Q3" 2>/dev/null
+lenbad=$(grep -c 'BAD-LENGTH' "$T/4.log")
+content=$(grep -cE 'BAD-MAGIC|SELF-ET-MISMATCH|BAD-PATTERN|PAYLOAD-REPLAY' "$T/4.log")
+[ "$lenbad" -gt 10 ] || { echo "FAIL: an oversized frame with a valid beacon prefix was NOT caught (got $lenbad)"; rc=1; }
+[ "$content" -eq 0 ] || { echo "FAIL: the long frame failed a CONTENT clause ($content) -- then this does not test LENGTH"; rc=1; }
+echo "   oversized frames caught by LENGTH alone: $lenbad   (content failures: $content -- must be 0)"
+
+[ $rc -eq 0 ] && echo "PASS: a stale frame is a VALID frame; and a flawless beacon in a long frame is not a beacon"
 exit $rc

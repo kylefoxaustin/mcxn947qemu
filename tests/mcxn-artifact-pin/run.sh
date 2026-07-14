@@ -20,9 +20,9 @@ L3=tests/mcxn-enet-lab3
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
 b() { "$CC" -mcpu=cortex-m33 -mthumb -nostdlib -nostartfiles -ffreestanding -O2 -Wall \
-   -DMY_ETHERTYPE=$1 -DPEER_A=$2 -DPEER_B=$3 -DMY_MAC_LSB=$4 \
+   -DMY_ETHERTYPE=$1 -DPEER_A=$2 -DPEER_B=$3 -DMY_MAC_LSB=$4 ${6:-} \
    -T "$L3/link.ld" "$L3/main.c" -o "$5"; }
-b 0x88B5 0x88B6 0x88B7 0x01 "$T/node-mcx.elf"     || { echo "SKIP: build failed"; exit 0; }
+b 0x88B5 0x88B6 0x88B7 0x01 "$T/node-mcx.elf" -DPEER_C=0x88B8     || { echo "SKIP: build failed"; exit 0; }
 b 0x88B6 0x88B5 0x88B7 0x02 "$T/node-rt1180.elf"  || { echo "SKIP: build failed"; exit 0; }
 b 0x88B7 0x88B5 0x88B6 0x03 "$T/node-imx95.elf"   || { echo "SKIP: build failed"; exit 0; }
 
