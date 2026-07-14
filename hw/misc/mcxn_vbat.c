@@ -52,9 +52,24 @@
 #define VBAT_STATUSA_READY (VBAT_STATUSA_LDO_RDY | VBAT_STATUSA_OSC_RDY)
 #define VBAT_STATUSA_POR_DET (1u << 0)   /* a power-on reset really did just happen */
 
-/* The ENABLE bits the READY bits must follow (CMSIS VBAT_Type). */
+/*
+ * The ENABLE bits the READY bits must follow.
+ *
+ * ⚠ `VBAT_LDOCTLA` USED TO BE 0x200.  THAT IS FROCTLA -- THE 16 kHz FRO's CONTROL
+ *   REGISTER.  So STATUSA[LDO_RDY] -- the bit firmware polls to learn that the
+ *   RETENTION LDO has come up -- was gated on bit 1 of a DIFFERENT PERIPHERAL.
+ *
+ *   Caught by the reset-value golden, which carries the RM's ADDRESSES (via CMSIS)
+ *   and not the ones I typed: the manual puts OSCCTLA at 0x100, FROCTLA at 0x200 and
+ *   LDOCTLA at 0x300, and the CMSIS VBAT_Type struct agrees to the byte.  TWO sources
+ *   I did not author, against one number I did.
+ *
+ *   ⭐ AN ORACLE YOU DID NOT AUTHOR IS THE ONLY THING THAT CAN CATCH AN ADDRESS YOU
+ *      INVENTED -- a test written against the model's own #define would have agreed
+ *      with the bug forever.  (Same class as LPI2C at +0x000 where silicon says +0x800.)
+ */
 #define VBAT_OSCCTLA   0x100
-#define VBAT_LDOCTLA   0x200
+#define VBAT_LDOCTLA   0x300
 #define OSCCTLA_OSC_EN (1u << 0)
 #define LDOCTLA_LDO_EN (1u << 1)
 
@@ -65,6 +80,110 @@
 #define VBAT_STATUSA_RESET 0x00000081u
 
 #define VBAT_VERID_VALUE  0x02000000u
+
+/*
+ * ⚠ VBAT IS WRITE-PROTECTED BY AN INVERSE-PAIR HANDSHAKE, AND WE WERE IGNORING IT.
+ *
+ * RM 36.x, verbatim:
+ *
+ *   "The VBAT registers are implemented as separate A and B registers.  When
+ *    configuring an A register, you must write the inverse value to the
+ *    corresponding B register."
+ *
+ * VBAT is the ALWAYS-ON domain -- the 16 kHz FRO, the 32 kHz crystal, the retention
+ * LDO.  The A/B complement pair is a HARDWARE GUARD against a spurious write
+ * corrupting the one power domain that survives reset.  The RM's own init sequence:
+ *
+ *      1. Write 7h to LDOCTLA.
+ *      2. Write 0h to LDOCTLB[INVERSE].          <- WITHOUT THIS, NOTHING HAPPENS
+ *      3. Wait for STATUSA[LDO_RDY] to become 1.
+ *
+ * ⭐ WE ACCEPTED THE BARE `LDOCTLA = 7` AND BROUGHT THE LDO UP.  SILICON DOES NOT.
+ *    A model that is TOO FORGIVING does not fail safe -- IT SHIPS THE BUG TO THE
+ *    HARDWARE.  Firmware that skipped step 2 worked perfectly here and would have
+ *    died on the bench, and the developer would have trusted us over the board.
+ *
+ * THE GOLDEN PROVED THE MECHANISM RATHER THAN ME ASSUMING IT: all nine config pairs
+ * in the RM's reset column satisfy  B == ~A  within the INVERSE mask, exactly.  The
+ * one A register with a NONZERO reset (FROCTLA = 1, the FRO16K runs at power-on) is
+ * the one B register that resets to ZERO.  Nine independent confirmations of a
+ * mechanism I inferred from a CMSIS field name.  (STATUSB is NOT in the table: it is
+ * a STATUS register, and the rule says "when CONFIGURING an A register".)
+ */
+#define VBAT_IRQENA   0x018
+#define VBAT_IRQENB   0x01C
+#define VBAT_WAKENA   0x020
+#define VBAT_WAKENB   0x024
+#define VBAT_OSCCTLB  0x104
+#define VBAT_OSCCFGA  0x108
+#define VBAT_OSCCFGB  0x10C
+#define VBAT_FROCTLA  0x200
+#define VBAT_OSCLCKA  0x118
+#define VBAT_OSCLCKB  0x11C
+#define VBAT_FROCTLB  0x204
+#define VBAT_FROLCKA  0x218
+#define VBAT_FROLCKB  0x21C
+#define VBAT_LDOCTLB  0x304
+#define VBAT_LDOLCKA  0x318
+#define VBAT_LDOLCKB  0x31C
+
+#define VBAT_LOCK_BIT 0x1u
+
+/* (A, B, INVERSE mask) -- the mask widths are CMSIS VBAT_*_INVERSE_MASK, not guesses. */
+static const struct { uint16_t a, b; uint32_t mask; } vbat_pair[] = {
+    { VBAT_IRQENA,  VBAT_IRQENB,  0x000FFFFFu },
+    { VBAT_WAKENA,  VBAT_WAKENB,  0x000FFFFFu },
+    { VBAT_OSCCTLA, VBAT_OSCCTLB, 0x000FFFFFu },
+    { VBAT_OSCCFGA, VBAT_OSCCFGB, 0x00000FFFu },
+    { VBAT_FROCTLA, VBAT_FROCTLB, 0x00000001u },
+    { VBAT_LDOCTLA, VBAT_LDOCTLB, 0x00000007u },
+    { VBAT_OSCLCKA, VBAT_OSCLCKB, 0x00000001u },
+    { VBAT_FROLCKA, VBAT_FROLCKB, 0x00000001u },
+    { VBAT_LDOLCKA, VBAT_LDOLCKB, 0x00000001u },
+};
+
+/* RM reset values.  Derived from the manual, never invented. */
+static const struct { uint16_t off; uint32_t val; } vbat_reset[] = {
+    { 0x010, 0x00000081u },   /* STATUSA  (POR_DET: a reset really did just happen) */
+    { 0x014, 0x000F003Eu },   /* STATUSB                                            */
+    { 0x01C, 0x000FFFFFu },   /* IRQENB   = ~IRQENA                                 */
+    { 0x024, 0x000FFFFFu },   /* WAKENB   = ~WAKENA                                 */
+    { 0x104, 0x000FFFFFu },   /* OSCCTLB  = ~OSCCTLA                                */
+    { 0x10C, 0x00000FFFu },   /* OSCCFGB  = ~OSCCFGA                                */
+    { 0x11C, 0x00000001u },   /* OSCLCKB  = ~OSCLCKA                                */
+    { 0x200, 0x00000001u },   /* FROCTLA   THE FRO16K IS RUNNING AT POWER-ON        */
+    { 0x204, 0x00000000u },   /* FROCTLB  = ~FROCTLA                                */
+    { 0x21C, 0x00000001u },   /* FROLCKB  = ~FROLCKA                                */
+    { 0x304, 0x00000007u },   /* LDOCTLB  = ~LDOCTLA                                */
+    { 0x31C, 0x00000001u },   /* LDOLCKB  = ~LDOLCKA                                */
+};
+
+/* The guest configured this pair correctly: B holds the inverse of A. */
+static bool vbat_pair_ok(MCXNVBATState *s, uint16_t a, uint16_t b, uint32_t mask)
+{
+    return ((s->regs[a >> 2] ^ s->regs[b >> 2]) & mask) == mask;
+}
+
+/* Is the block owning register `off` LOCKED?  A lock is itself an A/B pair. */
+static bool vbat_locked(MCXNVBATState *s, hwaddr off)
+{
+    uint16_t la, lb;
+
+    if (off == VBAT_OSCCTLA || off == VBAT_OSCCTLB ||
+        off == VBAT_OSCCFGA || off == VBAT_OSCCFGB) {
+        la = VBAT_OSCLCKA; lb = VBAT_OSCLCKB;
+    } else if (off == VBAT_FROCTLA || off == VBAT_FROCTLB) {
+        la = VBAT_FROLCKA; lb = VBAT_FROLCKB;
+    } else if (off == VBAT_LDOCTLA || off == VBAT_LDOCTLB) {
+        la = VBAT_LDOLCKA; lb = VBAT_LDOLCKB;
+    } else {
+        return false;
+    }
+
+    /* Locked only when the LOCK pair itself is a VALID inverse pair with LOCK set. */
+    return (s->regs[la >> 2] & VBAT_LOCK_BIT) &&
+           !(s->regs[lb >> 2] & VBAT_LOCK_BIT);
+}
 
 static uint64_t mcxn_vbat_read(void *opaque, hwaddr off, unsigned size)
 {
@@ -97,11 +216,34 @@ static uint64_t mcxn_vbat_read(void *opaque, hwaddr off, unsigned size)
          */
         uint32_t rdy = 0;
 
-        if (s->regs[VBAT_OSCCTLA >> 2] & OSCCTLA_OSC_EN) {
+        /*
+         * READY follows ENABLE *AND THE INVERSE-PAIR HANDSHAKE*.  Enabling the LDO is
+         * a TWO-REGISTER operation on this silicon (LDOCTLA = 7, then LDOCTLB = 0);
+         * a guest that writes only the A half has not enabled anything, and the RM's
+         * own init sequence polls LDO_RDY precisely to find that out.
+         *
+         * So firmware that skips the B write now spins here -- exactly as it would on
+         * the board.  That is not us hanging the driver; that is the driver
+         * discovering, in the emulator, the bug it would otherwise have shipped.
+         * We ALSO say so on the operator's channel, because a spin with no explanation
+         * is a bad way to learn it.
+         */
+        if ((s->regs[VBAT_OSCCTLA >> 2] & OSCCTLA_OSC_EN) &&
+            vbat_pair_ok(s, VBAT_OSCCTLA, VBAT_OSCCTLB, 0x000FFFFFu)) {
             rdy |= VBAT_STATUSA_OSC_RDY;
         }
-        if (s->regs[VBAT_LDOCTLA >> 2] & LDOCTLA_LDO_EN) {
+        if ((s->regs[VBAT_LDOCTLA >> 2] & LDOCTLA_LDO_EN) &&
+            vbat_pair_ok(s, VBAT_LDOCTLA, VBAT_LDOCTLB, 0x00000007u)) {
             rdy |= VBAT_STATUSA_LDO_RDY;
+        }
+
+        if ((s->regs[VBAT_LDOCTLA >> 2] & LDOCTLA_LDO_EN) &&
+            !vbat_pair_ok(s, VBAT_LDOCTLA, VBAT_LDOCTLB, 0x00000007u)) {
+            qemu_log_mask(LOG_GUEST_ERROR,
+                          "mcxn_vbat: LDOCTLA enabled but LDOCTLB is not its inverse "
+                          "(A=0x%x B=0x%x) -- silicon requires BOTH writes; LDO_RDY "
+                          "will not assert\n",
+                          s->regs[VBAT_LDOCTLA >> 2], s->regs[VBAT_LDOCTLB >> 2]);
         }
         return (v & ~VBAT_STATUSA_READY) | rdy;
     }
@@ -118,6 +260,21 @@ static void mcxn_vbat_write(void *opaque, hwaddr off,
     if (off >= MCXN_VBAT_SIZE) {
         qemu_log_mask(LOG_GUEST_ERROR, "%s: OOB write @0x%" HWADDR_PRIx "\n",
                       __func__, off);
+        return;
+    }
+
+    /*
+     * ⭐ ONCE A VBAT BLOCK IS LOCKED, SILICON REFUSES THE WRITE.  We used to take it.
+     *   "More permissive than the hardware" is not the safe direction -- it means
+     *   firmware that violates the lock works here and fails on the board, and the
+     *   developer trusts us over the silicon.  Fault to the GUEST (the write does not
+     *   land, so the register reads back unchanged and the guest can SEE it) and tell
+     *   the operator why.
+     */
+    if (vbat_locked(s, off)) {
+        qemu_log_mask(LOG_GUEST_ERROR,
+                      "mcxn_vbat: write 0x%" PRIx64 " to LOCKED register @0x%" HWADDR_PRIx
+                      " REFUSED (its LCKA[LOCK] pair is set)\n", value, off);
         return;
     }
 
@@ -151,8 +308,27 @@ static const MemoryRegionOps mcxn_vbat_ops = {
 static void mcxn_vbat_reset(DeviceState *dev)
 {
     MCXNVBATState *s = MCXN_VBAT(dev);
+    int i;
 
     memset(s->regs, 0, sizeof(s->regs));
+    for (i = 0; i < ARRAY_SIZE(vbat_reset); i++) {
+        s->regs[vbat_reset[i].off / 4] = vbat_reset[i].val;
+    }
+
+    /*
+     * THE INVARIANT IS THE POINT, SO ASSERT IT RATHER THAN TRUSTING MY OWN TYPING.
+     *
+     * Every VBAT config pair must come out of reset with B == ~A within its INVERSE
+     * mask -- that is what makes the reset state a VALID configuration rather than a
+     * corrupt one.  All nine pairs in the RM's reset column satisfy it exactly; if a
+     * future edit to vbat_reset[] breaks one, this trips HERE, at reset, instead of
+     * silently handing the guest a pair the silicon would reject.
+     *
+     * (A reset table is a claim.  This is the claim checking itself.)
+     */
+    for (i = 0; i < ARRAY_SIZE(vbat_pair); i++) {
+        assert(vbat_pair_ok(s, vbat_pair[i].a, vbat_pair[i].b, vbat_pair[i].mask));
+    }
     /* RM: STATUSA resets to 0x81 -- POR_DET set (true!), the READY bits clear. */
     s->regs[VBAT_STATUSA >> 2] = VBAT_STATUSA_RESET;
 }

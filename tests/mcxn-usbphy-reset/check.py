@@ -3,10 +3,33 @@ p=subprocess.Popen(["build/qemu-system-arm","-M","frdm-mcxn947","-accel","qtest"
     "-nographic","-monitor","none","-serial","none"],stdin=subprocess.PIPE,stdout=subprocess.PIPE,
     text=True,start_new_session=True)
 def cmd(c):
+    """
+    ⚠ IF QEMU DIES, SAY SO -- DO NOT BLOCK ON A DEAD PIPE.
+    This used to be `while True: readline()`, which meant a model that ABORTED (say,
+    on a failed reset-time assertion) left the harness waiting forever for an answer
+    that was never coming.  The suite then HUNG and was killed by a timeout.
+
+        ⭐ A HANG IS NOT A CAUGHT BUG.  "The subject crashed" and "the subject is
+           still thinking" are THE SAME OBSERVATION to a blocking read -- and a
+           killed run is INCONCLUSIVE, never a FAILURE.  (ollama's wedge, in my own
+           test harness: the gate calls the subject, so the subject can wedge the gate.)
+
+    An EOF on stdout means QEMU is gone.  That is a hard FAIL with a reason, now.
+    """
     p.stdin.write(c+"\n"); p.stdin.flush()
     while True:
-        l=p.stdout.readline()
-        if l.startswith("OK"): return l.split()[1] if len(l.split())>1 else ""
+        l = p.stdout.readline()
+        if l == "":                      # EOF: QEMU died (abort, assert, segv)
+            try:
+                rc = p.wait(timeout=5)
+            except Exception:
+                rc = p.poll()
+            print("\n*** QEMU EXITED (rc=%s) while answering %r -- the model ABORTED."
+                  % (rc, c))
+            print("    Not a hang: a dead subject is a FAILED test, and it says so.")
+            sys.exit(1)
+        if l.startswith("OK"):
+            return l.split()[1] if len(l.split()) > 1 else ""
 rd=lambda a:int(cmd("readl 0x%x"%a),16); wr=lambda a,v:cmd("writel 0x%x 0x%x"%(a,v))
 CTRL=0x4010A030; SFTRST=1<<31; CLKGATE=1<<30
 fails=0
