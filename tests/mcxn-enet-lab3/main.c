@@ -217,6 +217,12 @@ static uint32_t gaps;
  *       seq >  last+1 ->  LOSS.  Logged as a statistic, NEVER a failure -- a mcast
  *                         socket may legitimately drop, and a drop is not a corruption.
  */
+/* Is this ethertype part of the beacon protocol at all? */
+static int is_beacon_et(uint32_t et)
+{
+    return et == MY_ETHERTYPE || et == PEER_A || et == PEER_B;
+}
+
 static int frame_ok(uint32_t et)
 {
     uint32_t magic;
@@ -225,6 +231,32 @@ static int frame_ok(uint32_t et)
     uint32_t *last;
     int *have;
     int i;
+
+    /*
+     * ⭐ ASK "IS THIS EVEN MY PROTOCOL?" BEFORE ASKING "IS IT WELL-FORMED?"
+     *
+     * This used to body-check EVERY non-self frame on the segment.  On a synthetic
+     * all-MCX lab that is harmless -- nothing but beacons ever appears.  On a REAL wire
+     * with Linux peers, their kernels do multicast NDP/MLD, and we were validating
+     * IPv6 (ethertype 0x86DD) against a beacon body it was never going to have, then
+     * shouting ENET-LAB3 CORRUPT about it.  holobench's scorer greps that token as a
+     * HARD FAIL: this node would have failed the lab because a peer sent a neighbour
+     * discovery packet.  (Their 4-node run: "mcx REJECTS 0x86dd x5".)
+     *
+     *   ⭐ A CORRUPTION DETECTOR THAT CRIES FOUL AT TRAFFIC THAT WAS NEVER ITS PROTOCOL
+     *     WILL BE TURNED OFF BY THE PEOPLE IT PROTECTS.
+     *
+     * AND MY OWN SUITES ARE STRUCTURALLY INCAPABLE OF FINDING THIS.  Every node on my
+     * segment is an MCX running this firmware, so no IPv6 -- no ANYTHING but beacons --
+     * can ever appear on it.  A suite can be exhaustive within its own model of the
+     * world and still be blind BY CONSTRUCTION to everything outside it.  It took a real
+     * mixed Linux + bare-metal wire, which is exactly what the 4-node lab is FOR.
+     *
+     * Non-beacon traffic is now IGNORED: not counted, not condemned, not printed.
+     */
+    if (!is_beacon_et(et)) {
+        return BAD_OK;
+    }
 
     magic = ((uint32_t)MEM8(RXBUF + 14) << 24) | ((uint32_t)MEM8(RXBUF + 15) << 16) |
             ((uint32_t)MEM8(RXBUF + 16) << 8)  |  (uint32_t)MEM8(RXBUF + 17);
@@ -385,6 +417,24 @@ void cpu0_main(void)
     for (i = 0; i < 6; i++) {
         MEM8(TXBUF + 6 + i) = MY_MAC[i];        /* src */
     }
+    /*
+     * BEACON_NOISE arms this node to impersonate a LINUX PEER: it emits ethertype
+     * 0x86DD (IPv6) with a body that is NOT a beacon body -- which is exactly what a
+     * real Linux node's kernel puts on a shared segment (multicast NDP/MLD).
+     *
+     * It exists because my beacon-only lab is STRUCTURALLY INCAPABLE of producing
+     * foreign traffic: every node on it speaks this protocol.  holobench had to run a
+     * REAL mixed Linux + bare-metal wire to discover that my detector was shouting
+     * ENET-LAB3 CORRUPT at IPv6.  A fix I cannot test is a fix I am merely ASSERTING,
+     * so the noise is now something my own segment can carry.
+     */
+#ifdef BEACON_NOISE
+    MEM8(TXBUF + 12) = 0x86;    /* IPv6 -- NOT a beacon ethertype */
+    MEM8(TXBUF + 13) = 0xDD;
+    for (i = 14; i < FRAME_LEN; i++) {
+        MEM8(TXBUF + i) = (uint8_t)(0x60 + i);   /* not a beacon body, and never will be */
+    }
+#else
     MEM8(TXBUF + 12) = (MY_ETHERTYPE >> 8) & 0xFF;
     MEM8(TXBUF + 13) = MY_ETHERTYPE & 0xFF;
 
@@ -422,6 +472,7 @@ void cpu0_main(void)
     for (i = 24; i < FRAME_LEN; i++) {
         MEM8(TXBUF + i) = BEACON_FILL;
     }
+#endif
     MEM32(TXDESC + 0) = TXBUF;
     MEM32(TXDESC + 4) = 0;
 

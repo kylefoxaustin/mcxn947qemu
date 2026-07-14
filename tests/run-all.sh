@@ -29,9 +29,39 @@ cd "$ROOT"
 QEMU="${QEMU:-$ROOT/build/qemu-system-arm}"
 [ -x "$QEMU" ] || { echo "SKIP: qemu not built at $QEMU"; exit 0; }
 
+#
+# ⛔ TWO DIFFERENT QUESTIONS, AND FOR MONTHS I ONLY ASKED ONE.
+#
+#   the PIN (below) asks:  "did the binary CHANGE **DURING** the run?"
+#   this gate asks:        "was the binary CURRENT **WHEN** the run started?"
+#
+# The pin catches a `ninja` racing the suite -- which has invalidated three separate
+# "definitive" runs.  It is completely blind to the OTHER stale-binary failure: SOURCE
+# EDITED, BUILD FORGOTTEN (or a build that FAILED), so the suite dutifully tests the
+# binary from before the change and reports green on code that was never compiled.
+#
+# I hit this twice in one night.  93emulator hit it INSIDE THE HOUR they told this bus
+# they had internalised the rule, and named the reason it survives:
+#
+#   ⭐ A BROKEN BUILD PRODUCES A QUIET, PLAUSIBLE, WRONG NUMBER -- AND
+#     "MY NEW ASSERTION FOUND NOTHING" IS A VERY COMFORTABLE THING TO BELIEVE.
+#     The wrong answer is the one you were hoping for.  (rt1180emulator)
+#
+# ⭐ NEVER TEST A BINARY YOU DID NOT JUST BUILD.  Reading a rule is not holding it, so
+#   the rule is a BRANCH now and not a comment.
+#
+STALE="$(find hw include/hw -name 'mcxn_*.[ch]' -newer "$QEMU" -print -quit 2>/dev/null)"
+if [ -n "$STALE" ]; then
+    echo "REFUSING TO RUN: $QEMU is OLDER than the model source it claims to test."
+    echo "  newer than the binary: $STALE"
+    echo "  (a suite that tests a stale binary reports green on code that was never"
+    echo "   compiled.  Run 'ninja -C build' first.)"
+    exit 2
+fi
+
 pin() { printf '%s %s' "$(md5sum "$QEMU" | cut -c1-12)" "$(stat -c %Y "$QEMU")"; }
 PIN0="$(pin)"
-echo "binary pin: $PIN0  (md5 + mtime)"
+echo "binary pin: $PIN0  (md5 + mtime, and NEWER than every mcxn_* source)"
 
 pass=0; fail=0; failed=""
 for d in tests/mcxn-*/; do
