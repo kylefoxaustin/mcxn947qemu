@@ -58,6 +58,14 @@
 #define RXBUF  0x20008300u
 #define FRAME_LEN 64
 
+/* Each node is IDENTIFIABLE on the wire, so a node cannot satisfy itself with its own
+ * echo, and a receiver can say WHOSE frame it verified. */
+#ifndef NODE_ID
+#define NODE_ID 1
+#endif
+#define X2_ETHERTYPE 0x88B4u          /* not a real protocol; distinct from the lab3 set */
+static uint8_t payload(int i) { return (uint8_t)((i * 7 + 0x31) & 0xFF); }
+
 #define MEM32(a) (*(volatile uint32_t *)(uintptr_t)(a))
 #define MEM8(a)  (*(volatile uint8_t  *)(uintptr_t)(a))
 
@@ -79,12 +87,53 @@ static void puts_(const char *s)
 }
 
 static volatile uint32_t got_peer;
+static volatile uint32_t got_bad;
 
 void enet_handler(void)
 {
     uint32_t st = DMA_STATUS;
     if (st & STAT_RI) {
-        got_peer = 1;
+        /*
+         * ⭐ THIS USED TO BE, IN ITS ENTIRETY:   got_peer = 1;
+         *
+         *   Set on ANY receive interrupt.  It never looked at the frame -- not the
+         *   ethertype, not who sent it, not one payload byte.  That is not "I received
+         *   the peer's frame".  IT IS "SOMETHING ARRIVED".  And the file's own header
+         *   comment claimed "when a frame transmitted by the PEER arrives ... the ISR
+         *   prints ENETX2 PASS" -- A COMMENT CLAIMING A CHECK THE CODE DOES NOT MAKE.
+         *
+         *   holobench found this exact shape in my lab3 beacon ("I saw 0x88B5" is a
+         *   statement about a FIELD, not a FRAME).  I fixed it there and DID NOT RUN
+         *   THE CENSUS -- 91emulator's rule, broken the same night I quoted it:
+         *
+         *     ⭐ WHEN A GATE FINDS A BUG, DO NOT FIX IT.  FIND ITS SIBLINGS.
+         *       A BUG CLASS FOUND ONCE IS A CENSUS YOU HAVE NOT RUN.
+         *
+         *   uart-link, spi-link and can-link all compare payload bytes.  THIS ONE DID
+         *   NOT -- on the ENET path, which is the one fabric where a burst can outrun a
+         *   ring, and where rt1180 found frames being DMA'd to guest physical address
+         *   ZERO.  A frame that never landed would have passed this test.
+         */
+        uint32_t et = ((uint32_t)MEM8(RXBUF + 12) << 8) | MEM8(RXBUF + 13);
+        uint32_t from = MEM8(RXBUF + 14);
+        int ok = 1;
+        int i;
+
+        if (et != X2_ETHERTYPE || from == NODE_ID || from == 0) {
+            ok = 0;                       /* not our protocol, or our own echo */
+        } else {
+            for (i = 15; i < FRAME_LEN; i++) {
+                if (MEM8(RXBUF + i) != payload(i)) {
+                    ok = 0;               /* arrived, but NOT INTACT */
+                    break;
+                }
+            }
+        }
+        if (ok) {
+            got_peer = 1;
+        } else if (et == X2_ETHERTYPE && from != NODE_ID && from != 0) {
+            got_bad = 1;                  /* our protocol, corrupt body: say so LOUDLY */
+        }
         /* Re-arm the Rx descriptor so the node keeps a buffer available. */
         MEM32(RXDESC + 12) = RDES3_OWN | RDES3_IOC | RDES3_BUF1V;
         RXDESC_TAIL = RXDESC + 16;
@@ -111,12 +160,20 @@ void cpu0_main(void)
     while (DMA_MODE & DMA_SWR) {
     }
 
-    /* Broadcast frame with a recognizable payload. */
-    for (i = 0; i < FRAME_LEN; i++) {
-        MEM8(TXBUF + i) = (uint8_t)(0x50 + i);
+    /* Broadcast frame, IDENTIFIED and CHECKABLE: the body is the evidence. */
+    for (i = 0; i < 6; i++) {
+        MEM8(TXBUF + i) = 0xFF;                       /* dest = broadcast */
     }
     for (i = 0; i < 6; i++) {
-        MEM8(TXBUF + i) = 0xFF;   /* broadcast dest */
+        MEM8(TXBUF + 6 + i) = (uint8_t)(0x02 + i);    /* src MAC (locally administered) */
+    }
+    MEM8(TXBUF + 5) = 0xFF;
+    MEM8(TXBUF + 11) = NODE_ID;                       /* ...unique per node */
+    MEM8(TXBUF + 12) = (X2_ETHERTYPE >> 8) & 0xFF;
+    MEM8(TXBUF + 13) = X2_ETHERTYPE & 0xFF;
+    MEM8(TXBUF + 14) = NODE_ID;                       /* WHO sent this */
+    for (i = 15; i < FRAME_LEN; i++) {
+        MEM8(TXBUF + i) = payload(i);                 /* WHAT they sent -- checked on RX */
     }
     MEM32(TXDESC + 0) = TXBUF;
     MEM32(TXDESC + 4) = 0;
@@ -145,6 +202,10 @@ void cpu0_main(void)
     for (i = 0; i < 100000; i++) {
         arm_tx();
         for (d = 0; d < 50000; d++) {
+        }
+        if (got_bad && !printed) {
+            puts_("ENETX2 CORRUPT: peer frame arrived but the body is wrong\r\n");
+            got_bad = 0;
         }
         if (got_peer && !printed) {
             puts_("ENETX2 PASS\r\n");

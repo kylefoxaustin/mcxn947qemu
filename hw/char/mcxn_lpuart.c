@@ -185,9 +185,31 @@
 #define LPUART_PARAM_FIFO_EXP 3u   /* 2^3 = 8 = MCXN_LPUART_FIFO_DEPTH; asserted below */
 #define LPUART_PARAM_VALUE  ((LPUART_PARAM_FIFO_EXP << 8) | LPUART_PARAM_FIFO_EXP)
 
-/* The exponent and the depth are two statements about ONE FIFO.  Make it impossible for
- * them to disagree: if the depth changes and the exponent does not, this fails to BUILD. */
-QEMU_BUILD_BUG_ON((1u << LPUART_PARAM_FIFO_EXP) != MCXN_LPUART_FIFO_DEPTH);
+/*
+ * ⚠ THIS GUARD WAS A MIRROR, AND A SIBLING HAD TO READ MY CODE TO SEE IT.
+ *
+ *   It used to be:  (1u << LPUART_PARAM_FIFO_EXP) != MCXN_LPUART_FIFO_DEPTH
+ *
+ *   That is MACRO versus MACRO -- TWO SPELLINGS OF ONE BELIEF, AGREEING WITH THEMSELVES.
+ *   It never looks at the array the bytes actually land in.  Respell rx_fifo[] with a
+ *   literal and PARAM would go on advertising 8 words over a 4-word buffer, silently.
+ *
+ *     ⭐ ASSERT AGAINST THE THING THE BYTES LAND IN, NOT AGAINST THE NAME YOU GAVE ITS
+ *       SIZE.                                                          (95emulator)
+ *
+ *   I tested exactly that mutation and the build DID fail -- and I nearly filed the
+ *   guard as sound.  IT WAS NOT MY ASSERTION THAT CAUGHT IT.  It was vmstate.h, on a
+ *   pointer-type mismatch, because I happen to migrate this array with the same macro as
+ *   its length.  PURE LUCK, and if the FIFO were not in the vmstate the guard would be
+ *   blind.  ⭐ A SCREEN IS NOT A VERDICT -- INCLUDING THE SCREEN THAT SAYS "CAUGHT".
+ *   The catch was real; the ATTRIBUTION was wrong, and only reading the error told me.
+ *
+ *   And it is `>` and not `!=` on purpose: the model may legitimately hold MORE than it
+ *   ADVERTISES -- under-reporting is the safe direction -- and `!=` would forbid exactly
+ *   the direction this tree has spent the day arguing FOR.  Over-advertising is the bug.
+ */
+QEMU_BUILD_BUG_ON((1u << LPUART_PARAM_FIFO_EXP) >
+                  ARRAY_SIZE(((MCXNLPUARTState *)0)->rx_fifo));
 
 /* PERSEL function selections (LP_FLEXCOMM_PERIPH_T, CMSIS enum). */
 #define PERSEL_LPSPI    2u

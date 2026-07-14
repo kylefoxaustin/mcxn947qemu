@@ -110,7 +110,10 @@
 #define SAI_VERID_VALUE  0x03010000u   /* ⚠ UNVERIFIED: the RM does not document VERID */
 #define SAI_PARAM_VALUE  ((5u << 16) | (SAI_FIFO_EXP << 8) | 2u)  /* frame=5, FIFO=2^3, 2 chans */
 
-QEMU_BUILD_BUG_ON((1u << SAI_FIFO_EXP) != MCXN_SAI_FIFO_DEPTH);
+/* Assert against the ARRAY, not against another name for its size -- see the long note
+ * in hw/char/mcxn_lpuart.c.  `>` because holding more than you advertise is SAFE. */
+QEMU_BUILD_BUG_ON((1u << SAI_FIFO_EXP) >
+                  ARRAY_SIZE(((MCXNSAIState *)0)->tx_fifo));
 
 /*
  * The word period, derived from the registers firmware programmed:
