@@ -156,8 +156,24 @@ static void mcxn_ostimer_reset(DeviceState *dev)
     timer_del(&s->timer);
     s->base_count = 0;
     s->base_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
-    s->match = 0;
-    s->match_gray_l = s->match_gray_h = 0;
+    /*
+     * ⚠ MATCH RESETS TO ALL-ONES, NOT ZERO.  RM: MATCH_L = 0xFFFF_FFFF.
+     *
+     *   ⚠ AND I ALMOST OVERCLAIMED THIS.  I was about to write "a match of zero fires
+     *     IMMEDIATELY" -- the QDC-period shape.  It does not: the arm path guards it
+     *     (`if (!INTENA || s->match <= cur) return;`), so a zero match simply never arms.
+     *     The DANGER was not real; the WRONG VALUE was.
+     *
+     *     ⭐ CHECK THE CODE BEFORE YOU CLAIM THE CONSEQUENCE.  A plausible catastrophe
+     *       is still a fabrication, and reaching for the scariest reading of a bug is
+     *       how you end up with a scary story instead of a fixed model.
+     *
+     *   What IS true: the guest read 0 where the silicon reads all-ones, and MATCH is
+     *   gray-coded -- so the register must read back the RM's value, not our binary zero.
+     */
+    s->match_gray_l = 0xFFFFFFFFu;
+    s->match_gray_h = 0x3FFu;
+    s->match = gray_to_bin(((uint64_t)s->match_gray_h << 32) | s->match_gray_l);
     s->ctrl = 0;
     s->capture_l = s->capture_h = 0;
 }

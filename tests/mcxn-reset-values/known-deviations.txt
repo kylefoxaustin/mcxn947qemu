@@ -38,8 +38,6 @@ USDHC0         HOST_CTRL_CAP        # DECISION: we clear SDR50|SDR104|DDR50|USE_
 #==========================================================================
 # UNTRIAGED (76) -- ⚠ IN BLOCKS WE MODEL -- these can LIE.  THIS LIST MUST SHRINK.
 #==========================================================================
-ADC0           CFG                  # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00800000)
-ADC1           CFG                  # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00800000)
 EMVSIM0        BWT_VAL              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0xffffffff)
 EMVSIM0        CWT_VAL              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000ffff)
 EMVSIM0        DIVISOR              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00000174)
@@ -58,31 +56,6 @@ EMVSIM1        INT_MASK             # UNTRIAGED: not yet examined (was: model=0x
 EMVSIM1        PCSR                 # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x01000000)
 EMVSIM1        RX_THD               # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00000001)
 EMVSIM1        TX_THD               # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000000f)
-ENET0          MAC_ADDRESS0_HIGH    # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x8000ffff)
-ENET0          MAC_ADDRESS0_LOW     # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0xffffffff)
-ENET0          MAC_CONFIGURATION    # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00008000)
-ENET0          MAC_LPI_TIMERS_CONTROL # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x03e80000)
-ENET0          MAC_ONEUS_TIC_COUNTER # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00000063)
-ENET0          MAC_TIMESTAMP_CONTROL # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00002000)
-FLEXSPI0       STS2                 # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x01000100)
-FREQME0        MAX                  # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x7fffffff)
-OSTIMER0       MATCH_H              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0xffffffff)
-OSTIMER0       MATCH_L              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0xffffffff)
-PDM            DC_CTRL              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x000000ff)
-PDM            FIFO_CTRL            # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000000f)
-SAI0           TCSR                 # UNTRIAGED: not yet examined (was: model=0x00030000 RM=0x00000000)
-SAI1           TCSR                 # UNTRIAGED: not yet examined (was: model=0x00030000 RM=0x00000000)
-TSI0           BASELINE             # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00010000)
-TSI0           GENCS                # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x02001000)
-TSI0           SHIELD               # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x04000000)
-TSI0           SINC                 # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00070001)
-TSI0           SSC0                 # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x60320000)
-TSI0           SSC1                 # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00600040)
-TSI0           SSC2                 # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x10080101)
-USBPHY         VERSION              # UNTRIAGED: not yet examined (was: model=0x02000000 RM=0x05000000)
-USDHC0         DLL_STATUS           # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00000200)
-VBAT0          WAKLCKB              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00000001)
-VREF0          CSR                  # UNTRIAGED: not yet examined (was: model=0x80000000 RM=0x00000000)
 
 #==========================================================================
 # UNMODELLED (118) -- block has no model in hw/ -- a GAP, honestly stated.
@@ -205,3 +178,12 @@ LPSPI9         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block 
 LPSPI9         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
 LPSPI9         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI9         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
+
+#==========================================================================
+# DECISION -- computed STATUS registers: they follow the hardware, so they
+# cannot also sit at a static reset value.  See USBHS PORTSC1[PSPD].
+#==========================================================================
+SAI0           TCSR                 # DECISION: the RM's reset is 0, but TCSR's FIFO request/warning flags are COMPUTED FROM REAL FIFO OCCUPANCY, not stored -- an empty TX FIFO legitimately asserts them. A CONFIG register's reset value is a FACT; a STATUS register's is a DESCRIPTION OF A STATE, and a computed status register cannot also sit at a static reset value without lying about the state it is in. Returning 0 would mean 'the FIFO does not want data', which is false of an empty FIFO. Same reasoning as USBHS PORTSC1[PSPD].
+SAI1           TCSR                 # DECISION: see SAI0 TCSR -- flags computed from real FIFO occupancy, not stored.
+VREF0          CSR                  # DECISION: the RM's reset is 0, but CSR's ready bits are COMPUTED from the regulator state rather than stored. Same class as SAI TCSR: a status register that FOLLOWS the hardware cannot also sit at a static reset value.
+OSTIMER0       MATCH_H              # DECISION: MATCH_H holds bits 41:32 of a 42-bit gray-coded match -- TEN valid bits. We return those ten. The RM's reset value (0xFFFFFFFF) also has the RESERVED bits 31:10 reading as 1, and we do NOT fabricate reserved-bit read-back we cannot verify: the manual does not say whether they are hardwired to 1 or merely reset to 1, and inventing the answer is the exact class this gate exists to catch. The ten modelled bits ARE correct (0x3FF = all-ones = "no match scheduled", matching the RM's intent). A driver masks reserved bits. Revisit if a real driver is found to read them.

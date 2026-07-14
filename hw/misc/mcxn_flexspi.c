@@ -391,8 +391,20 @@ static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
          * clear).  A disabled sequence engine is not "idle" -- it is not running. */
         return STS0_ARBIDLE |
                ((s->regs[FLEXSPI_MCR0 / 4] & MCR0_MDIS) ? 0 : STS0_SEQIDLE);
-    case FLEXSPI_STS1:
     case FLEXSPI_STS2:
+        /*
+         * ⚠ A HARDCODED `return 0` IN A READ PATH IS A CLAIM, AND IT SILENTLY BEAT THE
+         *   RESET TABLE: the value was seeded into regs[] and this line never looked.
+         *
+         *   STS2 is the DLL status.  RM reset 0x0100_0100 -- the AREFSEL/BREFSEL delay-
+         *   line taps at their power-on positions.  (⚠ AND I ALMOST CLAIMED THIS MEANT
+         *   "a driver waiting for DLL lock spins forever".  IT DOES NOT: ASLVLOCK and
+         *   AREFLOCK are 0 in the RM's reset TOO.  The bug is real and MUNDANE, and
+         *   reaching for the scariest reading is how you ship a scary story instead of
+         *   a fixed model.  CHECK THE FIELD BEFORE YOU CLAIM THE CONSEQUENCE.)
+         */
+        return s->regs[FLEXSPI_STS2 / 4];
+    case FLEXSPI_STS1:
     case FLEXSPI_AHBSPNDSTS:
     case FLEXSPI_IPTXFSTS:
         return 0;
@@ -589,6 +601,7 @@ static void mcxn_flexspi_reset(DeviceState *dev)
     int rst_i;
 
     memset(s->regs, 0, sizeof(s->regs));
+    s->regs[0x0E8 / 4] = 0x01000100u;   /* STS2 -- RM reset, derived */
     for (rst_i = 0; rst_i < (int)ARRAY_SIZE(rst_flexspi0); rst_i++) {
         s->regs[rst_flexspi0[rst_i].off / 4] = rst_flexspi0[rst_i].val;
     }

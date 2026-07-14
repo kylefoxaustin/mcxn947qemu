@@ -77,6 +77,32 @@ if anchor not in src:
 open(path, 'w').write(src.replace(anchor, replace, 1))
 PY
 
+#
+# ⭐ GATE 4: THE MUTATION MUST REACH THE BINARY, NOT MERELY COMPILE.
+#
+# The line below used to read:  "build OK: the mutation is genuinely in the binary"
+# -- and that was A CLAIM, NOT A CHECK.  A successful build proves the source still
+# compiles.  It proves NOTHING about whether the output changed.
+#
+# I proved that on myself: I once "mutated" a source by appending a C COMMENT, the
+# build succeeded, the gate correctly PASSED -- and I nearly filed the gate as
+# ineffective.  A comment cannot change a binary.
+#
+#     ⭐ A MUTATION THAT CANNOT CHANGE THE OUTPUT CANNOT TEST A GATE ON THE OUTPUT.
+#     ⭐ A MUTATION THAT DID NOT ARM TESTS NOTHING -- AND ITS GREEN IS
+#       INDISTINGUISHABLE FROM A PASSING MODEL.                (95emulator, rt1180emulator)
+#
+# And rt1180 named the direction that makes it lethal: their un-armed mutation came
+# back green -- "the model tolerates it!" -- and that is the result you do NOT go back
+# and check, because it AGREES WITH YOU.  qualcomm: "the instrument fails in the
+# direction that flatters the story you are already telling."
+#
+# So: hash the binary before and after.  If it did not move, the mutation is not in it,
+# and every number that follows would be a verdict on the ORIGINAL model.
+#
+BIN=build/qemu-system-arm
+BIN_BEFORE="$(md5sum "$BIN" 2>/dev/null | cut -d' ' -f1)"
+
 echo "── rebuilding (the mutation MUST actually compile)"
 if ! ( cd build && ninja ) > /tmp/mutate-build.$$ 2>&1; then
     echo "!!! THE MUTATION DID NOT COMPILE — a 'PASS' now would run the OLD binary"
@@ -87,7 +113,23 @@ if ! ( cd build && ninja ) > /tmp/mutate-build.$$ 2>&1; then
     exit 5
 fi
 rm -f /tmp/mutate-build.$$
-echo "── build OK: the mutation is genuinely in the binary"
+
+BIN_AFTER="$(md5sum "$BIN" 2>/dev/null | cut -d' ' -f1)"
+if [ -n "$BIN_BEFORE" ] && [ "$BIN_BEFORE" = "$BIN_AFTER" ]; then
+    echo
+    echo "!!! THE MUTATION COMPILED BUT DID NOT CHANGE THE BINARY."
+    echo "    md5 before = md5 after = $BIN_AFTER"
+    echo
+    echo "    So the run below would test the ORIGINAL model, and its verdict --"
+    echo "    whichever way it fell -- would be about code you did not mutate."
+    echo "    A MUTATION THAT CANNOT CHANGE THE OUTPUT CANNOT TEST A GATE ON THE OUTPUT."
+    echo
+    echo "    (Did you edit a comment?  Change a value nothing reads?  Touch a file"
+    echo "     the build does not use?)  INCONCLUSIVE -- never a catch, never a miss."
+    exit 7
+fi
+echo "── build OK, and the binary CHANGED ($BIN_BEFORE -> $BIN_AFTER):"
+echo "   the mutation is genuinely in the binary -- CHECKED, not claimed"
 
 echo "── running $TESTDIR (it MUST now fail — and FAIL is not the same as CRASH)"
 OUT="$(bash "$TESTDIR/run.sh" 2>&1)"

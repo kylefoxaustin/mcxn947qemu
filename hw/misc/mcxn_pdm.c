@@ -231,6 +231,9 @@ static void mcxn_pdm_reset(DeviceState *dev)
     MCXNPDMState *s = MCXN_PDM(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+    /* RM reset (derived, never invented).  A zero watermark IS a watermark. */
+    s->regs[0x010 / 4] = 0x0000000Fu;   /* FIFO_CTRL  watermark */
+    s->regs[0x064 / 4] = 0x000000FFu;   /* DC_CTRL */
     memset(s->fifo, 0, sizeof(s->fifo));
     pdm_flush_fifos(s);
     s->warned_no_source = false;

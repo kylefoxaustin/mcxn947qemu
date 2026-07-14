@@ -139,12 +139,39 @@ static const MemoryRegionOps mcxn_tsi_ops = {
     .impl.max_access_size = 4,
 };
 
+/*
+ * ⚠ TSI CAME UP AS memset(0).  RM reset values, derived -- never invented.
+ *
+ * ☠ SINC[DECIMATION] (bits 20:16) RESETS TO 7.  Ours was ZERO -- A DECIMATION FACTOR OF
+ *   ZERO, which is a divide-by-zero in the CIC filter that consumes it.  That is a
+ *   dangerous zero in the exact sense this tree has been chasing all week: legal,
+ *   meaningful, and catastrophic to anything that divides by it.
+ *
+ * The SSC0/1/2 prescalers and thresholds and the GENCS/SHIELD configuration are likewise
+ * read-modify-written by the stock touch driver, so our zeros were being laundered into
+ * the guest's own configuration (93emulator's class).
+ */
+static const struct { uint16_t off; uint32_t val; } tsi_reset[] = {
+    { 0x008, 0x02001000u },   /* GENCS                                   */
+    { 0x010, 0x00070001u },   /* SINC      DECIMATION = 7, not zero      */
+    { 0x014, 0x60320000u },   /* SSC0                                    */
+    { 0x018, 0x00600040u },   /* SSC1                                    */
+    { 0x01C, 0x10080101u },   /* SSC2                                    */
+    { 0x020, 0x00010000u },   /* BASELINE                                */
+    { 0x028, 0x04000000u },   /* SHIELD                                  */
+};
+
 static void mcxn_tsi_reset(DeviceState *dev)
 {
     MCXNTSIState *s = MCXN_TSI(dev);
     int i;
 
+    int ti;
+
     memset(s->regs, 0, sizeof(s->regs));
+    for (ti = 0; ti < (int)ARRAY_SIZE(tsi_reset); ti++) {
+        s->regs[tsi_reset[ti].off / 4] = tsi_reset[ti].val;
+    }
     /* Default electrodes to the documented sample count (operator overrides
      * persist across guest soft-resets; this re-defaults on machine reset). */
     for (i = 0; i < MCXN_TSI_CHANNELS; i++) {

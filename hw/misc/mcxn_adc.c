@@ -504,6 +504,8 @@ static void mcxn_adc_reset(DeviceState *dev)
     int i;
 
     memset(s->regs, 0, sizeof(s->regs));
+    /* RM reset (derived, never invented). */
+    s->regs[0x020 / 4] = 0x00800000u;   /* CFG */
     memset(s->fifo, 0, sizeof(s->fifo));
     memset(s->fifo_count, 0, sizeof(s->fifo_count));
     /* Default analog inputs to documented mid-scale (operator overrides persist

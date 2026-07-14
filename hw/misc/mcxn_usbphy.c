@@ -26,7 +26,10 @@
 #define CTRL_SFTRST     (1u << 31)  /* USBPHY_CTRL_SFTRST  */
 
 /* VERSION: major 2, minor 0, step 0 — typical for this Sigmatel/NXP PHY IP. */
-#define VERSION_VALUE   0x02000000u
+/* ⚠ THIS WAS 0x0200_0000 -- A FABRICATED VERSION.  RM: 0x0500_0000.
+ *   A made-up ID register is a real bug class: a driver that branches on the IP version
+ *   takes a path built for hardware that is not this hardware. */
+#define VERSION_VALUE   0x05000000u
 
 /* Registers that carry SET/CLR/TOG aliases (the +4/+8/+C words after base). */
 static bool usbphy_has_strobe(hwaddr base)

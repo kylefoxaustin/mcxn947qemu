@@ -126,6 +126,14 @@
 #define VBAT_LDOCTLB  0x304
 #define VBAT_LDOLCKA  0x318
 #define VBAT_LDOLCKB  0x31C
+/*
+ * ⚠ I GUESSED THESE AND THEY WERE WRONG (0x028/0x02C).  They are at 0x7F8/0x7FC.
+ *   ONE HOUR after writing "derived, never invented" into a comment two files away.
+ *   The reset-value gate caught it -- an oracle I did not author, catching an address
+ *   I made up.  ⭐ THE RULE IS NOT A THING YOU AGREE WITH.  IT IS A THING YOU DO.
+ */
+#define VBAT_WAKLCKA  0x7F8
+#define VBAT_WAKLCKB  0x7FC
 
 #define VBAT_LOCK_BIT 0x1u
 
@@ -140,6 +148,17 @@ static const struct { uint16_t a, b; uint32_t mask; } vbat_pair[] = {
     { VBAT_OSCLCKA, VBAT_OSCLCKB, 0x00000001u },
     { VBAT_FROLCKA, VBAT_FROLCKB, 0x00000001u },
     { VBAT_LDOLCKA, VBAT_LDOLCKB, 0x00000001u },
+    /*
+     * ⚠ THIS PAIR WAS MISSING, AND THE RESET-TIME ASSERT NEVER NOTICED -- BECAUSE THE
+     *   ASSERT ITERATES *THIS TABLE*, AND I TYPED THIS TABLE BY HAND.
+     *
+     *     ⭐ AN INVARIANT IS ONLY AS COMPLETE AS THE LIST YOU FEED IT.
+     *       A guard that checks 9 of 10 pairs gives you the confidence of 10.
+     *
+     *   The reset-value gate found it -- an oracle I did not author, catching an
+     *   omission in a guard I did.  WAKLCKB was reading 0 where the RM says 1.
+     */
+    { VBAT_WAKLCKA, VBAT_WAKLCKB, 0x00000001u },
 };
 
 /* RM reset values.  Derived from the manual, never invented. */
@@ -156,6 +175,7 @@ static const struct { uint16_t off; uint32_t val; } vbat_reset[] = {
     { 0x21C, 0x00000001u },   /* FROLCKB  = ~FROLCKA                                */
     { 0x304, 0x00000007u },   /* LDOCTLB  = ~LDOCTLA                                */
     { 0x31C, 0x00000001u },   /* LDOLCKB  = ~LDOLCKA                                */
+    { 0x7FC, 0x00000001u },   /* WAKLCKB  = ~WAKLCKA  (the pair the hand-typed table missed) */
 };
 
 /* The guest configured this pair correctly: B holds the inverse of A. */

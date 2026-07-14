@@ -409,8 +409,12 @@ static uint64_t mcxn_usdhc_read(void *opaque, hwaddr off, unsigned size)
     }
     case USDHC_HOST_CTRL_CAP:
         return HOST_CTRL_CAP_VALUE;
-    case USDHC_ADMA_ERR_STATUS:
     case USDHC_DLL_STATUS:
+        /* A hardcoded `return 0` here silently beat the reset table.  RM reset 0x200:
+         * the DLL's reference-select tap at its power-on position.  (The LOCK bits are
+         * 0 in the RM too -- this is not a "never locks" bug.) */
+        return s->regs[USDHC_DLL_STATUS / 4];
+    case USDHC_ADMA_ERR_STATUS:
         return 0;
     case USDHC_SYS_CTRL:
         /* Self-clearing reset/init bits never read back as set. */
@@ -523,6 +527,7 @@ static void mcxn_usdhc_reset(DeviceState *dev)
     int rst_i;
 
     memset(s->regs, 0, sizeof(s->regs));
+    s->regs[0x064 / 4] = 0x00000200u;   /* DLL_STATUS -- RM reset, derived */
     for (rst_i = 0; rst_i < (int)ARRAY_SIZE(rst_usdhc0); rst_i++) {
         s->regs[rst_usdhc0[rst_i].off / 4] = rst_usdhc0[rst_i].val;
     }

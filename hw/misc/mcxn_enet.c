@@ -517,11 +517,57 @@ static const MemoryRegionOps enet_ops = {
     .impl.max_access_size = 4,
 };
 
+/*
+ * ⚠ ENET CAME UP AS memset(0), AND 91emulator TOLD ME THIS EXACT CLASS -- IN MY OWN
+ *   REGISTERS -- AND I DID NOT RUN THE CENSUS ON MY OWN TREE.
+ *
+ *   Them, on their dwmac: "MAC_ADDRESS0 has AE SET (the primary); 1..63 reset FFFF with
+ *   AE CLEAR = an EMPTY SLOT.  I answered zero for all 128 -- in exactly the registers a
+ *   driver walks looking for a free slot."
+ *
+ *   ⭐ A BUG CLASS FOUND ONCE IS A CENSUS YOU HAVE NOT RUN -- and I quoted that rule at
+ *     them before running it here.
+ *
+ * ☠ MAC_ADDRESS0_HIGH[AE] (bit 31) IS THE ADDRESS-ENABLE.  Our zero meant the PRIMARY MAC
+ *   SLOT READ AS EMPTY.  A driver walking the address table for a free entry finds slot 0
+ *   free and may overwrite the primary address -- or conclude the MAC filter is off.
+ *   RM: 0x8000_FFFF (enabled, and unprogrammed all-ones until firmware writes the MAC).
+ *
+ * ☠ MAC_ONEUS_TIC_COUNTER IS A DIVIDER: the driver writes (csr_clk_hz / 1e6) - 1, and the
+ *   MAC uses it to generate a 1 us tick.  RM reset 0x63 = 99 (a 100 MHz CSR clock).
+ *   OUR ZERO IS A DIVIDER OF ZERO -- a dangerous zero in the purest sense: legal,
+ *   meaningful, and catastrophic to anything that divides by it.
+ *
+ *   MAC_CONFIGURATION[PS] (bit 15, port select), MAC_LPI_TIMERS_CONTROL and
+ *   MAC_TIMESTAMP_CONTROL[TSIPV4ENA] likewise -- all read-modify-written by the stock
+ *   driver, so our zeros were laundered into the guest's own configuration.
+ *   (RE/TE, the actual receive/transmit enables, stay 0: seeding these does NOT start
+ *   the MAC.)
+ *
+ * ⚠ STATED GAP: this model implements NO MAC ADDRESS FILTERING -- it accepts every frame
+ *   on the wire regardless of destination.  That is MORE PERMISSIVE THAN THE SILICON, and
+ *   it is named here rather than left to be discovered.  Seeding AE now at least tells a
+ *   guest the truth about the slot; it does not make the filter exist.
+ */
+static const struct { uint16_t off; uint32_t val; } enet_reset[] = {
+    { 0x000, 0x00008000u },   /* MAC_CONFIGURATION      PS: port select        */
+    { 0x0D4, 0x03E80000u },   /* MAC_LPI_TIMERS_CONTROL                        */
+    { 0x0DC, 0x00000063u },   /* MAC_ONEUS_TIC_COUNTER  99 -> a 1 us tick      */
+    { 0x300, 0x8000FFFFu },   /* MAC_ADDRESS0_HIGH      AE=1: the slot is USED */
+    { 0x304, 0xFFFFFFFFu },   /* MAC_ADDRESS0_LOW       unprogrammed           */
+    { 0xB00, 0x00002000u },   /* MAC_TIMESTAMP_CONTROL  TSIPV4ENA              */
+};
+
 static void mcxn_enet_reset(DeviceState *dev)
 {
     MCXNEnetState *s = MCXN_ENET(dev);
 
+    int ri;
+
     memset(s->regs, 0, sizeof(s->regs));
+    for (ri = 0; ri < (int)ARRAY_SIZE(enet_reset); ri++) {
+        s->regs[enet_reset[ri].off / 4] = enet_reset[ri].val;
+    }
     memset(s->phy, 0, sizeof(s->phy));
     s->phy[PHY_BMCR] = PHY_BMCR_RESET;
     s->phy[PHY_BMSR] = PHY_BMSR_VALUE;

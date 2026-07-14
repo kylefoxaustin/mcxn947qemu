@@ -126,7 +126,13 @@ static void mcxn_freqme_reset(DeviceState *dev)
     s->ctrlstat = 0;
     s->result = 0;
     s->min = 0;
-    s->max = 0;
+    /*
+     * ⚠ MAX IS THE MEASUREMENT CEILING, AND OURS RESET TO ZERO.  RM: 0x7FFF_FFFF.
+     *   A ceiling of zero is exceeded by ANY measurement -- so a guest reading MAX to
+     *   size its window, or comparing a result against it, is comparing against a
+     *   boundary the silicon never has.  A dangerous zero: legal, meaningful, wrong.
+     */
+    s->max = 0x7FFFFFFFu;
 }
 
 static void mcxn_freqme_realize(DeviceState *dev, Error **errp)
