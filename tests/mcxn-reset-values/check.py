@@ -105,14 +105,58 @@ if _blind or _grew or _newinst:
             print("        %-16s NEW instance, %d registers" % (_i, _have[_i]))
     sys.exit(2)
 
+#
+# ⛔ EVERY ALLOWLIST ENTRY MUST CARRY A BUCKET AND A REASON, AND THE GATE ENFORCES IT.
+#
+# This parser USED TO DO:   line = line.split("#", 1)[0].strip()
+#
+# -- it threw the comment AWAY.  The reason column existed for humans and THE TOOL
+# COULD NOT SEE IT.  So nobody ever noticed that all 194 "reasons" were the string
+# `model=0x00000000 RM=0xc0000000`: THE DIFF, restated.  That is not a justification
+# for a deviation, it is a restatement of the deviation.
+#
+#     ⭐ A COLUMN THE TOOL DOES NOT READ IS A COLUMN THE TOOL CANNOT ENFORCE --
+#        AND IT FILLS UP WITH WHATEVER IS EASIEST TO TYPE.
+#
+# USBPHY CTRL hid in here: the PHY reports itself released from soft-reset and
+# ungated before any firmware released it, and the line excusing it was shaped
+# exactly like the 193 acceptable ones.
+#
+BUCKETS = ("DECISION", "UNMODELLED", "UNTRIAGED")
 allow = {}
+buckets = {b: 0 for b in BUCKETS}
+malformed = []
 with open(os.path.join(HERE, "known-deviations.txt")) as f:
-    for line in f:
-        line = line.split("#", 1)[0].strip()
-        if not line:
+    for lineno, raw in enumerate(f, 1):
+        if not raw.strip() or raw.lstrip().startswith("#"):
             continue
-        inst, reg, reason = (line.split(None, 2) + [""])[:3]
-        allow[(inst, reg)] = reason
+        body, _, comment = raw.partition("#")
+        parts = body.split()
+        if len(parts) < 2:
+            malformed.append((lineno, raw.rstrip(), "not 'INST REG'"))
+            continue
+        inst, reg = parts[0], parts[1]
+        bucket, _, why = comment.strip().partition(":")
+        bucket = bucket.strip()
+        if bucket not in BUCKETS:
+            malformed.append((lineno, raw.rstrip(), "no bucket (need one of %s)"
+                              % "/".join(BUCKETS)))
+            continue
+        if not why.strip():
+            malformed.append((lineno, raw.rstrip(), "bucket with NO REASON"))
+            continue
+        allow[(inst, reg)] = (bucket, why.strip())
+        buckets[bucket] += 1
+
+if malformed:
+    print("FAIL: %d allowlist entr%s no bucket+reason." %
+          (len(malformed), "y carries" if len(malformed) == 1 else "ies carry"))
+    print("      An entry without a reason does not excuse a deviation -- it HIDES one.")
+    print("      Adding a line is a DECISION.  Decisions are typed by people, with a")
+    print("      reason, or they are not decisions.")
+    for lineno, raw, why in malformed[:15]:
+        print("        line %-4d %-52s  <- %s" % (lineno, raw[:52], why))
+    sys.exit(2)
 
 
 def probe(regs):
@@ -258,6 +302,13 @@ print("probed %d registers against the RM (golden = the reference manual)  [asse
       % len(golden))
 print("  matching        : %d" % (len(golden) - len(mismatched)))
 print("  known deviations: %d   <-- THIS NUMBER MUST GO DOWN" % (len(mismatched) - len(new)))
+print("      DECISION  : %4d  deliberate, defended, with a stated reason" % buckets["DECISION"])
+print("      UNMODELLED: %4d  no model for the block -- a GAP, not a lie" % buckets["UNMODELLED"])
+print("      UNTRIAGED : %4d  ⚠ IN BLOCKS WE MODEL -- NOT YET LOOKED AT."
+      % buckets["UNTRIAGED"])
+print("                        Every one could be the next USBPHY CTRL, which sat here")
+print("                        telling guests the USB PHY was out of reset when it was not.")
+print("                        This is not a status. It is an admission, and it must shrink.")
 
 rc = 0
 if new:

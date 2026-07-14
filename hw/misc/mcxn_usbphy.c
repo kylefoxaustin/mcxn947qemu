@@ -60,15 +60,32 @@ static uint64_t mcxn_usbphy_read(void *opaque, hwaddr off, unsigned size)
         return 0;
     }
 
-    switch (off) {
-    case R_VERSION:
+    if (off == R_VERSION) {
         return VERSION_VALUE;
-    case R_CTRL:
-        /* CLKGATE and SFTRST self-clear: PHY reads ungated and not in reset. */
-        return s->regs[R_CTRL / 4] & ~(CTRL_CLKGATE | CTRL_SFTRST);
-    default:
-        return s->regs[off >> 2];
     }
+
+    /*
+     * ⚠ THE SET/CLR/TOG ALIASES ARE FOUR VIEWS OF ONE REGISTER, NOT FOUR REGISTERS.
+     *
+     * The WRITE path already knew that (it folds every strobe onto `off & ~0xF`).
+     * The READ path did NOT -- it returned `s->regs[off >> 2]`, so each alias had
+     * its OWN backing word, seeded at reset and then NEVER UPDATED AGAIN.  Write
+     * through CTRL_SET and CTRL moves; read CTRL_SET back and you get the reset
+     * value, frozen, forever.
+     *
+     * Four words of storage for one register, and three of them lie.  91emulator's
+     * ANATOP bug is the mirror image of this one -- theirs swallowed the alias
+     * WRITE, mine froze the alias READ -- and it is the same root cause: the model
+     * disagreed with itself about whether an alias is a view or a register.
+     *
+     *     ⭐ AN ALIAS IS A VIEW.  IF ANY ONE PATH TREATS IT AS STORAGE, IT IS
+     *        STORAGE -- AND THE OTHER PATHS ARE NOW WRONG ABOUT IT.
+     */
+    if (usbphy_has_strobe(off & ~0xFu) && (off & 0xFu) != 0) {
+        return s->regs[(off & ~0xFu) >> 2];
+    }
+
+    return s->regs[off >> 2];
 }
 
 static void mcxn_usbphy_write(void *opaque, hwaddr off, uint64_t value,
