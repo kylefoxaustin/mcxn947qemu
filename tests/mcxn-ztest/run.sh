@@ -15,38 +15,56 @@ shopt -s nullglob
 elfs=("$ZTEST_DIR"/*.elf)
 [ "${#elfs[@]}" -gt 0 ] || { echo "SKIP: no ztest ELFs in $ZTEST_DIR (see build.sh)"; exit 0; }
 
+# ⚠ THE GUEST NEVER EXITS.  Zephyr's ztest prints "PROJECT EXECUTION SUCCESSFUL" and then
+# SPINS FOREVER.  The old runner paid a full wall-clock `timeout` cap for EVERY suite --
+# 120s x 24 = ~48 minutes, almost all of it watching an already-finished guest spin, and
+# long enough that a background/CI runner kills the whole job mid-run.
+#
+# So: poll the output and KILL THE GUEST THE INSTANT it prints the banner (or dies).  A
+# passing suite now costs a second or two; the full run drops from ~48 min to ~2.
+#
+#   ⭐ THE SUCCESS BANNER TAKES PRECEDENCE OVER A FAULT, so we wait for the BANNER, not for
+#     the first "Fault" line.  Zephyr fault-INJECTION suites (userspace/poll/queue/condvar)
+#     deliberately oops, RECOVER, then print SUCCESSFUL -- a poll that concluded on the oops
+#     would kill the guest before its recovery and MANUFACTURE a failure.  The verdict rule
+#     in the loop is UNCHANGED and already checks SUCCESSFUL first.
+#
+# CAP is the wall-clock BACKSTOP for a suite that never prints a banner (a real hang or a
+# genuinely killed run) -- reached only in that case, never on a passing suite.  Belt and
+# suspenders: `timeout -k 5` is a hard second backstop if this poll is interrupted, and
+# `setsid` makes the whole guest process group killable in one signal, so nothing orphans.
+CAP="${CAP:-120}"
+run_suite() {  # <elf> -- echo the guest output, killing the guest on banner/exit
+    local elf="$1" tmp pid i
+    tmp="$(mktemp)"
+    setsid timeout -k 5 "$CAP" "$QEMU" -M frdm-mcxn947 -display none -monitor none \
+        -icount shift=3 -serial stdio -kernel "$elf" -no-reboot </dev/null >"$tmp" 2>/dev/null &
+    pid=$!
+    for i in $(seq 1 $((CAP * 5))); do
+        grep -q "PROJECT EXECUTION SUCCESSFUL" "$tmp" 2>/dev/null && break
+        kill -0 "$pid" 2>/dev/null || break     # guest exited/was killed on its own
+        sleep 0.2
+    done
+    # kill the guest's process group (setsid leader; pgid==pid).  ⚠ never `-0` (own group).
+    case "$pid" in ''|0) ;; *) kill -KILL -"$pid" 2>/dev/null;; esac
+    cat "$tmp"; rm -f "$tmp"
+    return 0
+}
+
 fail=0
 timedout=0
 for elf in "${elfs[@]}"; do
     name="$(basename "$elf" .elf)"
-    # -icount: virtual time is derived from instructions retired, not host wall
-    # time.  Without it the timing-sensitive suites (timer_api.test_sleep_abs)
-    # FLAKE under host load — reproduced directly: it fails on a loaded box and
-    # passes on an idle one, same tree.  A CI suite measured on a non-deterministic
-    # instrument reports luck, not correctness.
-    #
-    # ⚠ THE GUEST NEVER EXITS.  Zephyr's ztest prints "PROJECT EXECUTION
-    # SUCCESSFUL" and then spins forever, so `timeout` is THE NORMAL TERMINATION
-    # PATH FOR EVERY SUITE, not an error path.  Two consequences, both of which
-    # bit me:
-    #
-    #   - The exit status is ALWAYS 124 and is therefore MEANINGLESS as a verdict.
-    #     My first attempt treated 124 as a timeout and reported every PASSING
-    #     suite as INCONCLUSIVE.  ONLY THE OUTPUT IS A VERDICT.
-    #   - The cap is paid IN FULL by every suite, so raising it to 600s did not
-    #     add safety, it made the run 6.7x SLOWER (24 x 600s = 4 hours).
-    #
-    # And the reason I raised it in the first place still stands: -icount fixes the
-    # GUEST's clock, but this timeout is WALL CLOCK, so under host load a good
-    # suite can be killed BEFORE it prints its result.  The honest rule:
+    # The verdict is the OUTPUT, never the exit status: the guest is ALWAYS killed (it
+    # spins after success), so exit status is meaningless.  The honest rule, unchanged:
     #
     #     output says SUCCESSFUL      -> PASS   (whatever the exit status)
-    #     output shows ztest failures -> FAIL
+    #     output shows ztest failures -> FAIL   (only if there is NO success banner)
     #     no verdict in the output    -> INCONCLUSIVE, never scored as a failure
     #
-    # A killed run is not a caught bug, and an empty result is not a pass.
-    OUT="$(timeout -k 5 120 "$QEMU" -M frdm-mcxn947 -display none -monitor none -icount shift=3 \
-            -serial stdio -kernel "$elf" -no-reboot </dev/null 2>/dev/null || true)"
+    # A killed run is not a caught bug, and an empty result is not a pass.  run_suite (above)
+    # returns as soon as the banner lands, so a passing suite costs ~1-10s, not the full cap.
+    OUT="$(run_suite "$elf")"
 
     if echo "$OUT" | grep -q "PROJECT EXECUTION SUCCESSFUL"; then
         # Count reported suite/case results for a one-line summary.
