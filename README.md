@@ -10,8 +10,8 @@ Cortex-M33** MCU — targeting the **FRDM-MCXN947** board. Machine: `frdm-mcxn94
 > generic QEMU), with the long-term aim of upstream-mergeability.
 
 qemu-mcxn947 is a QEMU model of the NXP MCXN947, and one node in a fleet of NXP
-QEMU ports (i.MX 91 / 93 / 95 and this MCXN947 microcontroller) that share device
-models and a validation standard. Unlike the i.MX 9x siblings, this is a
+QEMU ports (i.MX 91 / 93 / 95, i.MX RT1180, and this MCXN947 microcontroller) that
+share device models and a validation standard. Unlike the i.MX 9x siblings, this is a
 **microcontroller, not an applications processor**: there is no Linux and no
 MMU-class OS. You run the same firmware you would flash to the silicon —
 **bare-metal, Zephyr, or the MCUXpresso SDK** — against a register-accurate model
@@ -207,7 +207,9 @@ The `tests/*/run.sh` scripts build their firmware with `arm-none-eabi-gcc` and t
 - **2× Cortex-M33** (FPU, DSP, MPU, SAU/TrustZone-M) via the `ARMV7M` object —
   cpu0 boots and releases cpu1 (SYSCON CPUCTRL/CPBOOT). NVIC: 156 external IRQs,
   3 priority bits. No Cortex-A55, no MMU-class OS — it is an MCU.
-- **Memory:** 2 MiB code flash @ `0x0000_0000` (RAM-backed for bring-up), 512 KiB
+- **Memory:** 2 MiB code flash @ `0x0000_0000` (a **ROM device**, FMU-backed — reads and
+  XIP are direct, writes go through the FMU program/erase protocol; never RAM-backed, which
+  would let stray stores "work" and hide every controller bug), 512 KiB
   SRAM @ `0x2000_0000` (banked RAMA..H, mapped contiguous), FlexSPI NOR XIP window
   @ `0x8000_0000` (secure `0x9000_0000`). Peripherals `0x4000_0000` (NS) /
   `0x5000_0000` (secure TrustZone-M alias); PPB (NVIC/SysTick) handled by `ARMV7M`.
@@ -268,9 +270,9 @@ real firmware (Zephyr + `ztest`, the MCUXpresso corpus) runs without an unmodell
 hang — extended this cycle with the **board-to-board interconnect** (five
 transports, cross-SoC validated against real i.MX 91/93/95) and the fleet's
 **eDMA byte-access fidelity fix**. What remains is **depth** (active data paths on
-the analog/audio blocks a workload can observe; the DAC/PDM/SINC byte-access
-follow-up) and **upstream submission** (the machine + board + the `mcxn_*` device
-models). A behavioural Neutron NPU command-stream executor (bit-exact int8, the way
+the analog/audio blocks a workload can observe; the **ADC / PDM / SINC / LPFlexcomm
+DMA-request lines** are the follow-up — SAI and DAC are already request-driven) and
+**upstream submission** (the machine + board + the `mcxn_*` device models). A behavioural Neutron NPU command-stream executor (bit-exact int8, the way
 the i.MX 93/95 Ethos-U65 is modelled) is the largest open depth item.
 
 ## License
