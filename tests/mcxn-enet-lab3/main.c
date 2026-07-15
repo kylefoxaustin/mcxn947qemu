@@ -243,6 +243,34 @@ static void puthex2(uint8_t v)
     putc_(h[v & 0xF]);
 }
 
+/* Unsigned decimal, for the guest-emitted Unix-epoch timestamp (which must be decimal to
+ * cross-align with 91's gettimeofday and rt1180's semihosting `t=`). */
+static void putu32(uint32_t v)
+{
+    char b[10];
+    int i = 0;
+
+    if (v == 0) {
+        putc_('0');
+        return;
+    }
+    while (v) {
+        b[i++] = (char)('0' + v % 10);
+        v /= 10;
+    }
+    while (i) {
+        putc_(b[--i]);
+    }
+}
+
+/* Zero-padded 3-digit decimal, for the millisecond fraction of the timestamp. */
+static void putms3(uint32_t ms)
+{
+    putc_((char)('0' + (ms / 100) % 10));
+    putc_((char)('0' + (ms / 10) % 10));
+    putc_((char)('0' + ms % 10));
+}
+
 static volatile uint32_t got;
 static volatile uint32_t seen_slot[PEERTAB_MAX];
 static uint32_t last_ms[PEERTAB_MAX];   /* ms we last heard each peer */
@@ -656,6 +684,68 @@ static void clock_poll(void)
     }
 }
 
+/*
+ * ⭐ A GUEST-EMITTED WALL-CLOCK TIMESTAMP, so holobench can bracket a SURVIVOR's departure
+ *   directly off this node's own clock instead of the arrival-stamp it makes on READ (every
+ *   survivor's first beat lands at the same read-time, so an arrival stamp cannot see a
+ *   departure at all).  Format and caveat taken verbatim from rt1180emulator / 91emulator.
+ *
+ * SysTick's now_ms is monotonic but runs ~3.7x fast without -icount and is not an epoch, so
+ * it cannot cross-align with the Linux nodes' gettimeofday.  Bare-metal has no gettimeofday;
+ * the source is ARM SEMIHOSTING: SYS_TIME (Unix seconds, anchored once at boot) + SYS_CLOCK
+ * (centiseconds since start, for the sub-second delta).
+ *
+ * ⚠ REQUIRES `-semihosting-config enable=on` -- a semihosting BKPT HardFaults without it, so
+ *   every lab run.sh that launches this firmware passes it (and holobench must, as it already
+ *   does for rt1180's node).
+ * ⚠ THE CAVEAT, TAKEN VERBATIM FROM 91: without -icount this tracks HOST wall-clock, so
+ *   absolute stamps drift under load.  TRUST THE GAP to bracket a departure (~beat/10ms
+ *   resolution); do NOT build a sub-100ms absolute timing claim on it.  A constant wearing a
+ *   timestamp's name is the same trap the incarnation taught us -- so the suite asserts t=
+ *   ADVANCES, and a frozen clock fails it.
+ */
+#define SYS_CLOCK 0x10u    /* centiseconds since execution start */
+#define SYS_TIME  0x11u    /* seconds since the Unix epoch        */
+
+static uint32_t base_time;    /* SYS_TIME (Unix seconds) at boot                 */
+static uint32_t base_clock;   /* SYS_CLOCK (centiseconds) at boot -- the anchor  */
+
+static uint32_t semihost(uint32_t op)
+{
+    register uint32_t r0 __asm__("r0") = op;
+    register uint32_t r1 __asm__("r1") = 0;   /* SYS_TIME/SYS_CLOCK take no parameter */
+
+    __asm__ volatile ("bkpt 0xAB" : "+r"(r0) : "r"(r1) : "memory");
+    return r0;
+}
+
+static void wallclock_init(void)
+{
+    base_time  = semihost(SYS_TIME);
+    base_clock = semihost(SYS_CLOCK);
+}
+
+/* Current wall-clock, as Unix seconds + a millisecond fraction (10ms granularity).  Overflow-
+ * safe: base_time is NEVER multiplied (base_time*100 overflows a uint32 by ~40x). */
+static void wallclock_now(uint32_t *sec, uint32_t *ms)
+{
+#ifdef FROZEN_CLOCK
+    /*
+     * NEGATIVE CONTROL: a clock that does not run.  A t= that never advances cannot bracket
+     * a departure -- it is a constant wearing a timestamp's name, the same trap the
+     * incarnation taught the fleet.  The suite asserts t= ADVANCES; this build makes it
+     * stand still, so that assertion is proven load-bearing.  (rt1180emulator's mutation.)
+     */
+    *sec = base_time;
+    *ms  = 0u;
+#else
+    uint32_t elapsed_cs = semihost(SYS_CLOCK) - base_clock;   /* centiseconds since boot */
+
+    *sec = base_time + elapsed_cs / 100u;
+    *ms  = (elapsed_cs % 100u) * 10u;
+#endif
+}
+
 #define BEACON_MS 20u          /* broadcast every 20 ms -- a DURATION, not a spin count */
 #define PASS_EVERY 200u        /* heartbeat, not firehose: 1 line per 200 re-earnings */
 #define PEER_HOLD_MS 1000u      /* a peer unheard for 1 s has departed */
@@ -672,10 +762,28 @@ void cpu0_main(void)
 
 
     LP_CTRL = CTRL_TE;
-    puts_("ENET-LAB3 up: broadcasting ethertype 0x");
+
+    /* Anchor the wall clock and read the peer table BEFORE declaring the contract. */
+    wallclock_init();
+    peers_init();
+
+    /*
+     * ⭐ THE RATIFIED CONTRACT LINE (holobench), so this node's CORRUPT/PASS is SCOREABLE off
+     *   the wire instead of guessed.  An UNDECLARED contract is an unscoreable red -- "I can't
+     *   tell a trustworthy red from an untrustworthy one for you."  ethertype = who I am;
+     *   peers = how many I REQUIRE (all must be seen to PASS); body = what I put on the wire;
+     *   enforce = self-arming (I re-earn PASS every scan, never latch).
+     */
+    puts_("ENET-LAB3 UP: ethertype=0x");
     puthex2((MY_ETHERTYPE >> 8) & 0xFF);
     puthex2(MY_ETHERTYPE & 0xFF);
-    puts_(", waiting for BOTH peers\r\n");
+    puts_(" peers=");
+    putu32(peer_n);
+#ifdef BEACON_NOISE
+    puts_(" body=noise enforce=self-arming\r\n");   /* impostor: emits IPv6, not a beacon body */
+#else
+    puts_(" body=emit enforce=self-arming\r\n");
+#endif
 
     /* Draw this boot's incarnation ONCE, before any frame is built.  Printed so a human
      * (and the reboot test) can SEE it change across boots -- a constant here would be the
@@ -789,7 +897,7 @@ void cpu0_main(void)
     NVIC_ISER4 = (1u << (ENET_IRQ - 128));
     __asm__ volatile ("cpsie i");
 
-    peers_init();
+    /* peers_init() already ran at boot (before the UP: contract line). */
     clock_init();
     rearm_rx();
 
@@ -1010,25 +1118,18 @@ void cpu0_main(void)
                      */
                     if ((passes++ % PASS_EVERY) == 0) {
                         /*
-                         * The beat carries its own timestamp so holobench's scorer is
-                         * TOLD when it happened rather than having to infer it.
-                         *
-                         * ⚠ BUT READ THE CAVEAT AND BELIEVE IT: `now_ms` is derived
-                         *   from SysTick assuming a 150 MHz core, and WITHOUT -icount
-                         *   QEMU runs those cycles as fast as the host allows -- so
-                         *   this counter ran ~3.7x FAST when I measured it.  It is
-                         *   MONOTONIC and it is fine for a liveness timeout.  IT IS
-                         *   NOT WALL-CLOCK MILLISECONDS.
-                         *
-                         *   ⇒ holobench: use it for ORDERING and for the EVENT.  Take
-                         *     your DURATIONS from 91emulator's node, which reads a real
-                         *     clock (gettimeofday over the ARM generic timer).  A number
-                         *     I cannot defend is worse than a number I do not offer.
+                         * The beat carries a GUEST-EMITTED Unix-epoch t= (semihosting, not
+                         * the SysTick now_ms which is ~3.7x fast and not an epoch), so
+                         * holobench can bracket THIS node's departure off its own clock and
+                         * cross-align it with 91's gettimeofday.  Trust the GAP (~10ms), not
+                         * the sub-100ms absolute -- see wallclock_now().
                          */
-                        puts_("ENET-LAB3 PASS: saw BOTH peers on the segment t=");
-                        puthex2((now_ms >> 24) & 0xFF); puthex2((now_ms >> 16) & 0xFF);
-                        puthex2((now_ms >> 8) & 0xFF);  puthex2(now_ms & 0xFF);
-                        puts_("\r\n");
+                        uint32_t sec, ms;
+
+                        wallclock_now(&sec, &ms);
+                        puts_("ENET-LAB3 PASS: t=");
+                        putu32(sec); putc_('.'); putms3(ms);
+                        puts_(" saw BOTH peers on the segment\r\n");
                     }
                     for (k = 0; k < peer_n; k++) {
                         seen_slot[k] = 0;      /* re-arm; keep the segment alive */

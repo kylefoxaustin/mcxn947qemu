@@ -47,7 +47,7 @@ cmp -s "$T/noise.elf" "$T/mcx.elf" && { echo "FAIL: BEACON_NOISE did not land"; 
 
 M="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
 echo "segment: mcast=$M  (one node emits IPv6, like a Linux peer would)"
-rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
    -nic socket,mcast=$M,model=mcxn-enet,mac=$2 -kernel "$1" -no-reboot >"$3" 2>/dev/null & echo $!; }
 P1=$(rn "$T/mcx.elf"   54:27:8d:00:00:01 "$T/1.log")
 P2=$(rn "$T/rt.elf"    54:27:8d:00:00:02 "$T/2.log")

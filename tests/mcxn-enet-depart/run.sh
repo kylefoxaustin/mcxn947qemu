@@ -52,7 +52,7 @@ build 0x88B7 0x88B5 0x88B6 0x03 "$T/i95.elf" || { echo "SKIP: build failed"; exi
 M="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
 echo "segment: mcast=$M"
 # setsid: each node is its own process GROUP, so `kill -PGID` can actually REACH it.
-rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
    -nic socket,mcast=$M,model=mcxn-enet,mac=$2 -kernel "$1" -no-reboot >"$3" 2>/dev/null & echo $!; }
 P1=$(rn "$T/mcx.elf" 54:27:8d:00:00:01 "$T/1.log")
 P2=$(rn "$T/rt.elf"  54:27:8d:00:00:02 "$T/2.log")

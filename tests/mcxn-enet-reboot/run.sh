@@ -76,11 +76,11 @@ run_reboot() {  # <peer.elf> <logfile>
     local peerelf="$1" log="$2"
     local M="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
     : > "$log"; : > "$log.peer"
-    OBS=$(setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+    OBS=$(setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
         -nic socket,mcast=$M,model=mcxn-enet,mac=54:27:8d:00:00:01 $LOADER \
         -kernel "$T/obs.elf" -no-reboot >"$log" 2>/dev/null & echo $!)
     # boot 1 of the peer -- its own stdout is captured so we can PROVE its nonce is per-boot.
-    PEER=$(setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+    PEER=$(setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
         -nic socket,mcast=$M,model=mcxn-enet,mac=54:27:8d:00:00:02 \
         -kernel "$peerelf" -no-reboot >>"$log.peer" 2>/dev/null & echo $!)
     # observer must LOCK ON (record the peer's boot-1 incarnation) before we reboot it.
@@ -89,7 +89,7 @@ run_reboot() {  # <peer.elf> <logfile>
     kpg "$PEER"                      # power-cycle the peer
     sleep 1
     # boot 2: a fresh QEMU -> a fresh incarnation, sequence back to 1
-    PEER=$(setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+    PEER=$(setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
         -nic socket,mcast=$M,model=mcxn-enet,mac=54:27:8d:00:00:02 \
         -kernel "$peerelf" -no-reboot >>"$log.peer" 2>/dev/null & echo $!)
     # give the observer time to classify the restart (reboot OR replay, per the flavour)
@@ -116,6 +116,13 @@ echo "   reboots detected: $a_reboot   replays (must be 0): $a_replay   peer's d
 [ "$a_replay" -eq 0 ] || { echo "FAIL(A): an honest reboot was condemned as a REPLAY ($a_replay) -- the false positive the incarnation exists to kill"; rc=1; }
 [ "$a_incs" -ge 2 ] || { echo "FAIL(A): the peer's two boots did not draw two distinct nonces ($a_incs) -- the DTRNG is not per-boot and the reboot detection is luck"; rc=1; }
 [ "$a_pass" -ge 1 ] || { echo "FAIL(A): a cut-over (v2) required peer did NOT green the segment ($a_pass) -- the gate is stuck red and case D proves nothing"; rc=1; }
+# ⭐ THE GUEST-EMITTED t= MUST ADVANCE -- holobench brackets a survivor's departure from its
+#   GAP, and a t= that stands still cannot.  Require the observer's LAST PASS second to exceed
+#   its FIRST; case E (frozen clock) proves this assertion can fail.
+a_t0=$(grep -oE 't=[0-9]+' "$T/a.log" | head -1 | tr -dc 0-9)
+a_t1=$(grep -oE 't=[0-9]+' "$T/a.log" | tail -1 | tr -dc 0-9)
+echo "   guest t= (epoch seconds) advances: $a_t0 -> $a_t1"
+{ [ -n "$a_t0" ] && [ "$a_t1" -gt "$a_t0" ]; } || { echo "FAIL(A): guest t= did not advance ($a_t0 -> $a_t1) -- a clock that does not run cannot bracket a departure"; rc=1; }
 
 # ── C: constant-nonce control.  The SAME restart must now be condemned as a replay, and
 #    NOT seen as a reboot.  If the incarnation did nothing, A and C would look identical. ──
@@ -151,5 +158,28 @@ echo "   legacy seen: $d_seen   announced: $d_legacy   corrupt (must be 0): $d_c
 [ "$d_reboot" -eq 0 ] || { echo "FAIL(D): a legacy peer got a reboot verdict ($d_reboot) it has no incarnation to earn"; rc=1; }
 [ "$d_pass" -eq 0 ] || { echo "FAIL(D): MASKING GREEN -- the node PASSed ($d_pass) over a legacy REQUIRED peer that never cut over. A legacy required peer must HOLD THE SEGMENT RED (rt1180/95)"; rc=1; }
 
-[ $rc -eq 0 ] && echo "PASS: a reboot is distinguished from a replay by the per-boot incarnation, and a constant nonce brings the bug straight back"
+# ── E: FROZEN-CLOCK control for the guest t=.  Case A required t= to advance; this proves
+#    that assertion is load-bearing by disabling the clock and demanding t= stand still. ──
+echo "── E: NEGATIVE CONTROL -- frozen clock (-DFROZEN_CLOCK): guest t= must NOT advance ──"
+B 0x88B5 0x88B6 0x88B7 0x01 "$T/obs_frozen.elf" -DFROZEN_CLOCK || { echo "SKIP: build failed"; exit 0; }
+cmp -s "$T/obs_frozen.elf" "$T/obs.elf" && { echo "FAIL: -DFROZEN_CLOCK did not land"; exit 1; }
+Mf="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
+: > "$T/e.log"
+OBS=$(setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
+    -nic socket,mcast=$Mf,model=mcxn-enet,mac=54:27:8d:00:00:01 $LOADER \
+    -kernel "$T/obs_frozen.elf" -no-reboot >"$T/e.log" 2>/dev/null & echo $!)
+PEER=$(setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
+    -nic socket,mcast=$Mf,model=mcxn-enet,mac=54:27:8d:00:00:02 \
+    -kernel "$T/peer.elf" -no-reboot >/dev/null 2>&1 & echo $!)
+wait_for "$T/e.log" 'ENET-LAB3 PASS' 3 20 || true
+sleep 1
+kpg "$OBS" "$PEER"; OBS=0; PEER=0
+e_passes=$(grep -c 'ENET-LAB3 PASS' "$T/e.log"); e_passes=${e_passes:-0}
+e_t0=$(grep -oE 't=[0-9]+' "$T/e.log" | head -1 | tr -dc 0-9)
+e_t1=$(grep -oE 't=[0-9]+' "$T/e.log" | tail -1 | tr -dc 0-9)
+echo "   frozen passes: $e_passes   t= $e_t0 -> $e_t1 (must be EQUAL -- the clock is frozen)"
+[ "$e_passes" -ge 2 ] || { echo "FAIL(E): the frozen observer produced too few PASSes ($e_passes) to test the clock"; rc=1; }
+{ [ -n "$e_t0" ] && [ "$e_t0" = "$e_t1" ]; } || { echo "FAIL(E): -DFROZEN_CLOCK t= ADVANCED ($e_t0 -> $e_t1) -- the mutation did not freeze the clock, so case A's advance-check proves nothing"; rc=1; }
+
+[ $rc -eq 0 ] && echo "PASS: reboot!=replay by per-boot incarnation; legacy holds red; and the guest t= is a live clock, not a constant"
 exit $rc

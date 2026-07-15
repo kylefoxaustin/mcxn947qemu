@@ -60,7 +60,7 @@ O1=$(mktemp); O2=$(mktemp); O3=$(mktemp)
 trap 'rm -f "$O1" "$O2" "$O3"; rm -rf "$BUILDDIR"' EXIT
 
 node() { # <elf> <mac> <out>
-  timeout -k 5 12 "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+  timeout -k 5 12 "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
     -nic socket,mcast=$MCAST,model=mcxn-enet,mac=$2 \
     -kernel "$1" -no-reboot >"$3" 2>/dev/null &
 }
@@ -74,7 +74,7 @@ echo "segment: mcast=$MCAST"
 if [ "${JOIN:-0}" = "1" ]; then
   HOLD="${HOLD:-180}"
   echo "JOIN: holding 0x88B5 on $MCAST for ${HOLD}s (waiting for 0x88B6 + 0x88B7)"
-  timeout "$HOLD" "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+  timeout "$HOLD" "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
     -nic socket,mcast=$MCAST,model=mcxn-enet,mac=02:4d:43:58:00:01 \
     -kernel "$BUILDDIR/node-mcx.elf" -no-reboot 2>/dev/null | tee "$O1" || true
   if grep -q 'ENET-LAB3 PASS' "$O1"; then

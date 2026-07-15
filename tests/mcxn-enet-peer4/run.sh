@@ -50,7 +50,7 @@ B 0x88B8 0x88B5 0x88B6 0x88B7 0x04 "$T/i91-liar.elf" -DBEACON_REPLAY || { echo "
 cmp -s "$T/i91-liar.elf" "$T/i91.elf" && { echo "FAIL: the liar flag did not land"; exit 1; }
 
 M="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
-rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
    -nic socket,mcast=$M,model=mcxn-enet,mac=$2 -kernel "$1" -no-reboot >"$3" 2>/dev/null & echo $!; }
 
 echo "① an HONEST imx91 (0x88B8) must be COUNTED by mcx"
@@ -101,10 +101,10 @@ LOADER="-device loader,addr=0x20007f00,data=0x52454550,data-len=4
         -device loader,addr=0x20007f0c,data=0x88b7,data-len=4
         -device loader,addr=0x20007f10,data=0x88b8,data-len=4"
 M="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
-setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
   -nic socket,mcast=$M,model=mcxn-enet,mac=54:27:8d:00:00:01 $LOADER \
   -kernel "$T/blind.elf" -no-reboot >"$T/9.log" 2>/dev/null & P1=$!
-setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
   -nic socket,mcast=$M,model=mcxn-enet,mac=54:27:8d:00:00:04 \
   -kernel "$T/i91-liar.elf" -no-reboot >"$T/10.log" 2>/dev/null & P4=$!
 wait_for "$T/9.log" 'et=0x88b8' 1 40 || echo "   (timed out waiting for the launch-line peer table)"

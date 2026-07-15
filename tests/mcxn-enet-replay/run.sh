@@ -51,7 +51,7 @@ cmp -s "$T/liar.elf" "$T/mcx.elf" && { echo "FAIL: the liar is byte-identical to
 
 M="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
 echo "segment: mcast=$M  (node 0x88B6 is ARMED TO REPLAY)"
-rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+rn() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
    -nic socket,mcast=$M,model=mcxn-enet,mac=$2 -kernel "$1" -no-reboot >"$3" 2>/dev/null & echo $!; }
 P1=$(rn "$T/mcx.elf"  54:27:8d:00:00:01 "$T/1.log")
 P2=$(rn "$T/liar.elf" 54:27:8d:00:00:02 "$T/2.log")
@@ -82,7 +82,7 @@ echo "   well-formed stale frames: $wf   replays caught: $rp   passes: $ps   lia
 # ── ② A FLAWLESS BEACON IN AN OVERSIZED FRAME.  Every content clause passes; only the
 #    LENGTH clause can see it.  This is rt1180's 1000-byte frame.
 M2="230.0.0.$(( (RANDOM % 200) + 20 )):$(( (RANDOM % 20000) + 20000 ))"
-rn2() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio \
+rn2() { setsid "$QEMU" -M frdm-mcxn947 -display none -monitor none -serial stdio -semihosting-config enable=on,target=native \
    -nic socket,mcast=$M2,model=mcxn-enet,mac=$2 -kernel "$1" -no-reboot >"$3" 2>/dev/null & echo $!; }
 Q1=$(rn2 "$T/mcx.elf"  54:27:8d:00:00:01 "$T/4.log")
 Q2=$(rn2 "$T/long.elf" 54:27:8d:00:00:02 "$T/5.log")
