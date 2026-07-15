@@ -370,6 +370,18 @@ static void arm_tx(void)
  * A distinct kind, never inside the ratified CORRUPT token (a reboot is not a fault).
  */
 #define BAD_REBOOT   6
+/*
+ * BAD_LEGACY is NOT a corruption and NOT a verified sighting.  A peer whose incarnation is
+ * the sentinel (a v1 node that carries none) is PRESENT and well-formed, but its freshness
+ * is UNVERIFIABLE -- I cannot tell its reboot from its replay.  So it must NOT gate PASS.
+ *
+ * ⭐ A LEGACY *REQUIRED* PEER THAT CLOSES THE PASS GATE IS A GREEN THAT MEANS A NODE
+ *   QUIETLY STAYED ON THE OLD BODY.  (rt1180emulator, retracted-and-fixed by 95emulator.)
+ *   Every configured peer in this lab is REQUIRED, so a legacy one HOLDS THE SEGMENT RED
+ *   until it carries a real incarnation.  That red is the cutover's forcing function, not
+ *   a false negative.
+ */
+#define BAD_LEGACY   7
 
 /* Highest sequence number seen from each peer.  A beacon's seq only ever goes UP --
  * WITHIN A BOOT.  Across a reboot it resets, and incarn_slot[] is how we know that. */
@@ -510,19 +522,25 @@ static int frame_ok(uint32_t et)
     have = &have_slot[slot];
 
     /*
-     * ⭐ A LEGACY PEER CANNOT BE TOLD REBOOT-FROM-REPLAY, SO I RENDER NO FRESHNESS VERDICT
-     *   ON IT -- COUNTED AS SEEN, FRESHNESS UNVERIFIABLE.                (95emulator design)
+     * ⭐ A LEGACY REQUIRED PEER MUST HOLD THE SEGMENT RED -- IT DOES NOT GET COUNTED AS SEEN.
+     *   (Fleet consensus REQUIRED-vs-OBSERVED, from rt1180emulator; 95emulator shipped the
+     *   "counted-as-seen, freshness-unverifiable" version and RETRACTED it as the masking
+     *   green.  I had adopted the retracted position; 95 caught it here.)
      *
      * A v1 node leaves [24..27] as fill, so incarn reads as the sentinel.  Without a
-     * per-boot nonce I genuinely cannot distinguish its reboot (seq reset) from its replay
-     * (seq frozen) -- and falsely condemning its reboot as a replay is the SAME masking bug,
-     * inverted.  So a sentinel frame is well-formed and PRESENT, but gets no reboot/replay
-     * ruling.  My own segment is all-v2; this fires only for a genuine legacy peer, and it
-     * is exercised by the -DBEACON_LEGACY build.
+     * per-boot nonce I cannot distinguish its reboot (seq reset) from its replay (seq
+     * frozen) -- so I render NO freshness verdict.  But "no verdict" must NOT mean "counts
+     * toward PASS": every configured peer in this lab is REQUIRED, and a required peer whose
+     * freshness I never verified CLOSING THE GATE is a green that means a node quietly stayed
+     * on the old body.  So a sentinel frame is well-formed and PRESENT (tracked for liveness,
+     * announced once) but returns BAD_LEGACY, and the caller does NOT set seen_slot[] on it.
+     * The segment stays RED until the peer carries a real incarnation -- the cutover's
+     * forcing function.  Exercised by the -DBEACON_LEGACY build; guarded by mcxn-enet-reboot
+     * case D (a legacy required peer must NOT let the node PASS).
      */
     if (incarn == BEACON_SENTINEL) {
         legacy_frames++;
-        return BAD_OK;
+        return BAD_LEGACY;      /* present, freshness UNVERIFIABLE -- must NOT gate PASS */
     }
 
     /*
@@ -902,7 +920,26 @@ void cpu0_main(void)
                     puts_("\r\n");
                     bad = BAD_OK;
                 }
-                if (bad) {
+                if (bad == BAD_LEGACY) {
+                    /*
+                     * PRESENT, BUT ON THE OLD BODY.  Track liveness (it is here) and
+                     * announce it ONCE -- but do NOT set seen_slot[]: a legacy required
+                     * peer must HOLD THE PASS GATE RED until it carries a real incarnation.
+                     * Not corrupt either -- a v1 frame is well-formed, just unverifiable.
+                     */
+                    int sl = peer_idx(et);
+
+                    if (sl >= 0) {
+                        last_ms[sl] = now_ms;
+                        if (!had_slot[sl]) {
+                            puts_("ENET-LAB3 LEGACY: peer 0x");
+                            puthex2((et >> 8) & 0xFF); puthex2(et & 0xFF);
+                            puts_(" no incarnation -- present, freshness UNVERIFIABLE, "
+                                  "holding PASS RED\r\n");
+                        }
+                        had_slot[sl] = 1;   /* present (gates LOST); NOT seen (gates PASS) */
+                    }
+                } else if (bad) {
                     /*
                      * holobench ratified "ENET-LAB3 CORRUPT:" as THE bad-frame token.
                      * The KIND goes AFTER it, where free-form is welcome -- a new token

@@ -12,12 +12,15 @@
 # This suite proves the distinction with a control that DISABLES it:
 #
 #   A  honest peer (per-boot nonce) is KILLED and RESTARTED  -> observer prints REBOOT,
-#      NOT replay.  The reset sequence is accepted as a fresh baseline.
+#      NOT replay, and (cut over) GREENS the segment.  The reset seq is a fresh baseline.
 #   C  the SAME procedure with -DINCARN_CONSTANT (a constant wearing a nonce's name)
 #      -> observer condemns the restart as PAYLOAD-REPLAY and prints NO reboot.  The bug
 #      RETURNS the instant the nonce stops being per-boot.  (95emulator's case C.)
-#   D  a -DBEACON_LEGACY peer (no incarnation, sentinel 0x5A5A5A5A) -> counted as SEEN,
-#      never CORRUPT, no reboot/replay verdict: freshness UNVERIFIABLE, not falsely red.
+#   D  a -DBEACON_LEGACY REQUIRED peer (sentinel 0x5A5A5A5A, no incarnation) -> present and
+#      NOT CORRUPT, but MUST NOT green the gate: a legacy required peer HOLDS THE SEGMENT
+#      RED until it cuts over.  (rt1180's phase 5e / 95's case F -- the fleet consensus is
+#      REQUIRED-vs-OBSERVED, NOT graceful-degrade.  An earlier version of THIS suite blessed
+#      the masking green until 95emulator caught it; A's green + D's red are the F/G pair.)
 #
 #   ⭐ A TEST THAT CANNOT REPRODUCE THE BUG WITH THE FIX DISABLED HAS NOT PROVEN THE FIX
 #     IS LOAD-BEARING.  Case C is that reproduction, and the observer/peer are the SAME
@@ -104,10 +107,15 @@ a_replay=$(grep -c 'CORRUPT: PAYLOAD-REPLAY' "$T/a.log"); a_replay=${a_replay:-0
 #   constant-seeded, both boots would print the same incarnation and the whole feature
 #   would be theatre.  (tr -d '\r': the M33 prints CRLF; without it, sort sees the \r.)
 a_incs=$(grep 'ENET-LAB3 incarnation' "$T/a.log.peer" | tr -d '\r' | grep -oE '0x[0-9a-f]{8}' | sort -u | wc -l)
-echo "   reboots detected: $a_reboot   replays (must be 0): $a_replay   peer's distinct per-boot nonces (must be 2): $a_incs"
+# ⭐ THE POSITIVE HALF OF THE GATE (rt1180's G): a CUT-OVER required peer MUST green the
+#   segment.  Without this, "case D holds red" is uninformative -- a gate that never greens
+#   holds red for the wrong reason.
+a_pass=$(grep -c 'ENET-LAB3 PASS' "$T/a.log"); a_pass=${a_pass:-0}
+echo "   reboots detected: $a_reboot   replays (must be 0): $a_replay   peer's distinct per-boot nonces (must be 2): $a_incs   PASS (cut-over peer greens, must be >=1): $a_pass"
 [ "$a_reboot" -ge 1 ] || { echo "FAIL(A): an honest peer's restart was NOT recognised as a reboot"; rc=1; }
 [ "$a_replay" -eq 0 ] || { echo "FAIL(A): an honest reboot was condemned as a REPLAY ($a_replay) -- the false positive the incarnation exists to kill"; rc=1; }
 [ "$a_incs" -ge 2 ] || { echo "FAIL(A): the peer's two boots did not draw two distinct nonces ($a_incs) -- the DTRNG is not per-boot and the reboot detection is luck"; rc=1; }
+[ "$a_pass" -ge 1 ] || { echo "FAIL(A): a cut-over (v2) required peer did NOT green the segment ($a_pass) -- the gate is stuck red and case D proves nothing"; rc=1; }
 
 # ── C: constant-nonce control.  The SAME restart must now be condemned as a replay, and
 #    NOT seen as a reboot.  If the incarnation did nothing, A and C would look identical. ──
@@ -129,10 +137,19 @@ run_reboot "$T/peer_legacy.elf" "$T/d.log"
 d_seen=$(grep -c 'rx: ethertype 0x88b6' "$T/d.log"); d_seen=${d_seen:-0}
 d_corrupt=$(grep -c 'CORRUPT:' "$T/d.log"); d_corrupt=${d_corrupt:-0}
 d_reboot=$(grep -c 'ENET-LAB3 REBOOT' "$T/d.log"); d_reboot=${d_reboot:-0}
-echo "   legacy peer seen: $d_seen   corrupt (must be 0): $d_corrupt   reboot/replay verdicts (must be 0): $d_reboot"
+d_legacy=$(grep -c 'ENET-LAB3 LEGACY' "$T/d.log"); d_legacy=${d_legacy:-0}
+# ⭐ THE MASKING-GREEN GUARD (rt1180's phase 5e / 95's case F): a legacy REQUIRED peer must
+#   NOT close the PASS gate.  A node that greens over a peer whose freshness it never
+#   verified is "a GREEN THAT MEANS A NODE QUIETLY STAYED ON THE OLD BODY."  This is the
+#   exact bug 95emulator shipped-and-retracted, and that this suite existed to bless until
+#   95 caught it here -- the segment must stay RED while a required peer is legacy.
+d_pass=$(grep -c 'ENET-LAB3 PASS' "$T/d.log"); d_pass=${d_pass:-0}
+echo "   legacy seen: $d_seen   announced: $d_legacy   corrupt (must be 0): $d_corrupt   reboot verdicts (must be 0): $d_reboot   PASS (MUST be 0 -- masking green): $d_pass"
 [ "$d_seen" -ge 1 ] || { echo "FAIL(D): a well-formed legacy peer was not even seen"; rc=1; }
-[ "$d_corrupt" -eq 0 ] || { echo "FAIL(D): a legacy peer was called CORRUPT ($d_corrupt) -- freshness UNVERIFIABLE must not mean RED"; rc=1; }
+[ "$d_legacy" -ge 1 ] || { echo "FAIL(D): the legacy peer was not announced as freshness-unverifiable ($d_legacy)"; rc=1; }
+[ "$d_corrupt" -eq 0 ] || { echo "FAIL(D): a legacy peer was called CORRUPT ($d_corrupt) -- a v1 frame is well-formed, just unverifiable"; rc=1; }
 [ "$d_reboot" -eq 0 ] || { echo "FAIL(D): a legacy peer got a reboot verdict ($d_reboot) it has no incarnation to earn"; rc=1; }
+[ "$d_pass" -eq 0 ] || { echo "FAIL(D): MASKING GREEN -- the node PASSed ($d_pass) over a legacy REQUIRED peer that never cut over. A legacy required peer must HOLD THE SEGMENT RED (rt1180/95)"; rc=1; }
 
 [ $rc -eq 0 ] && echo "PASS: a reboot is distinguished from a replay by the per-boot incarnation, and a constant nonce brings the bug straight back"
 exit $rc
