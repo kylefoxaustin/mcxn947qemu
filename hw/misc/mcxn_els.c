@@ -37,11 +37,13 @@
  * through the completion path instead would hang the driver rather than inform it
  * (fleet finding).
  *
- * The PRNG behind ELS_PRNG_DATOUT and RND_REQ is a deterministic xorshift32: it
- * is real, varying entropy — enough that anything seeded from it (Zephyr's stack
- * randomisation, a CSPRNG) does not degenerate — but it is NOT cryptographically
- * strong, and firmware must not be relied on to notice.  Swap to
- * qemu_guest_getrandom() if that ever matters.
+ * The PRNG behind ELS_PRNG_DATOUT and RND_REQ is an xorshift32 DRBG seeded, at every
+ * reset, from qemu_guest_getrandom() — so its output VARIES PER BOOT (and is unique
+ * per QEMU instance), which is what a physical DTRNG does and what a per-boot beacon
+ * incarnation or an ASLR base depends on.  A constant seed made every boot identical;
+ * "that ever matters" arrived when the L2 lab needed to tell a peer's REBOOT from a
+ * REPLAY.  It stays reproducible under `-seed`.  It is still NOT cryptographically
+ * strong, and firmware must not be relied on to notice.
  *
  * Offsets/bits from the MCXN947 CMSIS header (S50_Type); command IDs from the
  * MCUXpresso els_pkc driver (mcuxClEls_Crc.h).
@@ -50,6 +52,7 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/log.h"
+#include "qemu/guest-random.h"
 #include "hw/misc/mcxn_els.h"
 #include "system/dma.h"
 #include "migration/vmstate.h"
@@ -339,7 +342,28 @@ static void mcxn_els_reset(DeviceState *dev)
     MCXNELSState *s = MCXN_ELS(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
-    s->rng_state = ELS_PRNG_SEED;
+
+    /*
+     * ⭐ A DTRNG THAT SEEDS FROM A CONSTANT IS A CONSTANT WEARING A NONCE'S NAME.
+     *   (rt1180emulator / 95emulator, hardening the L2-lab beacon)
+     *
+     * This used to be `s->rng_state = ELS_PRNG_SEED` -- a fixed constant -- so the
+     * engine produced the IDENTICAL byte stream on every boot.  That satisfies "is
+     * this non-zero and non-repeating" (the els test) but is a LIE for anything that
+     * needs a value UNIQUE PER POWER-ON: a beacon incarnation, an ASLR base, a
+     * challenge nonce.  Real silicon reseeds a DTRNG from physical entropy at every
+     * reset, so its output varies boot to boot -- and NO single-boot test can see the
+     * difference (that is exactly why the class hides).
+     *
+     * qemu_guest_getrandom_nofail() is the faithful model: real host entropy per boot,
+     * yet DETERMINISTIC when the operator pins `-seed` (reproducible replay stays
+     * reproducible).  The xorshift below is then the DRBG expansion of a per-boot seed
+     * -- which is what a DTRNG-seeded DRBG actually is -- not a fabricated stream.
+     */
+    qemu_guest_getrandom_nofail(&s->rng_state, sizeof(s->rng_state));
+    if (s->rng_state == 0) {
+        s->rng_state = ELS_PRNG_SEED;   /* xorshift32 degenerates on a zero seed */
+    }
     s->err_status = 0;
 }
 
