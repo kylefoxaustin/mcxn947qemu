@@ -114,6 +114,27 @@
 #define BEACON_MAGIC 0xB5B6B7C0u
 #define BEACON_FILL  0x5Au
 
+/*
+ * ⭐ THE INFORMATION TO TELL A REBOOT FROM A REPLAY WAS NEVER ON THE WIRE.  YOU CANNOT
+ *   RECOVER IT WITH A SMARTER RULE; YOU HAVE TO ADD IT.   (rt1180emulator / 95emulator)
+ *
+ * A replayed frame and a genuine reboot are IDENTICAL on the sequence number alone: a
+ * peer that restarts resets seq to 1, which reads as seq<=last -- exactly a replay.  A
+ * bigger-backwards-jump rule cannot save it either: a stalled RX ring can hand back seq 1
+ * too.  The only fix is a value the peer CHANGES ACROSS ITS OWN BOOTS and nothing else --
+ * a per-boot incarnation.  Ratified fleet body (identical on rt1180 / 95 / imx91 / here):
+ *
+ *   [14..17] magic 0xB5B6B7C0     [20..23] seq (BE)         [28..63] 0x5A fill
+ *   [18..19] self-ethertype       [24..27] INCARNATION (BE, per-boot)
+ *
+ * The incarnation comes from the ELS DTRNG (ELS_PRNG_DATOUT), which reseeds from physical
+ * entropy every power-on -- so it is genuinely per-boot AND per-instance.  0x5A5A5A5A is
+ * the SENTINEL a legacy/v1 node produces by leaving [24..27] as fill: it means "no
+ * incarnation", and TX guarantees a real nonce never collides with it.
+ */
+#define ELS_PRNG_DATOUT  (*(volatile uint32_t *)0x4005405Cu)  /* fresh per-boot entropy word */
+#define BEACON_SENTINEL  0x5A5A5A5Au    /* [24..27]==fill => legacy peer, no incarnation */
+
 #define MEM32(a) (*(volatile uint32_t *)(uintptr_t)(a))
 #define MEM8(a)  (*(volatile uint8_t  *)(uintptr_t)(a))
 
@@ -239,6 +260,42 @@ void enet_handler(void)
 
 static uint32_t tx_seq;
 
+/* This node's per-boot incarnation, drawn ONCE at boot and stamped into every frame. */
+static uint32_t my_incarn;
+
+/*
+ * Draw the per-boot incarnation.
+ *
+ * ⭐ A NONCE THAT IS THE SAME EVERY BOOT IS A CONSTANT WEARING A NONCE'S NAME, AND NO
+ *   SINGLE-BOOT TEST CAN SEE THE DIFFERENCE.                             (rt1180 / 95)
+ *
+ * The honest source is the ELS DTRNG: it reseeds from host entropy at every reset, so two
+ * boots of the same firmware draw DIFFERENT words (and two instances on one wire draw
+ * different words too).  That is the whole load-bearing property -- proven by the reboot
+ * test, and DELIBERATELY BROKEN by -DINCARN_CONSTANT below to show the bug returns without it.
+ */
+static uint32_t read_incarnation(void)
+{
+#ifdef INCARN_CONSTANT
+    /*
+     * NEGATIVE CONTROL (95emulator's case C / rt1180's constant-nonce mutation): a fixed
+     * value, so a rebooted peer carries the SAME incarnation as before and its seq reset
+     * becomes indistinguishable from a replay again.  A test that cannot reproduce the bug
+     * with the fix disabled has not proven the fix is load-bearing.
+     */
+    return 0xC0FFEE00u;
+#else
+    uint32_t v = ELS_PRNG_DATOUT;
+
+    /* TX xors any real nonce off the sentinel: a v2 node must NEVER emit 0x5A5A5A5A (that
+     * value MEANS "no incarnation"), nor 0 ("refuse to beacon if none"). */
+    if (v == BEACON_SENTINEL || v == 0) {
+        v ^= 0xA5A5A5A5u;
+    }
+    return v;
+#endif
+}
+
 /*
  * BEACON_LONG arms this node to send a frame whose first 64 bytes are a FLAWLESS beacon
  * -- right magic, right self-ethertype, right fill, fresh sequence -- inside a LONGER
@@ -306,11 +363,23 @@ static void arm_tx(void)
 #define BAD_PATTERN  3
 #define BAD_REPLAY   4
 #define BAD_LEN      5
+/*
+ * BAD_REBOOT is NOT a corruption -- it is a FRESH sighting of a peer that RESTARTED.  Its
+ * seq went backwards (reset to 1), which on seq alone is a replay; only the changed
+ * incarnation tells them apart.  The caller announces it once and counts the peer LIVE.
+ * A distinct kind, never inside the ratified CORRUPT token (a reboot is not a fault).
+ */
+#define BAD_REBOOT   6
 
-/* Highest sequence number seen from each peer.  A beacon's seq only ever goes UP. */
+/* Highest sequence number seen from each peer.  A beacon's seq only ever goes UP --
+ * WITHIN A BOOT.  Across a reboot it resets, and incarn_slot[] is how we know that. */
 static uint32_t seq_slot[PEERTAB_MAX];
 static int have_slot[PEERTAB_MAX];
+static uint32_t incarn_slot[PEERTAB_MAX];  /* the per-boot nonce we last saw from each peer */
+static int have_incarn[PEERTAB_MAX];
 static uint32_t gaps;
+static uint32_t reboots;
+static uint32_t legacy_frames;
 
 /*
  * ⭐ I BUILT A CHECKER THAT ASKS "IS THIS FRAME VALID." A STALE FRAME IS VALID.
@@ -371,8 +440,10 @@ static int frame_ok(uint32_t et)
     uint32_t magic;
     uint32_t self_et;
     uint32_t seq;
+    uint32_t incarn;
     uint32_t *last;
     int *have;
+    int slot;
     int i;
 
     /*
@@ -418,7 +489,8 @@ static int frame_ok(uint32_t et)
         return BAD_SELF_ET;     /* the frame contradicts itself */
     }
 
-    for (i = 24; i < FRAME_LEN; i++) {
+    /* Fill is now [28..63]; [24..27] carries the incarnation, which is NOT fill-checked. */
+    for (i = 28; i < FRAME_LEN; i++) {
         if (MEM8(RXBUF + i) != BEACON_FILL) {
             return BAD_PATTERN;
         }
@@ -427,22 +499,53 @@ static int frame_ok(uint32_t et)
     /* FRESHNESS.  Everything above says the frame is WELL-FORMED.  Only this says NEW. */
     seq = ((uint32_t)MEM8(RXBUF + 20) << 24) | ((uint32_t)MEM8(RXBUF + 21) << 16) |
           ((uint32_t)MEM8(RXBUF + 22) << 8)  |  (uint32_t)MEM8(RXBUF + 23);
+    incarn = ((uint32_t)MEM8(RXBUF + 24) << 24) | ((uint32_t)MEM8(RXBUF + 25) << 16) |
+             ((uint32_t)MEM8(RXBUF + 26) << 8)  |  (uint32_t)MEM8(RXBUF + 27);
 
-    {
-        int slot = peer_idx(et);
+    slot = peer_idx(et);
+    if (slot < 0) {
+        return BAD_OK;          /* our own ethertype; well-formed is all we can say */
+    }
+    last = &seq_slot[slot];
+    have = &have_slot[slot];
 
-        if (slot < 0) {
-            return BAD_OK;      /* our own ethertype; well-formed is all we can say */
-        }
-        last = &seq_slot[slot];
-        have = &have_slot[slot];
+    /*
+     * ⭐ A LEGACY PEER CANNOT BE TOLD REBOOT-FROM-REPLAY, SO I RENDER NO FRESHNESS VERDICT
+     *   ON IT -- COUNTED AS SEEN, FRESHNESS UNVERIFIABLE.                (95emulator design)
+     *
+     * A v1 node leaves [24..27] as fill, so incarn reads as the sentinel.  Without a
+     * per-boot nonce I genuinely cannot distinguish its reboot (seq reset) from its replay
+     * (seq frozen) -- and falsely condemning its reboot as a replay is the SAME masking bug,
+     * inverted.  So a sentinel frame is well-formed and PRESENT, but gets no reboot/replay
+     * ruling.  My own segment is all-v2; this fires only for a genuine legacy peer, and it
+     * is exercised by the -DBEACON_LEGACY build.
+     */
+    if (incarn == BEACON_SENTINEL) {
+        legacy_frames++;
+        return BAD_OK;
+    }
+
+    /*
+     * ⭐ ACROSS A REBOOT, seq RESETS -- AND THAT IS NOT A REPLAY.  The incarnation is the
+     *   only thing that says so.  A new nonce from a known peer means it RESTARTED: accept
+     *   its reset sequence as a fresh baseline instead of condemning it.
+     */
+    if (!have_incarn[slot]) {
+        incarn_slot[slot] = incarn;
+        have_incarn[slot] = 1;
+    } else if (incarn != incarn_slot[slot]) {
+        incarn_slot[slot] = incarn;
+        *last = seq;            /* rebaseline onto the new boot's sequence */
+        *have = 1;
+        reboots++;
+        return BAD_REBOOT;      /* a FRESH sighting, announced by the caller -- not a fault */
     }
 
     if (*have && seq <= *last) {
         /*
-         * A sequence that does not advance did not come off the wire.  It came out of
-         * a buffer the receiver never rewrote.  DO NOT update *last here: a stale frame
-         * must not be allowed to drag our own baseline BACKWARDS with it.
+         * Same incarnation, sequence did not advance: this did not come off the wire, it
+         * came out of a buffer the receiver never rewrote.  DO NOT update *last: a stale
+         * frame must not drag our baseline BACKWARDS with it.
          */
         return BAD_REPLAY;
     }
@@ -556,6 +659,15 @@ void cpu0_main(void)
     puthex2(MY_ETHERTYPE & 0xFF);
     puts_(", waiting for BOTH peers\r\n");
 
+    /* Draw this boot's incarnation ONCE, before any frame is built.  Printed so a human
+     * (and the reboot test) can SEE it change across boots -- a constant here would be the
+     * whole bug. */
+    my_incarn = read_incarnation();
+    puts_("ENET-LAB3 incarnation 0x");
+    puthex2((my_incarn >> 24) & 0xFF); puthex2((my_incarn >> 16) & 0xFF);
+    puthex2((my_incarn >> 8) & 0xFF);  puthex2(my_incarn & 0xFF);
+    puts_("\r\n");
+
     DMA_MODE = DMA_SWR;
     while (DMA_MODE & DMA_SWR) {
     }
@@ -607,7 +719,9 @@ void cpu0_main(void)
      *             DISAGREES WITH ITSELF is a stale or clobbered buffer -- which is
      *             precisely what a write-back bug produces.
      *   [20..23]  monotonic sequence, per sender
-     *   [24..63]  0x5A, the same known byte the SPI/I2C labs already assert on
+     *   [24..27]  per-boot incarnation -- tells a peer's REBOOT (new nonce, seq reset)
+     *             from a REPLAY (same nonce, seq frozen); 0x5A5A5A5A == legacy/none
+     *   [28..63]  0x5A, the same known byte the SPI/I2C labs already assert on
      *
      * CORRUPTION IS THE ASSERTION; LOSS IS A STATISTIC.  A gap in the sequence is
      * logged, never failed -- a mcast socket may legitimately drop a frame, and a
@@ -619,9 +733,25 @@ void cpu0_main(void)
     MEM8(TXBUF + 17) = BEACON_MAGIC & 0xFF;
     MEM8(TXBUF + 18) = (MY_ETHERTYPE >> 8) & 0xFF;   /* must equal bytes 12..13 */
     MEM8(TXBUF + 19) = MY_ETHERTYPE & 0xFF;
+#ifdef BEACON_LEGACY
+    /*
+     * LEGACY (v1) EMITTER: leave [24..27] as fill, so a receiver reads the 0x5A5A5A5A
+     * sentinel and knows this node carries NO incarnation.  Exists to exercise the
+     * receiver's freshness-unverifiable path -- otherwise that path is untested code.
+     */
     for (i = 24; i < FRAME_LEN; i++) {
         MEM8(TXBUF + i) = BEACON_FILL;
     }
+#else
+    /* v2: the per-boot incarnation at [24..27] (BE), then fill [28..63]. */
+    MEM8(TXBUF + 24) = (my_incarn >> 24) & 0xFF;
+    MEM8(TXBUF + 25) = (my_incarn >> 16) & 0xFF;
+    MEM8(TXBUF + 26) = (my_incarn >> 8) & 0xFF;
+    MEM8(TXBUF + 27) = my_incarn & 0xFF;
+    for (i = 28; i < FRAME_LEN; i++) {
+        MEM8(TXBUF + i) = BEACON_FILL;
+    }
+#endif
 #endif
     MEM32(TXDESC + 0) = TXBUF;
     MEM32(TXDESC + 4) = 0;
@@ -756,6 +886,22 @@ void cpu0_main(void)
                  *   lab whose whole purpose is to find corruption cannot afford that.
                  */
                 bad = frame_ok(et);
+                if (bad == BAD_REBOOT) {
+                    /*
+                     * A peer's per-boot incarnation CHANGED: it restarted.  Its seq reset,
+                     * which on seq alone is a replay -- the incarnation is what tells them
+                     * apart.  This is a LIVE, FRESH peer, so announce it once (a distinct
+                     * kind, NOT inside the CORRUPT token) and fall through to count it seen.
+                     */
+                    puts_("ENET-LAB3 REBOOT: peer 0x");
+                    puthex2((et >> 8) & 0xFF); puthex2(et & 0xFF);
+                    puts_(" new incarnation 0x");
+                    for (d = 24; d < 28; d++) {
+                        puthex2(MEM8(RXBUF + d));
+                    }
+                    puts_("\r\n");
+                    bad = BAD_OK;
+                }
                 if (bad) {
                     /*
                      * holobench ratified "ENET-LAB3 CORRUPT:" as THE bad-frame token.
