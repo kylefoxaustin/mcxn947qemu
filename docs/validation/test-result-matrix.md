@@ -96,7 +96,7 @@ register-only≈registration/Tier-C.
 | opamp | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | vref | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | pdm | ✓ | ◐ | register-only | boot, corpus | SKIP |
-| sinc | ✓ | ✓ | functional | mcxn-sinc | SKIP |
+| sinc | ✓ | ✓ | functional | mcxn-sinc, mcxn-sinc-dma | SKIP |
 
 ## GPIO / pin / DMA / interrupt
 
@@ -104,7 +104,7 @@ register-only≈registration/Tier-C.
 |-------|:---:|:---:|-------|-----------|:---:|
 | gpio | ✓ | ✓ | functional | mcxn-gpio | SKIP |
 | port | ✓ | ✓ | register-only | mcxn-gpio, mcxn-mcuxpresso, mcxn-port-pads | SKIP |
-| edma | ✓ | ✓ | functional | mcxn-dma, mcxn-dma-nbytes, mcxn-sai-dma, mcxn-dac-dma, mcxn-uart-dma, mcxn-adc-dma, mcxn-lpuart-edma-stock, mcxn-edma-stock | SKIP |
+| edma | ✓ | ✓ | functional | mcxn-dma, mcxn-dma-nbytes, mcxn-sai-dma, mcxn-dac-dma, mcxn-uart-dma, mcxn-adc-dma, mcxn-sinc-dma, mcxn-lpuart-edma-stock, mcxn-edma-stock | SKIP |
 | inputmux | ✓ | ✓ | functional | mcxn-inputmux-gate, mcxn-adc-hwtrig, mcxn-reset-values | SKIP |
 | pint | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | intm | ✓ | ◐ | register-only | boot, corpus | SKIP |

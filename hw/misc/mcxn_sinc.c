@@ -66,6 +66,7 @@
 /* --- CCR ------------------------------------------------------------------- */
 #define CCR_CHEN        (1u << 0)
 #define CCR_PFEN        (1u << 1)
+#define CCR_DMAEN       (1u << 3)             /* CnCCR[DMAEN]: FIFO-watermark -> eDMA */
 #define CCR_FIFOEN      (1u << 14)
 
 /* --- CDR ------------------------------------------------------------------- */
@@ -125,6 +126,27 @@ static void sinc_update_irq(MCXNSINCState *s)
                  (s->regs[SINC_FIFOIS / 4] & s->regs[SINC_FIFOIE / 4]);
 
     qemu_set_irq(s->irq, level);
+}
+
+/*
+ * Drive channel n's eDMA request line.  It follows the SAME FIFO-watermark condition
+ * that raises CHF, but gated by CnCCR[DMAEN] and routed to the eDMA rather than the NVIC.
+ * The engine drains a minor loop per level above the watermark; when the FIFO falls back
+ * to the watermark the request deasserts.  Without this, a SINC driver that arms eDMA at
+ * CnRDATA and sets DMAEN waits forever -- the results it computed never move.
+ */
+static void sinc_update_dma_req(MCXNSINCState *s, int n)
+{
+    uint32_t ccr  = sinc_ch_reg(s, n, SINC_CH_CCR);
+    uint32_t ccfr = sinc_ch_reg(s, n, SINC_CH_CCFR);
+    uint32_t wmk  = CCFR_FIFOWMK(ccfr);
+    bool req = (ccr & CCR_FIFOEN) && (ccr & CCR_DMAEN) &&
+               (s->ch[n].fifo_count > wmk);
+
+    if (req != s->ch_dma_req[n]) {
+        s->ch_dma_req[n] = req;
+        qemu_set_irq(s->dma_req[n], req);
+    }
 }
 
 static void sinc_reset_channel_filter(MCXNSINCChannel *c)
@@ -190,6 +212,7 @@ static void sinc_push_result(MCXNSINCState *s, int n, int64_t v)
     }
 
     sinc_update_irq(s);
+    sinc_update_dma_req(s, n);   /* the FIFO just grew -- maybe past the watermark */
 }
 
 /*
@@ -348,6 +371,7 @@ static uint64_t mcxn_sinc_read(void *opaque, hwaddr offset, unsigned size)
                     s->regs[SINC_NIS / 4] &= ~NIS_CHF(n);
                     sinc_update_irq(s);
                 }
+                sinc_update_dma_req(s, n);   /* deassert once drained to the watermark */
             } else {
                 if (!c->have_last) {
                     return 0;
@@ -464,6 +488,9 @@ static void mcxn_sinc_write(void *opaque, hwaddr offset, uint64_t value,
                 sinc_reset_channel_filter(&s->ch[n]);
                 s->ch[n].running = false;
             }
+            /* DMAEN/FIFOEN just changed -- re-evaluate the request even if the FIFO
+             * level did not (arming DMAEN over an already-full FIFO must assert). */
+            sinc_update_dma_req(s, n);
             return;
         }
 
@@ -471,6 +498,7 @@ static void mcxn_sinc_write(void *opaque, hwaddr offset, uint64_t value,
             uint32_t ibfmt = CCFR_IBFMT(v);
 
             s->regs[offset / 4] = v;
+            sinc_update_dma_req(s, n);   /* the watermark may have moved */
             if ((ibfmt == IBFMT_EM || ibfmt == IBFMT_EXT) &&
                 !s->warned_ext_source) {
                 s->warned_ext_source = true;
@@ -528,6 +556,10 @@ static void mcxn_sinc_reset(DeviceState *dev)
     }
     s->warned_ext_source = false;
     qemu_set_irq(s->irq, 0);
+    for (int n = 0; n < MCXN_SINC_NUM_CH; n++) {
+        s->ch_dma_req[n] = false;
+        qemu_set_irq(s->dma_req[n], 0);
+    }
 }
 
 static void mcxn_sinc_realize(DeviceState *dev, Error **errp)
@@ -537,7 +569,11 @@ static void mcxn_sinc_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_sinc_ops, s,
                           TYPE_MCXN_SINC, MCXN_SINC_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);   /* sysbus IRQ 0: SINC_FILTER_IRQn */
+    /* sysbus IRQs 1..5: one eDMA request line per channel (SINC0 ipd_req_sinc[0..4]). */
+    for (int n = 0; n < MCXN_SINC_NUM_CH; n++) {
+        sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[n]);
+    }
 }
 
 static const VMStateDescription vmstate_mcxn_sinc_channel = {

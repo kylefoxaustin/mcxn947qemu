@@ -75,6 +75,13 @@ struct MCXNSINCState {
     MemoryRegion iomem;
     qemu_irq     irq;          /* SINC_FILTER_IRQn = 142 */
 
+    /* One eDMA request line per channel (CMSIS SINC0 ipd_req_sinc[0..4] = 103..107).
+     * A channel drives its line when its FIFO passes the watermark AND CnCCR[DMAEN] is
+     * set -- the same FIFO-watermark condition that raises the CHF interrupt, but routed
+     * to the eDMA instead so a DMA-driven SINC driver's transfer actually runs. */
+    qemu_irq     dma_req[MCXN_SINC_NUM_CH];
+    bool         ch_dma_req[MCXN_SINC_NUM_CH];   /* last level driven (dedupe) */
+
     uint32_t regs[MCXN_SINC_SIZE / 4];
     MCXNSINCChannel ch[MCXN_SINC_NUM_CH];
 

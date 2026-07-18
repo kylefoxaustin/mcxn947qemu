@@ -49,6 +49,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNEDMAState, MCXN_EDMA)
 #define MCXN_DMA_REQ_SAI0_TX       100
 #define MCXN_DMA_REQ_SAI1_RX       101
 #define MCXN_DMA_REQ_SAI1_TX       102
+#define MCXN_DMA_REQ_SINC0_CH0     103   /* SINC0 ipd_req_sinc[n] = 103 + n, n=0..4 */
 
 typedef struct MCXNEDMAChan {
     uint32_t csr, es, intr, sbr, pri, mux;

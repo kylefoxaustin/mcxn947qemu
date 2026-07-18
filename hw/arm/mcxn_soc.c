@@ -1229,6 +1229,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
                                             MCXN_DMA_REQ_SAI0_RX + 2 * i));
     }
+    for (i = 0; i < MCXN_SINC_NUM_CH; i++) {             /* SINC0 ch n -> 103+n */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->sinc0), 1 + i,   /* sysbus IRQ 0 is the NVIC line */
+                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                            MCXN_DMA_REQ_SINC0_CH0 + i));
+    }
     for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
