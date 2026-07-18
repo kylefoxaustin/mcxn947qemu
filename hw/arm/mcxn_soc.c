@@ -1261,6 +1261,14 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                            qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
                                                   MCXN_DMA_REQ_CTIMER0_M1 + 2 * i));
     }
+    /* SCT0: sysbus IRQ 1 = DMA request 0 (src 19), IRQ 2 = DMA request 1 (src 20).  An SCT
+     * event is a one-shot PULSE, so these drive the eDMA "req-pulse" input.  IRQ 0 is NVIC. */
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->sct0), 1,
+                       qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                                              MCXN_DMA_REQ_SCT0_DMA0));
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->sct0), 2,
+                       qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                                              MCXN_DMA_REQ_SCT0_DMA1));
     for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),

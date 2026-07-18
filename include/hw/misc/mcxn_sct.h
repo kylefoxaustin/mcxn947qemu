@@ -32,6 +32,7 @@ struct MCXNSCTState {
     MemoryRegion iomem;
     Clock       *clk;   /* driven by SYSCON[SCTCLKSEL]/[SCTCLKDIV] */
     qemu_irq     irq;           /* SCT0_IRQn */
+    qemu_irq     dma_req[2];    /* SCT0 DMA0 / DMA1 request (pulse on a selected event) */
     QEMUTimer    event_timer;
     int64_t next_event_ns; /* deadline: periodic timers must not drift */   /* periodic match/limit event 0 */
 

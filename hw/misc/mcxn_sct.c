@@ -25,6 +25,11 @@
 #define SCT_EVFLAG   0xF4    /* Event Flag (W1C) */
 #define SCT_CONFLAG  0xFC    /* Conflict Flag (W1C) */
 #define SCT_MATCHREL0 0x180  /* Match Reload value 0 (the limit) */
+#define SCT_DMAREQ0  0x5C    /* DMA Request 0: DEV_n selects events -> DMA req 0 */
+#define SCT_DMAREQ1  0x60    /* DMA Request 1: DEV_n selects events -> DMA req 1 */
+
+/* DMAREQ0/1[DEV_0]: does event 0 (the modelled match/limit event) drive this request? */
+#define SCT_DMAREQ_DEV0  (1u << 0)
 
 /* CTRL self-clearing counter-clear bits (low and high 16-bit counter halves). */
 #define SCT_CTRL_CLRCTR_L_MASK   0x00000008u
@@ -138,6 +143,17 @@ static void mcxn_sct_event_tick(void *opaque)
 
     sct_st32(s, SCT_EVFLAG, sct_ld32(s, SCT_EVFLAG) | SCT_EV0);
     mcxn_sct_update_irq(s);
+    /*
+     * Event 0 can drive either eDMA request line (CMSIS SCT0 DMA0=19, DMA1=20).
+     * DMAREQ0/1[DEV_0] selects whether this event feeds each one; the event itself
+     * is the trigger, as a one-shot PULSE (one event, one minor loop -- serviced by
+     * the eDMA edge path).  INPUTMUX still gates the line downstream. */
+    if (sct_ld32(s, SCT_DMAREQ0) & SCT_DMAREQ_DEV0) {
+        qemu_irq_pulse(s->dma_req[0]);
+    }
+    if (sct_ld32(s, SCT_DMAREQ1) & SCT_DMAREQ_DEV0) {
+        qemu_irq_pulse(s->dma_req[1]);
+    }
     /* Re-arm from the previous DEADLINE, never from "now": re-adding the
      * callback's dispatch latency every period makes the error accumulate, so the
      * event rate runs systematically slow and drifts without bound. */
@@ -255,7 +271,9 @@ static void mcxn_sct_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_sct_ops, s,
                           TYPE_MCXN_SCT, MCXN_SCT_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);          /* 0: NVIC event interrupt */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[0]);   /* 1: DMA0 request (src 19) */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);   /* 2: DMA1 request (src 20) */
     timer_init_ns(&s->event_timer, QEMU_CLOCK_VIRTUAL, mcxn_sct_event_tick, s);
 }
 

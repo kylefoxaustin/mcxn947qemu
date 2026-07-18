@@ -80,7 +80,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `RTC` | 1 | ✅ functional + active (live 1 Hz calendar tick + alarm match -> IRQ 52 to NVIC; tests/mcxn-rtc) |
 | `SAI` | 2 | ✅ **real data path** — 8-word TX/RX FIFOs, byte-exact audio over the board-level TXD→RXD jumper, real overrun/underrun, and a WORD RATE verified against SysTick and swept on BOTH axes (TCR2[DIV] and TCR5[W0W]). Drives eDMA request source 100/99; tests/mcxn-sai, mcxn-sai-dma |
 | `SCG` | 1 | ✅ functional |
-| `SCT` | 1 | ✅ functional + active (running counter -> periodic match/limit event IRQ 33 to NVIC; tests/mcxn-sct) |
+| `SCT` | 1 | ✅ functional + active (running counter -> periodic match/limit event IRQ 33 to NVIC; tests/mcxn-sct) + **event-paced eDMA** (DMA0=19/DMA1=20, gated by DMAREQ0/1[DEV_n], one-shot pulse per event), mutation-proven on data + rate axes; tests/mcxn-sct-dma |
 | `SEMA42` | 1 | ✅ functional (register-accurate) |
 | `SINC` | 1 | ✅ **computes** — a real CIC filter (H(z) = ((1−z^−OSR)/(1−z^−1))^ORD), verified against the closed-form DC gain OSR^ORD across a shape sweep. `SR` used to be hardwired 0x1F00, which hung the stock SDK (MCLKRDY=0) and faked an endless zero-stream (FIFOEMPTY=0); IRQ 142; tests/mcxn-sinc |
 | `SMARTDMA` | 1 | ⚠️ **HONEST-FAULT** — the EZH core is not modelled, so the program never runs and NOTHING IS MOVED. `CTRL[START]` therefore stays SET (a dead coprocessor) instead of self-clearing, which used to tell a polling guest its transfer had COMPLETED while the destination buffer was untouched |
