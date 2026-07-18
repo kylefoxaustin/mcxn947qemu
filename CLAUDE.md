@@ -121,11 +121,14 @@ That table is the status. Read it, and do not hand-edit it.**
 
 ### Real open items (stated, not papered over)
 
-- **DMA request lines: SAI, DAC, ADC, the LPFlexcomm serials, SINC, and FlexSPI are wired**
-  (each drives its CMSIS request-mux source; sources in `include/hw/dma/mcxn_edma.h`).
+- **DMA request lines: SAI, DAC, ADC, the LPFlexcomm serials, SINC, FlexSPI, and
+  FlexPWM (value-register / reload path) are wired** (each drives its CMSIS request-mux
+  source; sources in `include/hw/dma/mcxn_edma.h`).
   **PDM's is not — but only because there is no mic bitstream in emulation, so its FIFO
-  stays empty and the request could never assert (the gap is the source, not the line).**
-  The lower-DMA-frequency blocks (CTIMER, SCT, FlexPWM, HsCmp, PinInt) are still
+  stays empty and the request could never assert (the gap is the source, not the line).
+  FlexPWM's CAPTURE DMA is the same shape — a capture request needs an input edge on the
+  PWM pins, which has no signal source in emulation, so the gap is the missing input.**
+  The lower-DMA-frequency blocks (CTIMER, SCT, HsCmp, PinInt) are still
   unwired, so their DMA-driven stock drivers would hang.
 - **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
   `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is

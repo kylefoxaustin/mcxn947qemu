@@ -25,9 +25,15 @@
 #define PWM_SM_INIT        0x02    /* Initial count */
 #define PWM_SM_CTRL2       0x04    /* Control 2 (CLK_SEL) */
 #define PWM_SM_CTRL        0x06    /* Control (PRSC) */
+#define PWM_SM_VAL0        0x0A    /* Value register 0 (first of the VAL block) */
 #define PWM_SM_VAL1        0x0E    /* Modulo (period) value */
+#define PWM_SM_VAL5        0x1E    /* Value register 5 (last of the VAL block) */
 #define PWM_SM_STS         0x24    /* Status (W1C flags) */
 #define PWM_SM_INTEN       0x26    /* Interrupt enable */
+#define PWM_SM_DMAEN       0x28    /* DMA Enable */
+
+/* SM_DMAEN[VALDE]: Value Registers DMA Enable (CMSIS PWM_DMAEN_VALDE_MASK). */
+#define PWM_DMAEN_VALDE    0x0200u
 
 /* STS / INTEN interrupt bits (submodule). */
 #define PWM_STS_CMPF       0x003Fu /* compare flags */
@@ -162,6 +168,32 @@ static void mcxn_pwm_update_irq(MCXNPWMState *s)
 }
 
 /*
+ * Submodule-0 value-register DMA request (reload-driven).
+ *
+ * A DMA-driven FlexPWM control loop (PWM_SetupPwmDMA / the fsl_pwm value-DMA path)
+ * arms an eDMA channel at the VALx registers, sets SM0.DMAEN[VALDE], and then never
+ * writes the duty-cycle words itself: on every RELOAD the FlexPWM raises the value
+ * DMA request (mux source FlexPWM0 Val0 = 43), the eDMA writes the next VALx word(s),
+ * and the new duty cycle takes effect at the following reload.  Before this line was
+ * wired, VALDE drove nothing -- the request could never assert, and a value-DMA loop
+ * that armed a channel and waited for the reload request waited forever.
+ *
+ * The request is EDGE-driven by the reload event, not a FIFO level: one reload must
+ * produce exactly one eDMA minor loop.  We assert here on the reload and DEASSERT
+ * when the eDMA's write lands on a VALx register (mcxn_pwm_write), which is the
+ * "consumption" that terminates the eDMA service loop after a single minor loop --
+ * exactly as a SAI TDR write drops the SAI FIFO request.
+ */
+static void mcxn_pwm_set_val_dma(MCXNPWMState *s, bool level)
+{
+    if (level == s->val_dma_lvl) {
+        return;
+    }
+    s->val_dma_lvl = level;
+    qemu_set_irq(s->dma_req_val, level);
+}
+
+/*
  * Submodule-0 counter period from INIT/VAL1, the CTRL[PRSC] prescaler and the
  * IPBus rate.
  *
@@ -202,6 +234,12 @@ static void mcxn_pwm_reload_tick(void *opaque)
 
     pwm_st16(s, PWM_SM_STS, pwm_ld16(s, PWM_SM_STS) | PWM_STS_RF);
     mcxn_pwm_update_irq(s);
+
+    /* On a reload, raise the value-register DMA request if the guest enabled it.
+     * The eDMA writes the next VALx word(s); that write deasserts it again. */
+    if (pwm_ld16(s, PWM_SM_DMAEN) & PWM_DMAEN_VALDE) {
+        mcxn_pwm_set_val_dma(s, true);
+    }
 
     s->next_reload_ns += mcxn_pwm_period_ns(s);
     timer_mod(&s->reload_timer, s->next_reload_ns);
@@ -289,6 +327,13 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
     if (offset <= PWM_SM_INTEN + 1 && offset + size > PWM_SM_INTEN) {
         mcxn_pwm_update_irq(s);
     }
+
+    /* A write landing on submodule-0's VALx block is the eDMA consuming the
+     * reload-driven value request: deassert it so the eDMA service loop stops
+     * after this single minor loop (see mcxn_pwm_set_val_dma). */
+    if (s->val_dma_lvl && offset + size > PWM_SM_VAL0 && offset <= PWM_SM_VAL5 + 1) {
+        mcxn_pwm_set_val_dma(s, false);
+    }
 }
 
 static const MemoryRegionOps mcxn_pwm_ops = {
@@ -308,6 +353,8 @@ static void mcxn_pwm_reset(DeviceState *dev)
     memset(s->regs, 0, sizeof(s->regs));
     timer_del(&s->reload_timer);
     qemu_set_irq(s->irq, 0);
+    s->val_dma_lvl = false;
+    qemu_set_irq(s->dma_req_val, 0);
 }
 
 static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
@@ -317,18 +364,20 @@ static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_pwm_ops, s,
                           TYPE_MCXN_PWM, MCXN_PWM_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);          /* 0: NVIC reload/compare */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_val);  /* 1: value-register DMA req */
     timer_init_ns(&s->reload_timer, QEMU_CLOCK_VIRTUAL, mcxn_pwm_reload_tick, s);
 }
 
 static const VMStateDescription vmstate_mcxn_pwm = {
     .name = TYPE_MCXN_PWM,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNPWMState, MCXN_PWM_SIZE),
         VMSTATE_TIMER(reload_timer, MCXNPWMState),
         VMSTATE_INT64(next_reload_ns, MCXNPWMState),
+        VMSTATE_BOOL(val_dma_lvl, MCXNPWMState),
         VMSTATE_END_OF_LIST()
     },
 };

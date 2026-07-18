@@ -1239,6 +1239,17 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                        qdev_get_gpio_in(DEVICE(&s->edma[0]), MCXN_DMA_REQ_FLEXSPI0_RX));
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexspi0), 3,
                        qdev_get_gpio_in(DEVICE(&s->edma[0]), MCXN_DMA_REQ_FLEXSPI0_TX));
+    /* eFlexPWM0/1: sysbus IRQ 1 = SM0 value-register DMA request (reload-driven).
+     * PWM0 SM0 Val0 = 43, PWM1 SM0 Val0 = 51.  IRQ 0 is the NVIC reload/compare line. */
+    {
+        static const int pwm_val_src[MCXN_NUM_PWM] = {
+            MCXN_DMA_REQ_FLEXPWM0_VAL0, MCXN_DMA_REQ_FLEXPWM1_VAL0
+        };
+        for (i = 0; i < MCXN_NUM_PWM; i++) {
+            sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 1,
+                               qdev_get_gpio_in(DEVICE(&s->edma[0]), pwm_val_src[i]));
+        }
+    }
     for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),

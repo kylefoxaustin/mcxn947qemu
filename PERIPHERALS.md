@@ -75,7 +75,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `PORT` | 6 | ◐ pin-mux stub (adequate) |
 | `POWERQUAD` | 1 | ✅ functional + active (compute-launch -> completion IRQ 76 to NVIC; tests/mcxn-powerquad) |
 | `PUF` | 1 | ✅ functional (register-accurate) |
-| `PWM` | 2 | ✅ **carrier verified** — period from INIT/VAL1 and **CTRL[PRSC]** (the prescaler was NOT MODELLED AT ALL: an 8× slower carrier request produced the same frequency, and carrier frequency IS motor control), measured against SysTick under -icount and swept across prescalers; tests/mcxn-pwm |
+| `PWM` | 2 | ✅ **carrier verified** — period from INIT/VAL1 and **CTRL[PRSC]** (the prescaler was NOT MODELLED AT ALL: an 8× slower carrier request produced the same frequency, and carrier frequency IS motor control), measured against SysTick under -icount and swept across prescalers; tests/mcxn-pwm. **Value-register DMA** (SM0.DMAEN[VALDE] → reload-driven request, FlexPWM0 Val0=43/FlexPWM1 Val0=51) so PWM_SetupPwmDMA streams duty words into VALx; swept on DATA + RATE axes, mutation-proven both; tests/mcxn-flexpwm-dma. (Capture DMA needs a pin input signal that has no source in emulation.) |
 | `QDC` | 2 | ✅ functional (register-accurate; quadrature decoder) |
 | `RTC` | 1 | ✅ functional + active (live 1 Hz calendar tick + alarm match -> IRQ 52 to NVIC; tests/mcxn-rtc) |
 | `SAI` | 2 | ✅ **real data path** — 8-word TX/RX FIFOs, byte-exact audio over the board-level TXD→RXD jumper, real overrun/underrun, and a WORD RATE verified against SysTick and swept on BOTH axes (TCR2[DIV] and TCR5[W0W]). Drives eDMA request source 100/99; tests/mcxn-sai, mcxn-sai-dma |
@@ -172,7 +172,7 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **SAI** — TX FIFO-request interrupt (FRF & FRIE) IRQ (59/60). `tests/mcxn-sai`.
 - [x] **DAC** — FIFO watermark interrupt (FSR.WM & IER.WM_IE) IRQ (106/107/108). `tests/mcxn-dac`.
 - [x] **PowerQuad** — compute-launch -> completion IRQ (76). `tests/mcxn-powerquad`.
-- [x] **PWM** — submodule-0 running counter -> periodic reload IRQ (114/120, QEMUTimer). `tests/mcxn-pwm`.
+- [x] **PWM** — submodule-0 running counter -> periodic reload IRQ (114/120, QEMUTimer). `tests/mcxn-pwm`. Value-register DMA on reload (VALDE-gated, Val0=43/51), mutation-proven on data + rate axes. `tests/mcxn-flexpwm-dma`.
 - [x] **SCT** — running counter -> periodic match/limit event-0 IRQ (33, QEMUTimer). `tests/mcxn-sct`.
 - [x] **I3C** — controller request -> transfer-complete IRQ (95/96). `tests/mcxn-i3c`.
 - [x] **ENET MAC frame path** — DWC ENET-QoS descriptor-ring TX/RX over a real QEMU NIC backend (-nic) + MAC loopback, TI/RI DMA IRQ. `tests/mcxn-enet-mac`. **Cross-board ready.**
