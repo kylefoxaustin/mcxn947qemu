@@ -38,6 +38,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNEDMAState, MCXN_EDMA)
                                          * machine */
 
 /* Request-mux source numbers used by the SoC wiring (CMSIS-exact). */
+#define MCXN_DMA_REQ_FLEXSPI0_RX   1
+#define MCXN_DMA_REQ_FLEXSPI0_TX   2
 #define MCXN_DMA_REQ_ADC0_FIFO_A   21
 #define MCXN_DMA_REQ_ADC0_FIFO_B   22
 #define MCXN_DMA_REQ_DAC0_FIFO     25

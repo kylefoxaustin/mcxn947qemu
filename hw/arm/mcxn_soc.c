@@ -1234,6 +1234,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
                                             MCXN_DMA_REQ_SINC0_CH0 + i));
     }
+    /* FlexSPI0: sysbus IRQ 2 = Rx (src 1), IRQ 3 = Tx (src 2).  IRQ 0/1 are cs/NVIC. */
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexspi0), 2,
+                       qdev_get_gpio_in(DEVICE(&s->edma[0]), MCXN_DMA_REQ_FLEXSPI0_RX));
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexspi0), 3,
+                       qdev_get_gpio_in(DEVICE(&s->edma[0]), MCXN_DMA_REQ_FLEXSPI0_TX));
     for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),

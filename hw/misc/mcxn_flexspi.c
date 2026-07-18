@@ -57,6 +57,7 @@
 
 /* IPRXFCR / IPTXFCR. */
 #define FCR_CLRF       (1u << 0)
+#define FCR_DMAEN      (1u << 1)             /* IP{RX,TX}FCR[{RX,TX}DMAEN] */
 #define FCR_WMRK(v)    (((v) >> 2) & 0x7F)   /* watermark, in 64-bit entries */
 
 /* IPCR1 fields. */
@@ -308,6 +309,8 @@ static void flexspi_finish(MCXNFlexSPIState *s, uint8_t cmd, uint32_t addr)
 }
 
 /* IPCMD[TRG]: run the LUT sequence against the flash. */
+static void flexspi_update_dma_req(MCXNFlexSPIState *s);
+
 static void flexspi_ip_command(MCXNFlexSPIState *s)
 {
     uint32_t ipcr1 = s->regs[FLEXSPI_IPCR1 >> 2];
@@ -356,6 +359,7 @@ static void flexspi_ip_command(MCXNFlexSPIState *s)
             s->regs[FLEXSPI_INTR >> 2] |= INTR_IPRXWA;
         }
         flexspi_finish(s, q.cmd, addr);
+        flexspi_update_dma_req(s);   /* RX FIFO now has data -- ask the eDMA */
         return;
     }
 
@@ -370,11 +374,35 @@ static void flexspi_ip_command(MCXNFlexSPIState *s)
         s->pgm_len = datsz;
         s->regs[FLEXSPI_INTR >> 2] |= INTR_IPTXWE;
         mcxn_flexspi_update_irq(s);
+        flexspi_update_dma_req(s);   /* TX FIFO wants program data -- ask the eDMA */
         return;
     }
 
     /* No data phase: WREN/WRDI, erase, and friends. */
     flexspi_finish(s, q.cmd, addr);
+}
+
+/*
+ * Drive the RX/TX eDMA request lines.  RX asks while the read FIFO still holds data (and
+ * IPRXFCR[RXDMAEN] is set); TX asks while the controller wants program data (INTR[IPTXWE]
+ * and IPTXFCR[TXDMAEN]).  In DMA mode RFDR0 auto-pops per read (below), so the engine
+ * drains the FIFO word by word until the request drops -- without this the DMA never runs.
+ */
+static void flexspi_update_dma_req(MCXNFlexSPIState *s)
+{
+    bool rx = (s->rx_pos < s->rx_len) &&
+              (s->regs[FLEXSPI_IPRXFCR >> 2] & FCR_DMAEN);
+    bool tx = (s->regs[FLEXSPI_INTR >> 2] & INTR_IPTXWE) &&
+              (s->regs[FLEXSPI_IPTXFCR >> 2] & FCR_DMAEN);
+
+    if (rx != s->rx_dma_lvl) {
+        s->rx_dma_lvl = rx;
+        qemu_set_irq(s->dma_req_rx, rx);
+    }
+    if (tx != s->tx_dma_lvl) {
+        s->tx_dma_lvl = tx;
+        qemu_set_irq(s->dma_req_tx, tx);
+    }
 }
 
 static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
@@ -421,21 +449,37 @@ static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
         return ((avail + 7) / 8) & 0xFF;
     default:
         if (off >= FLEXSPI_RFDR0 && off < FLEXSPI_RFDR0 + 32 * 4) {
-            /* The guest reads RFDR[0..watermark] and then pops the FIFO by
-             * clearing INTR[IPRXWA]; RFDR itself does not advance. */
+            /* In interrupt mode the guest reads RFDR[0..watermark] and pops the FIFO
+             * by clearing INTR[IPRXWA]; RFDR itself does not advance. */
+            uint32_t ret;
+
             i = (off - FLEXSPI_RFDR0) / 4;
             byte = s->rx_pos + i * 4;
 
             if (byte + 4 <= s->rx_len) {
-                return ldl_le_p(&s->rx_buf[byte]);
-            }
-            if (byte < s->rx_len) {
+                ret = ldl_le_p(&s->rx_buf[byte]);
+            } else if (byte < s->rx_len) {
                 uint8_t tail[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
 
                 memcpy(tail, &s->rx_buf[byte], s->rx_len - byte);
-                return ldl_le_p(tail);
+                ret = ldl_le_p(tail);
+            } else {
+                ret = 0xFFFFFFFFu;   /* past the data: an erased NOR reads ones */
             }
-            return 0xFFFFFFFFu;   /* past the data: an erased NOR reads ones */
+
+            /* In DMA mode there is no separate IACK for the eDMA to issue, so RFDR0
+             * pops on each read: advance one word, drop IPRXWA when the FIFO empties,
+             * and re-evaluate the request line so the transfer terminates on its own. */
+            if (i == 0 && (s->regs[FLEXSPI_IPRXFCR >> 2] & FCR_DMAEN) &&
+                s->rx_pos < s->rx_len) {
+                s->rx_pos += 4;
+                if (s->rx_pos >= s->rx_len) {
+                    s->regs[FLEXSPI_INTR >> 2] &= ~INTR_IPRXWA;
+                    mcxn_flexspi_update_irq(s);
+                }
+                flexspi_update_dma_req(s);
+            }
+            return ret;
         }
         return v;
     }
@@ -481,6 +525,7 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
             s->regs[off >> 2] |= INTR_IPTXWE;   /* more to feed */
         }
         mcxn_flexspi_update_irq(s);
+        flexspi_update_dma_req(s);
         return;
 
     case FLEXSPI_INTEN:
@@ -494,6 +539,7 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
             s->rx_len = s->rx_pos = 0;
             s->regs[FLEXSPI_INTR >> 2] &= ~INTR_IPRXWA;
         }
+        flexspi_update_dma_req(s);   /* RXDMAEN may have just been armed/cleared */
         return;
 
     case FLEXSPI_IPTXFCR:
@@ -501,6 +547,7 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
         if ((val & FCR_CLRF) && !s->pgm_pending) {
             s->tx_len = 0;
         }
+        flexspi_update_dma_req(s);   /* TXDMAEN may have just been armed/cleared */
         return;
 
     case FLEXSPI_IPCMD:
@@ -527,7 +574,13 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
                 }
                 if (s->tx_len >= s->pgm_len) {
                     flexspi_finish(s, NOR_PP, s->pgm_addr);
+                    s->regs[FLEXSPI_INTR >> 2] &= ~INTR_IPTXWE;   /* program complete */
+                    mcxn_flexspi_update_irq(s);
                 }
+                /* Re-evaluate the TX request: it stays asserted while the controller
+                 * still wants data, and drops when tx_len fills -- so a DMA feeding
+                 * TFDR terminates on its own instead of overrunning the FIFO. */
+                flexspi_update_dma_req(s);
             }
             return;
         }
@@ -608,6 +661,9 @@ static void mcxn_flexspi_reset(DeviceState *dev)
     s->rx_len = s->rx_pos = s->tx_len = 0;
     s->pgm_pending = false;
     s->pgm_addr = s->pgm_len = 0;
+    s->rx_dma_lvl = s->tx_dma_lvl = false;
+    qemu_set_irq(s->dma_req_rx, 0);
+    qemu_set_irq(s->dma_req_tx, 0);
     /*
      * loader_flushed is deliberately NOT cleared.  The ROM loader refills the
      * mirror on every reset, and re-flushing it into the NOR would overwrite
@@ -635,8 +691,10 @@ static void mcxn_flexspi_realize(DeviceState *dev, Error **errp)
 
     /* The real flash lives on our SSI bus; the SoC attaches m25p80 to it. */
     s->spi = ssi_create_bus(dev, "flexspi");
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->cs);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->cs);       /* sysbus IRQ 0: chip select   */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);      /* sysbus IRQ 1: NVIC line      */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_rx); /* sysbus IRQ 2: eDMA src 1   */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_tx); /* sysbus IRQ 3: eDMA src 2   */
 }
 
 static const Property mcxn_flexspi_props[] = {

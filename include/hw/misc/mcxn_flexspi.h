@@ -75,6 +75,13 @@ struct MCXNFlexSPIState {
     MemoryRegion iomem;        /* MMIO region 0: CMSIS register file           */
     MemoryRegion nor;          /* MMIO region 1: AHB XIP mirror (ROM device)   */
     qemu_irq irq;
+    /* eDMA request lines (CMSIS FlexSPI0 Rx=1, Tx=2).  A DMA-driven FlexSPI driver
+     * (FLEXSPI_TransferEDMA) arms a channel at RFDR/TFDR and sets IP{RX,TX}FCR[DMAEN];
+     * without these the channel waits forever and the transfer never runs. */
+    qemu_irq dma_req_rx;
+    qemu_irq dma_req_tx;
+    bool     rx_dma_lvl;       /* last level driven on each line (dedupe) */
+    bool     tx_dma_lvl;
     uint32_t regs[MCXN_FLEXSPI_SIZE / 4];
     uint64_t flash_size;       /* size of the AHB NOR window ("flash-size")    */
 
