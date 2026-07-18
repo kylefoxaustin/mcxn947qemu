@@ -163,6 +163,17 @@ static void ctimer_tick(void *opaque)
                 if (s->mcr & MCR_RST(n)) {
                     do_reset = true;
                 }
+                /*
+                 * Match 0 and match 1 each drive an eDMA request line (CMSIS
+                 * CTIMER{k} M0/M1).  The match event itself raises the request --
+                 * the CTIMER has no DMA-enable bit of its own; INPUTMUX gates it
+                 * (modelled in the eDMA as req_enabled[]).  It is a one-shot PULSE:
+                 * one match, one minor loop.  (A match that ONLY drives DMA with no
+                 * MCR action is not scheduled by this model -- but a DMA-pacing timer
+                 * is periodic, i.e. sets MCR_RST, so it lands here.) */
+                if (n < 2) {
+                    qemu_irq_pulse(s->dma_req[n]);
+                }
             }
         }
         if (do_reset) {
@@ -284,7 +295,9 @@ static void mcxn_ctimer_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &ctimer_ops, s,
                           TYPE_MCXN_CTIMER, 0x1000);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);          /* 0: NVIC match interrupt */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[0]);   /* 1: match-0 eDMA request */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);   /* 2: match-1 eDMA request */
     timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, ctimer_tick, s);
 }
 

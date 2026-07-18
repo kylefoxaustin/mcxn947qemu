@@ -34,7 +34,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `CMP` | 3 | ✅ operator-driven (output via `comparator-output` QOM prop; edge-flag IRQ 109/110/111) |
 | `CMX_PERFMON` | 2 | ✅ functional (register-accurate) |
 | `CRC` | 1 | ✅ functional (register-accurate) |
-| `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) |
+| `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) + **match-paced eDMA** (M0=7+2k/M1=8+2k, one-shot pulse per match), mutation-proven on data + rate axes; tests/mcxn-ctimer-dma |
 | `DAC` | 3 | ✅ functional + active (FIFO watermark/empty/error interrupt -> IRQ 106/107/108 to NVIC; tests/mcxn-dac) |
 | `DM` | 1 | ✅ functional (register-accurate) |
 | `DMA` | 2 | ✅ **software AND peripheral-triggered** — 16-channel TCD engine; CH_CSR[ERQ] used to be a DEAD BIT so DMA-driven audio/ADC/UART could not run at all. Peripherals now drive one request line per CMSIS mux source, one MINOR LOOP per request, serviced in a bottom half (servicing inline is a re-entrant MMIO access QEMU SILENTLY DROPS). ⚠ Wired for SAI + DAC only — ADC/PDM/SINC/LPFlexcomm still have none; tests/mcxn-dma, mcxn-sai-dma, mcxn-dac-dma |

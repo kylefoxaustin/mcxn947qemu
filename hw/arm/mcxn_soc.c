@@ -1250,6 +1250,17 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                qdev_get_gpio_in(DEVICE(&s->edma[0]), pwm_val_src[i]));
         }
     }
+    /* CTIMER0..4: sysbus IRQ 1 = match-0 request, IRQ 2 = match-1 request.  These are
+     * one-shot PULSE sources (a match is an event, not a FIFO level), so they drive the
+     * eDMA's "req-pulse" input, not the plain level input.  CTIMER{k} M0 = 7+2k, M1 = 8+2k. */
+    for (i = 0; i < MCXN_NUM_CTIMER; i++) {
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->ctimer[i]), 1,
+                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                                                  MCXN_DMA_REQ_CTIMER0_M0 + 2 * i));
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->ctimer[i]), 2,
+                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                                                  MCXN_DMA_REQ_CTIMER0_M1 + 2 * i));
+    }
     for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),

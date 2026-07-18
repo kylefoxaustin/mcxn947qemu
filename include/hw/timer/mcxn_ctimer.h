@@ -27,6 +27,7 @@ struct MCXNCTimerState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq     irq;
+    qemu_irq     dma_req[2];   /* match-0 / match-1 eDMA request (pulse per match) */
     QEMUTimer    timer;
     Clock       *clk;
 

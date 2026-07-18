@@ -121,15 +121,17 @@ That table is the status. Read it, and do not hand-edit it.**
 
 ### Real open items (stated, not papered over)
 
-- **DMA request lines: SAI, DAC, ADC, the LPFlexcomm serials, SINC, FlexSPI, and
-  FlexPWM (value-register / reload path) are wired** (each drives its CMSIS request-mux
-  source; sources in `include/hw/dma/mcxn_edma.h`).
+- **DMA request lines: SAI, DAC, ADC, the LPFlexcomm serials, SINC, FlexSPI,
+  FlexPWM (value-register / reload path), and CTIMER (match M0/M1) are wired** (each
+  drives its CMSIS request-mux source; sources in `include/hw/dma/mcxn_edma.h`). CTIMER's
+  match is a one-shot **pulse** (not a FIFO level), so the eDMA has an edge path that
+  auto-acks a pulse after one minor loop — reused by any match/event source.
   **PDM's is not — but only because there is no mic bitstream in emulation, so its FIFO
   stays empty and the request could never assert (the gap is the source, not the line).
   FlexPWM's CAPTURE DMA is the same shape — a capture request needs an input edge on the
   PWM pins, which has no signal source in emulation, so the gap is the missing input.**
-  The lower-DMA-frequency blocks (CTIMER, SCT, HsCmp, PinInt) are still
-  unwired, so their DMA-driven stock drivers would hang.
+  Still unwired: **SCT** (the next tractable match-pulse source), and **HsCmp / PinInt**
+  (input-seams — they need an analog crossing / a pin edge that has no source in emulation).
 - **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
   `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is
   roadmap. A stated gap is honest; a badge over one is a bug.

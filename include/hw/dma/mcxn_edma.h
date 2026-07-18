@@ -40,6 +40,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNEDMAState, MCXN_EDMA)
 /* Request-mux source numbers used by the SoC wiring (CMSIS-exact). */
 #define MCXN_DMA_REQ_FLEXSPI0_RX   1
 #define MCXN_DMA_REQ_FLEXSPI0_TX   2
+#define MCXN_DMA_REQ_CTIMER0_M0    7    /* CTIMER{k} M0 = 7 + 2k, M1 = 8 + 2k */
+#define MCXN_DMA_REQ_CTIMER0_M1    8
 #define MCXN_DMA_REQ_FLEXPWM0_VAL0 43   /* FlexPWM0 SM0 value-register reload request */
 #define MCXN_DMA_REQ_FLEXPWM1_VAL0 51   /* FlexPWM1 SM0 value-register reload request */
 #define MCXN_DMA_REQ_ADC0_FIFO_A   21
@@ -80,6 +82,18 @@ struct MCXNEDMAState {
      * peripheral re-asserting from inside a transfer is seen by the drain loop
      * rather than re-entering it. */
     bool req_level[MCXN_EDMA_REQ_SOURCES];
+
+    /*
+     * EDGE (pulse) sources.  A FIFO source holds its request high until the FIFO
+     * drains, and the drain loop keys off that level -- one minor loop per pass
+     * until the peripheral itself drops the line (SAI/FlexSPI/SINC), or until the
+     * DMA writes back into the peripheral and it re-evaluates (FlexPWM VALx).  But
+     * a TIMER-MATCH source (CTIMER, SCT) is an instantaneous EVENT: it fires once,
+     * must move exactly ONE minor loop, and there is no FIFO to re-check and no
+     * write-back to hook a deassert on.  For those sources the engine auto-acks --
+     * it clears req_level after servicing a single minor loop, so one pulse = one
+     * minor loop.  Latched per source (a match line is always a pulse line). */
+    bool req_edge[MCXN_EDMA_REQ_SOURCES];
 
     /*
      * INPUTMUX gates EVERY peripheral DMA request: INPUTMUX_DMAn_REQ_ENABLE0..3,

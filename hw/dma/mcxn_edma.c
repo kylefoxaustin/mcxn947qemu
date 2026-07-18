@@ -644,8 +644,32 @@ static void mcxn_edma_service_bh(void *opaque)
             c->csr &= ~CH_CSR_DONE;
             edma_minor_loop(s, n);
             progress = true;
+            /*
+             * An EDGE (timer-match) source fires once and moves exactly one minor
+             * loop: auto-ack it here so the drain loop does not re-run it against a
+             * level that no FIFO and no write-back will ever lower.  A FIFO source
+             * (req_edge clear) keeps its level and is re-evaluated next pass. */
+            if (s->req_edge[src]) {
+                s->req_level[src] = false;
+            }
         }
     } while (progress && ++guard < MCXN_EDMA_MAX_LOOPS);
+
+    /*
+     * A pulse (timer-match) is one-shot: the BH gets exactly one chance to service
+     * it.  Any edge level still standing here was NOT consumed -- no channel selected
+     * that source, or its INPUTMUX gate was closed -- so drop it.  Real match pulses
+     * evaporate when nothing is listening; latching one would fire a spurious transfer
+     * the moment a channel is later armed on that source. */
+    {
+        int src;
+
+        for (src = 0; src < MCXN_EDMA_REQ_SOURCES; src++) {
+            if (s->req_edge[src]) {
+                s->req_level[src] = false;
+            }
+        }
+    }
 }
 
 /*
@@ -698,6 +722,30 @@ static void mcxn_edma_req(void *opaque, int src, int level)
     }
 }
 
+/*
+ * An EDGE (pulse) request from a timer-match source (CTIMER, SCT).  The match is
+ * an instantaneous event, not a FIFO level: it asks for exactly ONE minor loop and
+ * has no level for the drain loop to lower afterwards.  We latch the level so the
+ * bottom half sees it, mark the source as edge so the drain loop AUTO-ACKS it after
+ * a single minor loop, and kick the BH.  Servicing is deferred to the BH for the
+ * same reason as every other source: the request may arrive from the peripheral's
+ * own MMIO write, and writing back on that stack is a re-entrant access QEMU drops.
+ */
+static void mcxn_edma_req_pulse(void *opaque, int src, int level)
+{
+    MCXNEDMAState *s = MCXN_EDMA(opaque);
+
+    if (src < 0 || src >= MCXN_EDMA_REQ_SOURCES) {
+        return;
+    }
+    if (!level) {
+        return;                 /* a pulse: only the asserting edge carries meaning */
+    }
+    s->req_edge[src] = true;
+    s->req_level[src] = true;
+    qemu_bh_schedule(s->bh);
+}
+
 static const MemoryRegionOps edma_ops = {
     .read = edma_read,
     .write = edma_write,
@@ -717,6 +765,7 @@ static void mcxn_edma_reset(DeviceState *dev)
     memset(s->ch_grpri, 0, sizeof(s->ch_grpri));
     memset(s->ch, 0, sizeof(s->ch));
     memset(s->req_level, 0, sizeof(s->req_level));
+    memset(s->req_edge, 0, sizeof(s->req_edge));
     {
         int ch;
 
@@ -737,6 +786,8 @@ static void mcxn_edma_realize(DeviceState *dev, Error **errp)
     /* One input per MCX N DMA request-mux source: peripherals drive these. */
     qdev_init_gpio_in(dev, mcxn_edma_req, MCXN_EDMA_REQ_SOURCES);
     qdev_init_gpio_in_named(dev, mcxn_edma_req_enable, "req-enable",
+                            MCXN_EDMA_REQ_SOURCES);
+    qdev_init_gpio_in_named(dev, mcxn_edma_req_pulse, "req-pulse",
                             MCXN_EDMA_REQ_SOURCES);
     s->bh = qemu_bh_new(mcxn_edma_service_bh, s);
 
