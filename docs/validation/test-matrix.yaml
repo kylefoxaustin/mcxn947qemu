@@ -111,7 +111,7 @@ security_crypto_tamper:
   - {block: tdet, present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
 
 usb_support:
-  - {block: usbdcd,        present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
+  - {block: usbdcd,        present: true, driver_binds: true,  class: operator-driven, tested_by: [mcxn-usbdcd], result: pass, note: "Runs the real BC1.2 charger-detection SEQUENCE (contact -> primary SDP-vs-charging -> secondary CDP-vs-DCP), stepping STATUS[SEQ_STAT]/[SEQ_RES] one CONTROL.IF interrupt per phase, acked with IACK -- not the register-only stub it was, which self-cleared START and left STATUS static so a charger-detect driver read a fixed non-result. What is on the port has no physical existence in QEMU, so the CLASSIFICATION is operator-driven (the `charger` property: none/SDP/CDP/DCP), never fabricated -- and with nothing attached the honest answer is a contact-detect TIMEOUT (STATUS[TO]), NOT a stamped 'SDP'. mcxn-usbdcd sweeps all four ports through the same firmware and asserts each classification, so a model that returned one fixed answer fails three of four; mutation-proven (invert the SDP-vs-charging branch -> the sweep FAILS)"}
   - {block: usbphy,        present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
   - {block: usbhs1-usbnc,  present: true, driver_binds: false, class: register-only, tested_by: [boot, corpus], result: pass}
 
@@ -267,9 +267,9 @@ readme_groups:
     tier: B
     evidence: "Drivers bind; registers / reset values / W1C semantics correct"
     blocks: [pkc, puf, cdog, gdet, itrc, trdc, tdet]
-  - label: "USB support — USBDCD, USBPHY, USBHS-NC"
+  - label: "USB charger detection (USBDCD) + PHY / non-core config"
     tier: B
-    evidence: "Charger-detect / PHY / non-core config registers"
+    evidence: "USBDCD runs the real BC1.2 detection SEQUENCE (contact -> primary -> secondary), classifying an operator-driven port (none/SDP/CDP/DCP) with one interrupt per phase -- nothing attached honestly TIMES OUT rather than stamping an 'SDP'. Swept across all four ports and mutation-proven (tests/mcxn-usbdcd). PHY and USBHS non-core remain register-accurate config"
     blocks: [usbdcd, usbphy, usbhs1-usbnc]
 
 # Absent on MCXN947 silicon — N/A rows (authored: the MCU's deltas are not chip

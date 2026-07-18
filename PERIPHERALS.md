@@ -89,7 +89,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `TDET` | 1 | ✅ functional (register-accurate) |
 | `TRDC` | 1 | ✅ functional (register-accurate) |
 | `TSI` | 1 | ✅ operator-driven (per-channel count via `tsi-countN` QOM prop; end-of-scan IRQ 101) |
-| `USBDCD` | 1 | ✅ functional (register-accurate) |
+| `USBDCD` | 1 | ✅ functional — runs the real BC1.2 detection sequence (contact→primary→secondary), classifies an operator-driven port (none/SDP/CDP/DCP), mutation-proven (tests/mcxn-usbdcd) |
 | `USBFS` | 1 | ✅ functional + active **device mode** (KHCI BDT endpoint engine; enumerates AND moves bulk data both directions end-to-end over usbredir to a remote USB host; IRQ 50; tests/mcxn-usb) |
 | `USBHS1_PHY_DCD` | 1 | ✅ functional (register-accurate; HS phy/dcd 0x800 window) |
 | `USBHS1__USBC` | 1 | ✅ functional + active **device mode** (ChipIdea dQH/dTD endpoint engine; enumerates + bulk data both ways at high-speed over usbredir; IRQ 67; tests/mcxn-usb-hs) |

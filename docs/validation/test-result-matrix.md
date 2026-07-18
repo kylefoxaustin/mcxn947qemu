@@ -155,7 +155,7 @@ register-only≈registration/Tier-C.
 
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
-| usbdcd | ✓ | ◐ | register-only | boot, corpus | SKIP |
+| usbdcd | ✓ | ✓ | operator-driven | mcxn-usbdcd | SKIP |
 | usbphy | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | usbhs1-usbnc | ✓ | ◐ | register-only | boot, corpus | SKIP |
 

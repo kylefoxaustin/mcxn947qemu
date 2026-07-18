@@ -110,7 +110,7 @@ proprietary accels honestly flagged) · **N/A** absent on MCXN947 silicon.
 | Memory / cache — CACHE64, NPX, SEMA42, OTPC | B | Register-accurate; cache/ID/fuse config |
 | Clocks / power / system — SCG, SYSCON, SPC, CMC, VBAT, WUU, FREQME, AHBSC | B | Clock/power config; firmware programs directly (no System Manager) |
 | Security / crypto / tamper — PKC, PUF, CDOG, GDET, ITRC, TRDC, TDET | B | Drivers bind; registers / reset values / W1C semantics correct |
-| USB support — USBDCD, USBPHY, USBHS-NC | B | Charger-detect / PHY / non-core config registers |
+| USB charger detection (USBDCD) + PHY / non-core config | B | USBDCD runs the real BC1.2 detection SEQUENCE (contact -> primary -> secondary), classifying an operator-driven port (none/SDP/CDP/DCP) with one interrupt per phase -- nothing attached honestly TIMES OUT rather than stamping an 'SDP'. Swept across all four ports and mutation-proven (tests/mcxn-usbdcd). PHY and USBHS non-core remain register-accurate config |
 
 **Absent on MCXN947 silicon — N/A (never a failure):**
 
