@@ -1269,6 +1269,13 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->sct0), 2,
                        qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
                                               MCXN_DMA_REQ_SCT0_DMA1));
+    /* CMP0..2 (HsCmp): sysbus IRQ 1 = DMA request (src 28+n).  A comparator crossing is a
+     * one-shot PULSE, so it drives the eDMA "req-pulse" input.  IRQ 0 is the NVIC line. */
+    for (i = 0; i < MCXN_NUM_CMP; i++) {
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->cmp[i]), 1,
+                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                                                  MCXN_DMA_REQ_HSCMP0 + i));
+    }
     for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),

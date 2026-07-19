@@ -31,7 +31,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `CAN` | 2 | ✅ **real RX matching + b2b** — the board-to-board path did NO ID MATCHING (a driver trusting its own filter read another node's frame) and SILENTLY DROPPED a frame when no mailbox was free; per the RM a frame landing on an unserviced MB now OVERWRITES it and sets CODE=OVERRUN, so the data moves AND the guest is told. A disabled module (MCR[MDIS]) no longer receives OR transmits. Live board-to-board link; tests/mcxn-flexcan, mcxn-flexcan-rx, mcxn-can-link |
 | `CDOG` | 2 | ✅ functional (register-accurate) |
 | `CMC` | 1 | ✅ functional (register-accurate) |
-| `CMP` | 3 | ✅ operator-driven (output via `comparator-output` QOM prop; edge-flag IRQ 109/110/111) |
+| `CMP` | 3 | ✅ operator-driven (output via `comparator-output` QOM prop; edge-flag IRQ 109/110/111) + **eDMA request** (CCR1[DMA_EN] redirects an IER-enabled edge to HsCmp{n}=28+n as a one-shot pulse), operator injects the crossing over QMP, mutation-proven on data + rate; tests/mcxn-cmp-dma |
 | `CMX_PERFMON` | 2 | ✅ functional (register-accurate) |
 | `CRC` | 1 | ✅ functional (register-accurate) |
 | `CTIMER` | 5 | ✅ functional (count/prescale/match -> NVIC IRQ) + **match-paced eDMA** (M0=7+2k/M1=8+2k, one-shot pulse per match), mutation-proven on data + rate axes; tests/mcxn-ctimer-dma |

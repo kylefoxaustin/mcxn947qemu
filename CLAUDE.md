@@ -131,8 +131,12 @@ That table is the status. Read it, and do not hand-edit it.**
   stays empty and the request could never assert (the gap is the source, not the line).
   FlexPWM's CAPTURE DMA is the same shape — a capture request needs an input edge on the
   PWM pins, which has no signal source in emulation, so the gap is the missing input.**
-  Still unwired: **HsCmp / PinInt** — input-seams (they need an analog crossing / a pin
-  edge that has no source in emulation), the same honest boundary as PDM.
+  **HsCmp/CMP is now operator-driven**: its crossing has no analog source, but it was
+  already exposed as the `comparator-output` QOM property, so `CCR1[DMA_EN]` redirecting an
+  IER-enabled edge to the DMA request just needed wiring — the operator injects a crossing
+  over QMP and it paces the eDMA (mcxn-cmp-dma). Still unwired: **PinInt / PDM / FlexPWM
+  capture** — input-seams with no operator input modelled yet (the request line is ready;
+  the missing piece is the signal source — a pin edge / mic bitstream / PWM-pin edge).
 - **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
   `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is
   roadmap. A stated gap is honest; a badge over one is a bug.

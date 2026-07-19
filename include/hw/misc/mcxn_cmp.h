@@ -28,6 +28,7 @@ struct MCXNCMPState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq irq;
+    qemu_irq dma_req;   /* CMP DMA request: an IER-enabled edge, redirected by CCR1[DMA_EN] */
     uint32_t regs[MCXN_CMP_SIZE / 4];
 
     /* Operator-driven analog: the comparator output level (CSR[COUT]) the

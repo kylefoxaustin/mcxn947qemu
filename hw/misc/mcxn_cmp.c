@@ -49,6 +49,15 @@
 #define CMP_CSR_COUT    (1u << 8)   /* comparator output level, RO */
 #define CMP_CSR_W1C_MASK  (CMP_CSR_CFR | CMP_CSR_CFF | CMP_CSR_RRF)
 
+/* IER edge-interrupt enables align 1:1 with the CSR flag bits (CFR_IE/CFF_IE at 0/1). */
+#define CMP_IER_CFR_IE  (1u << 0)
+#define CMP_IER_CFF_IE  (1u << 1)
+
+/* CCR1[DMA_EN] (bit 2): when set, an IER-enabled edge forces a DMA request rather than a
+ * CPU interrupt (fsl_lpcmp: LPCMP_EnableDMA -> CCR1[DMA_EN]).  The DMA request is a
+ * one-shot PULSE serviced through the eDMA edge path. */
+#define CMP_CCR1_DMA_EN (1u << 2)
+
 /* Constant RO values (RM reset values). */
 #define CMP_VERID_VALUE   0x01000041u
 #define CMP_PARAM_VALUE   0x00000002u
@@ -65,6 +74,13 @@ static void mcxn_cmp_update_irq(MCXNCMPState *s)
 {
     bool active = (s->regs[CMP_CSR / 4] & s->regs[CMP_IER / 4] &
                    CMP_CSR_W1C_MASK) != 0;
+
+    /* CCR1[DMA_EN] REDIRECTS an enabled edge to the DMA request "rather than a CPU
+     * interrupt instead" (RM / fsl_lpcmp): with DMA enabled the comparator does not
+     * raise the NVIC line -- the event goes to the eDMA (see mcxn_cmp_set_cout). */
+    if (s->regs[CMP_CCR1 / 4] & CMP_CCR1_DMA_EN) {
+        active = false;
+    }
     qemu_set_irq(s->irq, active);
 }
 
@@ -121,13 +137,24 @@ static void mcxn_cmp_write(void *opaque, hwaddr offset, uint64_t value,
 static void mcxn_cmp_set_cout(Object *obj, bool value, Error **errp)
 {
     MCXNCMPState *s = MCXN_CMP(obj);
+    uint32_t ier = s->regs[CMP_IER / 4];
+    bool dma_en = (s->regs[CMP_CCR1 / 4] & CMP_CCR1_DMA_EN) != 0;
+    bool edge_dma = false;
 
     if (value && !s->cout) {
-        s->regs[CMP_CSR / 4] |= CMP_CSR_CFR;
+        s->regs[CMP_CSR / 4] |= CMP_CSR_CFR;         /* rising edge  */
+        edge_dma = dma_en && (ier & CMP_IER_CFR_IE);
     } else if (!value && s->cout) {
-        s->regs[CMP_CSR / 4] |= CMP_CSR_CFF;
+        s->regs[CMP_CSR / 4] |= CMP_CSR_CFF;         /* falling edge */
+        edge_dma = dma_en && (ier & CMP_IER_CFF_IE);
     }
     s->cout = value;
+
+    /* An IER-enabled edge with DMA enabled fires the eDMA request (CMSIS HsCmp{n} = 28+n)
+     * instead of the NVIC line -- a one-shot PULSE (one crossing, one minor loop). */
+    if (edge_dma) {
+        qemu_irq_pulse(s->dma_req);
+    }
     mcxn_cmp_update_irq(s);
 }
 
@@ -172,7 +199,8 @@ static void mcxn_cmp_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_cmp_ops, s,
                           TYPE_MCXN_CMP, MCXN_CMP_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);       /* 0: NVIC comparator interrupt */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req);   /* 1: DMA request (edge pulse)  */
 }
 
 static const VMStateDescription vmstate_mcxn_cmp = {
