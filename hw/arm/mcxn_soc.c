@@ -1298,6 +1298,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                            qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
                                                   MCXN_DMA_REQ_PINT0 + i));
     }
+    /* PDM/MICFIL0: sysbus IRQ 1 = FIFO DMA request (src 18).  A FIFO watermark is a LEVEL
+     * (like the SAI), so it drives the plain eDMA request input.  IRQ 0 is the NVIC line. */
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->pdm0), 1,
+                       qdev_get_gpio_in(DEVICE(&s->edma[0]), MCXN_DMA_REQ_MICFIL0));
     for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),

@@ -127,10 +127,12 @@ That table is the status. Read it, and do not hand-edit it.**
   `include/hw/dma/mcxn_edma.h`). A CTIMER match / SCT event is a one-shot **pulse** (not a
   FIFO level), so the eDMA has an edge path that auto-acks a pulse after one minor loop and
   drops an unconsumed one — reused by any match/event source.
-  **PDM's is not — but only because there is no mic bitstream in emulation, so its FIFO
-  stays empty and the request could never assert (the gap is the source, not the line).
-  FlexPWM's CAPTURE DMA is the same shape — a capture request needs an input edge on the
-  PWM pins, which has no signal source in emulation, so the gap is the missing input.**
+  **PDM/MICFIL is now operator-fed**: a mic bitstream has no source in emulation, so the
+  `mic-input` QOM property pushes 24-bit samples into channel 0's FIFO; with CTRL_1[DISEL]=
+  DMA the FIFO watermark drives the request (a LEVEL, like the SAI) and the eDMA drains
+  DATACH0 (mcxn-pdm-dma). **FlexPWM's CAPTURE DMA is the last input-seam — a capture request
+  needs an input edge on the PWM pins, which has no signal source in emulation, so the gap
+  is the missing input.**
   **HsCmp/CMP is now operator-driven**: its crossing has no analog source, but it was
   already exposed as the `comparator-output` QOM property, so `CCR1[DMA_EN]` redirecting an
   IER-enabled edge to the DMA request just needed wiring — the operator injects a crossing
@@ -138,9 +140,8 @@ That table is the status. Read it, and do not hand-edit it.**
   driven**: PINT was a register stub (IST/RISE always 0, no IRQ); building it out earned the
   pin-interrupt path (operator `pin-input` QOM property → edge-detect → PINT0_IRQn=47) and
   its DMA (INT0..3 → sources 3..6), mutation-proven on DMA + rate + NVIC (mcxn-pint-dma).
-  Still unwired: **PDM / FlexPWM capture** — input-seams with no operator input modelled yet
-  (the request line is ready; the missing piece is the signal source — a mic bitstream /
-  PWM-pin edge).
+  Still unwired: **FlexPWM capture** — the last input-seam, with no operator input modelled
+  yet (the request line is ready; the missing piece is the signal source — a PWM-pin edge).
 - **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
   `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is
   roadmap. A stated gap is honest; a badge over one is a bug.

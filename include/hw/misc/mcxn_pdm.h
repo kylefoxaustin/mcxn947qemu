@@ -22,9 +22,11 @@
  * firmware cannot distinguish from real audio is precisely the top-tier bug this
  * project exists to kill.
  *
- * The FIFO machinery below is real, so an operator-driven PCM source (a future
- * chardev/file property) can simply push samples into it and the watermark /
- * overflow / IRQ paths light up.
+ * The FIFO machinery below is real, and an operator-driven PCM source now feeds
+ * it: the "mic-input" QOM property pushes a 24-bit sample into channel 0's FIFO
+ * (the single-microphone case), lighting up the watermark / overflow / IRQ paths
+ * and — when CTRL_1[DISEL] selects DMA — the MICFIL FIFO request (CMSIS source
+ * 18), a FIFO LEVEL (like the SAI), so an operator-fed capture drains over eDMA.
  *
  * Geometry from PARAM (RM §76.7.14, reset 0x0000_0742): NPAIR = 2 (4 channels),
  * FIFO_PTRWID = 4 (16-deep per-channel FIFO), 24-bit filter output.
@@ -51,7 +53,9 @@ struct MCXNPDMState {
 
     /*< public >*/
     MemoryRegion iomem;
-    qemu_irq     irq;     /* PDM_EVENT_IRQn = 48 */
+    qemu_irq     irq;        /* PDM_EVENT_IRQn = 48 */
+    qemu_irq     dma_req;    /* MICFIL0 FIFO request (CMSIS source 18), a FIFO level */
+    bool         dma_lvl;    /* current level of dma_req, so we fire only on change */
 
     uint32_t regs[MCXN_PDM_SIZE / 4];
 

@@ -68,7 +68,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `OPAMP` | 3 | ✅ functional (register-accurate) |
 | `OSTIMER` | 1 | ✅ functional (gray-code counter + match IRQ) |
 | `OTPC` | 1 | ✅ functional (register-accurate) |
-| `PDM` | 1 | ✅ functional (register-accurate) |
+| `PDM` | 1 | ✅ functional — honest-empty-and-loud FIFO (no fabricated silence) + **operator-fed capture**: `mic-input` QOM prop pushes 24-bit samples into ch0's FIFO → watermark → DISEL=DMA drives the MICFIL FIFO request (src 18, a level like SAI), eDMA drains DATACH0 byte-exact; mutation-proven on data + gate. tests/mcxn-pdm-dma |
 | `PINT` | 1 | ✅ **functional** — 8 channels, operator-driven pin input (`pin-input` QOM prop) → edge-detect (RISE/FALL/IST) → shared NVIC IRQ 47; INT0..3 drive eDMA (sources 3..6, one-shot pulse per edge). Was a register stub (IST always 0, no IRQ). Mutation-proven on DMA + rate + NVIC; tests/mcxn-pint-dma. Edge mode only (level-sensitive is a stated boundary) |
 | `PKC` | 1 | ✅ functional (register-accurate) |
 | `PLU` | 1 | ✅ functional (register-accurate) |

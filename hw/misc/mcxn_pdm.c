@@ -9,6 +9,7 @@
 #include "qemu/log.h"
 #include "hw/misc/mcxn_pdm.h"
 #include "hw/core/irq.h"
+#include "qapi/visitor.h"
 #include "migration/vmstate.h"
 
 /* --- Register offsets ------------------------------------------------------ */
@@ -29,6 +30,7 @@
 #define CTRL1_CHEN_ALL  0x0Fu
 #define CTRL1_ERREN     (1u << 23)
 #define CTRL1_DISEL     (3u << 24)      /* 00 off, 01 DMA, 10 IRQ */
+#define CTRL1_DISEL_DMA (1u << 24)
 #define CTRL1_DISEL_IRQ (2u << 24)
 #define CTRL1_SRES      (1u << 27)      /* software reset */
 #define CTRL1_PDMIEN    (1u << 29)      /* filter enable */
@@ -82,6 +84,67 @@ static void pdm_flush_fifos(MCXNPDMState *s)
     s->regs[PDM_FIFO_STAT / 4] = 0;
 }
 
+/*
+ * The MICFIL FIFO DMA request (CMSIS source 18) is a FIFO LEVEL, like the SAI: it
+ * asserts while channel 0's fill is past the watermark and DISEL selects DMA, and
+ * drops when the eDMA has drained it back to the watermark (a DATACH0 read pops one
+ * sample and re-evaluates below).  Level, not pulse -- so it uses the plain eDMA
+ * request input, and the drain terminates itself when the FIFO empties.
+ */
+static void pdm_update_dma_req(MCXNPDMState *s)
+{
+    uint32_t ctrl1 = s->regs[PDM_CTRL_1 / 4];
+    uint32_t wmk = s->regs[PDM_FIFO_CTRL / 4] & FIFO_CTRL_WMK;
+    bool level = ((ctrl1 & CTRL1_DISEL) == CTRL1_DISEL_DMA) &&
+                 (s->fifo_count[0] > wmk);
+
+    if (level != s->dma_lvl) {
+        s->dma_lvl = level;
+        qemu_set_irq(s->dma_req, level);
+    }
+}
+
+/*
+ * Operator-supplied microphone sample.  A physical PDM bitstream has no source in
+ * emulation, so the "mic-input" QOM property feeds channel 0 (the single-mic case):
+ * each set pushes one 24-bit PCM sample into the FIFO, sets STAT[CH0F] once the fill
+ * passes the watermark, and drives the DMA request / IRQ.  A push into a full FIFO
+ * flags FIFO_STAT[FIFOOVF0] and drops the sample (an overrun the guest can see) --
+ * still never a fabricated silence.  A push while the filter/channel is disabled is
+ * ignored, exactly as a stopped MICFIL captures nothing.
+ */
+static void pdm_push_sample(MCXNPDMState *s, uint32_t sample)
+{
+    uint32_t ctrl1 = s->regs[PDM_CTRL_1 / 4];
+    uint32_t wmk = s->regs[PDM_FIFO_CTRL / 4] & FIFO_CTRL_WMK;
+
+    if (!(ctrl1 & CTRL1_PDMIEN) || !(ctrl1 & CTRL1_CHEN(0))) {
+        return;                              /* filter or channel 0 off: no capture */
+    }
+    if (s->fifo_count[0] >= MCXN_PDM_FIFO_DEPTH) {
+        s->regs[PDM_FIFO_STAT / 4] |= FIFO_OVF(0);   /* overrun, drop the sample */
+        pdm_update_irq(s);
+        return;
+    }
+    s->fifo[0][s->fifo_count[0]++] = sample & 0x00FFFFFFu;   /* 24-bit PCM */
+    if (s->fifo_count[0] > wmk) {
+        s->regs[PDM_STAT / 4] |= STAT_CHF(0);
+    }
+    pdm_update_dma_req(s);
+    pdm_update_irq(s);
+}
+
+static void pdm_set_mic_input(Object *obj, Visitor *v, const char *name,
+                              void *opaque, Error **errp)
+{
+    uint32_t val;
+
+    if (!visit_type_uint32(v, name, &val, errp)) {
+        return;
+    }
+    pdm_push_sample(MCXN_PDM(obj), val);
+}
+
 static uint64_t mcxn_pdm_read(void *opaque, hwaddr offset, unsigned size)
 {
     MCXNPDMState *s = MCXN_PDM(opaque);
@@ -121,6 +184,11 @@ static uint64_t mcxn_pdm_read(void *opaque, hwaddr offset, unsigned size)
                 s->regs[PDM_STAT / 4] &= ~STAT_CHF(n);
                 pdm_update_irq(s);
             }
+            /* Draining past the watermark drops the DMA request -- this DATACH0
+             * read is the eDMA's consumption that terminates the drain. */
+            if (n == 0) {
+                pdm_update_dma_req(s);
+            }
             return v;
         }
 
@@ -155,6 +223,7 @@ static void mcxn_pdm_write(void *opaque, hwaddr offset, uint64_t value,
         if (v & CTRL1_SRES) {
             memset(s->regs, 0, sizeof(s->regs));
             pdm_flush_fifos(s);
+            pdm_update_dma_req(s);
             pdm_update_irq(s);
             return;                  /* SRES is self-clearing */
         }
@@ -166,11 +235,13 @@ static void mcxn_pdm_write(void *opaque, hwaddr offset, uint64_t value,
             qemu_log_mask(LOG_UNIMP,
                 "mcxn-pdm: MICFIL enabled with no audio source attached.  The "
                 "PDM microphone bitstream has no source in emulation, so NO "
-                "samples will be produced: STAT[CHnF] will not set and reads of "
+                "samples will be produced unless an operator drives the "
+                "\"mic-input\" QOM property: STAT[CHnF] will not set and reads of "
                 "DATACHn will report FIFO_STAT[FIFOUNDn] underflow.  (The "
                 "filter is deliberately not fabricating silence, which firmware "
                 "could not tell apart from real audio.)\n");
         }
+        pdm_update_dma_req(s);
         pdm_update_irq(s);
         return;
 
@@ -187,6 +258,7 @@ static void mcxn_pdm_write(void *opaque, hwaddr offset, uint64_t value,
 
     case PDM_FIFO_CTRL:
         s->regs[PDM_FIFO_CTRL / 4] = v;
+        pdm_update_dma_req(s);
         pdm_update_irq(s);
         return;
 
@@ -237,7 +309,17 @@ static void mcxn_pdm_reset(DeviceState *dev)
     memset(s->fifo, 0, sizeof(s->fifo));
     pdm_flush_fifos(s);
     s->warned_no_source = false;
+    s->dma_lvl = false;
     qemu_set_irq(s->irq, 0);
+    qemu_set_irq(s->dma_req, 0);
+}
+
+static void mcxn_pdm_init(Object *obj)
+{
+    /* Operator-driven microphone: push a 24-bit PCM sample into channel 0.
+     *   qom-set /machine/soc/pdm0 mic-input 0x123456   */
+    object_property_add(obj, "mic-input", "uint32",
+                        NULL, pdm_set_mic_input, NULL, NULL);
 }
 
 static void mcxn_pdm_realize(DeviceState *dev, Error **errp)
@@ -247,18 +329,20 @@ static void mcxn_pdm_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_pdm_ops, s,
                           TYPE_MCXN_PDM, MCXN_PDM_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);       /* 0: PDM_EVENT_IRQn = 48 */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req);   /* 1: MICFIL FIFO DMA (src 18) */
 }
 
 static const VMStateDescription vmstate_mcxn_pdm = {
     .name = TYPE_MCXN_PDM,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNPDMState, MCXN_PDM_SIZE / 4),
         VMSTATE_UINT32_2DARRAY(fifo, MCXNPDMState, MCXN_PDM_NUM_CH,
                                MCXN_PDM_FIFO_DEPTH),
         VMSTATE_UINT32_ARRAY(fifo_count, MCXNPDMState, MCXN_PDM_NUM_CH),
+        VMSTATE_BOOL(dma_lvl, MCXNPDMState),
         VMSTATE_END_OF_LIST()
     },
 };
@@ -277,6 +361,7 @@ static const TypeInfo mcxn_pdm_types[] = {
         .name          = TYPE_MCXN_PDM,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNPDMState),
+        .instance_init = mcxn_pdm_init,
         .class_init    = mcxn_pdm_class_init,
     },
 };
