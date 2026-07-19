@@ -134,9 +134,13 @@ That table is the status. Read it, and do not hand-edit it.**
   **HsCmp/CMP is now operator-driven**: its crossing has no analog source, but it was
   already exposed as the `comparator-output` QOM property, so `CCR1[DMA_EN]` redirecting an
   IER-enabled edge to the DMA request just needed wiring — the operator injects a crossing
-  over QMP and it paces the eDMA (mcxn-cmp-dma). Still unwired: **PinInt / PDM / FlexPWM
-  capture** — input-seams with no operator input modelled yet (the request line is ready;
-  the missing piece is the signal source — a pin edge / mic bitstream / PWM-pin edge).
+  over QMP and it paces the eDMA (mcxn-cmp-dma). **PinInt is now functional + operator-
+  driven**: PINT was a register stub (IST/RISE always 0, no IRQ); building it out earned the
+  pin-interrupt path (operator `pin-input` QOM property → edge-detect → PINT0_IRQn=47) and
+  its DMA (INT0..3 → sources 3..6), mutation-proven on DMA + rate + NVIC (mcxn-pint-dma).
+  Still unwired: **PDM / FlexPWM capture** — input-seams with no operator input modelled yet
+  (the request line is ready; the missing piece is the signal source — a mic bitstream /
+  PWM-pin edge).
 - **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
   `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is
   roadmap. A stated gap is honest; a badge over one is a bug.

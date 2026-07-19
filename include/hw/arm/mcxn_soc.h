@@ -28,6 +28,7 @@
 #include "hw/misc/mcxn_pdm.h"
 #include "hw/misc/mcxn_adc.h"
 #include "hw/misc/mcxn_cmp.h"
+#include "hw/misc/mcxn_pint.h"
 #include "hw/misc/mcxn_tsi.h"
 #include "hw/misc/mcxn_emvsim.h"
 #include "hw/misc/mcxn_flexcan.h"
@@ -116,6 +117,7 @@ struct MCXNState {
     MCXNInputMuxState inputmux;                 /* INPUTMUX0: trigger + DMA gating */
     MCXNADCState    adc[MCXN_NUM_ADC];           /* ADC0..1 (LPADC) */
     MCXNCMPState    cmp[MCXN_NUM_CMP];           /* CMP0..2 (LPCMP) */
+    MCXNPINTState   pint0;                        /* PINT (pin interrupt, IRQ 47) */
     MCXNTSIState    tsi[MCXN_NUM_TSI];           /* TSI0 (touch sense) */
     MCXNEMVSIMState emvsim[MCXN_NUM_EMVSIM];      /* EMVSIM0..1 (smartcard) */
     MCXNFlexCanState flexcan[MCXN_NUM_FLEXCAN];   /* CAN0..1 (FlexCAN) */
@@ -163,6 +165,7 @@ struct MCXNState {
     MemoryRegion inputmux_s_alias;                /* secure alias of INPUTMUX0 */
     MemoryRegion adc_s_alias[MCXN_NUM_ADC];       /* secure aliases of ADC0..1 */
     MemoryRegion cmp_s_alias[MCXN_NUM_CMP];       /* secure aliases of CMP0..2 */
+    MemoryRegion pint0_s_alias;                   /* secure alias of PINT */
     MemoryRegion tsi_s_alias[MCXN_NUM_TSI];       /* secure aliases of TSI0 */
     MemoryRegion emvsim_s_alias[MCXN_NUM_EMVSIM]; /* secure aliases of EMVSIM0..1 */
     MemoryRegion flexcan_s_alias[MCXN_NUM_FLEXCAN]; /* secure aliases of CAN0..1 */

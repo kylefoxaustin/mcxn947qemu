@@ -212,7 +212,8 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_AHBSC,    0x40120000 },
     { TYPE_MCXN_BSP32,    0x40032000 },
     { TYPE_MCXN_DM,       0x400BD000 },
-    { TYPE_MCXN_PINT,     0x40004000 },
+    /* PINT 0x40004000 instantiated explicitly below (operator-driven pin input +
+     * NVIC IRQ 47 + INT0..3 eDMA request lines). */
     { TYPE_MCXN_UTICK,    0x40012000 },
     { TYPE_MCXN_WWDT,     0x40016000 },   /* WWDT0 */
     { TYPE_MCXN_WWDT,     0x40017000 },   /* WWDT1 */
@@ -316,6 +317,7 @@ static void mcxn_soc_instance_init(Object *obj)
         g_autofree char *name = g_strdup_printf("cmp%d", i);
         object_initialize_child(obj, name, &s->cmp[i], TYPE_MCXN_CMP);
     }
+    object_initialize_child(obj, "pint0", &s->pint0, TYPE_MCXN_PINT);
     for (i = 0; i < MCXN_NUM_TSI; i++) {
         g_autofree char *name = g_strdup_printf("tsi%d", i);
         object_initialize_child(obj, name, &s->tsi[i], TYPE_MCXN_TSI);
@@ -756,6 +758,19 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      cmp_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->cmp_s_alias[i]);
     }
+
+    /* PINT (pin interrupt): operator-driven pin input, shared NVIC line PINT0_IRQn=47.
+     * The INT0..3 eDMA request lines are connected in the DMA-request block below. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->pint0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->pint0), 0, 0x40004000);
+    sysbus_connect_irq(SYS_BUS_DEVICE(&s->pint0), 0,
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 47));
+    memory_region_init_alias(&s->pint0_s_alias, OBJECT(dev), "mcxn.pint0.s",
+                             &s->pint0.iomem, 0, MCXN_PINT_SIZE);
+    memory_region_add_subregion(system_memory, 0x40004000 + MCXN_SECURE_ALIAS,
+                                 &s->pint0_s_alias);
 
     /* TSI0 (touch sense): operator-driven per-channel count, end-of-scan IRQ. */
     for (i = 0; i < MCXN_NUM_TSI; i++) {
@@ -1275,6 +1290,13 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->cmp[i]), 1,
                            qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
                                                   MCXN_DMA_REQ_HSCMP0 + i));
+    }
+    /* PINT INT0..3: sysbus IRQ 1..4 = DMA request (src 3+n).  A pin edge is a one-shot
+     * PULSE, so it drives the eDMA "req-pulse" input.  IRQ 0 is the shared NVIC line. */
+    for (i = 0; i < MCXN_PINT_DMA_LINES; i++) {
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->pint0), 1 + i,
+                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                                                  MCXN_DMA_REQ_PINT0 + i));
     }
     for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
