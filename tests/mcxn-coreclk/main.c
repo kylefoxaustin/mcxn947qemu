@@ -5,14 +5,17 @@
  * 48 MHz -- exactly as silicon does before BOARD_InitBootClocks.  Bringing up PLL0 and
  * switching the main clock to it raises the core (and SysTick) to 150 MHz.
  *
- * Proof, against an INDEPENDENT real-time reference: the MRT runs on the fixed 150 MHz bus
- * clock, so one MRT one-shot is a fixed wall-clock interval.  Time it with SysTick BEFORE
- * the PLL is configured (SysTick @ 48 MHz reset core) and AFTER (SysTick @ 150 MHz): the
- * SAME interval now costs 150/48 = 3.125x more SysTick ticks, because SysTick's clock moved.
+ * Proof, against a reference that does NOT move with the core clock: a CTIMER clocked from
+ * FRO12M (12 MHz SIRC, generated independently of the PLL/main clock) ticks at a fixed rate,
+ * so one CTIMER interval is a fixed wall-clock time.  Measure it with SysTick BEFORE the PLL
+ * is configured (SysTick @ 48 MHz reset core) and AFTER (SysTick @ 150 MHz): the SAME interval
+ * now costs 150/48 = 3.125x more SysTick ticks, because SysTick's clock moved.
  *
- *   A model that pinned the core clock to a 150 MHz constant (the old board `sysclk`) reads
- *   the SAME count both times -- the reset-vs-configured clock difference is invisible, and a
- *   developer whose un-configured code assumed 150 MHz would be 3.1x wrong on silicon.
+ * (The MRT can't be the reference any more -- it runs on the bus clock = main clock, so it
+ * now moves WITH SysTick; both would scale together and the derivation would be invisible.
+ * That is exactly why the reference must be on a fixed source like FRO12M.)
+ *
+ *   A model that pinned the core clock to a 150 MHz constant reads the SAME count both times.
  *
  * ⚠ -icount shift=3 REQUIRED: the measurement is in virtual SysTick ticks.
  *
@@ -20,17 +23,16 @@
  */
 #include <stdint.h>
 
-#define MEM32(a) (*(volatile uint32_t *)(uintptr_t)(a))
-
-/* ---- MRT0 (fixed 150 MHz bus clock -> a real-time reference) -------------- */
-#define MRT0      0x40013000u
-#define CH(n)     (MRT0 + (n) * 0x10u)
-#define CH_INTVAL 0x0
-#define CH_CTRL   0x8
-#define CH_STAT   0xC
-#define INTVAL_LOAD  (1u << 31)
-#define CTRL_ONESHOT (1u << 1)
-#define STAT_INTFLAG (1u << 0)
+/* ---- CTIMER0 on FRO12M (12 MHz, fixed real-time reference) ---------------- */
+#define CTIMER0CLKSEL (*(volatile uint32_t *)0x4000026Cu)
+#define CTIMER0CLKDIV (*(volatile uint32_t *)0x400003D0u)
+#define CTSEL_FRO12M  4u
+#define CT0 0x4000C000u
+#define CT_IR  (*(volatile uint32_t *)(CT0 + 0x00))
+#define CT_TCR (*(volatile uint32_t *)(CT0 + 0x04))
+#define CT_PR  (*(volatile uint32_t *)(CT0 + 0x0C))
+#define CT_MCR (*(volatile uint32_t *)(CT0 + 0x14))
+#define CT_MR0 (*(volatile uint32_t *)(CT0 + 0x18))
 
 /* ---- SysTick (on the core clock = the SCG main clock) --------------------- */
 #define SYST_CSR  (*(volatile uint32_t *)0xE000E010u)
@@ -47,25 +49,21 @@ static void puts_(const char *s) { while (*s) putc_(*s++); }
 static void putdec(uint32_t v) { char b[12]; int i = 0; if (!v) { putc_('0'); return; }
     while (v) { b[i++] = (char)('0' + v % 10); v /= 10; } while (i--) putc_(b[i]); }
 
-#define NCOUNTS 200000u
+#define MR0_COUNTS 1200u
 
-/* Time one MRT one-shot of NCOUNTS against SysTick (which counts DOWN). */
+/* Time MR0_COUNTS CTIMER (FRO12M 12 MHz) ticks against SysTick (which counts DOWN). */
 static uint32_t measure(void)
 {
     uint32_t t0, t1;
 
-    MEM32(CH(0) + CH_CTRL) = 0;
-    MEM32(CH(0) + CH_STAT) = STAT_INTFLAG;
+    CT_TCR = 2; CT_PR = 0; CT_MR0 = MR0_COUNTS; CT_MCR = 1u; CT_IR = 0xFF;
     SYST_RVR = SYST_MASK; SYST_CVR = 0; SYST_CSR = (1u << 0) | (1u << 2);
-
-    MEM32(CH(0) + CH_CTRL)   = CTRL_ONESHOT;
     t0 = SYST_CVR;
-    MEM32(CH(0) + CH_INTVAL) = INTVAL_LOAD | NCOUNTS;
-    while (!(MEM32(CH(0) + CH_STAT) & STAT_INTFLAG)) {
+    CT_TCR = 1;
+    while (!(CT_IR & 1u)) {
     }
     t1 = SYST_CVR;
-    MEM32(CH(0) + CH_STAT) = STAT_INTFLAG;
-    MEM32(CH(0) + CH_CTRL) = 0;
+    CT_TCR = 2;
     return (t0 - t1) & SYST_MASK;
 }
 
@@ -90,20 +88,24 @@ void cpu0_main(void)
     LP_CTRL = (1u << 19);
     puts_("CORECLK test\r\n");
 
-    /* (1) Reset core clock = FRO_HF = 48 MHz.  200000 MRT counts (@150 MHz) measured by a
-     *     48 MHz SysTick = 200000 * 48/150 = 64000 ticks. */
+    /* CTIMER0 on FRO12M (12 MHz): a fixed real-time reference, independent of the core. */
+    CTIMER0CLKDIV = 0;
+    CTIMER0CLKSEL = CTSEL_FRO12M;
+
+    /* (1) Reset core clock = FRO_HF = 48 MHz.  1200 CTIMER ticks @12 MHz = 100 us, measured
+     *     by a 48 MHz SysTick = 100us*48MHz = 4800 ticks. */
     a = measure();
-    puts_("  reset core (FRO_HF 48MHz): 200000 MRT counts -> "); putdec(a); puts_(" SysTick\r\n");
+    puts_("  reset core (FRO_HF 48MHz): 1200 CTIMER ticks -> "); putdec(a); puts_(" SysTick\r\n");
 
     /* (2) Raise the core to 150 MHz via PLL0. */
     clock_init_150m();
 
-    /* (3) Same MRT interval, now measured by a 150 MHz SysTick = 200000 ticks. */
+    /* (3) Same CTIMER interval, now measured by a 150 MHz SysTick = 100us*150MHz = 15000. */
     b = measure();
-    puts_("  after PLL0 (150MHz):       200000 MRT counts -> "); putdec(b); puts_(" SysTick\r\n");
+    puts_("  after PLL0 (150MHz):       1200 CTIMER ticks -> "); putdec(b); puts_(" SysTick\r\n");
 
-    ok &= (a > 62720u && a < 65280u);            /* 48 MHz: ~64000 (200000*48/150)  */
-    ok &= (b > 196000u && b < 204000u);          /* 150 MHz: ~200000                */
+    ok &= (a > 4704u && a < 4896u);              /* 48 MHz:  ~4800  (1200/12M * 48M)  */
+    ok &= (b > 14700u && b < 15300u);            /* 150 MHz: ~15000 (1200/12M * 150M) */
     /* The SysTick clock jumped 150/48 = 3.125x: the core clock is DERIVED, not pinned. */
     ok &= (b > a * 30u / 10u && b < a * 33u / 10u);
 

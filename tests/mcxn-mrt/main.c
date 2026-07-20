@@ -93,36 +93,23 @@ static uint32_t measure(uint32_t counts)
     return (t0 - t1) & SYST_MASK;                /* SysTick counts DOWN */
 }
 
-/* Bring the core/SysTick clock to 150 MHz via PLL0, as BOARD_InitBootClocks does
- * (the SCG boots on FRO_HF at 48 MHz; timing measured vs SysTick needs the 150 MHz
- * operating point this test's goldens assume). */
-static void clock_init_150m(void)
-{
-    volatile uint32_t *scg = (volatile uint32_t *)0x40044000u;
-    scg[0x300 / 4] |= 1u;             /* FIRCCSR |= FIRCEN           */
-    scg[0x504 / 4]  = 0x020035B0u;    /* APLLCTRL: SOURCE=1 (Clk48M) */
-    scg[0x50C / 4]  = 8u;             /* APLLNDIV N=8                */
-    scg[0x510 / 4]  = 50u;            /* APLLMDIV M=50               */
-    scg[0x514 / 4]  = 1u;             /* APLLPDIV P=1                */
-    scg[0x500 / 4] |= 3u;             /* APLLCSR PWREN|CLKEN         */
-    scg[0x014 / 4]  = (5u << 24);     /* RCCR SCS = PLL0 -> 150 MHz  */
-}
-
 void cpu0_main(void)
 {
     uint32_t a, b;
     int ok = 1;
 
     LP_CTRL = CTRL_TE;
-    clock_init_150m();
     puts_("MRT test\r\n");
 
     /*
-     * ⭐ THE ABSOLUTE CHECK.  MRT and SysTick are both fed from the 150 MHz sysclk, so an
-     *   MRT interval of N counts must take N SysTick ticks.  A model that INVENTED its
-     *   rate (the old `?: 150000000`) passes this ONLY because the invented number equals
-     *   the real one -- and the moment it does not, this test moves.  A ratio test would
-     *   not: the rate cancels.
+     * ⭐ THE SHARED-CLOCK CHECK.  MRT runs on the AHB/bus clock = the SCG main clock, the
+     *   SAME clock SysTick derives from -- so an MRT interval of N counts must take N SysTick
+     *   ticks, WHATEVER that clock is.  This test runs at the reset core clock (FRO_HF,
+     *   48 MHz -- it does NOT configure the PLL), and 200000 counts still == 200000 ticks
+     *   because both timers move together.  A model that pinned MRT to a 150 MHz constant
+     *   (the old `?: 150000000` / raw sysclk wire) while SysTick sits at the 48 MHz reset
+     *   clock reads ~64000 ticks for 200000 counts -- caught here.  The rate cancels in a
+     *   ratio test; this ABSOLUTE 1:1 is what proves MRT and SysTick share the derived clock.
      */
     a = measure(200000u);
     puts_("  MRT 200000 counts -> "); putdec(a); puts_(" SysTick ticks\r\n");

@@ -62,7 +62,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `LPUART` | 10 | ✅ functional (10 FlexComm UARTs) |
 | `LP_FLEXCOMM` | 10 | ✅ functional (all 10 as LPUART; cpu0+cpu1 consoles) |
 | `MAILBOX` | 1 | ✅ functional (register-accurate) |
-| `MRT` | 1 | ✅ functional (4-ch down-counter -> NVIC IRQ) |
+| `MRT` | 1 | ✅ functional (4-ch down-counter -> NVIC IRQ) — clock **derived** from the SCG main clock (AHB/bus clock, no selector), follows the core (48 MHz reset -> 150 MHz configured); tests/mcxn-mrt, mcxn-coreclk |
 | `NPX` | 1 | ✅ functional (register-accurate; flash-cache obfuscation control @ 0x400C_C000) |
 | `Neutron NPU` | 1 | ⚠️ **HONEST-FAULT** (eIQ Neutron N1-16 @ 0x400B_E000, IRQ 97). Compute is proprietary microcode with no user registers, so the result is UNCOMPUTED — and that is surfaced **to the GUEST** via the non-gating `INTR[ERRORTRAP]` + IRQ 97, not merely to the operator via QMP (which the firmware under test cannot see). The old "flag-at-operator" class was a LICENCE TO LIE TO THE GUEST and is retired. ⚠ Note the emulator is DELIBERATELY MORE HONEST THAN THE SILICON: real Neutron does NOT refuse work it cannot do — it CLAIMS the op and returns garbage (measured: 8-bit MatMulNBits, rel-L2 103%, cosine −0.0019, i.e. orthogonal to the truth) and is NON-DETERMINISTIC, so no golden-image test can pass against it. A clean ERRORTRAP here is NOT a promise that silicon will fault; tests/mcxn-neutron |
 | `OPAMP` | 3 | ✅ functional (register-accurate) |

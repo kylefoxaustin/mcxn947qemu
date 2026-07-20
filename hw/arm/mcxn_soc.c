@@ -653,8 +653,12 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      &s->ctimer_s_alias[i]);
     }
 
-    /* MRT (Multi-Rate Timer): functional, IRQ to cpu0 NVIC. */
-    qdev_connect_clock_in(DEVICE(&s->mrt0), "clk", s->sysclk);
+    /* MRT (Multi-Rate Timer): runs on the AHB/bus clock, which is the SCG main clock
+     * (kCLOCK_Mrt = AHB_CLK_CTRL1 gate, no selector).  Now DERIVED from mainclk -- 48 MHz
+     * at reset, 150 MHz once firmware brings up PLL0 -- instead of the raw sysclk constant.
+     * (AHBCLKDIV is not modelled; the core takes mainclk directly too, so both assume /1.) */
+    qdev_connect_clock_in(DEVICE(&s->mrt0), "clk",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "mainclk"));
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->mrt0), errp)) {
         return;
     }

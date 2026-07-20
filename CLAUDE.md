@@ -158,8 +158,12 @@ That table is the status. Read it, and do not hand-edit it.**
   (the `clock_init_150m()` preamble in the pwm/mrt/sct/flexpwm-dma tests) — or it measures
   the 48 MHz reset clock and fails. This is the honest reset-clock path; the "boot
   pre-configured to 150 MHz" shortcut is BLOCKED by the reset-values gate (it correctly
-  refuses to fake non-RM SCG reset values). **Still assumed:** MRT/LPTMR/PWM/SAI (raw
-  sysclk / hardcoded constants — no clock input yet). Ratios are exact throughout; the few
+  refuses to fake non-RM SCG reset values). **MRT is now derived too** — it runs on the
+  AHB/bus clock = the SCG main clock (no selector, `kCLOCK_Mrt` is an AHB gate), so it
+  follows the core (mcxn-mrt proves MRT and SysTick share the derived clock at the 48 MHz
+  reset rate; wiring MRT back to a constant makes it read ~64000 vs 200000 → FAIL). **Still
+  assumed:** LPTMR (its own PCS clock selector — SIRC/LPO/RTC — is not modelled), and
+  PWM/SAI (hardcoded constants, no clock input). Ratios are exact throughout; the few
   remaining absolute frequencies are the documented assumption. Say which.
 
 ### What "done" means here (learned the hard way)

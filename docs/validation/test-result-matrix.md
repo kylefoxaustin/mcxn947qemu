@@ -66,7 +66,7 @@ register-only≈registration/Tier-C.
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
 | ctimer | ✓ | ✓ | functional | mcxn-ctimer, mcxn-timers | SKIP |
-| mrt | ✓ | ✓ | functional | mcxn-timers | SKIP |
+| mrt | ✓ | ✓ | functional | mcxn-timers, mcxn-mrt | SKIP |
 | lptmr | ✓ | ✓ | functional | mcxn-timers | SKIP |
 | ostimer | ✓ | ✓ | functional | mcxn-ostimer, mcxn-timers | SKIP |
 | sct | ✓ | ✓ | functional | mcxn-sct | SKIP |
