@@ -38,6 +38,17 @@ struct MCXNSCGState {
      */
     Clock *fro12m;
     Clock *frohf;
+
+    /*
+     * PLL0 (APLL) and PLL1 (SPLL) outputs — DERIVED from the APLL/SPLL NDIV/MDIV/PDIV
+     * registers via the RM formula (fsl_clock.c CLOCK_GetPll0OutFreq): Fout =
+     * (Fin/N)*M/postdiv, gated by the PLL power/enable.  SYSCON muxes these to the
+     * peripherals that can select a PLL source (the CTIMER/SCT selectors), so a guest
+     * that programs PLL0 to 150 MHz and points a timer at it gets 150 MHz — and a guest
+     * that reconfigures the PLL moves that timer with it, instead of a 0-Hz stub.
+     */
+    Clock *apll;
+    Clock *spll;
 };
 
 #endif /* HW_MISC_MCXN_SCG_H */

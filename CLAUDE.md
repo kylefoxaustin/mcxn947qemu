@@ -145,9 +145,19 @@ That table is the status. Read it, and do not hand-edit it.**
 - **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
   `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is
   roadmap. A stated gap is honest; a badge over one is a bug.
-- **The clock tree is not modelled.** Peripheral base rates are *documented
-  assumptions* tied to the SoC sysclk (150 MHz), not derived. Ratios (prescalers,
-  dividers) are exact; absolute frequencies are an assumption. Say so.
+- **The clock tree is PARTIALLY modelled — and growing.** The derived slice is real:
+  SCG publishes its sources (FRO12M, FRO_HF) *and now computes PLL0/PLL1* from the
+  APLL/SPLL NDIV/MDIV/PDIV registers via the RM formula ((48/8)×50/2 = 150 MHz); SYSCON
+  muxes all of these — including the PLLs (CTIMER selectors 1/2, SCT selectors 1/4) —
+  to the CTIMER/SCT/OSTIMER, which run at exactly what they are given and FOLLOW a PLL
+  reconfigure (mcxn-pll-ctimer). **Still assumed:** the M33 core clock + SysTick (the
+  board's 150 MHz `sysclk` constant — the SCG main-clock select RCCR[SCS] is not yet fed
+  to the core), and MRT/LPTMR/PWM/SAI (raw sysclk / hardcoded constants, no clock input).
+  ⚠ The core-clock rewire is blocked from the "boot pre-configured" shortcut by the
+  reset-values gate (which correctly forbids faking non-reset SCG register values), so it
+  needs the honest reset-clock path (core boots on FRO, firmware raises it) — a later
+  phase. Ratios (prescalers, dividers) are exact throughout; the remaining absolute
+  frequencies are the documented assumption. Say which.
 
 ### What "done" means here (learned the hard way)
 

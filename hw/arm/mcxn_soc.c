@@ -543,6 +543,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                           qdev_get_clock_out(DEVICE(&s->scg0), "fro12m"));
     qdev_connect_clock_in(DEVICE(&s->syscon), "frohf",
                           qdev_get_clock_out(DEVICE(&s->scg0), "frohf"));
+    /* The SCG PLL0/PLL1 outputs feed SYSCON's CTIMER/SCT muxes (selectors 1/2 and 1/4). */
+    qdev_connect_clock_in(DEVICE(&s->syscon), "apll",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "apll"));
+    qdev_connect_clock_in(DEVICE(&s->syscon), "spll",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "spll"));
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->syscon), errp)) {
         return;

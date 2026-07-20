@@ -57,6 +57,23 @@
 #define FRO12M_HZ    12000000u
 #define FROHF_48_HZ  48000000u
 #define FROHF_144_HZ 144000000u
+#define CLK48M_HZ    48000000u        /* FIRC fixed 48 MHz output (PLL source 1) */
+#define EXTCLK_HZ    16000000u        /* SDK default s_Ext_Clk_Freq (SOSC source 0) */
+#define OSC32K_HZ    32768u           /* ROSC / 32 kHz (PLL source 2) */
+
+/* APLL/SPLL control + divider registers (CMSIS SCG_Type). */
+#define SCG_APLLCTRL      0x504
+#define SCG_SPLLCTRL      0x604
+/* APLLCTRL / SPLLCTRL fields (identical layout). */
+#define PLLCTRL_SOURCE_MASK    0x6000000u   /* [26:25]: 0 ExtClk, 1 Clk48M, 2 Osc32K */
+#define PLLCTRL_SOURCE_SHIFT   25
+#define PLLCTRL_BYPASSPOSTDIV2 0x10000u
+#define PLLCTRL_BYPASSPREDIV   0x80000u
+#define PLLCTRL_BYPASSPOSTDIV  0x100000u
+#define PLLNDIV_MASK           0xFFu
+#define PLLMDIV_MASK           0xFFFFu
+#define PLLPDIV_MASK           0x1Fu
+#define PLLSSCG1_SEL_SS_MDIV   0x800u
 
 /*
  * Publish the source clocks SCG actually produces.  This mirrors the SDK's own
@@ -74,6 +91,79 @@
  * selector and ran at sysclk, so a driver told "you are on FRO_HF, 48 MHz" got a
  * timer running at 150 MHz -- every CTIMER delay 3.1x too short.
  */
+/* FRO 48 MHz output (PLL source 1 / Clk48M): available while the FIRC is enabled. */
+static uint32_t scg_clk48m_hz(MCXNSCGState *s)
+{
+    return (s->regs[SCG_FIRCCSR >> 2] & FIRCCSR_FIRCEN) ? CLK48M_HZ : 0;
+}
+
+/*
+ * One PLL's output frequency, from its own CTRL/NDIV/MDIV/PDIV registers.  Mirrors
+ * the SDK exactly (fsl_clock.c CLOCK_GetPll0OutFreq + findPll0PreDiv/PostDiv/MMult):
+ *
+ *   Fout = (Fin / N) * M / postdiv
+ *     N       = NDIV (min 1), or 1 if BYPASSPREDIV
+ *     M       = MDIV (integer; the SSCG fractional path is only used with SEL_SS_MDIV)
+ *     postdiv = 2*PDIV (min 2), or PDIV if BYPASSPOSTDIV2, or 1 if BYPASSPOSTDIV
+ *   Fin per CTRL[SOURCE]: 0 ExtClk(SOSC), 1 Clk48M(FIRC 48M), 2 Osc32K(ROSC).
+ *
+ * Gated by the PLL being powered/locked (CSR PWREN|CLKEN) -- the same term the read
+ * path uses to report the lock bit.  The APLL and SPLL share this layout, so one
+ * helper serves both (ctrl/ndiv/mdiv/pdiv/sscg1/csr offsets passed in).
+ */
+static uint32_t scg_pll_out(MCXNSCGState *s, hwaddr ctrl, hwaddr ndiv, hwaddr mdiv,
+                            hwaddr pdiv, hwaddr sscg1, hwaddr csr)
+{
+    uint32_t c = s->regs[ctrl >> 2];
+    uint32_t fin, n, m, postdiv;
+
+    if (!(s->regs[csr >> 2] & APLLCSR_PWR_CLK)) {
+        return 0;                       /* not powered/enabled: no output */
+    }
+    switch ((c & PLLCTRL_SOURCE_MASK) >> PLLCTRL_SOURCE_SHIFT) {
+    case 0:
+        fin = (s->regs[SCG_SOSCCSR >> 2] & SOSCCSR_SOSCEN) ? EXTCLK_HZ : 0;
+        break;
+    case 1:
+        fin = scg_clk48m_hz(s);
+        break;
+    case 2:
+        fin = (s->regs[SCG_ROSCCSR >> 2] & ROSCCSR_ROSCCM) ? OSC32K_HZ : 0;
+        break;
+    default:
+        fin = 0;
+        break;
+    }
+    if (fin == 0) {
+        return 0;
+    }
+
+    n = (c & PLLCTRL_BYPASSPREDIV) ? 1 : (s->regs[ndiv >> 2] & PLLNDIV_MASK);
+    if (n == 0) {
+        n = 1;
+    }
+    if (c & PLLCTRL_BYPASSPOSTDIV) {
+        postdiv = 1;
+    } else if (c & PLLCTRL_BYPASSPOSTDIV2) {
+        postdiv = s->regs[pdiv >> 2] & PLLPDIV_MASK;
+    } else {
+        postdiv = 2 * (s->regs[pdiv >> 2] & PLLPDIV_MASK);
+    }
+    if (postdiv == 0) {
+        postdiv = 2;
+    }
+    /* Integer M only.  SSCG fractional multiply (SEL_SS_MDIV) is not modelled; a
+     * config that selects it would need the fractional path -- flag rather than
+     * silently truncate. */
+    if (s->regs[sscg1 >> 2] & PLLSSCG1_SEL_SS_MDIV) {
+        qemu_log_mask(LOG_UNIMP, "mcxn-scg: PLL SSCG fractional multiply not "
+                      "modelled; using integer MDIV\n");
+    }
+    m = s->regs[mdiv >> 2] & PLLMDIV_MASK;
+
+    return (uint32_t)((uint64_t)(fin / n) * m / postdiv);
+}
+
 static void mcxn_scg_update_clocks(MCXNSCGState *s)
 {
     uint32_t sirccsr = s->regs[SCG_SIRCCSR >> 2];
@@ -90,6 +180,13 @@ static void mcxn_scg_update_clocks(MCXNSCGState *s)
         hf = (firccfg & FIRCCFG_RANGE) ? FROHF_144_HZ : FROHF_48_HZ;
     }
     clock_update_hz(s->frohf, hf);
+
+    /* PLL0/PLL1 outputs — derived from their own dividers (source per CTRL[SOURCE],
+     * which for the 150 MHz setup is the 48 MHz FIRC just updated above). */
+    clock_update_hz(s->apll, scg_pll_out(s, SCG_APLLCTRL, SCG_APLLNDIV, SCG_APLLMDIV,
+                                         SCG_APLLPDIV, SCG_APLLSSCG1, SCG_APLLCSR));
+    clock_update_hz(s->spll, scg_pll_out(s, SCG_SPLLCTRL, SCG_SPLLNDIV, SCG_SPLLMDIV,
+                                         SCG_SPLLPDIV, SCG_SPLLSSCG1, SCG_SPLLCSR));
 }
 
 #define SCG_VERID_VALUE  0x06010000u
@@ -204,9 +301,26 @@ static void mcxn_scg_write(void *opaque, hwaddr off,
     }
     s->regs[off >> 2] = value;
 
-    /* Any of these three CHANGES A SOURCE CLOCK'S RATE.  Re-derive and propagate. */
-    if (off == SCG_SIRCCSR || off == SCG_FIRCCSR || off == SCG_FIRCCFG) {
+    /*
+     * Re-derive and propagate whenever a register that feeds a source clock, a PLL,
+     * or the main-clock select changes.  The source oscillators (SIRC/FIRC) plus the
+     * PLL control/divider registers, the PLL power/enable, the external/32k enables,
+     * and RCCR[SCS] all move the main clock.
+     */
+    switch (off) {
+    case SCG_SIRCCSR:
+    case SCG_FIRCCSR:
+    case SCG_FIRCCFG:
+    case SCG_SOSCCSR:
+    case SCG_ROSCCSR:
+    case SCG_APLLCSR: case SCG_APLLCTRL:
+    case SCG_APLLNDIV: case SCG_APLLMDIV: case SCG_APLLPDIV: case SCG_APLLSSCG1:
+    case SCG_SPLLCSR: case SCG_SPLLCTRL:
+    case SCG_SPLLNDIV: case SCG_SPLLMDIV: case SCG_SPLLPDIV: case SCG_SPLLSSCG1:
         mcxn_scg_update_clocks(s);
+        break;
+    default:
+        break;
     }
 }
 
@@ -295,6 +409,8 @@ static void mcxn_scg_realize(DeviceState *dev, Error **errp)
 
     s->fro12m = qdev_init_clock_out(dev, "fro12m");
     s->frohf  = qdev_init_clock_out(dev, "frohf");
+    s->apll   = qdev_init_clock_out(dev, "apll");
+    s->spll   = qdev_init_clock_out(dev, "spll");
 }
 
 static const VMStateDescription vmstate_mcxn_scg = {

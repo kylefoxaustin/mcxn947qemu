@@ -49,6 +49,8 @@ struct MCXNSysconState {
     /* Source clocks in from SCG, muxed out to the peripherals per *CLKSEL. */
     Clock *fro12m_in;
     Clock *frohf_in;
+    Clock *apll_in;     /* SCG PLL0 output (CTIMERCLKSEL=1 / SCTCLKSEL=1) */
+    Clock *spll_in;     /* SCG PLL1 output (CTIMERCLKSEL=2 / SCTCLKSEL=4, /PLL1CLK0DIV) */
     Clock *ctimer_clk[5];
     Clock *sct_clk;
     uint32_t cpuctrl;                    /* CPU Control            (off 0x800) */

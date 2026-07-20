@@ -59,9 +59,18 @@
 #define SYSCON_SCTCLKDIV      0x3B4
 #define SYSCON_CTIMERCLKSEL0  0x26C
 #define SYSCON_CTIMERCLKDIV0  0x3D0
+#define SYSCON_PLL1CLK0DIV    0x3E4   /* PLL1 clock-0 divider (CTIMER sel 2 / SCT sel 4) */
 #define CTIMER_COUNT          5
 #define CLKDIV_DIV_MASK       0xFFu
 #define CLKDIV_HALT           (1u << 30)
+
+/* PLL1 output after its PLL1CLK0DIV divider (the divided PLL1 the CTIMER/SCT muxes see). */
+static uint32_t mcxn_syscon_pll1_div(MCXNSysconState *s)
+{
+    uint32_t div = (s->regs[SYSCON_PLL1CLK0DIV / 4] & CLKDIV_DIV_MASK) + 1;
+
+    return clock_get_hz(s->spll_in) / div;
+}
 
 /*
  * The CTIMER clock mux, mirroring the SDK's CLOCK_GetCTimerClkFreq() EXACTLY.
@@ -84,12 +93,14 @@ static uint32_t mcxn_syscon_ctimer_src(MCXNSysconState *s, int n)
 
     switch (sel) {
     case 0:  return CLK1M_HZ;                       /* CLOCK_GetClk1MFreq()  */
+    case 1:  return clock_get_hz(s->apll_in);       /* CLOCK_GetPll0OutFreq()          */
+    case 2:  return mcxn_syscon_pll1_div(s);        /* CLOCK_GetPll1OutFreq()/PLL1CLK0DIV */
     case 3:  return clock_get_hz(s->frohf_in);      /* CLOCK_GetFroHfFreq()  */
     case 4:  return clock_get_hz(s->fro12m_in);     /* CLOCK_GetFro12MFreq() */
     case 7:  return 0;                              /* none selected (reset) */
     default:
         qemu_log_mask(LOG_UNIMP,
-            "mcxn-syscon: CTIMER%d clock source %u (PLL0/PLL1/SAI/LPOSC) is not "
+            "mcxn-syscon: CTIMER%d clock source %u (SAI/LPOSC) is not "
             "modelled.  Reporting 0 Hz -- THE TIMER WILL NOT RUN -- rather than "
             "substituting a plausible rate, which would make every delay this "
             "driver computes silently wrong.\n", n, sel);
@@ -107,12 +118,14 @@ static uint32_t mcxn_syscon_sct_src(MCXNSysconState *s)
     uint32_t sel = s->regs[SYSCON_SCTCLKSEL / 4] & 0x7u;
 
     switch (sel) {
+    case 1:  return clock_get_hz(s->apll_in);       /* CLOCK_GetPll0OutFreq()          */
     case 3:  return clock_get_hz(s->frohf_in);      /* CLOCK_GetFroHfFreq() */
+    case 4:  return mcxn_syscon_pll1_div(s);        /* CLOCK_GetPll1OutFreq()/PLL1CLK0DIV */
     case 0:
     case 7:  return 0;                              /* no source selected */
     default:
         qemu_log_mask(LOG_UNIMP,
-            "mcxn-syscon: SCT clock source %u (PLL0/ExtClk/PLL1/SAI) is not modelled. "
+            "mcxn-syscon: SCT clock source %u (ExtClk/SAI) is not modelled. "
             "Reporting 0 Hz -- THE SCT WILL NOT RUN -- rather than substituting a "
             "plausible rate, which would make every period it produces silently "
             "wrong.\n", sel);
@@ -305,6 +318,7 @@ static void mcxn_syscon_write(void *opaque, hwaddr offset, uint64_t value,
         /* Any selector or divider CHANGES A PERIPHERAL'S ACTUAL RATE. */
         if (offset == SYSCON_OSTIMERCLKSEL ||
             offset == SYSCON_SCTCLKSEL || offset == SYSCON_SCTCLKDIV ||
+            offset == SYSCON_PLL1CLK0DIV ||
             (offset >= SYSCON_CTIMERCLKSEL0 &&
              offset <  SYSCON_CTIMERCLKSEL0 + 4 * CTIMER_COUNT) ||
             (offset >= SYSCON_CTIMERCLKDIV0 &&
@@ -538,6 +552,10 @@ static void mcxn_syscon_init(Object *obj)
     s->fro12m_in = qdev_init_clock_in(DEVICE(obj), "fro12m",
                                       mcxn_syscon_src_changed, s, ClockUpdate);
     s->frohf_in  = qdev_init_clock_in(DEVICE(obj), "frohf",
+                                      mcxn_syscon_src_changed, s, ClockUpdate);
+    s->apll_in   = qdev_init_clock_in(DEVICE(obj), "apll",
+                                      mcxn_syscon_src_changed, s, ClockUpdate);
+    s->spll_in   = qdev_init_clock_in(DEVICE(obj), "spll",
                                       mcxn_syscon_src_changed, s, ClockUpdate);
 }
 
