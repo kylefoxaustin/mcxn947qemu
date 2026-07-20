@@ -75,6 +75,17 @@
 #define PLLPDIV_MASK           0x1Fu
 #define PLLSSCG1_SEL_SS_MDIV   0x800u
 
+/* RCCR/CSR[SCS] main-clock source select (bits [27:24]). */
+#define RCCR_SCS_MASK   0x0F000000u
+#define RCCR_SCS_SHIFT  24
+#define SCS_SOSC   1u   /* ExtClk / clk_in */
+#define SCS_SIRC   2u   /* FRO_12M */
+#define SCS_FIRC   3u   /* FRO_HF  */
+#define SCS_ROSC   4u   /* Osc32K  */
+#define SCS_APLL   5u   /* PLL0    */
+#define SCS_SPLL   6u   /* PLL1    */
+#define SCS_UPLL   7u   /* USB PLL (not modelled) */
+
 /*
  * Publish the source clocks SCG actually produces.  This mirrors the SDK's own
  * logic exactly (fsl_clock.c):
@@ -164,6 +175,38 @@ static uint32_t scg_pll_out(MCXNSCGState *s, hwaddr ctrl, hwaddr ndiv, hwaddr md
     return (uint32_t)((uint64_t)(fin / n) * m / postdiv);
 }
 
+/*
+ * The SCG main clock: RCCR[SCS] selects which source feeds the core/bus tree (the
+ * M33 cpuclk and, through SYSCON's AHBCLKDIV, the bus clock).  Out of reset RCCR[SCS]
+ * = 3 (FRO_HF), so an un-configured core runs at 48 MHz -- exactly as silicon does;
+ * BOARD_InitBootClocks brings up PLL0 and switches SCS to 5, raising it to 150 MHz.
+ */
+static uint32_t scg_main_clk_hz(MCXNSCGState *s)
+{
+    uint32_t scs = (s->regs[SCG_RCCR >> 2] & RCCR_SCS_MASK) >> RCCR_SCS_SHIFT;
+
+    switch (scs) {
+    case SCS_SOSC:
+        return (s->regs[SCG_SOSCCSR >> 2] & SOSCCSR_SOSCEN) ? EXTCLK_HZ : 0;
+    case SCS_SIRC:
+        return clock_get_hz(s->fro12m);
+    case SCS_FIRC:
+        return clock_get_hz(s->frohf);
+    case SCS_ROSC:
+        return (s->regs[SCG_ROSCCSR >> 2] & ROSCCSR_ROSCCM) ? OSC32K_HZ : 0;
+    case SCS_APLL:
+        return scg_pll_out(s, SCG_APLLCTRL, SCG_APLLNDIV, SCG_APLLMDIV,
+                           SCG_APLLPDIV, SCG_APLLSSCG1, SCG_APLLCSR);
+    case SCS_SPLL:
+        return scg_pll_out(s, SCG_SPLLCTRL, SCG_SPLLNDIV, SCG_SPLLMDIV,
+                           SCG_SPLLPDIV, SCG_SPLLSSCG1, SCG_SPLLCSR);
+    default:
+        qemu_log_mask(LOG_UNIMP,
+                      "mcxn-scg: main clock source SCS=%u not modelled\n", scs);
+        return 0;
+    }
+}
+
 static void mcxn_scg_update_clocks(MCXNSCGState *s)
 {
     uint32_t sirccsr = s->regs[SCG_SIRCCSR >> 2];
@@ -187,6 +230,9 @@ static void mcxn_scg_update_clocks(MCXNSCGState *s)
                                          SCG_APLLPDIV, SCG_APLLSSCG1, SCG_APLLCSR));
     clock_update_hz(s->spll, scg_pll_out(s, SCG_SPLLCTRL, SCG_SPLLNDIV, SCG_SPLLMDIV,
                                          SCG_SPLLPDIV, SCG_SPLLSSCG1, SCG_SPLLCSR));
+
+    /* Main clock last: it may select a PLL just updated above. */
+    clock_update_hz(s->mainclk, scg_main_clk_hz(s));
 }
 
 #define SCG_VERID_VALUE  0x06010000u
@@ -313,6 +359,7 @@ static void mcxn_scg_write(void *opaque, hwaddr off,
     case SCG_FIRCCFG:
     case SCG_SOSCCSR:
     case SCG_ROSCCSR:
+    case SCG_RCCR:
     case SCG_APLLCSR: case SCG_APLLCTRL:
     case SCG_APLLNDIV: case SCG_APLLMDIV: case SCG_APLLPDIV: case SCG_APLLSSCG1:
     case SCG_SPLLCSR: case SCG_SPLLCTRL:
@@ -384,6 +431,19 @@ static void mcxn_scg_reset(DeviceState *dev)
      */
     s->regs[SCG_RCCR >> 2]           = 0x03000000u;   /* SCS = 3 */
     s->regs[SCG_SIRCCSR >> 2]        = SCG_SIRCCSR_RESET;
+    /*
+     * FIRC is ENABLED + VALID out of reset.  This was the latent inconsistency the
+     * read-path comment above already named ("SIRC and FIRC genuinely run out of reset
+     * and carry their VLD in their RESET VALUE") but the reset left FIRCCSR at 0.  It is
+     * RM-DERIVED, not guessed: RCCR resets to SCS=3 (FRO_HF is the boot clock -- confirmed
+     * in rm-golden.json, 0x0300_0000), so the FIRC MUST be running at reset, else the core
+     * would boot with no clock; and the SDK's own clock_config explicitly sets
+     * SCG_FIRCCSR_FIRCEN_CFG=Disabled for its FRO12M profile -- you disable what is on by
+     * default.  So FRO_HF = 48 MHz out of reset (FIRCCFG[RANGE]=0), and the un-configured
+     * core runs at 48 MHz, exactly as silicon does before BOARD_InitBootClocks.  (FIRCCSR
+     * is not in the reset-values golden, so this changes no gated value.)
+     */
+    s->regs[SCG_FIRCCSR >> 2]        = FIRCCSR_FIRCEN | SCG_READY;
     s->regs[SCG_APLLNDIV >> 2]       = 0x00000001u;
     s->regs[SCG_APLLMDIV >> 2]       = 0x00000001u;
     s->regs[SCG_APLLPDIV >> 2]       = 0x00000001u;
@@ -411,6 +471,7 @@ static void mcxn_scg_realize(DeviceState *dev, Error **errp)
     s->frohf  = qdev_init_clock_out(dev, "frohf");
     s->apll   = qdev_init_clock_out(dev, "apll");
     s->spll   = qdev_init_clock_out(dev, "spll");
+    s->mainclk = qdev_init_clock_out(dev, "mainclk");
 }
 
 static const VMStateDescription vmstate_mcxn_scg = {

@@ -106,10 +106,14 @@ void cpu0_main(void)
     b = measure();
     puts_("  PLL0=75MHz:  1200 CTIMER ticks -> "); putdec(b); puts_(" SysTick\r\n");
 
-    /* 150 MHz: 1200 CTIMER ticks == 1200 SysTick ticks (both 150 MHz). */
-    ok &= (a > 1176u && a < 1224u);
-    /* 75 MHz: half as fast -> ~2400 SysTick ticks. */
-    ok &= (b > 2352u && b < 2448u);
+    /*
+     * SysTick is the independent reference: the core clock is left on FRO_HF (48 MHz,
+     * the reset source -- we do NOT switch the main clock to PLL0, so SysTick stays put
+     * while only the PLL-clocked CTIMER moves).  1200 CTIMER ticks at 150 MHz measured by
+     * a 48 MHz SysTick = 1200*48/150 = 384; at 75 MHz = 768.
+     */
+    ok &= (a > 372u && a < 400u);
+    ok &= (b > 744u && b < 792u);
     /* And the ratio must be ~2: the CTIMER clock FOLLOWED the PLL. */
     ok &= (b > a * 19u / 10u && b < a * 21u / 10u);
 

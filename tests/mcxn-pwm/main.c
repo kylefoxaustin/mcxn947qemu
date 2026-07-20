@@ -142,6 +142,21 @@ void pwm0_handler(void)
     }
 }
 
+/* Bring the core/SysTick clock to 150 MHz via PLL0, as BOARD_InitBootClocks does
+ * (the SCG boots on FRO_HF at 48 MHz; timing measured vs SysTick needs the 150 MHz
+ * operating point this test's goldens assume). */
+static void clock_init_150m(void)
+{
+    volatile uint32_t *scg = (volatile uint32_t *)0x40044000u;
+    scg[0x300 / 4] |= 1u;             /* FIRCCSR |= FIRCEN           */
+    scg[0x504 / 4]  = 0x020035B0u;    /* APLLCTRL: SOURCE=1 (Clk48M) */
+    scg[0x50C / 4]  = 8u;             /* APLLNDIV N=8                */
+    scg[0x510 / 4]  = 50u;            /* APLLMDIV M=50               */
+    scg[0x514 / 4]  = 1u;             /* APLLPDIV P=1                */
+    scg[0x500 / 4] |= 3u;             /* APLLCSR PWREN|CLKEN         */
+    scg[0x014 / 4]  = (5u << 24);     /* RCCR SCS = PLL0 -> 150 MHz  */
+}
+
 void cpu0_main(void)
 {
     uint32_t elapsed;
@@ -149,6 +164,7 @@ void cpu0_main(void)
     int p;
 
     LP_CTRL = CTRL_TE;
+    clock_init_150m();
     puts_("PWM test\r\n");
 
     /* Independent time base: SysTick free-running off the processor clock. */

@@ -49,6 +49,14 @@ struct MCXNSCGState {
      */
     Clock *apll;
     Clock *spll;
+
+    /*
+     * The SCG main clock — RCCR[SCS] selects its source (FRO_HF at reset -> 48 MHz;
+     * PLL0 after BOARD_InitBootClocks -> 150 MHz).  Feeds the M33 cpuclk/refclk, so
+     * SysTick and the core derive from it: an un-configured guest runs at the real
+     * 48 MHz reset rate, a configured one at 150 MHz, and a reconfigure moves both.
+     */
+    Clock *mainclk;
 };
 
 #endif /* HW_MISC_MCXN_SCG_H */

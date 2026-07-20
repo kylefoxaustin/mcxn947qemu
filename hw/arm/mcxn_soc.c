@@ -429,6 +429,19 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
      * runtime by cpu0 firmware via the SYSCON CPUCTRL/CPBOOT block (see
      * mcxn_syscon).
      */
+    /* SCG0 clock generator — realized here, BEFORE the cores, so its derived main
+     * clock (RCCR[SCS] -> FRO_HF at reset -> 48 MHz; PLL0 after firmware -> 150 MHz)
+     * can drive the M33 cpuclk/refclk below instead of a fixed board constant. */
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->scg0), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->scg0), 0, MCXN_SCG0_BASE);
+    memory_region_init_alias(&s->scg0_s_alias, OBJECT(dev),
+                             "mcxn.scg0.s", &s->scg0.iomem, 0, MCXN_SCG_SIZE);
+    memory_region_add_subregion(system_memory,
+                                MCXN_SCG0_BASE + MCXN_SECURE_ALIAS,
+                                &s->scg0_s_alias);
+
     ncpu = cfg->num_cpus ? cfg->num_cpus : 1;
     if (ncpu > MCXN_MAX_CPUS) {
         ncpu = MCXN_MAX_CPUS;
@@ -452,8 +465,14 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
             /* Secondary core(s) wait for an explicit SYSCON release. */
             qdev_prop_set_bit(cpudev, "start-powered-off", true);
         }
-        qdev_connect_clock_in(cpudev, "cpuclk", s->sysclk);
-        qdev_connect_clock_in(cpudev, "refclk", s->refclk);
+        /* The M33 core + SysTick derive from the SCG main clock (not the board sysclk
+         * constant): 48 MHz FRO_HF out of reset, 150 MHz once firmware brings up PLL0.
+         * refclk (the SysTick alternate reference) shares it -- the SYSTICKCLKSEL divider
+         * is not modelled, so it tracks the core clock. */
+        qdev_connect_clock_in(cpudev, "cpuclk",
+                              qdev_get_clock_out(DEVICE(&s->scg0), "mainclk"));
+        qdev_connect_clock_in(cpudev, "refclk",
+                              qdev_get_clock_out(DEVICE(&s->scg0), "mainclk"));
         object_property_set_link(OBJECT(&s->armv7m[i]), "memory",
                                  OBJECT(&s->cpu_mem[i]), &error_abort);
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->armv7m[i]), errp)) {
@@ -516,16 +535,7 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      &s->flexcomm_s_alias[i]);
     }
 
-    /* SCG0 clock generator (stub: reports oscillators/PLLs ready). */
-    if (!sysbus_realize(SYS_BUS_DEVICE(&s->scg0), errp)) {
-        return;
-    }
-    sysbus_mmio_map(SYS_BUS_DEVICE(&s->scg0), 0, MCXN_SCG0_BASE);
-    memory_region_init_alias(&s->scg0_s_alias, OBJECT(dev),
-                             "mcxn.scg0.s", &s->scg0.iomem, 0, MCXN_SCG_SIZE);
-    memory_region_add_subregion(system_memory,
-                                MCXN_SCG0_BASE + MCXN_SECURE_ALIAS,
-                                &s->scg0_s_alias);
+    /* SCG0 is realized BEFORE the cores (above) so its mainclk output can feed cpuclk. */
 
     /* SYSCON: models the CPUCTRL/CPBOOT handover cpu0 uses to release cpu1.
      * Linked to the secondary core so a CPUCTRL write can start it. */

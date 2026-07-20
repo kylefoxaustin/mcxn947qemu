@@ -145,19 +145,22 @@ That table is the status. Read it, and do not hand-edit it.**
 - **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
   `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is
   roadmap. A stated gap is honest; a badge over one is a bug.
-- **The clock tree is PARTIALLY modelled — and growing.** The derived slice is real:
-  SCG publishes its sources (FRO12M, FRO_HF) *and now computes PLL0/PLL1* from the
-  APLL/SPLL NDIV/MDIV/PDIV registers via the RM formula ((48/8)×50/2 = 150 MHz); SYSCON
-  muxes all of these — including the PLLs (CTIMER selectors 1/2, SCT selectors 1/4) —
-  to the CTIMER/SCT/OSTIMER, which run at exactly what they are given and FOLLOW a PLL
-  reconfigure (mcxn-pll-ctimer). **Still assumed:** the M33 core clock + SysTick (the
-  board's 150 MHz `sysclk` constant — the SCG main-clock select RCCR[SCS] is not yet fed
-  to the core), and MRT/LPTMR/PWM/SAI (raw sysclk / hardcoded constants, no clock input).
-  ⚠ The core-clock rewire is blocked from the "boot pre-configured" shortcut by the
-  reset-values gate (which correctly forbids faking non-reset SCG register values), so it
-  needs the honest reset-clock path (core boots on FRO, firmware raises it) — a later
-  phase. Ratios (prescalers, dividers) are exact throughout; the remaining absolute
-  frequencies are the documented assumption. Say which.
+- **The clock tree is mostly modelled — including the CORE clock.** The derived slice:
+  SCG computes its sources (FRO12M, FRO_HF) *and PLL0/PLL1* from the APLL/SPLL
+  NDIV/MDIV/PDIV registers via the RM formula ((48/8)×50/2 = 150 MHz); SYSCON muxes all of
+  these — including the PLLs (CTIMER selectors 1/2, SCT selectors 1/4) — to CTIMER/SCT/
+  OSTIMER, which FOLLOW a PLL reconfigure (mcxn-pll-ctimer). **The M33 core clock + SysTick
+  are now DERIVED too**: the SCG main clock (RCCR[SCS]) feeds cpuclk/refclk, so an
+  un-configured core boots at the real **48 MHz FRO_HF** reset rate and rises to 150 MHz
+  once firmware brings up PLL0 — a reconfigure moves SysTick with it (mcxn-coreclk).
+  ⚠ **Because the core boots at 48 MHz (not 150), a timing test that measures absolute time
+  against SysTick MUST configure the clock first, exactly as `BOARD_InitBootClocks` does**
+  (the `clock_init_150m()` preamble in the pwm/mrt/sct/flexpwm-dma tests) — or it measures
+  the 48 MHz reset clock and fails. This is the honest reset-clock path; the "boot
+  pre-configured to 150 MHz" shortcut is BLOCKED by the reset-values gate (it correctly
+  refuses to fake non-RM SCG reset values). **Still assumed:** MRT/LPTMR/PWM/SAI (raw
+  sysclk / hardcoded constants — no clock input yet). Ratios are exact throughout; the few
+  remaining absolute frequencies are the documented assumption. Say which.
 
 ### What "done" means here (learned the hard way)
 
