@@ -15,6 +15,7 @@
 #define HW_MISC_MCXN_PWM_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qemu/timer.h"
 #include "qom/object.h"
 
@@ -29,6 +30,7 @@ struct MCXNPWMState {
 
     /*< public >*/
     MemoryRegion iomem;
+    Clock       *clk;           /* IPBus/bus clock — derived from the SCG main clock */
     qemu_irq     irq;           /* main submodule-0 capture/compare/reload line */
     qemu_irq     dma_req_val;   /* submodule-0 value-register DMA request (reload-driven) */
     bool         val_dma_lvl;   /* current level of dma_req_val, so we edge-detect */

@@ -1088,6 +1088,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         pwm_cfg[MCXN_NUM_PWM] = { { 0x400CE000, 114 }, { 0x400D0000, 120 } };
         g_autofree char *aname = g_strdup_printf("mcxn.pwm%d.s", i);
 
+        /* The FlexPWM counter is clocked by the bus clock = the SCG main clock, DERIVED
+         * (48 MHz reset -> 150 MHz once firmware brings up PLL0) instead of a hardcoded
+         * constant.  Connect before realize (qdev_connect_clock_in asserts !realized). */
+        qdev_connect_clock_in(DEVICE(&s->pwm[i]), "clk",
+                              qdev_get_clock_out(DEVICE(&s->scg0), "mainclk"));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->pwm[i]), errp)) {
             return;
         }

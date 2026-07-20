@@ -14,6 +14,7 @@
 #include "qemu/timer.h"
 #include "hw/misc/mcxn_pwm.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
 
 /* Per-submodule register block: base 0x0, step 0x60, four submodules. */
@@ -120,8 +121,15 @@
  *
  *   ⚠ What is NOT: the carrier's frequency in Hz.  That inherits this assumption whole.
  */
-#define PWM_IPBUS_HZ       150000000u  /* ⚠ ASSUMPTION (= board sysclk), not measured */
-#define PWM_TICK_NS        10
+/*
+ * ✅ RESOLVED (2026-07-20): the IPBus rate is no longer an assumed constant.  The FlexPWM
+ * counter is clocked by the bus clock (CTRL2[CLK_SEL]=0), which is the SCG main clock; the
+ * SoC now drives a real Clock input, so `mcxn_pwm_period_ns` reads clock_get_hz(s->clk) --
+ * 48 MHz at the FRO_HF reset, 150 MHz once firmware brings up PLL0, and it FOLLOWS a
+ * reconfigure.  The old `PWM_IPBUS_HZ 150000000` constant (the "documented assumption" the
+ * comments above lament) is gone; the prescaler ratio was always exact, and now the absolute
+ * carrier frequency is too.
+ */
 
 /* Top-level (shared) registers. */
 #define PWM_OUTEN          0x180
@@ -213,8 +221,13 @@ static int64_t mcxn_pwm_period_ns(MCXNPWMState *s)
     unsigned prsc = (ctrl & PWM_CTRL_PRSC_MASK) >> PWM_CTRL_PRSC_SHIFT;
     int64_t span = (uint16_t)(val1 - init) + 1;   /* counter range, wraps ok */
     int64_t ticks = span << prsc;                 /* 2^PRSC IPBus clocks/count */
-    int64_t ns = muldiv64(ticks, NANOSECONDS_PER_SECOND, PWM_IPBUS_HZ);
+    uint32_t hz = s->clk ? clock_get_hz(s->clk) : 0;
+    int64_t ns;
 
+    if (hz == 0) {
+        return 0;   /* no counter clock (bus clock = 0): the PWM does not run */
+    }
+    ns = muldiv64(ticks, NANOSECONDS_PER_SECOND, hz);
     return ns < 1000 ? 1000 : ns;                 /* floor to keep it sane */
 }
 
@@ -241,8 +254,15 @@ static void mcxn_pwm_reload_tick(void *opaque)
         mcxn_pwm_set_val_dma(s, true);
     }
 
-    s->next_reload_ns += mcxn_pwm_period_ns(s);
-    timer_mod(&s->reload_timer, s->next_reload_ns);
+    {
+        int64_t period = mcxn_pwm_period_ns(s);
+
+        if (period <= 0) {
+            return;   /* no counter clock -- stop rather than spin at zero period */
+        }
+        s->next_reload_ns += period;
+        timer_mod(&s->reload_timer, s->next_reload_ns);
+    }
 }
 
 static uint64_t mcxn_pwm_read(void *opaque, hwaddr offset, unsigned size)
@@ -284,9 +304,14 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
          * deadline here; every later one is derived from it, so the carrier
          * cannot drift (see mcxn_pwm_reload_tick). */
         if (run & PWM_MCTRL_RUN_SM0) {
-            s->next_reload_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
-                                mcxn_pwm_period_ns(s);
-            timer_mod(&s->reload_timer, s->next_reload_ns);
+            int64_t period = mcxn_pwm_period_ns(s);
+
+            if (period > 0) {
+                s->next_reload_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + period;
+                timer_mod(&s->reload_timer, s->next_reload_ns);
+            } else {
+                timer_del(&s->reload_timer);   /* no counter clock: does not run */
+            }
         } else {
             timer_del(&s->reload_timer);
         }
@@ -357,6 +382,14 @@ static void mcxn_pwm_reset(DeviceState *dev)
     qemu_set_irq(s->dma_req_val, 0);
 }
 
+static void mcxn_pwm_init(Object *obj)
+{
+    MCXNPWMState *s = MCXN_PWM(obj);
+
+    /* Bus/IPBus clock input — the SoC connects it to the SCG main clock. */
+    s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
+}
+
 static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
 {
     MCXNPWMState *s = MCXN_PWM(dev);
@@ -396,6 +429,7 @@ static const TypeInfo mcxn_pwm_types[] = {
         .name          = TYPE_MCXN_PWM,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNPWMState),
+        .instance_init = mcxn_pwm_init,
         .class_init    = mcxn_pwm_class_init,
     },
 };
