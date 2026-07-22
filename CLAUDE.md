@@ -150,7 +150,7 @@ That table is the status. Read it, and do not hand-edit it.**
 - **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
   `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is
   roadmap. A stated gap is honest; a badge over one is a bug.
-- **The clock tree is mostly modelled — including the CORE clock.** The derived slice:
+- **The clock tree is COMPLETE — fully derived, including the CORE clock and AHBCLKDIV.** The derived slice:
   SCG computes its sources (FRO12M, FRO_HF) *and PLL0/PLL1* from the APLL/SPLL
   NDIV/MDIV/PDIV registers via the RM formula ((48/8)×50/2 = 150 MHz); SYSCON muxes all of
   these — including the PLLs (CTIMER selectors 1/2, SCT selectors 1/4) — to CTIMER/SCT/
@@ -182,10 +182,17 @@ That table is the status. Read it, and do not hand-edit it.**
   table (00 FRO_12M / 01 FRO_16K / 10 32K_CLK / 11 OSC_SYS); FRO_12M comes from the SCG, the
   16 kHz/32 kHz are fixed low-power oscillators, OSC_SYS is a crystal seam (0 Hz). mcxn-lptmr
   proves FRO_12M at 12 MHz (not 150) and that the PCS selector changes the rate (32K/FRO_12M
-  ratio ≈ 366). **Still assumed:** **AHBCLKDIV** is unmodelled
-  (core/MRT/PWM take mainclk directly = assume /1); routing them through a SYSCON busclk needs
-  SYSCON realized before the cores (an ordering change). Ratios are exact throughout; these
-  absolute frequencies are the documented assumption. Say which.
+  ratio ≈ 366). **AHBCLKDIV is now modelled too — the clock tree is COMPLETE.** SYSCON derives
+  the AHB busclk = SCG mainclk / (AHBCLKDIV+1) and drives the M33 core/SysTick, MRT and PWM
+  from it (they were on mainclk directly = ÷1). This required realizing SYSCON *before* the
+  cores (so busclk feeds cpuclk) while cpu1 is still linked *after* the cores realize — the
+  cpu1 handover is a direct field set (`s->syscon.cpu1 = s->armv7m[1].cpu`), not a
+  DEFINE_PROP_LINK (which must be set pre-realize), breaking the busclk↔cpu1 ordering cycle.
+  mcxn-ahbclkdiv proves it: at AHBCLKDIV=÷2 a fixed CTIMER-on-FRO12M interval costs half the
+  SysTick ticks (the SysTick clock halved), ratio 0.5 vs 1.0 if ignored — mutation-proven.
+  Dual-core boot + Zephyr regression-clean through the reorder. Everything on the clock tree
+  is now derived; there are no remaining absolute-frequency assumptions on-chip (the SAI
+  external-codec MCLK is a board seam, not an on-chip assumption).
 
 ### What "done" means here (learned the hard way)
 

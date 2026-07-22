@@ -128,7 +128,7 @@ register-only≈registration/Tier-C.
 
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
-| syscon | ✓ | ✓ | register-only | boot, corpus, mcxn-dualcore, mcxn-reset-values | SKIP |
+| syscon | ✓ | ✓ | register-only | boot, corpus, mcxn-dualcore, mcxn-reset-values, mcxn-ahbclkdiv | SKIP |
 | scg | ✓ | ✓ | register-only | boot, corpus, mcxn-scg-clock, mcxn-pll-ctimer, mcxn-coreclk | SKIP |
 | spc | ✓ | ✓ | register-only | boot, corpus | SKIP |
 | cmc | ✓ | ◐ | register-only | boot, corpus | SKIP |

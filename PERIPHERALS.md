@@ -85,7 +85,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `SINC` | 1 | ✅ **computes** — a real CIC filter (H(z) = ((1−z^−OSR)/(1−z^−1))^ORD), verified against the closed-form DC gain OSR^ORD across a shape sweep. `SR` used to be hardwired 0x1F00, which hung the stock SDK (MCLKRDY=0) and faked an endless zero-stream (FIFOEMPTY=0); IRQ 142; tests/mcxn-sinc |
 | `SMARTDMA` | 1 | ⚠️ **HONEST-FAULT** — the EZH core is not modelled, so the program never runs and NOTHING IS MOVED. `CTRL[START]` therefore stays SET (a dead coprocessor) instead of self-clearing, which used to tell a polling guest its transfer had COMPLETED while the destination buffer was untouched |
 | `SPC` | 1 | ✅ functional |
-| `SYSCON` | 1 | ✅ functional |
+| `SYSCON` | 1 | ✅ functional — CPUCTRL/CPBOOT cpu1 handover + the peripheral clock muxes (CTIMER/SCT/OSTIMER/SAI selectors) + the **AHB busclk** = SCG mainclk/(AHBCLKDIV+1) feeding the core/SysTick/MRT/PWM; tests/mcxn-ahbclkdiv |
 | `TDET` | 1 | ✅ functional (register-accurate) |
 | `TRDC` | 1 | ✅ functional (register-accurate) |
 | `TSI` | 1 | ✅ operator-driven (per-channel count via `tsi-countN` QOM prop; end-of-scan IRQ 101) |
@@ -138,15 +138,15 @@ authority on what is actually proven. **Read that, not this heading.**
   Request-mux sources are in `include/hw/dma/mcxn_edma.h` (`MCXN_DMA_REQ_*`).
 - **EMVSIM is retracted** (registers/IRQs only): a smartcard interface needs a
   card, and unlike `sd-card` / `m25p80` / `at24c` there is no card model upstream.
-- **The clock tree is mostly modelled — including the core clock.** SCG computes its
+- **The clock tree is COMPLETE — fully derived through the core.** SCG computes its
   sources (FRO12M/FRO_HF) *and PLL0/PLL1* from the divider registers; SYSCON muxes them to
-  CTIMER/SCT/OSTIMER/**SAI**; and the M33 core clock + SysTick + **MRT** + the **PWM** carrier
-  all derive from the SCG main clock (48 MHz FRO_HF at reset → 150 MHz on PLL0, following a
-  reconfigure). **Still assumed:** LPTMR (needs the RM's PSR[PCS]→clock table — not in the
-  SDK), AHBCLKDIV (core/MRT/PWM assume ÷1), and the external-codec SAI MCLK (a board seam).
-  Ratios (prescalers, dividers) are exact throughout; the few remaining absolute frequencies
-  are the documented assumption. Prefer a ratio test where the clock cancels; where it can't
-  (a derivation proof), the golden must come from the SDK source rates, not the model.
+  CTIMER/SCT/OSTIMER/**SAI** and derives the AHB **busclk** = mainclk/(AHBCLKDIV+1); and the
+  M33 core clock + SysTick + **MRT** + the **PWM** carrier all follow it (48 MHz FRO_HF at
+  reset → 150 MHz on PLL0, and ÷AHBCLKDIV). **LPTMR** is on its RM-Table-463 PSR[PCS] source
+  (FRO_12M/FRO_16K/32K/OSC_SYS). The only remaining absolute-frequency item is the
+  **external-codec SAI MCLK** — a board seam (off-chip crystal), not an on-chip assumption.
+  Ratios are exact throughout; prefer a ratio test where the clock cancels; where it can't (a
+  derivation proof), the golden must come from the SDK/RM source rates, not the model.
 
 ### eDMA byte-access audit (fleet lesson: silent-drop of narrow DMA bursts)
 A peripheral driven by BOTH the CPU (32-bit) and eDMA (byte/halfword bursts to a

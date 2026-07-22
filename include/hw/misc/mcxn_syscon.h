@@ -51,6 +51,8 @@ struct MCXNSysconState {
     Clock *frohf_in;
     Clock *apll_in;     /* SCG PLL0 output (CTIMERCLKSEL=1 / SCTCLKSEL=1) */
     Clock *spll_in;     /* SCG PLL1 output (CTIMERCLKSEL=2 / SCTCLKSEL=4, /PLL1CLK0DIV) */
+    Clock *mainclk_in;  /* SCG main clock (the pre-divider core/bus clock) */
+    Clock *busclk;      /* AHB/bus clock = mainclk / (AHBCLKDIV + 1) -> core, MRT, PWM */
     Clock *ctimer_clk[5];
     Clock *sct_clk;
     Clock *sai_clk[2];   /* SAI0/1 function clock (MCLK) from SAI0/1CLKSEL / CLKDIV */

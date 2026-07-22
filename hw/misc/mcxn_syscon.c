@@ -60,6 +60,7 @@
 #define SYSCON_CTIMERCLKSEL0  0x26C
 #define SYSCON_CTIMERCLKDIV0  0x3D0
 #define SYSCON_PLL1CLK0DIV    0x3E4   /* PLL1 clock-0 divider (CTIMER sel 2 / SCT sel 4) */
+#define SYSCON_AHBCLKDIV      0x380   /* System (AHB/bus) clock divider: busclk = main/(N+1) */
 #define SYSCON_SAI0CLKSEL     0x880
 #define SYSCON_SAI1CLKSEL     0x884
 #define SYSCON_SAI0CLKDIV     0x888
@@ -218,6 +219,18 @@ static void mcxn_syscon_update_clocks(MCXNSysconState *s)
         }
         clock_update_hz(s->sai_clk[n], src);
     }
+
+    /*
+     * The AHB/bus clock = main clock / (AHBCLKDIV + 1).  This feeds the M33 core (cpuclk/
+     * refclk), the MRT and the FlexPWM -- the blocks that run on the raw bus clock.  It
+     * FOLLOWS both the main clock (PLL reconfigure) and an AHBCLKDIV write.  AHBCLKDIV resets
+     * to 0 (divide-by-1), so out of reset busclk == mainclk.
+     */
+    {
+        uint32_t ahbdiv = (s->regs[SYSCON_AHBCLKDIV / 4] & CLKDIV_DIV_MASK) + 1;
+
+        clock_update_hz(s->busclk, clock_get_hz(s->mainclk_in) / ahbdiv);
+    }
 }
 #include "hw/core/cpu.h"
 #include "target/arm/cpu.h"
@@ -368,6 +381,7 @@ static void mcxn_syscon_write(void *opaque, hwaddr offset, uint64_t value,
             offset == SYSCON_PLL1CLK0DIV ||
             offset == SYSCON_SAI0CLKSEL || offset == SYSCON_SAI1CLKSEL ||
             offset == SYSCON_SAI0CLKDIV || offset == SYSCON_SAI1CLKDIV ||
+            offset == SYSCON_AHBCLKDIV ||
             (offset >= SYSCON_CTIMERCLKSEL0 &&
              offset <  SYSCON_CTIMERCLKSEL0 + 4 * CTIMER_COUNT) ||
             (offset >= SYSCON_CTIMERCLKDIV0 &&
@@ -561,6 +575,7 @@ static void mcxn_syscon_realize(DeviceState *dev, Error **errp)
             s->sai_clk[n] = qdev_init_clock_out(dev, nm);
         }
     }
+    s->busclk = qdev_init_clock_out(dev, "busclk");
 }
 
 static const VMStateDescription vmstate_mcxn_syscon = {
@@ -576,9 +591,9 @@ static const VMStateDescription vmstate_mcxn_syscon = {
     },
 };
 
-static const Property mcxn_syscon_properties[] = {
-    DEFINE_PROP_LINK("cpu1", MCXNSysconState, cpu1, TYPE_ARM_CPU, ARMCPU *),
-};
+/* cpu1 is added as a settable link in instance_init (see there), not a DEFINE_PROP_LINK,
+ * so the SoC can set it AFTER SYSCON realizes -- required to break the busclk<->cpu1
+ * ordering cycle. */
 
 static void mcxn_syscon_class_init(ObjectClass *klass, const void *data)
 {
@@ -587,7 +602,6 @@ static void mcxn_syscon_class_init(ObjectClass *klass, const void *data)
     dc->realize = mcxn_syscon_realize;
     device_class_set_legacy_reset(dc, mcxn_syscon_reset);
     dc->vmsd = &vmstate_mcxn_syscon;
-    device_class_set_props(dc, mcxn_syscon_properties);
 }
 
 /* A source clock's rate changed upstream in SCG -- re-derive every peripheral's. */
@@ -614,6 +628,10 @@ static void mcxn_syscon_init(Object *obj)
                                       mcxn_syscon_src_changed, s, ClockUpdate);
     s->spll_in   = qdev_init_clock_in(DEVICE(obj), "spll",
                                       mcxn_syscon_src_changed, s, ClockUpdate);
+    /* The SCG main clock -- divided by AHBCLKDIV into busclk.  A main-clock change (PLL
+     * reconfigure) must re-derive busclk, so it carries the same update callback. */
+    s->mainclk_in = qdev_init_clock_in(DEVICE(obj), "mainclk",
+                                       mcxn_syscon_src_changed, s, ClockUpdate);
 }
 
 static const TypeInfo mcxn_syscon_types[] = {

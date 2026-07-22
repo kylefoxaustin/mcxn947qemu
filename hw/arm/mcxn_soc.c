@@ -442,6 +442,35 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                 MCXN_SCG0_BASE + MCXN_SECURE_ALIAS,
                                 &s->scg0_s_alias);
 
+    /*
+     * SYSCON is realized HERE, before the cores, so its AHB busclk output
+     * (= SCG mainclk / (AHBCLKDIV+1)) can drive the M33 cpuclk/refclk below.  Its clock
+     * inputs come from the SCG (already realized).  SYSCON's cpu1 link is set AFTER the cores
+     * realize (a settable-anytime link, added in instance_init) -- SYSCON never reads cpu1 at
+     * realize, only at runtime on the CPUCTRL write, so this breaks the busclk<->cpu1 cycle.
+     * (qdev_connect_clock_in asserts !realized, so the inputs are connected first.)
+     */
+    qdev_connect_clock_in(DEVICE(&s->syscon), "fro12m",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "fro12m"));
+    qdev_connect_clock_in(DEVICE(&s->syscon), "frohf",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "frohf"));
+    qdev_connect_clock_in(DEVICE(&s->syscon), "apll",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "apll"));
+    qdev_connect_clock_in(DEVICE(&s->syscon), "spll",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "spll"));
+    qdev_connect_clock_in(DEVICE(&s->syscon), "mainclk",
+                          qdev_get_clock_out(DEVICE(&s->scg0), "mainclk"));
+    if (!sysbus_realize(SYS_BUS_DEVICE(&s->syscon), errp)) {
+        return;
+    }
+    sysbus_mmio_map(SYS_BUS_DEVICE(&s->syscon), 0, MCXN_SYSCON_BASE);
+    memory_region_init_alias(&s->syscon_s_alias, OBJECT(dev),
+                             "mcxn.syscon.s", &s->syscon.iomem, 0,
+                             MCXN_SYSCON_SIZE);
+    memory_region_add_subregion(system_memory,
+                                MCXN_SYSCON_BASE + MCXN_SECURE_ALIAS,
+                                &s->syscon_s_alias);
+
     ncpu = cfg->num_cpus ? cfg->num_cpus : 1;
     if (ncpu > MCXN_MAX_CPUS) {
         ncpu = MCXN_MAX_CPUS;
@@ -465,14 +494,14 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
             /* Secondary core(s) wait for an explicit SYSCON release. */
             qdev_prop_set_bit(cpudev, "start-powered-off", true);
         }
-        /* The M33 core + SysTick derive from the SCG main clock (not the board sysclk
-         * constant): 48 MHz FRO_HF out of reset, 150 MHz once firmware brings up PLL0.
-         * refclk (the SysTick alternate reference) shares it -- the SYSTICKCLKSEL divider
-         * is not modelled, so it tracks the core clock. */
+        /* The M33 core + SysTick derive from the AHB busclk = SCG mainclk / (AHBCLKDIV+1):
+         * 48 MHz FRO_HF out of reset, 150 MHz once firmware brings up PLL0, and it follows an
+         * AHBCLKDIV write.  refclk (the SysTick alternate reference) shares it -- the
+         * SYSTICKCLKSEL divider is not modelled, so it tracks the core clock. */
         qdev_connect_clock_in(cpudev, "cpuclk",
-                              qdev_get_clock_out(DEVICE(&s->scg0), "mainclk"));
+                              qdev_get_clock_out(DEVICE(&s->syscon), "busclk"));
         qdev_connect_clock_in(cpudev, "refclk",
-                              qdev_get_clock_out(DEVICE(&s->scg0), "mainclk"));
+                              qdev_get_clock_out(DEVICE(&s->syscon), "busclk"));
         object_property_set_link(OBJECT(&s->armv7m[i]), "memory",
                                  OBJECT(&s->cpu_mem[i]), &error_abort);
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->armv7m[i]), errp)) {
@@ -537,38 +566,15 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
 
     /* SCG0 is realized BEFORE the cores (above) so its mainclk output can feed cpuclk. */
 
-    /* SYSCON: models the CPUCTRL/CPBOOT handover cpu0 uses to release cpu1.
-     * Linked to the secondary core so a CPUCTRL write can start it. */
+    /* SYSCON (realized above, before the cores) drives the CPUCTRL/CPBOOT handover cpu0 uses
+     * to release cpu1.  cpu1 is set HERE -- after the cores realize, so armv7m[1].cpu exists;
+     * SYSCON only reads it at runtime on the CPUCTRL write, never at realize, which is what
+     * lets SYSCON realize BEFORE the cores (to feed cpuclk from busclk).  A direct field set:
+     * the SoC owns SYSCON, the CPU lives for the machine's lifetime (no ref management), and a
+     * DEFINE_PROP_LINK would have had to be set before realize -- the ordering we can't meet. */
     if (ncpu > 1) {
-        object_property_set_link(OBJECT(&s->syscon), "cpu1",
-                                 OBJECT(s->armv7m[1].cpu), &error_abort);
+        s->syscon.cpu1 = s->armv7m[1].cpu;
     }
-    /*
-     * THE CLOCK TREE:  SCG (sources)  ->  SYSCON (the *CLKSEL muxes)  ->  peripherals.
-     *
-     * SCG must be realized first so its output clocks exist; SYSCON must not be
-     * realized yet, because qdev_connect_clock_in() asserts !dev->realized.
-     */
-    qdev_connect_clock_in(DEVICE(&s->syscon), "fro12m",
-                          qdev_get_clock_out(DEVICE(&s->scg0), "fro12m"));
-    qdev_connect_clock_in(DEVICE(&s->syscon), "frohf",
-                          qdev_get_clock_out(DEVICE(&s->scg0), "frohf"));
-    /* The SCG PLL0/PLL1 outputs feed SYSCON's CTIMER/SCT muxes (selectors 1/2 and 1/4). */
-    qdev_connect_clock_in(DEVICE(&s->syscon), "apll",
-                          qdev_get_clock_out(DEVICE(&s->scg0), "apll"));
-    qdev_connect_clock_in(DEVICE(&s->syscon), "spll",
-                          qdev_get_clock_out(DEVICE(&s->scg0), "spll"));
-
-    if (!sysbus_realize(SYS_BUS_DEVICE(&s->syscon), errp)) {
-        return;
-    }
-    sysbus_mmio_map(SYS_BUS_DEVICE(&s->syscon), 0, MCXN_SYSCON_BASE);
-    memory_region_init_alias(&s->syscon_s_alias, OBJECT(dev),
-                             "mcxn.syscon.s", &s->syscon.iomem, 0,
-                             MCXN_SYSCON_SIZE);
-    memory_region_add_subregion(system_memory,
-                                MCXN_SYSCON_BASE + MCXN_SECURE_ALIAS,
-                                &s->syscon_s_alias);
 
     /* Inter-CPU MAILBOX: cross-core notification.  IRQ[0]->cpu0, IRQ[1]->cpu1,
      * both on MAILBOX_IRQn = 54.  This is the rpmsg/OpenAMP signalling path. */
@@ -658,7 +664,7 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
      * at reset, 150 MHz once firmware brings up PLL0 -- instead of the raw sysclk constant.
      * (AHBCLKDIV is not modelled; the core takes mainclk directly too, so both assume /1.) */
     qdev_connect_clock_in(DEVICE(&s->mrt0), "clk",
-                          qdev_get_clock_out(DEVICE(&s->scg0), "mainclk"));
+                          qdev_get_clock_out(DEVICE(&s->syscon), "busclk"));
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->mrt0), errp)) {
         return;
     }
@@ -1101,7 +1107,7 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
          * (48 MHz reset -> 150 MHz once firmware brings up PLL0) instead of a hardcoded
          * constant.  Connect before realize (qdev_connect_clock_in asserts !realized). */
         qdev_connect_clock_in(DEVICE(&s->pwm[i]), "clk",
-                              qdev_get_clock_out(DEVICE(&s->scg0), "mainclk"));
+                              qdev_get_clock_out(DEVICE(&s->syscon), "busclk"));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->pwm[i]), errp)) {
             return;
         }
