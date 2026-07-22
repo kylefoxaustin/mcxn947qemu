@@ -29,10 +29,11 @@
  * gives one to LPUART and to FlexCAN, and none to the SAI), and inventing one
  * would be fabricating silicon.  Default off; the operator opts in.
  *
- * ⚠ The MCLK figure below is an ASSUMPTION, not a measurement, and it is labelled as
- * one on the number itself (Kyle's LAW 1).  The word RATE is DERIVED from the registers
- * firmware programs -- and every RATIO the SAI produces is MEASURED, because MCLK
- * cancels out of a ratio.  ABSOLUTE rates in Hz are assumptions.  Quote accordingly.
+ * ✅ The MCLK is now DERIVED (2026-07-21), no longer a hardcoded figure: the SAI takes a
+ * Clock input from SYSCON SAI0CLKSEL/CLKDIV, so the absolute rate follows the source
+ * firmware selects.  Every RATIO the SAI produces was always MEASURED (MCLK cancels); the
+ * DERIVATION itself is now tested too (mcxn-sai's FRO_HF-vs-PLL0 word-rate check).  See the
+ * detailed note below the register offsets.
  *
  * Offsets/bits from the MCXN947 CMSIS header (I2S_Type).
  *
@@ -42,6 +43,7 @@
 #define HW_MISC_MCXN_SAI_H
 
 #include "hw/core/sysbus.h"
+#include "hw/core/clock.h"
 #include "qemu/timer.h"
 #include "qom/object.h"
 
@@ -70,16 +72,20 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNSAIState, MCXN_SAI)
  *      DIV=15 drains in 50016 SysTick ticks, DIV=15+BYP in 1578.  That is 31.7x against
  *      an ideal 32.0 -- and it is 31.7 and NOT 32.000 precisely BECAUSE it was measured.
  *
- *   ⚠ NOT MEASURED: every ABSOLUTE rate.  12.288 MHz is the standard 48 kHz-family MCLK
- *      on this class of part, but THE CLOCK TREE IS NOT MODELLED and no real silicon was
- *      consulted.  It is a SOURCED assumption -- and per LAW 1, "a citation is a
- *      HYPOTHESIS, not a result."  If firmware asks this model what sample rate it is
- *      actually producing in Hz, THE ANSWER IS AN ASSUMPTION WEARING A NUMBER.
+ *   ✅ RESOLVED (2026-07-21): the ABSOLUTE MCLK is no longer a hardcoded constant.  The SAI
+ *      takes a Clock input driven by SYSCON SAInCLKSEL/CLKDIV (CLOCK_GetSaiClkFreq: PLL0 /
+ *      ExtClk / FRO_HF / PLL1-div), so `sai_word_period_ns` reads clock_get_hz(s->clk) and
+ *      the rate is DERIVED from whatever source firmware selects -- and follows a PLL
+ *      reconfigure.  The classic 12.288 MHz is now a real CONFIGURATION (PLL1 set to an audio
+ *      multiple, SAI0CLKSEL=4) rather than an assumption; a guest that selects FRO_HF gets
+ *      48 MHz here, exactly as on silicon.  No source selected -> 0 Hz -> the SAI has no MCLK
+ *      and does not clock data (never a plausible-but-wrong rate).
  *
- *   ⇒ Anything downstream that multiplies by this constant inherits the assumption.
- *     A ratio does not.  Say which one you are quoting.
+ *      The old 12.288 MHz assumption is gone.  The RATIO checks (which cancel MCLK) still
+ *      hold; and the DERIVATION is now itself testable -- point the SAI MCLK and SysTick at
+ *      different known sources and the word-rate ratio between them is a golden from the
+ *      SDK's source rates, not from the model (tests/mcxn-sai).
  */
-#define MCXN_SAI_MCLK_HZ   12288000u   /* ⚠ ASSUMPTION, not a measurement — see above */
 
 struct MCXNSAIState {
     /*< private >*/
@@ -87,6 +93,7 @@ struct MCXNSAIState {
 
     /*< public >*/
     MemoryRegion iomem;
+    Clock *clk;              /* SAI function clock (MCLK) — from SYSCON SAInCLKSEL/CLKDIV */
     qemu_irq irq;
 
     /* DMA request lines into the eDMA (SAI0 Tx = mux source 100, Rx = 99).

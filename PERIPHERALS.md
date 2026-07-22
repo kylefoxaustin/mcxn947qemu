@@ -78,7 +78,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `PWM` | 2 | ✅ **carrier verified** — period from INIT/VAL1 and **CTRL[PRSC]** (the prescaler was NOT MODELLED AT ALL: an 8× slower carrier request produced the same frequency, and carrier frequency IS motor control), measured against SysTick under -icount and swept across prescalers; tests/mcxn-pwm. **Carrier clock now DERIVED** from the SCG main clock (bus/IPBus clock, no hardcoded 150 MHz) — follows the core (48 MHz reset → 150 MHz configured), mutation-proven. **Value-register DMA** (SM0.DMAEN[VALDE] → reload-driven request, FlexPWM0 Val0=43/FlexPWM1 Val0=51) so PWM_SetupPwmDMA streams duty words into VALx; swept on DATA + RATE axes, mutation-proven both; tests/mcxn-flexpwm-dma. (Capture DMA needs a pin input signal that has no source in emulation.) |
 | `QDC` | 2 | ✅ functional (register-accurate; quadrature decoder) |
 | `RTC` | 1 | ✅ functional + active (live 1 Hz calendar tick + alarm match -> IRQ 52 to NVIC; tests/mcxn-rtc) |
-| `SAI` | 2 | ✅ **real data path** — 8-word TX/RX FIFOs, byte-exact audio over the board-level TXD→RXD jumper, real overrun/underrun, and a WORD RATE verified against SysTick and swept on BOTH axes (TCR2[DIV] and TCR5[W0W]). Drives eDMA request source 100/99; tests/mcxn-sai, mcxn-sai-dma |
+| `SAI` | 2 | ✅ **real data path** — 8-word TX/RX FIFOs, byte-exact audio over the board-level TXD→RXD jumper, real overrun/underrun, and a WORD RATE verified against SysTick and swept on BOTH axes (TCR2[DIV] and TCR5[W0W]). **MCLK now DERIVED** from SYSCON SAI0CLKSEL/CLKDIV (PLL0/ExtClk/FRO_HF/PLL1÷div, no hardcoded 12.288 MHz) — the word rate follows the selected source (FRO_HF vs PLL0 ratio = 150/48, mutation-proven). Drives eDMA request source 100/99; tests/mcxn-sai, mcxn-sai-dma |
 | `SCG` | 1 | ✅ functional — sources (FRO12M/FRO_HF) + **PLL0/PLL1 derived** from APLL/SPLL NDIV/MDIV/PDIV (RM formula), muxed by SYSCON to CTIMER/SCT. **The M33 core clock + SysTick are derived too**: the SCG main clock (RCCR[SCS]) feeds cpuclk/refclk — core boots at 48 MHz FRO_HF, rises to 150 MHz on PLL0; a reconfigure moves SysTick (mcxn-coreclk). tests/mcxn-pll-ctimer, mcxn-coreclk. (Timing tests configure the clock first, like BOARD_InitBootClocks.) |
 | `SCT` | 1 | ✅ functional + active (running counter -> periodic match/limit event IRQ 33 to NVIC; tests/mcxn-sct) + **event-paced eDMA** (DMA0=19/DMA1=20, gated by DMAREQ0/1[DEV_n], one-shot pulse per event), mutation-proven on data + rate axes; tests/mcxn-sct-dma |
 | `SEMA42` | 1 | ✅ functional (register-accurate) |
@@ -138,10 +138,15 @@ authority on what is actually proven. **Read that, not this heading.**
   Request-mux sources are in `include/hw/dma/mcxn_edma.h` (`MCXN_DMA_REQ_*`).
 - **EMVSIM is retracted** (registers/IRQs only): a smartcard interface needs a
   card, and unlike `sd-card` / `m25p80` / `at24c` there is no card model upstream.
-- **The clock tree is not modelled.** Peripheral base rates are *documented
-  assumptions* tied to sysclk (150 MHz). **Ratios — prescalers, dividers — are
-  exact; absolute frequencies are not.** Prefer tests that check a ratio, in which
-  the assumed clock cancels.
+- **The clock tree is mostly modelled — including the core clock.** SCG computes its
+  sources (FRO12M/FRO_HF) *and PLL0/PLL1* from the divider registers; SYSCON muxes them to
+  CTIMER/SCT/OSTIMER/**SAI**; and the M33 core clock + SysTick + **MRT** + the **PWM** carrier
+  all derive from the SCG main clock (48 MHz FRO_HF at reset → 150 MHz on PLL0, following a
+  reconfigure). **Still assumed:** LPTMR (needs the RM's PSR[PCS]→clock table — not in the
+  SDK), AHBCLKDIV (core/MRT/PWM assume ÷1), and the external-codec SAI MCLK (a board seam).
+  Ratios (prescalers, dividers) are exact throughout; the few remaining absolute frequencies
+  are the documented assumption. Prefer a ratio test where the clock cancels; where it can't
+  (a derivation proof), the golden must come from the SDK source rates, not the model.
 
 ### eDMA byte-access audit (fleet lesson: silent-drop of narrow DMA bursts)
 A peripheral driven by BOTH the CPU (32-bit) and eDMA (byte/halfword bursts to a

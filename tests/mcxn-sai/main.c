@@ -103,6 +103,36 @@ static void putdec(uint32_t v)
 #define NSAMPLES   6
 #define TFR_COUNT(v) (((v) >> 16) & 0xF)
 
+/* ---- SCG0 + SYSCON: the SAI function clock (MCLK) is DERIVED from SAI0CLKSEL ---- */
+#define SCG0         0x40044000u
+#define SCG_FIRCCSR  (*(volatile uint32_t *)(SCG0 + 0x300))
+#define SCG_APLLCSR  (*(volatile uint32_t *)(SCG0 + 0x500))
+#define SCG_APLLCTRL (*(volatile uint32_t *)(SCG0 + 0x504))
+#define SCG_APLLNDIV (*(volatile uint32_t *)(SCG0 + 0x50C))
+#define SCG_APLLMDIV (*(volatile uint32_t *)(SCG0 + 0x510))
+#define SCG_APLLPDIV (*(volatile uint32_t *)(SCG0 + 0x514))
+#define SCG_RCCR     (*(volatile uint32_t *)(SCG0 + 0x014))
+#define FIRCEN       (1u << 0)
+#define APLL_PWR_CLK 0x3u
+#define APLLCTRL_SRC_CLK48M 0x020035B0u
+
+#define SAI0CLKSEL   (*(volatile uint32_t *)0x40000880u)
+#define SAI0CLKDIV   (*(volatile uint32_t *)0x40000888u)
+#define SAISEL_PLL0    1u
+#define SAISEL_FRO_HF  3u
+
+/* Bring PLL0 to 150 MHz and the core with it (SysTick reference), as firmware does. */
+static void clock_init_150m(void)
+{
+    SCG_FIRCCSR |= FIRCEN;
+    SCG_APLLCTRL = APLLCTRL_SRC_CLK48M;
+    SCG_APLLNDIV = 8;
+    SCG_APLLMDIV = 50;
+    SCG_APLLPDIV = 1;
+    SCG_APLLCSR |= APLL_PWR_CLK;
+    SCG_RCCR = (5u << 24);            /* main clock = PLL0 -> 150 MHz */
+}
+
 void cpu0_main(void)
 {
     /* Audio words nothing in the model could invent. */
@@ -115,6 +145,15 @@ void cpu0_main(void)
 
     LP_CTRL = CTRL_TE_U;
     puts_("SAI test\r\n");
+
+    /* The SAI MCLK is now DERIVED from SYSCON SAI0CLKSEL -- with no source selected there is
+     * NO MCLK and the SAI cannot clock data.  Bring up PLL0 (150 MHz core for the SysTick
+     * reference) and point the SAI function clock at FRO_HF (48 MHz), as firmware does with
+     * CLOCK_AttachClk(kFRO_HF_to_SAI0).  The ratio checks below are MCLK-independent, so this
+     * only has to make the clock NON-ZERO; the absolute rate is proven separately at the end. */
+    clock_init_150m();
+    SAI0CLKDIV = 0;
+    SAI0CLKSEL = SAISEL_FRO_HF;
 
     /* 32-bit words at the fastest bit clock: a short word period keeps it brisk. */
     SAI_TCR2 = TCR2_BCD;                 /* DIV = 0                              */
@@ -344,6 +383,54 @@ void cpu0_main(void)
 
             ok &= (diff * 100 <= want);         /* within 1% */
         }
+    }
+
+    /* ------------------------------------------------------------------------------------
+     * ⭐ THE SOURCE-DERIVATION CHECK — the MCLK FOLLOWS SAI0CLKSEL.  The ratio sweep above
+     *   cancels MCLK, so it CANNOT catch a model that ignores the selector and uses a
+     *   constant.  This does: measure the SAME word config with the SAI clock on FRO_HF
+     *   (48 MHz) and on PLL0 (150 MHz).  Word period = bits*2(DIV+1)/MCLK, so the FRO_HF
+     *   drain must take 150/48 = 3.125x MORE SysTick ticks (SysTick is on the 150 MHz core).
+     *   The golden 150/48 is from the SDK's source rates, NOT the model -- a model that
+     *   pinned MCLK to a constant gives ratio 1.0 and FAILS.
+     * ------------------------------------------------------------------------------------ */
+    {
+        uint32_t drain_frohf, drain_pll0;
+        uint32_t t0, t1, r100;
+        int sel;
+
+        SYST_RVR = SYST_MASK; SYST_CVR = 0; SYST_CSR = SYST_ENABLE | SYST_CLKSOURCE;
+
+        for (sel = 0; sel < 2; sel++) {
+            SAI0CLKSEL = sel ? SAISEL_PLL0 : SAISEL_FRO_HF;
+            SAI_TCSR = 0;
+            SAI_TCSR = CSR_FR;
+            SAI_RCSR = CSR_FR;
+            SAI_TCR2 = TCR2_BCD | 15u;               /* DIV=15, same both times */
+            SAI_TCR5 = ((uint32_t)31 << 16);         /* 32-bit words            */
+            SAI_RCR5 = ((uint32_t)31 << 16);
+            for (i = 0; i < FIFO_DEPTH; i++) {
+                SAI_TDR0 = 0x7000u + i;
+            }
+            t0 = SYST_CVR;
+            SAI_TCSR = CSR_EN;
+            for (d = 0; d < 200000000 && TFR_COUNT(SAI_TFR0) != 0; d++) {
+            }
+            t1 = SYST_CVR;
+            SAI_TCSR = 0;
+            if (sel) {
+                drain_pll0 = (t0 - t1) & SYST_MASK;
+            } else {
+                drain_frohf = (t0 - t1) & SYST_MASK;
+            }
+        }
+
+        r100 = drain_pll0 ? (drain_frohf * 100u) / drain_pll0 : 0;
+        puts_("  MCLK=FRO_HF drain "); putdec(drain_frohf);
+        puts_(";  MCLK=PLL0 drain "); putdec(drain_pll0);
+        puts_(";  ratio x100 "); putdec(r100); puts_(" (expect 312 = 150/48)\r\n");
+        /* 3.125x within a generous band (the polling loop's own overhead is the only slack). */
+        ok &= (r100 > 297u && r100 < 328u);
     }
 
     puts_(ok ? "SAI PASS\r\n" : "SAI FAIL\r\n");

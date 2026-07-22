@@ -28,6 +28,7 @@
 #include "qemu/log.h"
 #include "hw/misc/mcxn_sai.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev-clock.h"
 #include "hw/core/qdev-properties.h"
 #include "system/dma.h"
 #include "migration/vmstate.h"
@@ -173,10 +174,14 @@ static int64_t sai_word_period_ns(MCXNSAIState *s)
         return 0;                      /* no clock: the transmitter does not run */
     }
 
-    if (tcr2 & TCR2_BYP) {
-        bclk = MCXN_SAI_MCLK_HZ;       /* divider bypassed: divide-by-one */
-    } else {
-        bclk = MCXN_SAI_MCLK_HZ / (2u * (TCR2_DIV(tcr2) + 1u));
+    {
+        uint32_t mclk = s->clk ? clock_get_hz(s->clk) : 0;
+
+        if (tcr2 & TCR2_BYP) {
+            bclk = mclk;                   /* divider bypassed: divide-by-one */
+        } else {
+            bclk = mclk / (2u * (TCR2_DIV(tcr2) + 1u));
+        }
     }
 
     if (!bclk) {
@@ -485,6 +490,14 @@ static void mcxn_sai_reset(DeviceState *dev)
     qemu_set_irq(s->irq, 0);
 }
 
+static void mcxn_sai_init(Object *obj)
+{
+    MCXNSAIState *s = MCXN_SAI(obj);
+
+    /* SAI function clock (MCLK) input — the SoC connects it to SYSCON's SAIn-clk. */
+    s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
+}
+
 static void mcxn_sai_realize(DeviceState *dev, Error **errp)
 {
     MCXNSAIState *s = MCXN_SAI(dev);
@@ -535,6 +548,7 @@ static const TypeInfo mcxn_sai_types[] = {
         .name          = TYPE_MCXN_SAI,
         .parent        = TYPE_SYS_BUS_DEVICE,
         .instance_size = sizeof(MCXNSAIState),
+        .instance_init = mcxn_sai_init,
         .class_init    = mcxn_sai_class_init,
     },
 };

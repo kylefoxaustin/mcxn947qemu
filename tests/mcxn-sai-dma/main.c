@@ -141,6 +141,12 @@ void cpu0_main(void)
     LP_CTRL = CTRL_TE_U;
     puts_("SAI-DMA test\r\n");
 
+    /* The SAI MCLK is now DERIVED from SYSCON SAI0CLKSEL -- point it at FRO_HF (48 MHz, live
+     * out of reset) so the SAI has a bit clock.  This test checks byte-exactness, not rate,
+     * so any non-zero source works (CLOCK_AttachClk(kFRO_HF_to_SAI0)). */
+    *(volatile uint32_t *)0x40000888u = 0;      /* SAI0CLKDIV = 0 */
+    *(volatile uint32_t *)0x40000880u = 3u;     /* SAI0CLKSEL = FRO_HF */
+
     /* Audio words nothing in the model could invent. */
     samples[0] = 0x11111111u; samples[1] = 0x22222222u;
     samples[2] = 0x33333333u; samples[3] = 0x44444444u;

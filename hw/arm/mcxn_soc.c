@@ -1004,7 +1004,12 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         static const struct { hwaddr base; int irq; }
         sai_cfg[MCXN_NUM_SAI] = { { 0x40106000, 59 }, { 0x40107000, 60 } };
         g_autofree char *aname = g_strdup_printf("mcxn.sai%d.s", i);
+        g_autofree char *cn = g_strdup_printf("sai%d-clk", i);
 
+        /* SAI function clock (MCLK) from SYSCON SAInCLKSEL/CLKDIV -- DERIVED (PLL0/ExtClk/
+         * FRO_HF/PLL1), no longer a hardcoded 12.288 MHz.  Connect before realize. */
+        qdev_connect_clock_in(DEVICE(&s->sai[i]), "clk",
+                              qdev_get_clock_out(DEVICE(&s->syscon), cn));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->sai[i]), errp)) {
             return;
         }

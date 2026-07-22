@@ -53,6 +53,7 @@ struct MCXNSysconState {
     Clock *spll_in;     /* SCG PLL1 output (CTIMERCLKSEL=2 / SCTCLKSEL=4, /PLL1CLK0DIV) */
     Clock *ctimer_clk[5];
     Clock *sct_clk;
+    Clock *sai_clk[2];   /* SAI0/1 function clock (MCLK) from SAI0/1CLKSEL / CLKDIV */
     uint32_t cpuctrl;                    /* CPU Control            (off 0x800) */
     uint32_t cpboot;                     /* Coprocessor Boot Addr  (off 0x804) */
     bool     cpu1_running;

@@ -60,6 +60,11 @@
 #define SYSCON_CTIMERCLKSEL0  0x26C
 #define SYSCON_CTIMERCLKDIV0  0x3D0
 #define SYSCON_PLL1CLK0DIV    0x3E4   /* PLL1 clock-0 divider (CTIMER sel 2 / SCT sel 4) */
+#define SYSCON_SAI0CLKSEL     0x880
+#define SYSCON_SAI1CLKSEL     0x884
+#define SYSCON_SAI0CLKDIV     0x888
+#define SYSCON_SAI1CLKDIV     0x88C
+#define SAI_COUNT             2
 #define CTIMER_COUNT          5
 #define CLKDIV_DIV_MASK       0xFFu
 #define CLKDIV_HALT           (1u << 30)
@@ -133,6 +138,35 @@ static uint32_t mcxn_syscon_sct_src(MCXNSysconState *s)
     }
 }
 
+/*
+ * The SAI function-clock (MCLK) mux, mirroring CLOCK_GetSaiClkFreq() (fsl_clock.c):
+ *   1 = PLL0, 2 = ExtClk, 3 = FRO_HF, 4 = PLL1 / (PLL1CLK0DIV + 1).
+ * The audio-friendly 12.288 MHz MCLK the old model hardcoded is one CONFIGURATION of this
+ * (firmware sets PLL1 to an audio multiple and points SAI0CLKSEL at it); the model now
+ * DERIVES whatever the guest selects.  ExtClk (an off-chip codec crystal) is a real source
+ * but its rate is a board seam -- reported only if SOSC is enabled.  Unmodelled sources
+ * (SAI MCLK-in loopbacks) report 0 loudly rather than a plausible wrong rate.
+ */
+static uint32_t mcxn_syscon_sai_src(MCXNSysconState *s, int n)
+{
+    hwaddr off = n ? SYSCON_SAI1CLKSEL : SYSCON_SAI0CLKSEL;
+    uint32_t sel = s->regs[off / 4] & 0x7u;
+
+    switch (sel) {
+    case 1:  return clock_get_hz(s->apll_in);       /* CLOCK_GetPll0OutFreq()          */
+    case 3:  return clock_get_hz(s->frohf_in);      /* CLOCK_GetFroHfFreq()            */
+    case 4:  return mcxn_syscon_pll1_div(s);        /* CLOCK_GetPll1OutFreq()/PLL1CLK0DIV */
+    case 0:
+    case 7:  return 0;                              /* no source selected              */
+    default:
+        qemu_log_mask(LOG_UNIMP,
+            "mcxn-syscon: SAI%d clock source %u (ExtClk/other) is not modelled. "
+            "Reporting 0 Hz -- THE SAI HAS NO MCLK -- rather than a plausible wrong rate.\n",
+            n, sel);
+        return 0;
+    }
+}
+
 static void mcxn_syscon_update_clocks(MCXNSysconState *s)
 {
     uint32_t sel = s->regs[SYSCON_OSTIMERCLKSEL / 4] & 0x7u;
@@ -170,6 +204,19 @@ static void mcxn_syscon_update_clocks(MCXNSysconState *s)
             src /= (div & CLKDIV_DIV_MASK) + 1;
         }
         clock_update_hz(s->sct_clk, src);
+    }
+
+    for (n = 0; n < SAI_COUNT; n++) {
+        hwaddr divoff = n ? SYSCON_SAI1CLKDIV : SYSCON_SAI0CLKDIV;
+        uint32_t div = s->regs[divoff / 4];
+        uint32_t src = mcxn_syscon_sai_src(s, n);
+
+        if (div & CLKDIV_HALT) {
+            src = 0;
+        } else {
+            src /= (div & CLKDIV_DIV_MASK) + 1;
+        }
+        clock_update_hz(s->sai_clk[n], src);
     }
 }
 #include "hw/core/cpu.h"
@@ -319,6 +366,8 @@ static void mcxn_syscon_write(void *opaque, hwaddr offset, uint64_t value,
         if (offset == SYSCON_OSTIMERCLKSEL ||
             offset == SYSCON_SCTCLKSEL || offset == SYSCON_SCTCLKDIV ||
             offset == SYSCON_PLL1CLK0DIV ||
+            offset == SYSCON_SAI0CLKSEL || offset == SYSCON_SAI1CLKSEL ||
+            offset == SYSCON_SAI0CLKDIV || offset == SYSCON_SAI1CLKDIV ||
             (offset >= SYSCON_CTIMERCLKSEL0 &&
              offset <  SYSCON_CTIMERCLKSEL0 + 4 * CTIMER_COUNT) ||
             (offset >= SYSCON_CTIMERCLKDIV0 &&
@@ -504,6 +553,14 @@ static void mcxn_syscon_realize(DeviceState *dev, Error **errp)
         }
     }
     s->sct_clk = qdev_init_clock_out(dev, "sct-clk");
+    {
+        int n;
+
+        for (n = 0; n < SAI_COUNT; n++) {
+            g_autofree char *nm = g_strdup_printf("sai%d-clk", n);
+            s->sai_clk[n] = qdev_init_clock_out(dev, nm);
+        }
+    }
 }
 
 static const VMStateDescription vmstate_mcxn_syscon = {

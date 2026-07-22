@@ -166,12 +166,16 @@ That table is the status. Read it, and do not hand-edit it.**
   IPBus clock is the bus/core clock), so the motor-control carrier follows the core (48 MHz
   reset → 150 MHz configured) instead of a hardcoded `PWM_IPBUS_HZ`; mcxn-pwm proves it at
   the reset clock (PWM and SysTick share the derived clock, so the tick-count golden holds).
+  **SAI is now derived too** — its MCLK takes a Clock input off SYSCON SAI0/1CLKSEL/CLKDIV
+  (CLOCK_GetSaiClkFreq: PLL0 / ExtClk / FRO_HF / PLL1÷div), so the audio rate follows the
+  source firmware selects (the classic 12.288 MHz is now a real PLL1 config, not a hardcode);
+  mcxn-sai proves the MCLK follows the selector (FRO_HF vs PLL0 word-rate ratio = 150/48
+  exactly, mutation-proven — a constant MCLK gives 1.0 and fails). The external-codec MCLK
+  (SAI as clock consumer) remains a board seam.
   **Still assumed** (each with a real blocker, not laziness): **LPTMR** currently runs on the
   150 MHz sysclk, which is WRONG — it ignores PSR[PCS] and should run on a low-power clock;
   fixing it needs the RM's PCS→clock table (the SDK enum is generic "clock 0/1/2/3", it does
-  NOT name the sources, so guessing them would be fabrication). **SAI** hardcodes a 12.288 MHz
-  MCLK; it is selected by SYSCON SAI0CLKSEL from an audio source (PLL1 or an external codec
-  MCLK — the external case is a seam), a real audio-clock-mux job. **AHBCLKDIV** is unmodelled
+  NOT name the sources, so guessing them would be fabrication). **AHBCLKDIV** is unmodelled
   (core/MRT/PWM take mainclk directly = assume /1); routing them through a SYSCON busclk needs
   SYSCON realized before the cores (an ordering change). Ratios are exact throughout; these
   absolute frequencies are the documented assumption. Say which.
