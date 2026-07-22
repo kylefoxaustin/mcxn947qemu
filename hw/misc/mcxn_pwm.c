@@ -32,14 +32,28 @@
 #define PWM_SM_STS         0x24    /* Status (W1C flags) */
 #define PWM_SM_INTEN       0x26    /* Interrupt enable */
 #define PWM_SM_DMAEN       0x28    /* DMA Enable */
+#define PWM_SM_CAPTCTRLA   0x34    /* Capture Control A (arm + edge select) */
+#define PWM_SM_CVAL0       0x40    /* Capture Value 0 (input A, capture circuit 0), RO */
 
-/* SM_DMAEN[VALDE]: Value Registers DMA Enable (CMSIS PWM_DMAEN_VALDE_MASK). */
-#define PWM_DMAEN_VALDE    0x0200u
+/* SM_DMAEN bits. */
+#define PWM_DMAEN_VALDE    0x0200u /* Value Registers DMA Enable (PWM_DMAEN_VALDE_MASK)  */
+#define PWM_DMAEN_CA0DE    0x0010u /* Capture A0 DMA Enable (PWM_DMAEN_CA0DE_MASK)       */
+
+/* SM_CAPTCTRLA (CMSIS PWM_CAPTCTRLA_*). */
+#define PWM_CAPTCTRLA_ARMA    0x0001u  /* input A capture armed        */
+#define PWM_CAPTCTRLA_EDGA0_MASK  0x000Cu   /* edge-select for capture circuit 0 */
+#define PWM_CAPTCTRLA_EDGA0_SHIFT 2
+#define EDGA0_DISABLED 0u
+#define EDGA0_FALLING  1u
+#define EDGA0_RISING   2u
+#define EDGA0_ANY      3u
 
 /* STS / INTEN interrupt bits (submodule). */
 #define PWM_STS_CMPF       0x003Fu /* compare flags */
+#define PWM_STS_CFA0       0x0400u /* input-A capture-0 flag (PWM_STS_CFA0_MASK) */
 #define PWM_STS_RF         0x1000u /* reload flag */
 #define PWM_INTEN_CMPIE    0x003Fu /* compare interrupt enables */
+#define PWM_INTEN_CA0IE    0x0400u /* input-A capture-0 interrupt enable */
 #define PWM_INTEN_RIE      0x1000u /* reload interrupt enable */
 
 /* MCTRL.RUN bit for submodule 0 (bits [11:8], one per submodule). */
@@ -165,14 +179,51 @@ static inline void pwm_st16(MCXNPWMState *s, hwaddr off, uint16_t v)
     s->regs[off + 1] = (v >> 8) & 0xff;
 }
 
+static int64_t mcxn_pwm_period_ns(MCXNPWMState *s);   /* defined below */
+
 /* Submodule-0 reload/compare interrupt: (STS & INTEN) on the IRQ-bearing bits. */
 static void mcxn_pwm_update_irq(MCXNPWMState *s)
 {
     uint16_t sts = pwm_ld16(s, PWM_SM_STS);
     uint16_t inten = pwm_ld16(s, PWM_SM_INTEN);
-    bool active = (sts & inten & (PWM_STS_RF | PWM_STS_CMPF)) != 0;
+    bool active = (sts & inten &
+                   (PWM_STS_RF | PWM_STS_CMPF | PWM_STS_CFA0)) != 0;
 
     qemu_set_irq(s->irq, active);
+}
+
+/*
+ * The submodule-0 counter's live position at virtual time `now`.
+ *
+ * The model runs the counter as a periodic reload timer (next_reload_ns is the
+ * deadline of the next INIT->VAL1 wrap); it does not store a tick-by-tick count.
+ * A capture reads the counter AT the input edge, so reconstruct it from the timing:
+ * the fraction of the current period already elapsed, mapped onto [INIT, VAL1].
+ * When the counter is not running the position is INIT (its reset value).
+ */
+static uint16_t mcxn_pwm_counter_now(MCXNPWMState *s, int64_t now)
+{
+    uint16_t init = pwm_ld16(s, PWM_SM_INIT);
+    uint16_t val1 = pwm_ld16(s, PWM_SM_VAL1);
+    int64_t period = mcxn_pwm_period_ns(s);
+    int64_t remaining, elapsed, span, pos;
+
+    if (period <= 0 || !timer_pending(&s->reload_timer)) {
+        return init;
+    }
+    remaining = s->next_reload_ns - now;
+    if (remaining < 0) {
+        remaining = 0;
+    } else if (remaining > period) {
+        remaining = period;
+    }
+    elapsed = period - remaining;                 /* ns since the counter was at INIT */
+    span = (uint16_t)(val1 - init) + 1;           /* INIT..VAL1 inclusive             */
+    pos = init + (elapsed * span) / period;        /* linear over the period           */
+    if (pos > val1) {
+        pos = val1;
+    }
+    return (uint16_t)pos;
 }
 
 /*
@@ -199,6 +250,63 @@ static void mcxn_pwm_set_val_dma(MCXNPWMState *s, bool level)
     }
     s->val_dma_lvl = level;
     qemu_set_irq(s->dma_req_val, level);
+}
+
+/*
+ * Operator-driven CAPTURE on the submodule-0 input-A pin (capture circuit 0).
+ *
+ * A PWM input pin has no signal source in emulation, so the level is OPERATOR-DRIVEN
+ * via the "capture-a-input" QOM property (the same seam as PINT's pin-input / the CMP
+ * output).  A transition that matches CAPTCTRLA[EDGA0] (falling / rising / any), while
+ * the input is armed (CAPTCTRLA[ARMA]), latches the live counter position into CVAL0,
+ * sets STS[CFA0], raises the capture interrupt if INTEN[CA0IE] is set, and -- if
+ * DMAEN[CA0DE] is set -- pulses the capture eDMA request (CMSIS FlexPWM0 capture0 = 39).
+ * A capture is a one-shot event, so the DMA request goes through the eDMA edge/pulse path
+ * (one edge, one minor loop).
+ *
+ * ⚠ Scope, stated: only input A, capture circuit 0 (CVAL0), of submodule 0 is modelled.
+ * Input B/X, capture circuit 1, the capture FIFO watermark (CFAWM) and the edge counter
+ * are not -- an honest subset, the single-shot capture the DMA path actually needs.
+ */
+static void mcxn_pwm_capture_a_edge(MCXNPWMState *s, bool level)
+{
+    uint16_t capctrl = pwm_ld16(s, PWM_SM_CAPTCTRLA);
+    unsigned edgsel = (capctrl & PWM_CAPTCTRLA_EDGA0_MASK) >> PWM_CAPTCTRLA_EDGA0_SHIFT;
+    bool rising = level && !s->capa_level;
+    bool falling = !level && s->capa_level;
+    bool match;
+
+    s->capa_level = level;
+
+    if (!(capctrl & PWM_CAPTCTRLA_ARMA) || edgsel == EDGA0_DISABLED) {
+        return;                          /* not armed / capture disabled: ignore */
+    }
+    match = (edgsel == EDGA0_ANY) ||
+            (edgsel == EDGA0_RISING && rising) ||
+            (edgsel == EDGA0_FALLING && falling);
+    if (!match) {
+        return;                          /* wrong edge for the selected mode */
+    }
+
+    /* Latch the live counter into CVAL0 (read-only to the guest) and flag it. */
+    pwm_st16(s, PWM_SM_CVAL0,
+             mcxn_pwm_counter_now(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL)));
+    pwm_st16(s, PWM_SM_STS, pwm_ld16(s, PWM_SM_STS) | PWM_STS_CFA0);
+    mcxn_pwm_update_irq(s);
+
+    if (pwm_ld16(s, PWM_SM_DMAEN) & PWM_DMAEN_CA0DE) {
+        qemu_irq_pulse(s->dma_req_capa);
+    }
+}
+
+static void mcxn_pwm_set_capa(Object *obj, bool value, Error **errp)
+{
+    mcxn_pwm_capture_a_edge(MCXN_PWM(obj), value);
+}
+
+static bool mcxn_pwm_get_capa(Object *obj, Error **errp)
+{
+    return MCXN_PWM(obj)->capa_level;
 }
 
 /*
@@ -380,6 +488,8 @@ static void mcxn_pwm_reset(DeviceState *dev)
     qemu_set_irq(s->irq, 0);
     s->val_dma_lvl = false;
     qemu_set_irq(s->dma_req_val, 0);
+    s->capa_level = false;
+    qemu_set_irq(s->dma_req_capa, 0);
 }
 
 static void mcxn_pwm_init(Object *obj)
@@ -388,6 +498,11 @@ static void mcxn_pwm_init(Object *obj)
 
     /* Bus/IPBus clock input — the SoC connects it to the SCG main clock. */
     s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
+
+    /* Operator-driven submodule-0 input-A capture pin:
+     *   qom-set /machine/soc/pwm0 capture-a-input true   */
+    object_property_add_bool(obj, "capture-a-input",
+                             mcxn_pwm_get_capa, mcxn_pwm_set_capa);
 }
 
 static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
@@ -399,18 +514,20 @@ static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);          /* 0: NVIC reload/compare */
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_val);  /* 1: value-register DMA req */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_capa); /* 2: input-A capture DMA req */
     timer_init_ns(&s->reload_timer, QEMU_CLOCK_VIRTUAL, mcxn_pwm_reload_tick, s);
 }
 
 static const VMStateDescription vmstate_mcxn_pwm = {
     .name = TYPE_MCXN_PWM,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNPWMState, MCXN_PWM_SIZE),
         VMSTATE_TIMER(reload_timer, MCXNPWMState),
         VMSTATE_INT64(next_reload_ns, MCXNPWMState),
         VMSTATE_BOOL(val_dma_lvl, MCXNPWMState),
+        VMSTATE_BOOL(capa_level, MCXNPWMState),
         VMSTATE_END_OF_LIST()
     },
 };

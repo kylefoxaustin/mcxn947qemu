@@ -1289,9 +1289,17 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         static const int pwm_val_src[MCXN_NUM_PWM] = {
             MCXN_DMA_REQ_FLEXPWM0_VAL0, MCXN_DMA_REQ_FLEXPWM1_VAL0
         };
+        static const int pwm_cap_src[MCXN_NUM_PWM] = {
+            MCXN_DMA_REQ_FLEXPWM0_CAP0, MCXN_DMA_REQ_FLEXPWM1_CAP0
+        };
         for (i = 0; i < MCXN_NUM_PWM; i++) {
+            /* IRQ 1 = value-reg DMA (a FIFO-ish reload level); IRQ 2 = SM0 input-A capture
+             * DMA (a one-shot PULSE, so it drives the eDMA "req-pulse" input). */
             sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 1,
                                qdev_get_gpio_in(DEVICE(&s->edma[0]), pwm_val_src[i]));
+            sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 2,
+                               qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                                                      pwm_cap_src[i]));
         }
     }
     /* CTIMER0..4: sysbus IRQ 1 = match-0 request, IRQ 2 = match-1 request.  These are

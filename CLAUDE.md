@@ -140,8 +140,13 @@ That table is the status. Read it, and do not hand-edit it.**
   driven**: PINT was a register stub (IST/RISE always 0, no IRQ); building it out earned the
   pin-interrupt path (operator `pin-input` QOM property → edge-detect → PINT0_IRQn=47) and
   its DMA (INT0..3 → sources 3..6), mutation-proven on DMA + rate + NVIC (mcxn-pint-dma).
-  Still unwired: **FlexPWM capture** — the last input-seam, with no operator input modelled
-  yet (the request line is ready; the missing piece is the signal source — a PWM-pin edge).
+  **FlexPWM capture — the last seam — is now closed**: the FlexPWM captures its counter into
+  CVAL0 on an operator-driven input-A edge (`capture-a-input` QOM property, CAPTCTRLA[ARMA]+
+  EDGA0 select the edge), and DMAEN[CA0DE] pulses the capture request (sources 39/47) through
+  the edge path (mcxn-flexpwm-capture, mutation-proven on capture-DMA + edge-select).
+  **Every eDMA request source is now wired** — the peripheral-triggered-DMA campaign is
+  complete (input seams closed via operator QOM inputs: analog crossing / pin edge / mic
+  bitstream / PWM-pin capture edge).
 - **EMVSIM is retracted** (tier B): a smartcard interface needs a card, and unlike
   `sd-card`/`m25p80`/`at24c` there is no card model upstream. An ISO-7816 card is
   roadmap. A stated gap is honest; a badge over one is a bug.

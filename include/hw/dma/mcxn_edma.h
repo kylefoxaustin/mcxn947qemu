@@ -47,6 +47,8 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNEDMAState, MCXN_EDMA)
 #define MCXN_DMA_REQ_HSCMP0        28   /* HsCmp{n} DMA request = 28 + n (CMP0/1/2) */
 #define MCXN_DMA_REQ_PINT0         3    /* PINT INT{n} DMA request = 3 + n, n=0..3 */
 #define MCXN_DMA_REQ_MICFIL0       18   /* MICFIL0 (PDM) FIFO request (a level) */
+#define MCXN_DMA_REQ_FLEXPWM0_CAP0 39   /* FlexPWM0 SM0 capture0 request */
+#define MCXN_DMA_REQ_FLEXPWM1_CAP0 47   /* FlexPWM1 SM0 capture0 request */
 #define MCXN_DMA_REQ_FLEXPWM0_VAL0 43   /* FlexPWM0 SM0 value-register reload request */
 #define MCXN_DMA_REQ_FLEXPWM1_VAL0 51   /* FlexPWM1 SM0 value-register reload request */
 #define MCXN_DMA_REQ_ADC0_FIFO_A   21
