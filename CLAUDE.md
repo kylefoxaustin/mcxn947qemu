@@ -177,10 +177,12 @@ That table is the status. Read it, and do not hand-edit it.**
   mcxn-sai proves the MCLK follows the selector (FRO_HF vs PLL0 word-rate ratio = 150/48
   exactly, mutation-proven — a constant MCLK gives 1.0 and fails). The external-codec MCLK
   (SAI as clock consumer) remains a board seam.
-  **Still assumed** (each with a real blocker, not laziness): **LPTMR** currently runs on the
-  150 MHz sysclk, which is WRONG — it ignores PSR[PCS] and should run on a low-power clock;
-  fixing it needs the RM's PCS→clock table (the SDK enum is generic "clock 0/1/2/3", it does
-  NOT name the sources, so guessing them would be fabrication). **AHBCLKDIV** is unmodelled
+  **LPTMR is now correctly clocked** — it was running on the 150 MHz bus clock (wrong: a
+  low-power timer whose max is 25 MHz), ignoring PSR[PCS]. The RM's Table 463 gives the source
+  table (00 FRO_12M / 01 FRO_16K / 10 32K_CLK / 11 OSC_SYS); FRO_12M comes from the SCG, the
+  16 kHz/32 kHz are fixed low-power oscillators, OSC_SYS is a crystal seam (0 Hz). mcxn-lptmr
+  proves FRO_12M at 12 MHz (not 150) and that the PCS selector changes the rate (32K/FRO_12M
+  ratio ≈ 366). **Still assumed:** **AHBCLKDIV** is unmodelled
   (core/MRT/PWM take mainclk directly = assume /1); routing them through a SYSCON busclk needs
   SYSCON realized before the cores (an ordering change). Ratios are exact throughout; these
   absolute frequencies are the documented assumption. Say which.

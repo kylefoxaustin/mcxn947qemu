@@ -670,12 +670,16 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, MCXN_MRT0_BASE + MCXN_SECURE_ALIAS,
                                 &s->mrt0_s_alias);
 
-    /* LPTMR0..1: functional, IRQ to cpu0 NVIC. */
+    /* LPTMR0..1: functional, IRQ to cpu0 NVIC.  The "clk" input is FRO_12M (PSR[PCS]=00,
+     * the reset default), driven from the SCG -- 12 MHz, a LOW-POWER clock, not the 150 MHz
+     * bus clock the old model wrongly used (the LPTMR max is 25 MHz).  The other PCS sources
+     * (FRO_16K, 32K_CLK, OSC_SYS) are resolved inside the model per RM Table 463. */
     for (i = 0; i < MCXN_NUM_LPTMR; i++) {
         DeviceState *t = DEVICE(&s->lptmr[i]);
         g_autofree char *aname = g_strdup_printf("mcxn.lptmr%d.s", i);
 
-        qdev_connect_clock_in(t, "clk", s->sysclk);
+        qdev_connect_clock_in(t, "clk",
+                              qdev_get_clock_out(DEVICE(&s->scg0), "fro12m"));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->lptmr[i]), errp)) {
             return;
         }

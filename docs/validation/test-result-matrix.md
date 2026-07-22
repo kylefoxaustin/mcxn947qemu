@@ -67,7 +67,7 @@ register-only≈registration/Tier-C.
 |-------|:---:|:---:|-------|-----------|:---:|
 | ctimer | ✓ | ✓ | functional | mcxn-ctimer, mcxn-timers | SKIP |
 | mrt | ✓ | ✓ | functional | mcxn-timers, mcxn-mrt | SKIP |
-| lptmr | ✓ | ✓ | functional | mcxn-timers | SKIP |
+| lptmr | ✓ | ✓ | functional | mcxn-timers, mcxn-lptmr | SKIP |
 | ostimer | ✓ | ✓ | functional | mcxn-ostimer, mcxn-timers | SKIP |
 | sct | ✓ | ✓ | functional | mcxn-sct | SKIP |
 | pwm | ✓ | ✓ | functional | mcxn-pwm | SKIP |

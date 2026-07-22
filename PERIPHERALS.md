@@ -58,7 +58,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `ITRC` | 1 | ✅ functional (register-accurate) |
 | `LPI2C` | 10 | ✅ functional (LP_FLEXCOMM I2C mode; shares the FlexComm window) |
 | `LPSPI` | 10 | ✅ functional (LP_FLEXCOMM SPI mode; shares the FlexComm window) |
-| `LPTMR` | 2 | ✅ functional (up-count to compare -> NVIC IRQ) |
+| `LPTMR` | 2 | ✅ functional (up-count to compare -> NVIC IRQ) — clock **selected by PSR[PCS]** per RM Table 463 (00 FRO_12M / 01 FRO_16K / 10 32K_CLK / 11 OSC_SYS-seam), a low-power clock not the 150 MHz bus clock it wrongly used before; tests/mcxn-lptmr |
 | `LPUART` | 10 | ✅ functional (10 FlexComm UARTs) |
 | `LP_FLEXCOMM` | 10 | ✅ functional (all 10 as LPUART; cpu0+cpu1 consoles) |
 | `MAILBOX` | 1 | ✅ functional (register-accurate) |
