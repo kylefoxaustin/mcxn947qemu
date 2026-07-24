@@ -178,7 +178,7 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **SAI** — TX FIFO-request interrupt (FRF & FRIE) IRQ (59/60). `tests/mcxn-sai`.
 - [x] **DAC** — FIFO watermark interrupt (FSR.WM & IER.WM_IE) IRQ (106/107/108). `tests/mcxn-dac`.
 - [x] **PowerQuad** — compute-launch -> completion IRQ (76). `tests/mcxn-powerquad`.
-- [x] **PWM** — submodule-0 running counter -> periodic reload IRQ (114/120, QEMUTimer). `tests/mcxn-pwm`. Value-register DMA on reload (VALDE-gated, Val0=43/51), mutation-proven on data + rate axes. `tests/mcxn-flexpwm-dma`.
+- [x] **PWM** — submodule-0 running counter -> periodic reload IRQ (114/120, QEMUTimer). `tests/mcxn-pwm`. Value-register DMA on reload (VALDE-gated, Val0=43/51), mutation-proven on data + rate axes. `tests/mcxn-flexpwm-dma`. **Fault protection**: operator-driven FAULT0 (`fault-input` QOM) -> FSTS[FFLAG] latch + FFPIN live-mirror + FIE-gated FLEXPWMn_FAULT IRQ (113/119); the clear-while-active interlock and FLVL polarity are modelled; mutation-proven on detection/FIE/FLVL/interlock. `tests/mcxn-flexpwm-fault`. Seam: fault output-force-off (FSAFE/DISMAP) and dead-time (DTCNT) unmodelled (no output-waveform representation).
 - [x] **SCT** — running counter -> periodic match/limit event-0 IRQ (33, QEMUTimer). `tests/mcxn-sct`.
 - [x] **I3C** — controller request -> transfer-complete IRQ (95/96). `tests/mcxn-i3c`.
 - [x] **ENET MAC frame path** — DWC ENET-QoS descriptor-ring TX/RX over a real QEMU NIC backend (-nic) + MAC loopback, TI/RI DMA IRQ. `tests/mcxn-enet-mac`. **Cross-board ready.**

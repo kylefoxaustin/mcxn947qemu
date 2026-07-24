@@ -1103,10 +1103,12 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, 0x400BF000 + MCXN_SECURE_ALIAS,
                                 &s->powerquad0_s_alias);
 
-    /* eFlexPWM0..1: submodule-0 reload/compare interrupt to cpu0 NVIC. */
+    /* eFlexPWM0..1: submodule-0 reload/compare interrupt + the FAULT interrupt
+     * to cpu0 NVIC.  FLEXPWM0_FAULT = 113 / FLEXPWM1_FAULT = 119 (CMSIS), one
+     * below each submodule-0 line. */
     for (i = 0; i < MCXN_NUM_PWM; i++) {
-        static const struct { hwaddr base; int irq; }
-        pwm_cfg[MCXN_NUM_PWM] = { { 0x400CE000, 114 }, { 0x400D0000, 120 } };
+        static const struct { hwaddr base; int irq; int fault_irq; }
+        pwm_cfg[MCXN_NUM_PWM] = { { 0x400CE000, 114, 113 }, { 0x400D0000, 120, 119 } };
         g_autofree char *aname = g_strdup_printf("mcxn.pwm%d.s", i);
 
         /* The FlexPWM counter is clocked by the bus clock = the SCG main clock, DERIVED
@@ -1121,6 +1123,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             pwm_cfg[i].irq));
+        /* sysbus line 3 = FLEXPWMn_FAULT (see mcxn_pwm.c realize).  Lines 1/2
+         * (value/capture eDMA) are connected in the DMA-request block below. */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 3,
+                           qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
+                                            pwm_cfg[i].fault_irq));
         memory_region_init_alias(&s->pwm_s_alias[i], OBJECT(dev), aname,
                                  &s->pwm[i].iomem, 0, MCXN_PWM_SIZE);
         memory_region_add_subregion(system_memory,

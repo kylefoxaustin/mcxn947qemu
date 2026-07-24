@@ -36,6 +36,8 @@ struct MCXNPWMState {
     bool         val_dma_lvl;   /* current level of dma_req_val, so we edge-detect */
     qemu_irq     dma_req_capa;  /* submodule-0 input-A capture DMA request (pulse per edge) */
     bool         capa_level;    /* operator-driven input-A pin level (for edge-detect) */
+    qemu_irq     irq_fault;     /* FlexPWM FAULT interrupt line (NVIC FLEXPWMn_FAULT) */
+    bool         fault_level;   /* operator-driven FAULT0 input pin level (for edge-detect) */
     QEMUTimer    reload_timer;  /* submodule-0 periodic reload */
     int64_t      next_reload_ns; /* the reload DEADLINE, so the carrier cannot drift */
 

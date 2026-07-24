@@ -168,6 +168,20 @@
 /* FSTS lower W1C fault flags (FFLAG[3:0]). */
 #define PWM_FSTS_W1C_MASK      0x000Fu
 
+/* Fault control/status fields (CMSIS PWM_FCTRL / PWM_FSTS), per-fault bit n.
+ * FIE/FFLAG occupy bits[3:0]; FAUTO/FFPIN bits[11:8]; FLVL bits[15:12]. */
+#define PWM_FCTRL_FIE_MASK     0x000Fu   /* Fault Interrupt Enable [3:0]   */
+#define PWM_FCTRL_FAUTO_MASK   0x0F00u   /* Automatic Fault Clearing [11:8] */
+#define PWM_FCTRL_FLVL_MASK    0xF000u   /* Fault Level (active level) [15:12] */
+#define PWM_FSTS_FFLAG_MASK    0x000Fu   /* Fault Flags (latched, W1C) [3:0] */
+#define PWM_FSTS_FFPIN_MASK    0x0F00u   /* Filtered Fault Pins (live, RO) [11:8] */
+/* FAULT0 single-bit selectors (the operator-driven input). */
+#define PWM_FCTRL_FIE0         0x0001u
+#define PWM_FCTRL_FAUTO0       0x0100u
+#define PWM_FCTRL_FLVL0        0x1000u
+#define PWM_FSTS_FFLAG0        0x0001u
+#define PWM_FSTS_FFPIN0        0x0100u
+
 static inline uint32_t pwm_ld16(MCXNPWMState *s, hwaddr off)
 {
     return s->regs[off] | ((uint32_t)s->regs[off + 1] << 8);
@@ -309,6 +323,77 @@ static bool mcxn_pwm_get_capa(Object *obj, Error **errp)
     return MCXN_PWM(obj)->capa_level;
 }
 
+/* FlexPWM FAULT interrupt: any latched fault flag whose FIE is set asserts
+ * FLEXPWMn_FAULT.  FFLAG and FIE are both bits[3:0], so they align directly. */
+static void mcxn_pwm_update_fault_irq(MCXNPWMState *s)
+{
+    uint16_t fsts = pwm_ld16(s, PWM_FSTS);
+    uint16_t fctrl = pwm_ld16(s, PWM_FCTRL);
+    bool active = (fsts & PWM_FSTS_FFLAG_MASK & fctrl) != 0;
+
+    qemu_set_irq(s->irq_fault, active);
+}
+
+/*
+ * FlexPWM fault protection -- the safety path that trips motor gate-drive.
+ *
+ * A FAULT input pin has no signal source in emulation, so FAULT0's level is
+ * OPERATOR-DRIVEN via the "fault-input" QOM property (the same seam as the
+ * capture-a-input pin / PINT's pin-input / the CMP output).  Per the RM:
+ *   - FCTRL[FLVL] picks the ACTIVE level: a fault condition exists when the
+ *     (filtered) fault input equals FLVL for that fault.
+ *   - FSTS[FFPIN] is a read-only mirror of the live filtered fault input;
+ *     FSTS[FFLAG] LATCHES on the fault condition and stays set until cleared.
+ *   - FCTRL[FIE] gates the FlexPWM FAULT interrupt (FLEXPWMn_FAULT to the NVIC).
+ *   - Clearing FFLAG (W1C) succeeds only once the fault input has returned to
+ *     normal -- a LIVE fault CANNOT be cleared (the real safety interlock);
+ *     with FCTRL[FAUTO] set the flag clears automatically on return-to-normal.
+ *
+ * ⚠ Scope, stated: FAULT input 0 is the operator seam (faults 1..3 share the
+ * identical per-bit logic but have no injection seam).  The fault's PRIMARY
+ * silicon effect -- FORCING THE MAPPED PWM OUTPUTS to their safe state
+ * (FCTRL[FSAFE]/DISMAP) -- is NOT modelled, because this model has no output-pin
+ * / waveform representation at all (OUTEN/MASK are inert bytes).  What IS modelled
+ * is the fault DETECTION + STATUS + INTERRUPT path a driver's fault handler binds
+ * to; the output-force-off is a named seam awaiting an output-waveform model.
+ */
+static void mcxn_pwm_fault_eval(MCXNPWMState *s)
+{
+    uint16_t fctrl = pwm_ld16(s, PWM_FCTRL);
+    uint16_t fsts = pwm_ld16(s, PWM_FSTS);
+    bool flvl0 = (fctrl & PWM_FCTRL_FLVL0) != 0;
+    bool active = (s->fault_level == flvl0);      /* input matches active level */
+
+    /* FFPIN[0]: read-only mirror of the live (filtered) fault-input level. */
+    if (s->fault_level) {
+        fsts |= PWM_FSTS_FFPIN0;
+    } else {
+        fsts &= ~PWM_FSTS_FFPIN0;
+    }
+
+    if (active) {
+        fsts |= PWM_FSTS_FFLAG0;                  /* latch the fault */
+    } else if (fctrl & PWM_FCTRL_FAUTO0) {
+        fsts &= ~PWM_FSTS_FFLAG0;                 /* automatic clear on return-to-normal */
+    }                                             /* manual mode: stays latched until W1C */
+
+    pwm_st16(s, PWM_FSTS, fsts);
+    mcxn_pwm_update_fault_irq(s);
+}
+
+static void mcxn_pwm_set_fault(Object *obj, bool value, Error **errp)
+{
+    MCXNPWMState *s = MCXN_PWM(obj);
+
+    s->fault_level = value;
+    mcxn_pwm_fault_eval(s);
+}
+
+static bool mcxn_pwm_get_fault(Object *obj, Error **errp)
+{
+    return MCXN_PWM(obj)->fault_level;
+}
+
 /*
  * Submodule-0 counter period from INIT/VAL1, the CTRL[PRSC] prescaler and the
  * IPBus rate.
@@ -444,8 +529,21 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
 
     if (size == 2 && offset == PWM_FSTS) {
         uint16_t cur = pwm_ld16(s, PWM_FSTS);
-        cur &= ~((uint16_t)value & PWM_FSTS_W1C_MASK);
+        uint16_t fctrl = pwm_ld16(s, PWM_FCTRL);
+        uint16_t blocked = 0;
+        uint16_t clr;
+
+        /* A LIVE fault cannot be cleared: if FAULT0 is still in its active state
+         * (input == FLVL0), a W1C to FFLAG0 is refused -- the safety interlock,
+         * the whole point of the latch.  (Faults 1..3 have no injection seam, so
+         * they are never latched and clearing them is a no-op regardless.) */
+        if (s->fault_level == ((fctrl & PWM_FCTRL_FLVL0) != 0)) {
+            blocked |= PWM_FSTS_FFLAG0;
+        }
+        clr = (uint16_t)value & PWM_FSTS_W1C_MASK & ~blocked;   /* FFPIN (RO) untouched */
+        cur &= ~clr;
         pwm_st16(s, PWM_FSTS, cur);
+        mcxn_pwm_update_fault_irq(s);
         return;
     }
 
@@ -459,6 +557,13 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
     /* A write touching submodule-0 INTEN can change the interrupt condition. */
     if (offset <= PWM_SM_INTEN + 1 && offset + size > PWM_SM_INTEN) {
         mcxn_pwm_update_irq(s);
+    }
+
+    /* A write touching FCTRL changes FLVL/FAUTO/FIE: re-evaluate the fault with
+     * the current input level (new FLVL may make a steady input a fault; new
+     * FAUTO may auto-clear a latched flag; new FIE may (un)gate the interrupt). */
+    if (offset <= PWM_FCTRL + 1 && offset + size > PWM_FCTRL) {
+        mcxn_pwm_fault_eval(s);
     }
 
     /* A write landing on submodule-0's VALx block is the eDMA consuming the
@@ -490,6 +595,8 @@ static void mcxn_pwm_reset(DeviceState *dev)
     qemu_set_irq(s->dma_req_val, 0);
     s->capa_level = false;
     qemu_set_irq(s->dma_req_capa, 0);
+    s->fault_level = false;
+    qemu_set_irq(s->irq_fault, 0);
 }
 
 static void mcxn_pwm_init(Object *obj)
@@ -503,6 +610,11 @@ static void mcxn_pwm_init(Object *obj)
      *   qom-set /machine/soc/pwm0 capture-a-input true   */
     object_property_add_bool(obj, "capture-a-input",
                              mcxn_pwm_get_capa, mcxn_pwm_set_capa);
+
+    /* Operator-driven FAULT0 input pin (the safety seam):
+     *   qom-set /machine/soc/pwm0 fault-input true   */
+    object_property_add_bool(obj, "fault-input",
+                             mcxn_pwm_get_fault, mcxn_pwm_set_fault);
 }
 
 static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
@@ -515,19 +627,21 @@ static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);          /* 0: NVIC reload/compare */
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_val);  /* 1: value-register DMA req */
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_capa); /* 2: input-A capture DMA req */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq_fault);    /* 3: FLEXPWMn_FAULT to NVIC */
     timer_init_ns(&s->reload_timer, QEMU_CLOCK_VIRTUAL, mcxn_pwm_reload_tick, s);
 }
 
 static const VMStateDescription vmstate_mcxn_pwm = {
     .name = TYPE_MCXN_PWM,
-    .version_id = 3,
-    .minimum_version_id = 3,
+    .version_id = 4,
+    .minimum_version_id = 4,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNPWMState, MCXN_PWM_SIZE),
         VMSTATE_TIMER(reload_timer, MCXNPWMState),
         VMSTATE_INT64(next_reload_ns, MCXNPWMState),
         VMSTATE_BOOL(val_dma_lvl, MCXNPWMState),
         VMSTATE_BOOL(capa_level, MCXNPWMState),
+        VMSTATE_BOOL(fault_level, MCXNPWMState),
         VMSTATE_END_OF_LIST()
     },
 };

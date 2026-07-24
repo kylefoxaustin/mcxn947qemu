@@ -70,7 +70,7 @@ register-only≈registration/Tier-C.
 | lptmr | ✓ | ✓ | functional | mcxn-timers, mcxn-lptmr | SKIP |
 | ostimer | ✓ | ✓ | functional | mcxn-ostimer, mcxn-timers | SKIP |
 | sct | ✓ | ✓ | functional | mcxn-sct | SKIP |
-| pwm | ✓ | ✓ | functional | mcxn-pwm | SKIP |
+| pwm | ✓ | ✓ | functional | mcxn-pwm, mcxn-flexpwm-dma, mcxn-flexpwm-capture, mcxn-flexpwm-fault | SKIP |
 | rtc | ✓ | ✓ | functional | mcxn-rtc | SKIP |
 | utick | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | wwdt | ✓ | ◐ | register-only | boot, corpus | SKIP |
