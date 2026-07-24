@@ -46,7 +46,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `EVTG` | 1 | ✅ functional (register-accurate) |
 | `EWM` | 1 | ✅ functional (register-accurate) |
 | `FLEXIO` | 1 | ✅ functional (register-accurate; SWRST self-clear) |
-| `FLEXSPI` | 1 | ✅ functional + active (IP-command-done IRQ 58 to NVIC; tests/mcxn-flexspi) + **XIP**: AHB-mapped NOR window backed by real executable memory (NS 0x8000_0000 / secure 0x9000_0000, 8 MiB) — code linked there runs in place; tests/mcxn-xip + **eDMA request lines** (RX=1/TX=2, gated by IP{RX,TX}FCR[DMAEN]) so FLEXSPI_TransferEDMA works; tests/mcxn-flexspi-dma |
+| `FLEXSPI` | 1 | ✅ functional + active (IP-command-done IRQ 58 to NVIC; tests/mcxn-flexspi) + **XIP**: AHB-mapped NOR window backed by real executable memory (NS 0x8000_0000 / secure 0x9000_0000, 8 MiB) — code linked there runs in place; tests/mcxn-xip + **QSPI execute-in-place boot** (`-machine frdm-mcxn947,qspi-boot=on`): the M33 resets from the NOR (secure alias 0x9000_0000), no internal-flash image; a valid FlexSPI Config Block (tag "FCFB" at offset 0x400) is required or the image is rejected loud+fatal; tests/mcxn-qspi-boot (mutation-proven on the FCB check AND the reset reroute) + **eDMA request lines** (RX=1/TX=2, gated by IP{RX,TX}FCR[DMAEN]) so FLEXSPI_TransferEDMA works; tests/mcxn-flexspi-dma |
 | `FMU` | 1 | ✅ functional (erase/program/verify flash controller) |
 | `FMU0TEST` | 1 | ✅ functional (test-alias of FMU0 @0x40043000; covered by FMU model) |
 | `FREQME` | 1 | ✅ functional (register-accurate) |
@@ -174,6 +174,7 @@ Done so far (active behaviour + IRQ to NVIC + bare-metal test):
 - [x] **uSDHC** — SD command/response handshake (CMD8/CMD3/ACMD41) + CC IRQ (61). `tests/mcxn-usdhc`.
 - [x] **FlexSPI** — IP-command-done IRQ (58). `tests/mcxn-flexspi`. eDMA request lines RX=1/TX=2 (IP{RX,TX}FCR[DMAEN]-gated), stock-driver round trip against a real m25p80, mutation-proven both directions. `tests/mcxn-flexspi-dma`.
 - [x] **FlexSPI XIP** — AHB-mapped NOR window is real executable memory (NS 0x8000_0000 / secure alias 0x9000_0000, 8 MiB W25Q64 per the N947 DTS). Code linked into the window runs in place (no copy to SRAM); the `-kernel` loader fills it. `tests/mcxn-xip` boots from internal flash and calls a routine executing at 0x9000_0000.
+- [x] **FlexSPI QSPI boot** — `-machine frdm-mcxn947,qspi-boot=on` resets the M33 from the external NOR (secure XIP alias 0x9000_0000) with NO internal-flash image (production execute-in-place boot). The boot ROM's go/no-go gate is modelled: a valid FlexSPI Config Block (tag "FCFB" = 0x42464346 at NOR offset 0x400) must be present or the image is rejected (loud + fatal), exactly as on silicon. `tests/mcxn-qspi-boot` boots+runs in place from the NOR and rejects an FCB-less image; mutation-proven on both the FCB check and the init-svtor reroute. Seam (stated): the ROM's FlexSPI *configuration* from the FCB lookup-table is not replayed — only the tag is validated; the XIP read path is covered by mcxn-xip/mcxn-flexspi-nor.
 - [x] **SAI** — TX FIFO-request interrupt (FRF & FRIE) IRQ (59/60). `tests/mcxn-sai`.
 - [x] **DAC** — FIFO watermark interrupt (FSR.WM & IER.WM_IE) IRQ (106/107/108). `tests/mcxn-dac`.
 - [x] **PowerQuad** — compute-launch -> completion IRQ (76). `tests/mcxn-powerquad`.

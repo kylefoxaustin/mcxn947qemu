@@ -189,6 +189,8 @@ struct MCXNState {
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */
+    bool            qspi_boot;  /* "qspi-boot" prop: reset from the FlexSPI XIP NOR, not
+                                 * internal flash (production QSPI execute-in-place boot) */
 };
 
 #endif /* HW_ARM_MCXN_SOC_H */

@@ -56,7 +56,7 @@ register-only≈registration/Tier-C.
 | lpi2c | ✓ | ✓ | functional | mcxn-flexcomm | SKIP |
 | i3c | ✓ | ✓ | functional | mcxn-i3c | SKIP |
 | usdhc | ✓ | ✓ | functional | mcxn-usdhc | SKIP |
-| flexspi | ✓ | ✓ | functional | mcxn-flexspi, mcxn-flexspi-nor, mcxn-xip | SKIP |
+| flexspi | ✓ | ✓ | functional | mcxn-flexspi, mcxn-flexspi-nor, mcxn-xip, mcxn-qspi-boot | SKIP |
 | sai | ✓ | ✓ | functional | mcxn-sai | SKIP |
 | emvsim | ✓ | ✓ | register-only | mcxn-emvsim | SKIP |
 | mailbox | ✓ | ✓ | functional | mcxn-mailbox, mcxn-dualcore | SKIP |

@@ -488,8 +488,14 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         qdev_prop_set_bit   (cpudev, "enable-bitband", false); /* M33: none */
         /* PowerQuad CP0 scalar-math coprocessor: both M33s have it on silicon. */
         qdev_prop_set_bit   (cpudev, "powerquad",     true);
-        /* Reset reads the vector table (initial SP + reset PC) from flash. */
-        qdev_prop_set_uint32(cpudev, "init-svtor",    cfg->flash_base);
+        /* Reset reads the vector table (initial SP + reset PC) from flash.  In QSPI
+         * execute-in-place boot the reset vector lives in the external FlexSPI NOR instead of
+         * internal flash -- the production boot mode where there is no internal-flash image;
+         * the boot ROM has (in this model) already configured FlexSPI.  Use the SECURE XIP
+         * alias (0x9000_0000), consistent with the secure internal-flash boot (0x1000_0000)
+         * and the addressable-as-memory NOR window firmware executes in place from. */
+        qdev_prop_set_uint32(cpudev, "init-svtor",
+                             s->qspi_boot ? MCXN_FLEXSPI0_AHB_S : cfg->flash_base);
         if (i > 0) {
             /* Secondary core(s) wait for an explicit SYSCON release. */
             qdev_prop_set_bit(cpudev, "start-powered-off", true);
@@ -1418,6 +1424,7 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
 
 static const Property mcxn_soc_properties[] = {
     DEFINE_PROP_STRING("part", MCXNState, part),
+    DEFINE_PROP_BOOL("qspi-boot", MCXNState, qspi_boot, false),
     DEFINE_PROP_LINK("canbus0", MCXNState, canbus[0], TYPE_CAN_BUS,
                      CanBusState *),
     DEFINE_PROP_LINK("canbus1", MCXNState, canbus[1], TYPE_CAN_BUS,

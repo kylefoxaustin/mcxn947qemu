@@ -9,6 +9,7 @@
  */
 #include "qemu/osdep.h"
 #include "qemu/units.h"
+#include "qemu/error-report.h"
 #include "qapi/error.h"
 #include "hw/core/boards.h"
 #include "hw/core/qdev-properties.h"
@@ -16,11 +17,26 @@
 #include "hw/arm/boot.h"
 #include "hw/arm/mcxn_soc.h"
 #include "hw/arm/machines-qom.h"   /* arm_machine_interfaces: target/machine sep */
+#include "hw/core/loader.h"             /* rom_ptr (read the loaded image content) */
 #include "net/can_emu.h"
 #include "qom/object.h"
 
 /* Core clock. VERIFY against the board/RM; MCX N947 is up to 150 MHz. */
 #define MCXN947_SYSCLK_HZ  150000000ULL
+
+/*
+ * QSPI execute-in-place boot: the reset image lives in the external FlexSPI NOR
+ * (an 8 MiB w25q64, AHB-mapped at 0x8000_0000 non-secure and 0x9000_0000 secure),
+ * with the FlexSPI Config Block at offset 0x400.  A QSPI XIP image links its vector
+ * table at the NOR base and the FCB at base+0x400 (tag "FCFB").  This model boots
+ * from the SECURE alias (0x9000_0000), matching the secure internal-flash boot path.
+ */
+#define MCXN_QSPI_XIP_BASE  0x90000000u    /* = MCXN_FLEXSPI0_AHB_S (secure NOR alias, the
+                                            * addressable-as-memory XIP window the loader can
+                                            * populate and the CPU can fetch in place) */
+#define MCXN_QSPI_XIP_SIZE  (8 * MiB)
+#define MCXN_QSPI_FCB_OFF   0x400u
+#define MCXN_QSPI_FCB_TAG   0x42464346u    /* "FCFB", fsl FLEXSPI_CFG_BLK_TAG */
 
 #define TYPE_FRDM_MCXN947_MACHINE MACHINE_TYPE_NAME("frdm-mcxn947")
 OBJECT_DECLARE_SIMPLE_TYPE(FrdmMcxn947Machine, FRDM_MCXN947_MACHINE)
@@ -32,7 +48,34 @@ struct FrdmMcxn947Machine {
      * command line: `-machine canbus0=<id>,canbus1=<id>` (the fleet-standard
      * incantation, matching i.MX 91/93/95). */
     CanBusState *canbus[MCXN_NUM_FLEXCAN];
+
+    /* `-machine qspi-boot=on`: reset from the external FlexSPI XIP NOR instead of
+     * internal flash (production execute-in-place boot). */
+    bool qspi_boot;
 };
+
+/*
+ * The boot ROM's essential check: a valid FlexSPI Config Block (tag "FCFB" at NOR offset
+ * 0x400) is what the ROM requires before it boots from QSPI.  Read it straight from the
+ * loaded image via rom_ptr() -- the ROM blob is registered by load_kernel and readable
+ * immediately (its content isn't written to guest memory until the first reset, which is why
+ * a memory read here would see 0).  A missing FCB is a boot failure, loud and fatal -- exactly
+ * what a developer whose image lacks the .flexspi_fcb section sees on silicon.
+ */
+static void frdm_mcxn947_qspi_check_fcb(void)
+{
+    hwaddr fcb = MCXN_QSPI_XIP_BASE + MCXN_QSPI_FCB_OFF;
+    const uint32_t *p = rom_ptr(fcb, sizeof(uint32_t));
+    uint32_t tag = p ? *p : 0;
+
+    if (tag != MCXN_QSPI_FCB_TAG) {
+        error_report("frdm-mcxn947: QSPI boot image has no valid FlexSPI Config Block at "
+                     "0x%08" HWADDR_PRIx " (tag 0x%08x, expected 0x%08x \"FCFB\") -- the boot "
+                     "ROM would reject it.  Link the image with a .flexspi_fcb section at "
+                     "offset 0x400.", fcb, tag, MCXN_QSPI_FCB_TAG);
+        exit(1);
+    }
+}
 
 static void frdm_mcxn947_init(MachineState *machine)
 {
@@ -55,6 +98,8 @@ static void frdm_mcxn947_init(MachineState *machine)
 
     dev = DEVICE(soc);
     qdev_prop_set_string(dev, "part", "MCXN947");
+    /* QSPI XIP boot: tell the SoC to reset from the FlexSPI NOR (init-svtor) BEFORE realize. */
+    qdev_prop_set_bit(dev, "qspi-boot", m->qspi_boot);
     qdev_connect_clock_in(dev, "sysclk", sysclk);
     qdev_connect_clock_in(dev, "refclk", refclk);
 
@@ -79,11 +124,23 @@ static void frdm_mcxn947_init(MachineState *machine)
 
     sysbus_realize(SYS_BUS_DEVICE(soc), &error_fatal);
 
-    /* Load firmware into the code-flash region. cfg is valid post-realize. */
-    armv7m_load_kernel(ARM_CPU(first_cpu),
-                       machine->kernel_filename,
-                       soc->cfg->flash_base,       /* mem_base (code flash) */
-                       soc->cfg->flash_size);
+    if (m->qspi_boot) {
+        /*
+         * QSPI execute-in-place boot: load the image into the secure FlexSPI XIP NOR window
+         * (0x9000_0000) -- the ELF loader writes each segment to its linked address, and a
+         * QSPI XIP image is linked there (vectors at 0x9000_0000, FCB at +0x400).  The core
+         * was told to reset from that window (init-svtor above), modelling the state after
+         * the boot ROM configured FlexSPI and jumped; the AHB window is a live mirror of the
+         * NOR, so the reset vector fetch resolves.
+         */
+        armv7m_load_kernel(ARM_CPU(first_cpu), machine->kernel_filename,
+                           MCXN_QSPI_XIP_BASE, MCXN_QSPI_XIP_SIZE);
+        frdm_mcxn947_qspi_check_fcb();
+    } else {
+        /* Load firmware into the internal code-flash region. cfg is valid post-realize. */
+        armv7m_load_kernel(ARM_CPU(first_cpu), machine->kernel_filename,
+                           soc->cfg->flash_base, soc->cfg->flash_size);
+    }
 }
 
 static void frdm_mcxn947_machine_class_init(ObjectClass *oc, const void *data)
@@ -102,6 +159,16 @@ static void frdm_mcxn947_machine_class_init(ObjectClass *oc, const void *data)
     mc->ignore_memory_transaction_failures = false;
 }
 
+static bool frdm_get_qspi_boot(Object *obj, Error **errp)
+{
+    return FRDM_MCXN947_MACHINE(obj)->qspi_boot;
+}
+
+static void frdm_set_qspi_boot(Object *obj, bool value, Error **errp)
+{
+    FRDM_MCXN947_MACHINE(obj)->qspi_boot = value;
+}
+
 static void frdm_mcxn947_machine_instance_init(Object *obj)
 {
     int i;
@@ -114,6 +181,13 @@ static void frdm_mcxn947_machine_instance_init(Object *obj)
                                  (Object **)&FRDM_MCXN947_MACHINE(obj)->canbus[i],
                                  object_property_allow_set_link, 0);
     }
+
+    /* `-machine qspi-boot=on`: boot from the external FlexSPI XIP NOR. */
+    object_property_add_bool(obj, "qspi-boot",
+                             frdm_get_qspi_boot, frdm_set_qspi_boot);
+    object_property_set_description(obj, "qspi-boot",
+        "Boot (execute-in-place) from the external FlexSPI NOR (secure XIP window "
+        "0x90000000) instead of internal flash");
 }
 
 static const TypeInfo frdm_mcxn947_machine_types[] = {
