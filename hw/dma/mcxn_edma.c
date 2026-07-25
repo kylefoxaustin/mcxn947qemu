@@ -760,7 +760,11 @@ static void mcxn_edma_reset(DeviceState *dev)
 {
     MCXNEDMAState *s = MCXN_EDMA(dev);
 
-    s->mp_csr = 0;
+    /* MP_CSR reset = 0x0031_0000 (RM eDMA Management Page Control, both DMA0/DMA1):
+     * read-only management-page capability bits [21,20,16] that are not named fields in
+     * CMSIS and are not consumed by this model.  It was 0 -- a plausible-but-wrong reset the
+     * reset-values gate covers now that the golden reaches the eDMA management page. */
+    s->mp_csr = 0x00310000u;
     s->mp_es = 0;
     memset(s->ch_grpri, 0, sizeof(s->ch_grpri));
     memset(s->ch, 0, sizeof(s->ch));
