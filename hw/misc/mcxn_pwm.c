@@ -42,16 +42,19 @@
 #define PWM_SM_CAPTCTRLA   0x34    /* Capture Control A (arm + edge select) */
 #define PWM_SM_CVAL0       0x40    /* Capture Value 0 (input A, capture circuit 0), RO */
 
-/* OCTRL[POLA]/[POLB]: invert PWM_A/PWM_B output polarity (CMSIS, bits 10/9). */
+/* OCTRL[POLA]/[POLB]/[POLX]: invert PWM_A/PWM_B/PWM_X output polarity (CMSIS, bits 10/9/8). */
 #define PWM_OCTRL_POLA     0x0400u
 #define PWM_OCTRL_POLB     0x0200u
-/* OUTEN[PWMA_EN] bits[11:8] / [PWMB_EN] bits[7:4], one per submodule; SM0 = bit 8 / bit 4. */
+#define PWM_OCTRL_POLX     0x0100u
+/* OUTEN[PWMA_EN] bits[11:8] / [PWMB_EN] bits[7:4] / [PWMX_EN] bits[3:0]; SM0 = bit 8 / 4 / 0. */
 #define PWM_OUTEN_PWMA_SM0 0x0100u
 #define PWM_OUTEN_PWMB_SM0 0x0010u
-/* DISMAP0[DIS0A] bits[3:0] / [DIS0B] bits[7:4], one per fault input -> PWM_A / PWM_B; fault 0 =
- * bit 0 / bit 4.  Reset 0xFFFF => every fault disables every output (the safe default). */
+#define PWM_OUTEN_PWMX_SM0 0x0001u
+/* DISMAP0[DIS0A] bits[3:0] / [DIS0B] bits[7:4] / [DIS0X] bits[11:8], one per fault -> PWM_A/B/X;
+ * fault 0 = bit 0 / bit 4 / bit 8.  Reset 0xFFFF => every fault disables every output. */
 #define PWM_DISMAP_DIS0A_F0 0x0001u
 #define PWM_DISMAP_DIS0B_F0 0x0010u
+#define PWM_DISMAP_DIS0X_F0 0x0100u
 /* CTRL2[INDEP] (bit 13): 0 = complementary pair (deadtime-capable), 1 = independent A/B. */
 #define PWM_CTRL2_INDEP    0x2000u
 /* Reset values (RM register-summary table; memset(0) would ship the dangerous zeros). */
@@ -435,17 +438,25 @@ static bool mcxn_pwm_get_fault(Object *obj, Error **errp)
  *     (2047 cycles), not 0.  DTCNT is in IPBus cycles regardless of PRSC, so in counter units it
  *     is DTCNT >> PRSC.
  *
- * OCTRL[POLA]/[POLB] invert each output; OUTEN gates whether the PWM drives the pin; a latched
- * FAULT that DISMAP maps to an output forces it inactive (the safety gate-drive cut).  The pins
- * have no on-chip consumer in emulation, so the levels are OPERATOR-OBSERVABLE via the read-only
- * "pwm-a-output" / "pwm-b-output" QOM properties (a scope on the pins).  The counter position is
- * reconstructed from timing; when the submodule is not running it is INIT, making the whole thing
- * -- duty, complement, and dead band -- deterministically testable without racing the carrier.
+ * PWM_X (the auxiliary output) is generated independently of the A/B mode: set at VAL0, reset at
+ * VAL1 (high in (VAL0, VAL1)), the RM taking effect at VAL0+1.  OCTRL[POLA/POLB/POLX] invert each
+ * output; OUTEN gates whether the PWM drives the pin; a latched FAULT that DISMAP maps to an
+ * output forces it inactive (the safety gate-drive cut).  The pins have no on-chip consumer in
+ * emulation, so the levels are OPERATOR-OBSERVABLE via read-only "pwm-a/b/x-output" QOM properties
+ * (a scope on the pins).  The counter position is reconstructed from timing; when the submodule is
+ * not running it is INIT, making the whole thing -- duty, complement, dead band, PWM_X --
+ * deterministically testable without racing the carrier.
  *
  * ⚠ Scope, stated: submodule 0; the complementary dead-time path assumes VAL2 < VAL3 (the normal
- * edge/center-aligned config); PWM_X and fractional-delay (FRACVAL) dead-time are not modelled.
+ * edge/center-aligned config).  FRACVAL fractional-delay dead-time is deliberately NOT modelled:
+ * it is not a static sub-count offset but a CROSS-CYCLE DITHER -- FRCTRL[FRACx_EN] makes the
+ * accumulated fractional value grow every PWM cycle and add a WHOLE count only every 1/frac cycles
+ * (RM 54.3.4.4: "every 4 PWM cycles will be 1 clock cycle longer").  Representing it faithfully
+ * needs a running fractional accumulator on the reload path, and observing it needs edge-timing
+ * averaged over many cycles -- neither fits this static-position model, and a fixed fractional
+ * offset would MISREPRESENT the dither.  Left as an honest seam rather than a plausible fake.
  */
-static void mcxn_pwm_outputs(MCXNPWMState *s, bool *a_out, bool *b_out)
+static void mcxn_pwm_outputs(MCXNPWMState *s, bool *a_out, bool *b_out, bool *x_out)
 {
     uint16_t fsts = pwm_ld16(s, PWM_FSTS);
     uint16_t dismap = pwm_ld16(s, PWM_SM_DISMAP0);
@@ -454,10 +465,12 @@ static void mcxn_pwm_outputs(MCXNPWMState *s, bool *a_out, bool *b_out)
     uint16_t ctrl2 = pwm_ld16(s, PWM_SM_CTRL2);
     uint16_t ctrl  = pwm_ld16(s, PWM_SM_CTRL);
     unsigned prsc  = (ctrl & PWM_CTRL_PRSC_MASK) >> PWM_CTRL_PRSC_SHIFT;
+    uint16_t val0 = pwm_ld16(s, PWM_SM_VAL0);
+    uint16_t val1 = pwm_ld16(s, PWM_SM_VAL1);
     uint16_t val2 = pwm_ld16(s, PWM_SM_VAL2);
     uint16_t val3 = pwm_ld16(s, PWM_SM_VAL3);
     uint16_t pos = mcxn_pwm_counter_now(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
-    bool a, b;
+    bool a, b, x;
 
     if (ctrl2 & PWM_CTRL2_INDEP) {
         /* Independent channels: A from VAL2/VAL3, B from VAL4/VAL5, no dead-time. */
@@ -473,17 +486,26 @@ static void mcxn_pwm_outputs(MCXNPWMState *s, bool *a_out, bool *b_out)
         b = (pos < val2) || (pos >= (uint16_t)(val3 + dead1));
     }
 
+    /* PWM_X: auxiliary output, set at VAL0 (effective at VAL0+1), reset at VAL1. */
+    x = (pos > val0) && (pos < val1);
+
     if (octrl & PWM_OCTRL_POLA) {
         a = !a;
     }
     if (octrl & PWM_OCTRL_POLB) {
         b = !b;
     }
+    if (octrl & PWM_OCTRL_POLX) {
+        x = !x;
+    }
     if (!(outen & PWM_OUTEN_PWMA_SM0)) {
         a = false;
     }
     if (!(outen & PWM_OUTEN_PWMB_SM0)) {
         b = false;
+    }
+    if (!(outen & PWM_OUTEN_PWMX_SM0)) {
+        x = false;
     }
     if (fsts & PWM_FSTS_FFLAG0) {                 /* FAULT force-off (safety) takes precedence */
         if (dismap & PWM_DISMAP_DIS0A_F0) {
@@ -492,23 +514,34 @@ static void mcxn_pwm_outputs(MCXNPWMState *s, bool *a_out, bool *b_out)
         if (dismap & PWM_DISMAP_DIS0B_F0) {
             b = false;
         }
+        if (dismap & PWM_DISMAP_DIS0X_F0) {
+            x = false;
+        }
     }
     *a_out = a;
     *b_out = b;
+    *x_out = x;
 }
 
 static bool mcxn_pwm_get_a_output(Object *obj, Error **errp)
 {
-    bool a, b;
-    mcxn_pwm_outputs(MCXN_PWM(obj), &a, &b);
+    bool a, b, x;
+    mcxn_pwm_outputs(MCXN_PWM(obj), &a, &b, &x);
     return a;
 }
 
 static bool mcxn_pwm_get_b_output(Object *obj, Error **errp)
 {
-    bool a, b;
-    mcxn_pwm_outputs(MCXN_PWM(obj), &a, &b);
+    bool a, b, x;
+    mcxn_pwm_outputs(MCXN_PWM(obj), &a, &b, &x);
     return b;
+}
+
+static bool mcxn_pwm_get_x_output(Object *obj, Error **errp)
+{
+    bool a, b, x;
+    mcxn_pwm_outputs(MCXN_PWM(obj), &a, &b, &x);
+    return x;
 }
 
 /*
@@ -753,6 +786,8 @@ static void mcxn_pwm_init(Object *obj)
                              mcxn_pwm_get_a_output, NULL);
     object_property_add_bool(obj, "pwm-b-output",
                              mcxn_pwm_get_b_output, NULL);
+    object_property_add_bool(obj, "pwm-x-output",
+                             mcxn_pwm_get_x_output, NULL);
 }
 
 static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
