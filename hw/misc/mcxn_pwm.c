@@ -28,12 +28,29 @@
 #define PWM_SM_CTRL        0x06    /* Control (PRSC) */
 #define PWM_SM_VAL0        0x0A    /* Value register 0 (first of the VAL block) */
 #define PWM_SM_VAL1        0x0E    /* Modulo (period) value */
+#define PWM_SM_VAL2        0x12    /* PWM_A turn-ON compare */
+#define PWM_SM_VAL3        0x16    /* PWM_A turn-OFF compare */
 #define PWM_SM_VAL5        0x1E    /* Value register 5 (last of the VAL block) */
+#define PWM_SM_OCTRL       0x22    /* Output Control (POLA/POLB/POLX) */
 #define PWM_SM_STS         0x24    /* Status (W1C flags) */
 #define PWM_SM_INTEN       0x26    /* Interrupt enable */
 #define PWM_SM_DMAEN       0x28    /* DMA Enable */
+#define PWM_SM_DISMAP0     0x2C    /* Fault Disable Mapping 0 (reset 0xFFFF, RM Table 54.5.23) */
+#define PWM_SM_DTCNT0      0x30    /* Deadtime Count 0 (reset 0x07FF, RM 54.5.24) */
+#define PWM_SM_DTCNT1      0x32    /* Deadtime Count 1 (reset 0x07FF, RM 54.5.25) */
 #define PWM_SM_CAPTCTRLA   0x34    /* Capture Control A (arm + edge select) */
 #define PWM_SM_CVAL0       0x40    /* Capture Value 0 (input A, capture circuit 0), RO */
+
+/* OCTRL[POLA]: invert PWM_A output polarity (CMSIS PWM_OCTRL_POLA, bit 10). */
+#define PWM_OCTRL_POLA     0x0400u
+/* OUTEN[PWMA_EN] bits[11:8], one per submodule (CMSIS PWM_OUTEN_PWMA_EN); SM0 = bit 8. */
+#define PWM_OUTEN_PWMA_SM0 0x0100u
+/* DISMAP0[DIS0A] bits[3:0], one per fault input -> PWM_A of this submodule; fault 0 = bit 0.
+ * Reset 0xFFFF => every fault disables every output (the safe default). */
+#define PWM_DISMAP_DIS0A_F0 0x0001u
+/* Reset values (RM register-summary table; memset(0) would ship the dangerous zeros). */
+#define PWM_DTCNT_RESET    0x07FFu
+#define PWM_DISMAP_RESET   0xFFFFu
 
 /* SM_DMAEN bits. */
 #define PWM_DMAEN_VALDE    0x0200u /* Value Registers DMA Enable (PWM_DMAEN_VALDE_MASK)  */
@@ -395,6 +412,64 @@ static bool mcxn_pwm_get_fault(Object *obj, Error **errp)
 }
 
 /*
+ * The submodule-0 PWM_A output level -- the actual generated waveform.
+ *
+ * On silicon the PWM_A output flip-flop is SET when the counter reaches VAL2 and RESET when it
+ * reaches VAL3, so over a period it is high for the counter range [VAL2, VAL3) (a wrapped range
+ * if VAL2 > VAL3); OCTRL[POLA] inverts it, and OUTEN[PWMA_EN] gates whether the PWM drives the
+ * pin at all.  The duty cycle -- the one number motor control is built on -- is
+ * (VAL3-VAL2)/(VAL1-INIT+1), and it was NOT MODELLED: the output did not exist, so a developer's
+ * commanded duty produced no observable signal.  FAULT force-off takes precedence: a latched
+ * fault (FSTS[FFLAG]) that DISMAP maps to PWM_A forces the output OFF whatever the compare says
+ * -- the safety function (gate-drive cut), now observable.
+ *
+ * The output pin has no on-chip consumer in emulation, so the level is OPERATOR-OBSERVABLE via
+ * the read-only "pwm-a-output" QOM property (the mirror of the operator-driven input seams: the
+ * operator reads the pin as a scope would).  The counter position is reconstructed from timing
+ * (mcxn_pwm_counter_now); when the submodule is not running it is INIT, which makes the compare
+ * deterministically testable without racing the carrier.
+ *
+ * ⚠ Scope, stated: PWM_A of submodule 0 only; complementary-pair generation and DEAD-TIME
+ * INSERTION (DTCNT shifting the A/B edges apart -- DTCNT now carries its real 0x07FF reset value
+ * and is guest-readable, but the sub-count edge delay it represents is not inserted into this
+ * level) are a named seam.
+ */
+static bool mcxn_pwm_a_output(MCXNPWMState *s)
+{
+    uint16_t fsts = pwm_ld16(s, PWM_FSTS);
+    uint16_t dismap = pwm_ld16(s, PWM_SM_DISMAP0);
+    uint16_t octrl, val2, val3;
+    uint16_t pos;
+    bool high;
+
+    /* FAULT force-off (safety): a latched fault mapped to PWM_A cuts the output. */
+    if ((fsts & PWM_FSTS_FFLAG0) && (dismap & PWM_DISMAP_DIS0A_F0)) {
+        return false;
+    }
+    /* OUTEN gate: if the PWM does not drive the pin, it is not actively high. */
+    if (!(pwm_ld16(s, PWM_OUTEN) & PWM_OUTEN_PWMA_SM0)) {
+        return false;
+    }
+
+    val2 = pwm_ld16(s, PWM_SM_VAL2);
+    val3 = pwm_ld16(s, PWM_SM_VAL3);
+    pos = mcxn_pwm_counter_now(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
+    /* Set at VAL2, reset at VAL3: high in [VAL2, VAL3), wrapping if VAL2 > VAL3. */
+    high = (val2 <= val3) ? (pos >= val2 && pos < val3)
+                          : (pos >= val2 || pos < val3);
+    octrl = pwm_ld16(s, PWM_SM_OCTRL);
+    if (octrl & PWM_OCTRL_POLA) {
+        high = !high;                                /* POLA inverts the output polarity */
+    }
+    return high;
+}
+
+static bool mcxn_pwm_get_a_output(Object *obj, Error **errp)
+{
+    return mcxn_pwm_a_output(MCXN_PWM(obj));
+}
+
+/*
  * Submodule-0 counter period from INIT/VAL1, the CTRL[PRSC] prescaler and the
  * IPBus rate.
  *
@@ -588,7 +663,19 @@ static void mcxn_pwm_reset(DeviceState *dev)
 {
     MCXNPWMState *s = MCXN_PWM(dev);
 
+    int n;
+
     memset(s->regs, 0, sizeof(s->regs));
+    /* RM reset values that are NOT zero -- and where zero is a legal, meaningful, CATASTROPHIC
+     * value.  DTCNT0/1 reset to 0x07FF (max dead-time): zero dead-time is a direct short across
+     * the DC bus through both transistors of an inverter leg.  DISMAP0 resets to 0xFFFF (every
+     * fault disables every output -- the safe default).  memset(0) shipped both dangerous zeros. */
+    for (n = 0; n < PWM_SM_COUNT; n++) {
+        hwaddr b = PWM_SM_BASE(n);
+        pwm_st16(s, b + PWM_SM_DTCNT0, PWM_DTCNT_RESET);
+        pwm_st16(s, b + PWM_SM_DTCNT1, PWM_DTCNT_RESET);
+        pwm_st16(s, b + PWM_SM_DISMAP0, PWM_DISMAP_RESET);
+    }
     timer_del(&s->reload_timer);
     qemu_set_irq(s->irq, 0);
     s->val_dma_lvl = false;
@@ -615,6 +702,11 @@ static void mcxn_pwm_init(Object *obj)
      *   qom-set /machine/soc/pwm0 fault-input true   */
     object_property_add_bool(obj, "fault-input",
                              mcxn_pwm_get_fault, mcxn_pwm_set_fault);
+
+    /* Operator-OBSERVABLE submodule-0 PWM_A output level (read-only; the "scope"):
+     *   qom-get /machine/soc/pwm0 pwm-a-output   */
+    object_property_add_bool(obj, "pwm-a-output",
+                             mcxn_pwm_get_a_output, NULL);
 }
 
 static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
