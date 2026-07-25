@@ -108,54 +108,54 @@ LPI2C9         MSR                  # UNMODELLED: no hw/mcxn_*.c for this block 
 LPI2C9         SASR                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00004000)
 LPI2C9         SRDR                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00004000)
 LPI2C9         SRDROR               # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00004000)
-LPSPI0         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI0         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI0         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI0         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI0         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI0         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI0         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI0         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
-LPSPI1         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI1         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI1         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI1         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI1         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI1         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI1         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI1         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
-LPSPI2         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI2         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI2         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI2         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI2         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI2         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI2         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI2         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
-LPSPI3         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI3         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI3         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI3         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI3         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI3         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI3         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI3         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
-LPSPI4         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI4         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI4         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI4         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI4         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI4         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI4         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI4         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
-LPSPI5         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI5         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI5         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI5         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI5         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI5         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI5         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI5         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
-LPSPI6         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI6         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI6         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI6         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI6         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI6         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI6         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI6         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
-LPSPI7         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI7         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI7         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI7         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI7         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI7         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI7         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI7         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
-LPSPI8         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI8         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI8         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI8         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI8         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI8         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI8         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI8         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
-LPSPI9         DER                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI9         DMR0                 # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00001000 RM=0x00000000)
-LPSPI9         FSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x0000000f RM=0x00000000)
+LPSPI9         DER                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 the model decodes as LPUART (stated permissive default so firmware skipping LP_FLEXCOMM_Init still gets a console), so DER@0x1C reads LPUART DATA[RXEMPT]=0x1000; the RM's LPSPI DER=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI9         DMR0                 # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so DMR0@0x30 reads LPUART DATARO=0x1000; the RM's LPSPI DMR0=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
+LPSPI9         FSR                  # DECISION: LP_FLEXCOMM PERSEL-multiplexed window -- at reset PERSEL=0 decodes as LPUART, so FSR@0x5C reads LPUART TOSR (reset 0xF); the RM's LPSPI FSR=0 applies only at PERSEL=LPSPI, unreachable in reset state. LPSPI IS modelled (mcxn_lpspi_read); 'no hw/mcxn_*.c' was false.
 LPSPI9         RSR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00000002)
 LPSPI9         TCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0000001f)
 
