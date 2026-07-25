@@ -451,6 +451,12 @@ static const struct { uint16_t off; uint32_t val; } syscon_reset[] = {
     { 0x3E4, 0x40000000u },   /* PLL1CLK0DIV */
     { 0x3E8, 0x40000000u },   /* PLL1CLK1DIV */
     { 0x400, 0x00020410u },   /* NVM_CTRL */
+    { 0x490, 0x00000007u },   /* DAC0CLKSEL -- "none" (RM reset 0x7) */
+    { 0x494, 0x40000000u },   /* DAC0CLKDIV -- HALT (RM reset 0x4000_0000) */
+    { 0x498, 0x00000007u },   /* DAC1CLKSEL */
+    { 0x49C, 0x40000000u },   /* DAC1CLKDIV */
+    { 0x4A0, 0x00000007u },   /* DAC2CLKSEL */
+    { 0x4A4, 0x40000000u },   /* DAC2CLKDIV */
     { 0x52C, 0x00000007u },   /* PLLCLKDIVSEL */
     { 0x530, 0x00000007u },   /* I3C0FCLKSEL */
     { 0x534, 0x00000007u },   /* I3C0FCLKSTCSEL */

@@ -51,6 +51,8 @@
 /* Reset values (RM register-summary table; memset(0) would ship the dangerous zeros). */
 #define PWM_DTCNT_RESET    0x07FFu
 #define PWM_DISMAP_RESET   0xFFFFu
+/* SM CTRL resets to 0x0400 = CTRL[FULL] (full-cycle reload enabled), RM 54.5.x reg summary. */
+#define PWM_CTRL_RESET     0x0400u
 
 /* SM_DMAEN bits. */
 #define PWM_DMAEN_VALDE    0x0200u /* Value Registers DMA Enable (PWM_DMAEN_VALDE_MASK)  */
@@ -672,6 +674,7 @@ static void mcxn_pwm_reset(DeviceState *dev)
      * fault disables every output -- the safe default).  memset(0) shipped both dangerous zeros. */
     for (n = 0; n < PWM_SM_COUNT; n++) {
         hwaddr b = PWM_SM_BASE(n);
+        pwm_st16(s, b + PWM_SM_CTRL, PWM_CTRL_RESET);
         pwm_st16(s, b + PWM_SM_DTCNT0, PWM_DTCNT_RESET);
         pwm_st16(s, b + PWM_SM_DTCNT1, PWM_DTCNT_RESET);
         pwm_st16(s, b + PWM_SM_DISMAP0, PWM_DISMAP_RESET);

@@ -288,6 +288,12 @@ def _member_names(field, struct_name, idx):
 
     -- the index goes after the FIRST token, and the token is NOT the struct's name.
     Other peripherals append it instead (ADC's CMD[15] -> CMDL1, CMDH1, 1-BASED).
+    And a THIRD convention prepends the STRUCT ARRAY's OWN name + index: FlexPWM's
+    `SM[4]` submodule registers print in the RM as SM0DTCNT0, SM1DTCNT0 ...
+    (struct_name + idx + field, NO separator) -- which none of the above forms
+    produced, so THE ENTIRE PER-SUBMODULE REGISTER BLOCK (INIT/VAL/CTRL/DTCNT/DISMAP)
+    of both FlexPWMs was invisible to this gate, and DTCNT0/1's 0x07FF vs 0 (zero
+    dead-time = DC-bus shoot-through) slipped it entirely.
 
     So EMIT EVERY PLAUSIBLE CANDIDATE AND LET THE (name, offset) JOIN DECIDE.  A wrong
     candidate name matches NO RM row and is harmless -- the offset has to agree too, so
@@ -300,7 +306,8 @@ def _member_names(field, struct_name, idx):
         out.add("%s%d_%s" % (head, idx, tail))       # CH_CSR -> CH0_CSR; TCD_CSR -> TCD0_CSR
     out.add("%s%d" % (field, idx))                   # CMDL   -> CMDL0
     out.add("%s%d" % (field, idx + 1))               # CMDL   -> CMDL1  (1-based)
-    out.add("%s%d_%s" % (struct_name, idx, field)) if False else None
+    out.add("%s%d%s" % (struct_name, idx, field))    # SM[4].DTCNT0 -> SM0DTCNT0 (prefix, no sep)
+    out.add("%s%d_%s" % (struct_name, idx, field))   # ... or SM0_DTCNT0 (prefix, underscore)
     return out
 
 

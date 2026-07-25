@@ -1905,6 +1905,62 @@
 },
 {
 "inst": "CAN0",
+"reg": "WMB0_CS",
+"addr": 1074610304,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB0_ID",
+"addr": 1074610308,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB1_CS",
+"addr": 1074610320,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB1_ID",
+"addr": 1074610324,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB2_CS",
+"addr": 1074610336,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB2_ID",
+"addr": 1074610340,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB3_CS",
+"addr": 1074610352,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB3_ID",
+"addr": 1074610356,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
 "reg": "CTRL1_PN",
 "addr": 1074612992,
 "reset": 256,
@@ -1956,6 +2012,62 @@
 "inst": "CAN0",
 "reg": "FLT_ID2_IDMASK",
 "addr": 1074613020,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB0_D03",
+"addr": 1074613064,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB0_D47",
+"addr": 1074613068,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB1_D03",
+"addr": 1074613080,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB1_D47",
+"addr": 1074613084,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB2_D03",
+"addr": 1074613096,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB2_D47",
+"addr": 1074613100,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB3_D03",
+"addr": 1074613112,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN0",
+"reg": "WMB3_D47",
+"addr": 1074613116,
 "reset": 0,
 "width": 32
 },
@@ -2108,6 +2220,62 @@
 },
 {
 "inst": "CAN1",
+"reg": "WMB0_CS",
+"addr": 1074626688,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB0_ID",
+"addr": 1074626692,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB1_CS",
+"addr": 1074626704,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB1_ID",
+"addr": 1074626708,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB2_CS",
+"addr": 1074626720,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB2_ID",
+"addr": 1074626724,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB3_CS",
+"addr": 1074626736,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB3_ID",
+"addr": 1074626740,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
 "reg": "CTRL1_PN",
 "addr": 1074629376,
 "reset": 256,
@@ -2159,6 +2327,62 @@
 "inst": "CAN1",
 "reg": "FLT_ID2_IDMASK",
 "addr": 1074629404,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB0_D03",
+"addr": 1074629448,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB0_D47",
+"addr": 1074629452,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB1_D03",
+"addr": 1074629464,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB1_D47",
+"addr": 1074629468,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB2_D03",
+"addr": 1074629480,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB2_D47",
+"addr": 1074629484,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB3_D03",
+"addr": 1074629496,
+"reset": 0,
+"width": 32
+},
+{
+"inst": "CAN1",
+"reg": "WMB3_D47",
+"addr": 1074629500,
 "reset": 0,
 "width": 32
 },
@@ -24137,6 +24361,1259 @@
 },
 {
 "inst": "PWM0",
+"reg": "SM0CNT",
+"addr": 1074585600,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0INIT",
+"addr": 1074585602,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CTRL2",
+"addr": 1074585604,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CTRL",
+"addr": 1074585606,
+"reset": 1024,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0VAL0",
+"addr": 1074585610,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0FRACVAL1",
+"addr": 1074585612,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0VAL1",
+"addr": 1074585614,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0FRACVAL2",
+"addr": 1074585616,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0VAL2",
+"addr": 1074585618,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0FRACVAL3",
+"addr": 1074585620,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0VAL3",
+"addr": 1074585622,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0FRACVAL4",
+"addr": 1074585624,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0VAL4",
+"addr": 1074585626,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0FRACVAL5",
+"addr": 1074585628,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0VAL5",
+"addr": 1074585630,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0FRCTRL",
+"addr": 1074585632,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0OCTRL",
+"addr": 1074585634,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0STS",
+"addr": 1074585636,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0INTEN",
+"addr": 1074585638,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0DMAEN",
+"addr": 1074585640,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0TCTRL",
+"addr": 1074585642,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0DTCNT0",
+"addr": 1074585648,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0DTCNT1",
+"addr": 1074585650,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CAPTCTRLA",
+"addr": 1074585652,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CAPTCOMPA",
+"addr": 1074585654,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CAPTCTRLB",
+"addr": 1074585656,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CAPTCOMPB",
+"addr": 1074585658,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CAPTCTRLX",
+"addr": 1074585660,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CAPTCOMPX",
+"addr": 1074585662,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL0",
+"addr": 1074585664,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL0CYC",
+"addr": 1074585666,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL1",
+"addr": 1074585668,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL1CYC",
+"addr": 1074585670,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL2",
+"addr": 1074585672,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL2CYC",
+"addr": 1074585674,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL3",
+"addr": 1074585676,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL3CYC",
+"addr": 1074585678,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL4",
+"addr": 1074585680,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL4CYC",
+"addr": 1074585682,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL5",
+"addr": 1074585684,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CVAL5CYC",
+"addr": 1074585686,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CAPTFILTA",
+"addr": 1074585690,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CAPTFILTB",
+"addr": 1074585692,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM0CAPTFILTX",
+"addr": 1074585694,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CNT",
+"addr": 1074585696,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1INIT",
+"addr": 1074585698,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CTRL2",
+"addr": 1074585700,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CTRL",
+"addr": 1074585702,
+"reset": 1024,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1VAL0",
+"addr": 1074585706,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1FRACVAL1",
+"addr": 1074585708,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1VAL1",
+"addr": 1074585710,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1FRACVAL2",
+"addr": 1074585712,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1VAL2",
+"addr": 1074585714,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1FRACVAL3",
+"addr": 1074585716,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1VAL3",
+"addr": 1074585718,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1FRACVAL4",
+"addr": 1074585720,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1VAL4",
+"addr": 1074585722,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1FRACVAL5",
+"addr": 1074585724,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1VAL5",
+"addr": 1074585726,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1FRCTRL",
+"addr": 1074585728,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1OCTRL",
+"addr": 1074585730,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1STS",
+"addr": 1074585732,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1INTEN",
+"addr": 1074585734,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1DMAEN",
+"addr": 1074585736,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1TCTRL",
+"addr": 1074585738,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1DTCNT0",
+"addr": 1074585744,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1DTCNT1",
+"addr": 1074585746,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CAPTCTRLA",
+"addr": 1074585748,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CAPTCOMPA",
+"addr": 1074585750,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CAPTCTRLB",
+"addr": 1074585752,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CAPTCOMPB",
+"addr": 1074585754,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CAPTCTRLX",
+"addr": 1074585756,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CAPTCOMPX",
+"addr": 1074585758,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL0",
+"addr": 1074585760,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL0CYC",
+"addr": 1074585762,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL1",
+"addr": 1074585764,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL1CYC",
+"addr": 1074585766,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL2",
+"addr": 1074585768,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL2CYC",
+"addr": 1074585770,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL3",
+"addr": 1074585772,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL3CYC",
+"addr": 1074585774,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL4",
+"addr": 1074585776,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL4CYC",
+"addr": 1074585778,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL5",
+"addr": 1074585780,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CVAL5CYC",
+"addr": 1074585782,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1PHASEDLY",
+"addr": 1074585784,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CAPTFILTA",
+"addr": 1074585786,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CAPTFILTB",
+"addr": 1074585788,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1CAPTFILTX",
+"addr": 1074585790,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CNT",
+"addr": 1074585792,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2INIT",
+"addr": 1074585794,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CTRL2",
+"addr": 1074585796,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CTRL",
+"addr": 1074585798,
+"reset": 1024,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2VAL0",
+"addr": 1074585802,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2FRACVAL1",
+"addr": 1074585804,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2VAL1",
+"addr": 1074585806,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2FRACVAL2",
+"addr": 1074585808,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2VAL2",
+"addr": 1074585810,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2FRACVAL3",
+"addr": 1074585812,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2VAL3",
+"addr": 1074585814,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2FRACVAL4",
+"addr": 1074585816,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2VAL4",
+"addr": 1074585818,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2FRACVAL5",
+"addr": 1074585820,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2VAL5",
+"addr": 1074585822,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2FRCTRL",
+"addr": 1074585824,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2OCTRL",
+"addr": 1074585826,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2STS",
+"addr": 1074585828,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2INTEN",
+"addr": 1074585830,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2DMAEN",
+"addr": 1074585832,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2TCTRL",
+"addr": 1074585834,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2DTCNT0",
+"addr": 1074585840,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2DTCNT1",
+"addr": 1074585842,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CAPTCTRLA",
+"addr": 1074585844,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CAPTCOMPA",
+"addr": 1074585846,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CAPTCTRLB",
+"addr": 1074585848,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CAPTCOMPB",
+"addr": 1074585850,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CAPTCTRLX",
+"addr": 1074585852,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CAPTCOMPX",
+"addr": 1074585854,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL0",
+"addr": 1074585856,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL0CYC",
+"addr": 1074585858,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL1",
+"addr": 1074585860,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL1CYC",
+"addr": 1074585862,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL2",
+"addr": 1074585864,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL2CYC",
+"addr": 1074585866,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL3",
+"addr": 1074585868,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL3CYC",
+"addr": 1074585870,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL4",
+"addr": 1074585872,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL4CYC",
+"addr": 1074585874,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL5",
+"addr": 1074585876,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CVAL5CYC",
+"addr": 1074585878,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2PHASEDLY",
+"addr": 1074585880,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CAPTFILTA",
+"addr": 1074585882,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CAPTFILTB",
+"addr": 1074585884,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM2CAPTFILTX",
+"addr": 1074585886,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CNT",
+"addr": 1074585888,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3INIT",
+"addr": 1074585890,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CTRL2",
+"addr": 1074585892,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CTRL",
+"addr": 1074585894,
+"reset": 1024,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3VAL0",
+"addr": 1074585898,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3FRACVAL1",
+"addr": 1074585900,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3VAL1",
+"addr": 1074585902,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3FRACVAL2",
+"addr": 1074585904,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3VAL2",
+"addr": 1074585906,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3FRACVAL3",
+"addr": 1074585908,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3VAL3",
+"addr": 1074585910,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3FRACVAL4",
+"addr": 1074585912,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3VAL4",
+"addr": 1074585914,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3FRACVAL5",
+"addr": 1074585916,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3VAL5",
+"addr": 1074585918,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3FRCTRL",
+"addr": 1074585920,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3OCTRL",
+"addr": 1074585922,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3STS",
+"addr": 1074585924,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3INTEN",
+"addr": 1074585926,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3DMAEN",
+"addr": 1074585928,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3TCTRL",
+"addr": 1074585930,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3DTCNT0",
+"addr": 1074585936,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3DTCNT1",
+"addr": 1074585938,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CAPTCTRLA",
+"addr": 1074585940,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CAPTCOMPA",
+"addr": 1074585942,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CAPTCTRLB",
+"addr": 1074585944,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CAPTCOMPB",
+"addr": 1074585946,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CAPTCTRLX",
+"addr": 1074585948,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CAPTCOMPX",
+"addr": 1074585950,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL0",
+"addr": 1074585952,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL0CYC",
+"addr": 1074585954,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL1",
+"addr": 1074585956,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL1CYC",
+"addr": 1074585958,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL2",
+"addr": 1074585960,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL2CYC",
+"addr": 1074585962,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL3",
+"addr": 1074585964,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL3CYC",
+"addr": 1074585966,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL4",
+"addr": 1074585968,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL4CYC",
+"addr": 1074585970,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL5",
+"addr": 1074585972,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CVAL5CYC",
+"addr": 1074585974,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3PHASEDLY",
+"addr": 1074585976,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CAPTFILTA",
+"addr": 1074585978,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CAPTFILTB",
+"addr": 1074585980,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3CAPTFILTX",
+"addr": 1074585982,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
 "reg": "OUTEN",
 "addr": 1074585984,
 "reset": 0,
@@ -24174,6 +25651,1259 @@
 "inst": "PWM0",
 "reg": "MCTRL2",
 "addr": 1074585994,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CNT",
+"addr": 1074593792,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0INIT",
+"addr": 1074593794,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CTRL2",
+"addr": 1074593796,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CTRL",
+"addr": 1074593798,
+"reset": 1024,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0VAL0",
+"addr": 1074593802,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0FRACVAL1",
+"addr": 1074593804,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0VAL1",
+"addr": 1074593806,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0FRACVAL2",
+"addr": 1074593808,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0VAL2",
+"addr": 1074593810,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0FRACVAL3",
+"addr": 1074593812,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0VAL3",
+"addr": 1074593814,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0FRACVAL4",
+"addr": 1074593816,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0VAL4",
+"addr": 1074593818,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0FRACVAL5",
+"addr": 1074593820,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0VAL5",
+"addr": 1074593822,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0FRCTRL",
+"addr": 1074593824,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0OCTRL",
+"addr": 1074593826,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0STS",
+"addr": 1074593828,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0INTEN",
+"addr": 1074593830,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0DMAEN",
+"addr": 1074593832,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0TCTRL",
+"addr": 1074593834,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0DTCNT0",
+"addr": 1074593840,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0DTCNT1",
+"addr": 1074593842,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CAPTCTRLA",
+"addr": 1074593844,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CAPTCOMPA",
+"addr": 1074593846,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CAPTCTRLB",
+"addr": 1074593848,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CAPTCOMPB",
+"addr": 1074593850,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CAPTCTRLX",
+"addr": 1074593852,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CAPTCOMPX",
+"addr": 1074593854,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL0",
+"addr": 1074593856,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL0CYC",
+"addr": 1074593858,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL1",
+"addr": 1074593860,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL1CYC",
+"addr": 1074593862,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL2",
+"addr": 1074593864,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL2CYC",
+"addr": 1074593866,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL3",
+"addr": 1074593868,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL3CYC",
+"addr": 1074593870,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL4",
+"addr": 1074593872,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL4CYC",
+"addr": 1074593874,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL5",
+"addr": 1074593876,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CVAL5CYC",
+"addr": 1074593878,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CAPTFILTA",
+"addr": 1074593882,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CAPTFILTB",
+"addr": 1074593884,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM0CAPTFILTX",
+"addr": 1074593886,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CNT",
+"addr": 1074593888,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1INIT",
+"addr": 1074593890,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CTRL2",
+"addr": 1074593892,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CTRL",
+"addr": 1074593894,
+"reset": 1024,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1VAL0",
+"addr": 1074593898,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1FRACVAL1",
+"addr": 1074593900,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1VAL1",
+"addr": 1074593902,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1FRACVAL2",
+"addr": 1074593904,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1VAL2",
+"addr": 1074593906,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1FRACVAL3",
+"addr": 1074593908,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1VAL3",
+"addr": 1074593910,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1FRACVAL4",
+"addr": 1074593912,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1VAL4",
+"addr": 1074593914,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1FRACVAL5",
+"addr": 1074593916,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1VAL5",
+"addr": 1074593918,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1FRCTRL",
+"addr": 1074593920,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1OCTRL",
+"addr": 1074593922,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1STS",
+"addr": 1074593924,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1INTEN",
+"addr": 1074593926,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1DMAEN",
+"addr": 1074593928,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1TCTRL",
+"addr": 1074593930,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1DTCNT0",
+"addr": 1074593936,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1DTCNT1",
+"addr": 1074593938,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CAPTCTRLA",
+"addr": 1074593940,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CAPTCOMPA",
+"addr": 1074593942,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CAPTCTRLB",
+"addr": 1074593944,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CAPTCOMPB",
+"addr": 1074593946,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CAPTCTRLX",
+"addr": 1074593948,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CAPTCOMPX",
+"addr": 1074593950,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL0",
+"addr": 1074593952,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL0CYC",
+"addr": 1074593954,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL1",
+"addr": 1074593956,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL1CYC",
+"addr": 1074593958,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL2",
+"addr": 1074593960,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL2CYC",
+"addr": 1074593962,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL3",
+"addr": 1074593964,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL3CYC",
+"addr": 1074593966,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL4",
+"addr": 1074593968,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL4CYC",
+"addr": 1074593970,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL5",
+"addr": 1074593972,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CVAL5CYC",
+"addr": 1074593974,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1PHASEDLY",
+"addr": 1074593976,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CAPTFILTA",
+"addr": 1074593978,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CAPTFILTB",
+"addr": 1074593980,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1CAPTFILTX",
+"addr": 1074593982,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CNT",
+"addr": 1074593984,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2INIT",
+"addr": 1074593986,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CTRL2",
+"addr": 1074593988,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CTRL",
+"addr": 1074593990,
+"reset": 1024,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2VAL0",
+"addr": 1074593994,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2FRACVAL1",
+"addr": 1074593996,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2VAL1",
+"addr": 1074593998,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2FRACVAL2",
+"addr": 1074594000,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2VAL2",
+"addr": 1074594002,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2FRACVAL3",
+"addr": 1074594004,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2VAL3",
+"addr": 1074594006,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2FRACVAL4",
+"addr": 1074594008,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2VAL4",
+"addr": 1074594010,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2FRACVAL5",
+"addr": 1074594012,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2VAL5",
+"addr": 1074594014,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2FRCTRL",
+"addr": 1074594016,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2OCTRL",
+"addr": 1074594018,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2STS",
+"addr": 1074594020,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2INTEN",
+"addr": 1074594022,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2DMAEN",
+"addr": 1074594024,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2TCTRL",
+"addr": 1074594026,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2DTCNT0",
+"addr": 1074594032,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2DTCNT1",
+"addr": 1074594034,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CAPTCTRLA",
+"addr": 1074594036,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CAPTCOMPA",
+"addr": 1074594038,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CAPTCTRLB",
+"addr": 1074594040,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CAPTCOMPB",
+"addr": 1074594042,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CAPTCTRLX",
+"addr": 1074594044,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CAPTCOMPX",
+"addr": 1074594046,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL0",
+"addr": 1074594048,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL0CYC",
+"addr": 1074594050,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL1",
+"addr": 1074594052,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL1CYC",
+"addr": 1074594054,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL2",
+"addr": 1074594056,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL2CYC",
+"addr": 1074594058,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL3",
+"addr": 1074594060,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL3CYC",
+"addr": 1074594062,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL4",
+"addr": 1074594064,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL4CYC",
+"addr": 1074594066,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL5",
+"addr": 1074594068,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CVAL5CYC",
+"addr": 1074594070,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2PHASEDLY",
+"addr": 1074594072,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CAPTFILTA",
+"addr": 1074594074,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CAPTFILTB",
+"addr": 1074594076,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM2CAPTFILTX",
+"addr": 1074594078,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CNT",
+"addr": 1074594080,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3INIT",
+"addr": 1074594082,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CTRL2",
+"addr": 1074594084,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CTRL",
+"addr": 1074594086,
+"reset": 1024,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3VAL0",
+"addr": 1074594090,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3FRACVAL1",
+"addr": 1074594092,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3VAL1",
+"addr": 1074594094,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3FRACVAL2",
+"addr": 1074594096,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3VAL2",
+"addr": 1074594098,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3FRACVAL3",
+"addr": 1074594100,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3VAL3",
+"addr": 1074594102,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3FRACVAL4",
+"addr": 1074594104,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3VAL4",
+"addr": 1074594106,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3FRACVAL5",
+"addr": 1074594108,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3VAL5",
+"addr": 1074594110,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3FRCTRL",
+"addr": 1074594112,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3OCTRL",
+"addr": 1074594114,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3STS",
+"addr": 1074594116,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3INTEN",
+"addr": 1074594118,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3DMAEN",
+"addr": 1074594120,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3TCTRL",
+"addr": 1074594122,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3DTCNT0",
+"addr": 1074594128,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3DTCNT1",
+"addr": 1074594130,
+"reset": 2047,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CAPTCTRLA",
+"addr": 1074594132,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CAPTCOMPA",
+"addr": 1074594134,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CAPTCTRLB",
+"addr": 1074594136,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CAPTCOMPB",
+"addr": 1074594138,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CAPTCTRLX",
+"addr": 1074594140,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CAPTCOMPX",
+"addr": 1074594142,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL0",
+"addr": 1074594144,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL0CYC",
+"addr": 1074594146,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL1",
+"addr": 1074594148,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL1CYC",
+"addr": 1074594150,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL2",
+"addr": 1074594152,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL2CYC",
+"addr": 1074594154,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL3",
+"addr": 1074594156,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL3CYC",
+"addr": 1074594158,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL4",
+"addr": 1074594160,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL4CYC",
+"addr": 1074594162,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL5",
+"addr": 1074594164,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CVAL5CYC",
+"addr": 1074594166,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3PHASEDLY",
+"addr": 1074594168,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CAPTFILTA",
+"addr": 1074594170,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CAPTFILTB",
+"addr": 1074594172,
+"reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3CAPTFILTX",
+"addr": 1074594174,
 "reset": 0,
 "width": 16
 },
@@ -26219,6 +28949,48 @@
 "reg": "ROMCR",
 "addr": 1073742852,
 "reset": 0,
+"width": 32
+},
+{
+"inst": "SYSCON0",
+"reg": "DAC0CLKSEL",
+"addr": 1073742992,
+"reset": 7,
+"width": 32
+},
+{
+"inst": "SYSCON0",
+"reg": "DAC0CLKDIV",
+"addr": 1073742996,
+"reset": 1073741824,
+"width": 32
+},
+{
+"inst": "SYSCON0",
+"reg": "DAC1CLKSEL",
+"addr": 1073743000,
+"reset": 7,
+"width": 32
+},
+{
+"inst": "SYSCON0",
+"reg": "DAC1CLKDIV",
+"addr": 1073743004,
+"reset": 1073741824,
+"width": 32
+},
+{
+"inst": "SYSCON0",
+"reg": "DAC2CLKSEL",
+"addr": 1073743008,
+"reset": 7,
+"width": 32
+},
+{
+"inst": "SYSCON0",
+"reg": "DAC2CLKDIV",
+"addr": 1073743012,
+"reset": 1073741824,
 "width": 32
 },
 {

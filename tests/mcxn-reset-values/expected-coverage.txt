@@ -26,8 +26,8 @@ ADC0             127
 ADC1             127
 CACHE64_CTRL0    4
 CACHE64_POLSEL0  3
-CAN0             29
-CAN1             29
+CAN0             45
+CAN1             45
 CMC0             18
 CMP0             10
 CMP1             10
@@ -118,8 +118,8 @@ PORT3            12
 PORT4            12
 PORT5            12
 POWERQUAD        44
-PWM0             6
-PWM1             6
+PWM0             185
+PWM1             185
 QDC0             25
 QDC1             25
 RTC0             19
@@ -130,7 +130,7 @@ SCT0             85
 SEMA42_0         1
 SINC0            9
 SPC0             20
-SYSCON0          88
+SYSCON0          94
 TSI0             13
 USBFS0           48
 USBHS1__USBC     43
