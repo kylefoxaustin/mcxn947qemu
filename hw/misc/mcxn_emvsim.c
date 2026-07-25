@@ -206,6 +206,25 @@ static void mcxn_emvsim_reset(DeviceState *dev)
     MCXNEMVSIMState *s = MCXN_EMVSIM(dev);
 
     memset(s->regs, 0, sizeof(s->regs));
+
+    /*
+     * RM reset values (register-summary column, §69.7).  memset(0) was wrong for
+     * nine registers -- and INT_MASK is FUNCTIONAL, not cosmetic: the IRQ update
+     * reads it (0 = enabled, 1 = masked), so 0-at-reset had every EMVSIM interrupt
+     * ENABLED out of reset while silicon masks them all -- a status bit set at
+     * reset would fire an IRQ the silicon never would.  PCSR[SPDIM] and the wait/
+     * threshold/divisor defaults are the values firmware reads before it configures
+     * the block; zero is a plausible-but-wrong answer for each.
+     */
+    s->regs[EMVSIM_DIVISOR / 4]    = 0x00000174u;
+    s->regs[EMVSIM_INT_MASK / 4]   = 0x0000FFFFu;   /* all interrupts MASKED (0 = enabled) */
+    s->regs[EMVSIM_RX_THD / 4]     = 0x00000001u;
+    s->regs[EMVSIM_TX_THD / 4]     = 0x0000000Fu;
+    s->regs[EMVSIM_PCSR / 4]       = 0x01000000u;   /* SPDIM: presence-detect IRQ masked */
+    s->regs[EMVSIM_CWT_VAL / 4]    = 0x0000FFFFu;
+    s->regs[EMVSIM_BWT_VAL / 4]    = 0xFFFFFFFFu;
+    s->regs[EMVSIM_GPCNT0_VAL / 4] = 0x0000FFFFu;
+    s->regs[EMVSIM_GPCNT1_VAL / 4] = 0x0000FFFFu;
 }
 
 static void mcxn_emvsim_realize(DeviceState *dev, Error **errp)

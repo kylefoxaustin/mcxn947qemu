@@ -38,32 +38,12 @@ USDHC0         HOST_CTRL_CAP        # DECISION: we clear SDR50|SDR104|DDR50|USE_
 #==========================================================================
 # UNTRIAGED (76) -- ⚠ IN BLOCKS WE MODEL -- these can LIE.  THIS LIST MUST SHRINK.
 #==========================================================================
-EMVSIM0        BWT_VAL              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0xffffffff)
-EMVSIM0        CWT_VAL              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000ffff)
-EMVSIM0        DIVISOR              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00000174)
-EMVSIM0        GPCNT0_VAL           # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000ffff)
-EMVSIM0        GPCNT1_VAL           # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000ffff)
-EMVSIM0        INT_MASK             # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000ffff)
-EMVSIM0        PCSR                 # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x01000000)
-EMVSIM0        RX_THD               # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00000001)
-EMVSIM0        TX_THD               # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000000f)
-EMVSIM1        BWT_VAL              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0xffffffff)
-EMVSIM1        CWT_VAL              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000ffff)
-EMVSIM1        DIVISOR              # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00000174)
-EMVSIM1        GPCNT0_VAL           # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000ffff)
-EMVSIM1        GPCNT1_VAL           # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000ffff)
-EMVSIM1        INT_MASK             # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000ffff)
-EMVSIM1        PCSR                 # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x01000000)
-EMVSIM1        RX_THD               # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x00000001)
-EMVSIM1        TX_THD               # UNTRIAGED: not yet examined (was: model=0x00000000 RM=0x0000000f)
 
 #==========================================================================
 # UNMODELLED (118) -- block has no model in hw/ -- a GAP, honestly stated.
 #==========================================================================
 CACHE64_POLSEL0 REG0_TOP             # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x0aaaa800)
 CACHE64_POLSEL0 REG1_TOP             # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x15555400)
-CAN0           MCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0xd900000f RM=0xd890000f)
-CAN1           MCR                  # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0xd900000f RM=0xd890000f)
 DMA0           MP_CSR               # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00310000)
 DMA0           MP_CSR               # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00310000)
 DMA1           MP_CSR               # UNMODELLED: no hw/mcxn_*.c for this block (was: model=0x00000000 RM=0x00310000)

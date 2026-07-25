@@ -76,6 +76,7 @@
 
 /* MCR bit positions (CAN_MCR_*_SHIFT). */
 #define MCR_LPMACK   (1u << 20)
+#define MCR_SUPV     (1u << 23)   /* supervisor access; reset = 1 */
 #define MCR_FRZACK   (1u << 24)
 #define MCR_SOFTRST  (1u << 25)
 #define MCR_NOTRDY   (1u << 27)
@@ -83,8 +84,12 @@
 #define MCR_FRZ      (1u << 30)
 #define MCR_MDIS     (1u << 31)
 
-/* MAXMB (CAN_MCR_MAXMB) occupies bits [6:0]; reset value is 0x0F. */
-#define MCR_RESET    (MCR_MDIS | MCR_FRZ | MCR_HALT | MCR_NOTRDY | MCR_FRZACK | \
+/* MAXMB (CAN_MCR_MAXMB) occupies bits [6:0]; reset value is 0x0F.
+ * Reset = 0xD890_000F (RM): MDIS|FRZ|HALT|NOTRDY | SUPV | LPMACK | MAXMB=0xF.  At reset the
+ * module is DISABLED (MDIS=1), so it acknowledges LOW-POWER (LPMACK), NOT freeze (FRZACK) --
+ * FRZACK requires the module ENABLED.  The old constant set FRZACK and dropped SUPV/LPMACK
+ * (0xD900_000F), overriding the correct value in the reset table below. */
+#define MCR_RESET    (MCR_MDIS | MCR_FRZ | MCR_HALT | MCR_NOTRDY | MCR_SUPV | MCR_LPMACK | \
                       0x0000000Fu)
 
 /*
@@ -98,11 +103,10 @@ static uint32_t flexcan_mcr_settle(uint32_t mcr)
     bool disable = mcr & MCR_MDIS;
 
     mcr &= ~(MCR_FRZACK | MCR_LPMACK | MCR_NOTRDY);
-    if (freeze) {
-        mcr |= MCR_FRZACK | MCR_NOTRDY;
-    }
     if (disable) {
-        mcr |= MCR_LPMACK | MCR_NOTRDY;
+        mcr |= MCR_LPMACK | MCR_NOTRDY;   /* low-power takes precedence: a disabled */
+    } else if (freeze) {                   /* module acks LOW-POWER, never FREEZE   */
+        mcr |= MCR_FRZACK | MCR_NOTRDY;
     }
     return mcr;
 }
