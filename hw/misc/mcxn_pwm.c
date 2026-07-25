@@ -30,7 +30,8 @@
 #define PWM_SM_VAL1        0x0E    /* Modulo (period) value */
 #define PWM_SM_VAL2        0x12    /* PWM_A turn-ON compare */
 #define PWM_SM_VAL3        0x16    /* PWM_A turn-OFF compare */
-#define PWM_SM_VAL5        0x1E    /* Value register 5 (last of the VAL block) */
+#define PWM_SM_VAL4        0x1A    /* PWM_B turn-ON compare (independent mode) */
+#define PWM_SM_VAL5        0x1E    /* PWM_B turn-OFF compare / last of the VAL block */
 #define PWM_SM_OCTRL       0x22    /* Output Control (POLA/POLB/POLX) */
 #define PWM_SM_STS         0x24    /* Status (W1C flags) */
 #define PWM_SM_INTEN       0x26    /* Interrupt enable */
@@ -41,13 +42,18 @@
 #define PWM_SM_CAPTCTRLA   0x34    /* Capture Control A (arm + edge select) */
 #define PWM_SM_CVAL0       0x40    /* Capture Value 0 (input A, capture circuit 0), RO */
 
-/* OCTRL[POLA]: invert PWM_A output polarity (CMSIS PWM_OCTRL_POLA, bit 10). */
+/* OCTRL[POLA]/[POLB]: invert PWM_A/PWM_B output polarity (CMSIS, bits 10/9). */
 #define PWM_OCTRL_POLA     0x0400u
-/* OUTEN[PWMA_EN] bits[11:8], one per submodule (CMSIS PWM_OUTEN_PWMA_EN); SM0 = bit 8. */
+#define PWM_OCTRL_POLB     0x0200u
+/* OUTEN[PWMA_EN] bits[11:8] / [PWMB_EN] bits[7:4], one per submodule; SM0 = bit 8 / bit 4. */
 #define PWM_OUTEN_PWMA_SM0 0x0100u
-/* DISMAP0[DIS0A] bits[3:0], one per fault input -> PWM_A of this submodule; fault 0 = bit 0.
- * Reset 0xFFFF => every fault disables every output (the safe default). */
+#define PWM_OUTEN_PWMB_SM0 0x0010u
+/* DISMAP0[DIS0A] bits[3:0] / [DIS0B] bits[7:4], one per fault input -> PWM_A / PWM_B; fault 0 =
+ * bit 0 / bit 4.  Reset 0xFFFF => every fault disables every output (the safe default). */
 #define PWM_DISMAP_DIS0A_F0 0x0001u
+#define PWM_DISMAP_DIS0B_F0 0x0010u
+/* CTRL2[INDEP] (bit 13): 0 = complementary pair (deadtime-capable), 1 = independent A/B. */
+#define PWM_CTRL2_INDEP    0x2000u
 /* Reset values (RM register-summary table; memset(0) would ship the dangerous zeros). */
 #define PWM_DTCNT_RESET    0x07FFu
 #define PWM_DISMAP_RESET   0xFFFFu
@@ -414,61 +420,95 @@ static bool mcxn_pwm_get_fault(Object *obj, Error **errp)
 }
 
 /*
- * The submodule-0 PWM_A output level -- the actual generated waveform.
+ * The submodule-0 PWM_A / PWM_B output levels -- the actual generated waveform, WITH DEAD-TIME.
  *
- * On silicon the PWM_A output flip-flop is SET when the counter reaches VAL2 and RESET when it
- * reaches VAL3, so over a period it is high for the counter range [VAL2, VAL3) (a wrapped range
- * if VAL2 > VAL3); OCTRL[POLA] inverts it, and OUTEN[PWMA_EN] gates whether the PWM drives the
- * pin at all.  The duty cycle -- the one number motor control is built on -- is
- * (VAL3-VAL2)/(VAL1-INIT+1), and it was NOT MODELLED: the output did not exist, so a developer's
- * commanded duty produced no observable signal.  FAULT force-off takes precedence: a latched
- * fault (FSTS[FFLAG]) that DISMAP maps to PWM_A forces the output OFF whatever the compare says
- * -- the safety function (gate-drive cut), now observable.
+ * PWM_A's output flip-flop is SET at VAL2 and RESET at VAL3, so its commanded high region is
+ * [VAL2, VAL3); the duty cycle (VAL3-VAL2)/(VAL1-INIT+1) is the number motor control is built on.
+ * CTRL2[INDEP] chooses how PWM_B is generated:
  *
- * The output pin has no on-chip consumer in emulation, so the level is OPERATOR-OBSERVABLE via
- * the read-only "pwm-a-output" QOM property (the mirror of the operator-driven input seams: the
- * operator reads the pin as a scope would).  The counter position is reconstructed from timing
- * (mcxn_pwm_counter_now); when the submodule is not running it is INIT, which makes the compare
- * deterministically testable without racing the carrier.
+ *   INDEP=1 (independent): PWM_B has its own compare, [VAL4, VAL5); no dead-time.
+ *   INDEP=0 (complementary, the RESET default): PWM_B is the complement of PWM_A, and DEAD-TIME
+ *     is inserted -- PWM_A's leading (0->1) edge at VAL2 is delayed by DTCNT0, PWM_B's leading
+ *     edge at VAL3 by DTCNT1.  During each delay BOTH outputs are forced inactive: the DEAD BAND
+ *     that stops shoot-through through both transistors of an inverter leg.  Without it (DTCNT=0)
+ *     the pair overlap and the DC bus is shorted -- which is exactly why DTCNT resets to 0x07FF
+ *     (2047 cycles), not 0.  DTCNT is in IPBus cycles regardless of PRSC, so in counter units it
+ *     is DTCNT >> PRSC.
  *
- * ⚠ Scope, stated: PWM_A of submodule 0 only; complementary-pair generation and DEAD-TIME
- * INSERTION (DTCNT shifting the A/B edges apart -- DTCNT now carries its real 0x07FF reset value
- * and is guest-readable, but the sub-count edge delay it represents is not inserted into this
- * level) are a named seam.
+ * OCTRL[POLA]/[POLB] invert each output; OUTEN gates whether the PWM drives the pin; a latched
+ * FAULT that DISMAP maps to an output forces it inactive (the safety gate-drive cut).  The pins
+ * have no on-chip consumer in emulation, so the levels are OPERATOR-OBSERVABLE via the read-only
+ * "pwm-a-output" / "pwm-b-output" QOM properties (a scope on the pins).  The counter position is
+ * reconstructed from timing; when the submodule is not running it is INIT, making the whole thing
+ * -- duty, complement, and dead band -- deterministically testable without racing the carrier.
+ *
+ * ⚠ Scope, stated: submodule 0; the complementary dead-time path assumes VAL2 < VAL3 (the normal
+ * edge/center-aligned config); PWM_X and fractional-delay (FRACVAL) dead-time are not modelled.
  */
-static bool mcxn_pwm_a_output(MCXNPWMState *s)
+static void mcxn_pwm_outputs(MCXNPWMState *s, bool *a_out, bool *b_out)
 {
     uint16_t fsts = pwm_ld16(s, PWM_FSTS);
     uint16_t dismap = pwm_ld16(s, PWM_SM_DISMAP0);
-    uint16_t octrl, val2, val3;
-    uint16_t pos;
-    bool high;
+    uint16_t octrl = pwm_ld16(s, PWM_SM_OCTRL);
+    uint16_t outen = pwm_ld16(s, PWM_OUTEN);
+    uint16_t ctrl2 = pwm_ld16(s, PWM_SM_CTRL2);
+    uint16_t ctrl  = pwm_ld16(s, PWM_SM_CTRL);
+    unsigned prsc  = (ctrl & PWM_CTRL_PRSC_MASK) >> PWM_CTRL_PRSC_SHIFT;
+    uint16_t val2 = pwm_ld16(s, PWM_SM_VAL2);
+    uint16_t val3 = pwm_ld16(s, PWM_SM_VAL3);
+    uint16_t pos = mcxn_pwm_counter_now(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
+    bool a, b;
 
-    /* FAULT force-off (safety): a latched fault mapped to PWM_A cuts the output. */
-    if ((fsts & PWM_FSTS_FFLAG0) && (dismap & PWM_DISMAP_DIS0A_F0)) {
-        return false;
-    }
-    /* OUTEN gate: if the PWM does not drive the pin, it is not actively high. */
-    if (!(pwm_ld16(s, PWM_OUTEN) & PWM_OUTEN_PWMA_SM0)) {
-        return false;
+    if (ctrl2 & PWM_CTRL2_INDEP) {
+        /* Independent channels: A from VAL2/VAL3, B from VAL4/VAL5, no dead-time. */
+        uint16_t val4 = pwm_ld16(s, PWM_SM_VAL4);
+        uint16_t val5 = pwm_ld16(s, PWM_SM_VAL5);
+        a = (val2 <= val3) ? (pos >= val2 && pos < val3) : (pos >= val2 || pos < val3);
+        b = (val4 <= val5) ? (pos >= val4 && pos < val5) : (pos >= val4 || pos < val5);
+    } else {
+        /* Complementary pair with dead-time inserted on each leading edge. */
+        uint16_t dead0 = pwm_ld16(s, PWM_SM_DTCNT0) >> prsc;   /* PWM_A 0->1 delay, in counts */
+        uint16_t dead1 = pwm_ld16(s, PWM_SM_DTCNT1) >> prsc;   /* PWM_B 0->1 delay, in counts */
+        a = (pos >= (uint16_t)(val2 + dead0)) && (pos < val3);
+        b = (pos < val2) || (pos >= (uint16_t)(val3 + dead1));
     }
 
-    val2 = pwm_ld16(s, PWM_SM_VAL2);
-    val3 = pwm_ld16(s, PWM_SM_VAL3);
-    pos = mcxn_pwm_counter_now(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
-    /* Set at VAL2, reset at VAL3: high in [VAL2, VAL3), wrapping if VAL2 > VAL3. */
-    high = (val2 <= val3) ? (pos >= val2 && pos < val3)
-                          : (pos >= val2 || pos < val3);
-    octrl = pwm_ld16(s, PWM_SM_OCTRL);
     if (octrl & PWM_OCTRL_POLA) {
-        high = !high;                                /* POLA inverts the output polarity */
+        a = !a;
     }
-    return high;
+    if (octrl & PWM_OCTRL_POLB) {
+        b = !b;
+    }
+    if (!(outen & PWM_OUTEN_PWMA_SM0)) {
+        a = false;
+    }
+    if (!(outen & PWM_OUTEN_PWMB_SM0)) {
+        b = false;
+    }
+    if (fsts & PWM_FSTS_FFLAG0) {                 /* FAULT force-off (safety) takes precedence */
+        if (dismap & PWM_DISMAP_DIS0A_F0) {
+            a = false;
+        }
+        if (dismap & PWM_DISMAP_DIS0B_F0) {
+            b = false;
+        }
+    }
+    *a_out = a;
+    *b_out = b;
 }
 
 static bool mcxn_pwm_get_a_output(Object *obj, Error **errp)
 {
-    return mcxn_pwm_a_output(MCXN_PWM(obj));
+    bool a, b;
+    mcxn_pwm_outputs(MCXN_PWM(obj), &a, &b);
+    return a;
+}
+
+static bool mcxn_pwm_get_b_output(Object *obj, Error **errp)
+{
+    bool a, b;
+    mcxn_pwm_outputs(MCXN_PWM(obj), &a, &b);
+    return b;
 }
 
 /*
@@ -706,10 +746,13 @@ static void mcxn_pwm_init(Object *obj)
     object_property_add_bool(obj, "fault-input",
                              mcxn_pwm_get_fault, mcxn_pwm_set_fault);
 
-    /* Operator-OBSERVABLE submodule-0 PWM_A output level (read-only; the "scope"):
-     *   qom-get /machine/soc/pwm0 pwm-a-output   */
+    /* Operator-OBSERVABLE submodule-0 PWM_A / PWM_B output levels (read-only; the "scope").
+     * In complementary mode the dead band shows as BOTH reading false at once:
+     *   qom-get /machine/soc/pwm0 pwm-a-output ; qom-get /machine/soc/pwm0 pwm-b-output */
     object_property_add_bool(obj, "pwm-a-output",
                              mcxn_pwm_get_a_output, NULL);
+    object_property_add_bool(obj, "pwm-b-output",
+                             mcxn_pwm_get_b_output, NULL);
 }
 
 static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
