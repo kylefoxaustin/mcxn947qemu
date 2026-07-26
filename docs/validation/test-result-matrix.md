@@ -47,7 +47,7 @@ register-only≈registration/Tier-C.
 
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
-| usbfs0 | ✓ | ✓ | functional | mcxn-usb, mcxn-usb-host | SKIP |
+| usbfs0 | ✓ | ✓ | functional | mcxn-usb, mcxn-usb-host, mcxn-usb-host-msc | SKIP |
 | usbhs1 | ✓ | ✓ | functional | mcxn-usb-hs | SKIP |
 | enet | ✓ | ✓ | functional | mcxn-enet, mcxn-enet-mac, mcxn-enet-tcp, mcxn-enet-udp, mcxn-enet-tcpip, mcxn-enet-x2, mcxn-enet-lab | SKIP |
 | flexcan | ✓ | ✓ | functional | mcxn-flexcan, mcxn-flexcan-rx, mcxn-can-link | SKIP |
