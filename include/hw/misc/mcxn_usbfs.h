@@ -17,6 +17,7 @@
 #include "hw/core/sysbus.h"
 #include "qemu/timer.h"
 #include "hw/usb/mcxn_usbdev.h"
+#include "hw/usb/usb.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_USBFS "mcxn-usbfs"
@@ -54,6 +55,25 @@ struct MCXNUSBFSState {
     MCXNUsbDevState *usbdev;        /* shared usbredir device core (link)    */
     QEMUTimer   *sof;               /* 1 ms SOF / token-retry tick           */
     int64_t     next_sof_ns;        /* deadline: the frame rate must not drift */
+
+    /* HOST mode (CTL[HOSTMODEEN]): the controller drives transactions to a
+     * device ATTACHED on its own usb-bus, instead of being a device on a remote
+     * host's bus.  The guest writes TOKEN to launch one transaction; we execute
+     * it against the attached USBDevice via the QEMU USB core. */
+    USBBus      host_bus;
+    USBPort     host_port;
+    USBPacket   host_pkt;
+    bool        host_mode;          /* CTL.HOSTMODEEN seen                   */
+    uint8_t     host_buf[MCXN_USBFS_MPS];  /* packet staging buffer          */
+    /* Context of a transaction awaiting async completion (interrupt-IN etc.). */
+    uint32_t    host_pend_ba;
+    uint32_t    host_pend_bufaddr;
+    int         host_pend_ep;
+    int         host_pend_pid;      /* KHCI PID field (retired BD tok_pid)    */
+    int         host_pend_odd;
+    bool        host_pend_tx;
+    bool        host_pend_in;
+    bool        host_pend_busy;
 
     bool        enabled;            /* CTL.USBENSOFEN seen                   */
     bool        tokdne_busy;        /* a TOKDNE is awaiting firmware ack     */

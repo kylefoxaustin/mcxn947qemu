@@ -56,6 +56,7 @@
 #define CTL_USBENSOFEN  (1u << 0)
 #define CTL_ODDRST      (1u << 1)
 #define CTL_HOSTMODEEN  (1u << 3)
+#define CTL_RESET       (1u << 4)   /* host: drive a USB bus reset (SE0) */
 #define USBTRC0_USBRESET (1u << 7)
 
 /* ISTAT / INTEN bits. */
@@ -64,6 +65,8 @@
 #define ISTAT_SOFTOK    (1u << 2)
 #define ISTAT_TOKDNE    (1u << 3)
 #define ISTAT_SLEEP     (1u << 4)
+#define ISTAT_RESUME    (1u << 5)
+#define ISTAT_ATTACH    (1u << 6)   /* device attached (host mode) */
 #define ISTAT_STALL     (1u << 7)
 
 /* STAT fields. */
@@ -150,6 +153,161 @@ static void usbfs_tokdne(MCXNUSBFSState *s, int ep, bool tx, int odd)
     s->tokdne_busy = true;
     usbfs_update_irq(s);
 }
+
+/* ------------------------------------------------------------------------- *
+ * HOST mode.  With CTL[HOSTMODEEN] the guest IS the USB host: it programs ADDR
+ * (target device address) and arms a BD, then writes TOKEN (PID + endpoint) to
+ * launch ONE transaction.  We read the armed BD, drive the packet to the device
+ * attached on our own usb-bus via the QEMU USB core, copy the data, retire the
+ * BD and raise TOKDNE -- the device-mode path with "who initiates" swapped.
+ * SETUP/OUT send from the TX BD; IN fills the RX BD.  Synchronous completion is
+ * handled inline; async (a NAKing interrupt-IN awaiting data) finishes in the
+ * port .complete callback.
+ * ------------------------------------------------------------------------- */
+
+static void usbfs_host_retire(MCXNUSBFSState *s, uint32_t ba, int pid_field,
+                              bool tx, int ep, int odd, int len)
+{
+    bd_st(ba, ((uint32_t)len << BD_BC_SHIFT) | (pid_field << BD_TOKPID_SHIFT));
+    if (tx) {
+        s->odd_tx[ep] ^= 1;
+    } else {
+        s->odd_rx[ep] ^= 1;
+    }
+    usbfs_tokdne(s, ep, tx, odd);
+}
+
+/* Report a host-side transaction error on the non-gating ERRSTAT channel so the
+ * guest's host stack sees a failed transaction rather than hanging. */
+static void usbfs_host_error(MCXNUSBFSState *s, uint32_t bit)
+{
+    s->regs[R_ERRSTAT / 4] |= bit;
+    if (s->regs[R_ERRSTAT / 4] & s->regs[R_ERREN / 4] & 0xFF) {
+        s->regs[R_ISTAT / 4] |= ISTAT_ERROR;
+    }
+    usbfs_update_irq(s);
+}
+
+static void usbfs_host_token(MCXNUSBFSState *s, uint8_t token)
+{
+    int pid_field = (token >> 4) & 0xF;
+    int ep = token & 0xF;
+    uint8_t addr = s->regs[R_ADDR / 4] & 0x7F;
+    bool is_setup = (pid_field == PID_SETUP);
+    bool is_in = (pid_field == PID_IN);
+    bool tx = !is_in;                    /* SETUP/OUT send from TX BD; IN fills RX BD */
+    int odd = (tx ? s->odd_tx[ep] : s->odd_rx[ep]) & 1;
+    uint32_t base = bdt_base(s);
+    uint32_t ba = base + bd_off(ep, tx, odd);
+    uint32_t ctrl = bd_ld(ba);
+    uint32_t bufaddr;
+    int bc, qpid, len;
+    USBDevice *dev;
+    USBEndpoint *uep;
+
+    if (!(ctrl & BD_OWN)) {
+        return;                          /* firmware has not armed a BD for this direction */
+    }
+    dev = usb_find_device(&s->host_port, addr);
+    if (!dev) {
+        usbfs_host_error(s, 0x01);       /* PIDERR / no device answering: bus timeout */
+        return;
+    }
+
+    bufaddr = bd_ld(ba + 4);
+    bc = (ctrl >> BD_BC_SHIFT) & BD_BC_MASK;
+    if (bc > MCXN_USBFS_MPS) {
+        bc = MCXN_USBFS_MPS;
+    }
+    qpid = is_setup ? USB_TOKEN_SETUP : is_in ? USB_TOKEN_IN : USB_TOKEN_OUT;
+    uep = usb_ep_get(dev, qpid, ep);
+    usb_packet_setup(&s->host_pkt, qpid, uep, 0, ba, !is_in, true);
+    if (!is_in) {
+        cpu_physical_memory_read(bufaddr, s->host_buf, bc);
+    }
+    usb_packet_addbuf(&s->host_pkt, s->host_buf, bc);
+    usb_handle_packet(dev, &s->host_pkt);
+
+    if (s->host_pkt.status == USB_RET_ASYNC) {
+        s->host_pend_ba = ba;
+        s->host_pend_bufaddr = bufaddr;
+        s->host_pend_ep = ep;
+        s->host_pend_pid = pid_field;
+        s->host_pend_odd = odd;
+        s->host_pend_tx = tx;
+        s->host_pend_in = is_in;
+        s->host_pend_busy = true;
+        return;                          /* completes in mcxn_usbfs_host_complete */
+    }
+    if (s->host_pkt.status >= 0) {       /* success: actual_length bytes moved */
+        len = s->host_pkt.actual_length;
+        if (is_in) {
+            cpu_physical_memory_write(bufaddr, s->host_buf, len);
+        }
+        usbfs_host_retire(s, ba, pid_field, tx, ep, odd, len);
+    } else if (s->host_pkt.status == USB_RET_STALL) {
+        usbfs_host_error(s, 0x80);       /* BTSERR-class: device STALLed the token */
+    }
+    /* NAK/NYET: leave the BD owned; the guest host stack re-issues the token. */
+}
+
+static void mcxn_usbfs_host_attach(USBPort *port)
+{
+    MCXNUSBFSState *s = port->opaque;
+
+    if (s->host_mode) {
+        s->regs[R_ISTAT / 4] |= ISTAT_ATTACH;
+        usbfs_update_irq(s);
+    }
+}
+
+static void mcxn_usbfs_host_detach(USBPort *port)
+{
+    MCXNUSBFSState *s = port->opaque;
+
+    if (s->host_mode) {
+        s->regs[R_ISTAT / 4] |= ISTAT_ATTACH;   /* ATTACH latches the change of state */
+        usbfs_update_irq(s);
+    }
+}
+
+static void mcxn_usbfs_host_child_detach(USBPort *port, USBDevice *child)
+{
+}
+
+static void mcxn_usbfs_host_wakeup(USBPort *port)
+{
+}
+
+static void mcxn_usbfs_host_complete(USBPort *port, USBPacket *p)
+{
+    MCXNUSBFSState *s = port->opaque;
+
+    if (!s->host_pend_busy || p != &s->host_pkt) {
+        return;
+    }
+    s->host_pend_busy = false;
+    if (p->status >= 0) {
+        int len = p->actual_length;
+        if (s->host_pend_in) {
+            cpu_physical_memory_write(s->host_pend_bufaddr, s->host_buf, len);
+        }
+        usbfs_host_retire(s, s->host_pend_ba, s->host_pend_pid,
+                          s->host_pend_tx, s->host_pend_ep, s->host_pend_odd, len);
+    } else if (p->status == USB_RET_STALL) {
+        usbfs_host_error(s, 0x80);
+    }
+}
+
+static USBPortOps mcxn_usbfs_port_ops = {
+    .attach       = mcxn_usbfs_host_attach,
+    .detach       = mcxn_usbfs_host_detach,
+    .child_detach = mcxn_usbfs_host_child_detach,
+    .wakeup       = mcxn_usbfs_host_wakeup,
+    .complete     = mcxn_usbfs_host_complete,
+};
+
+static USBBusOps mcxn_usbfs_bus_ops = { };
 
 /* ------------------------------------------------------------------------- *
  * Endpoint servicing — runs when a BD might be ready (SOF tick / TOKDNE ack).
@@ -463,17 +621,40 @@ static void mcxn_usbfs_write(void *opaque, hwaddr off, uint64_t value,
             memset(s->odd_rx, 0, sizeof(s->odd_rx));
             memset(s->odd_tx, 0, sizeof(s->odd_tx));
         }
-        if ((v & CTL_USBENSOFEN) && !(v & CTL_HOSTMODEEN) && !s->enabled) {
-            /* Device mode enabled + pull-up: a device appears on the bus. */
+        s->host_mode = (v & CTL_HOSTMODEEN) != 0;
+        if ((v & CTL_USBENSOFEN) && !s->enabled) {
             s->enabled = true;
             s->next_sof_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                              SOF_PERIOD_NS;
             timer_mod(s->sof, s->next_sof_ns);
-            mcxn_usbdev_attach(s->usbdev, usb_redir_speed_full);
+            if (!s->host_mode) {
+                /* Device mode + pull-up: a device appears on the remote host's bus. */
+                mcxn_usbdev_attach(s->usbdev, usb_redir_speed_full);
+            }
         } else if (!(v & CTL_USBENSOFEN) && s->enabled) {
             s->enabled = false;
             timer_del(s->sof);
-            mcxn_usbdev_detach(s->usbdev);
+            if (!s->host_mode) {
+                mcxn_usbdev_detach(s->usbdev);
+            }
+        }
+        /* Host mode enabled while a device is already plugged into our port:
+         * latch the ATTACH the guest's host stack polls for. */
+        if (s->host_mode && s->host_port.dev) {
+            s->regs[R_ISTAT / 4] |= ISTAT_ATTACH;
+            usbfs_update_irq(s);
+        }
+        /* CTL[RESET]: drive a USB bus reset.  The attached device leaves the
+         * ATTACHED state for DEFAULT (address 0) -- the state in which it is
+         * addressable, so enumeration can begin. */
+        if (s->host_mode && (v & CTL_RESET) && s->host_port.dev) {
+            usb_device_reset(s->host_port.dev);
+        }
+        return;
+    case R_TOKEN:
+        s->regs[off >> 2] = v;
+        if (s->host_mode && s->enabled) {
+            usbfs_host_token(s, v & 0xFF);      /* launch one host transaction */
         }
         return;
     case R_USBTRC0:
@@ -558,6 +739,13 @@ static void mcxn_usbfs_realize(DeviceState *dev, Error **errp)
     if (s->usbdev) {
         mcxn_usbdev_set_backend(s->usbdev, &usbfs_be_ops, s);
     }
+
+    /* Host mode: our own single-port full-speed usb-bus, so a QEMU USB device
+     * (-device usb-kbd,bus=<id>) can attach and the guest host stack enumerate it. */
+    usb_bus_new(&s->host_bus, sizeof(s->host_bus), &mcxn_usbfs_bus_ops, dev);
+    usb_register_port(&s->host_bus, &s->host_port, s, 0,
+                      &mcxn_usbfs_port_ops, USB_SPEED_MASK_FULL);
+    usb_packet_init(&s->host_pkt);
 }
 
 static const VMStateDescription vmstate_mcxn_usbfs = {
