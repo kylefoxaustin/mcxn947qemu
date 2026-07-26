@@ -229,9 +229,43 @@ static int msc_read_block(uint32_t lba, uint8_t *out)
     return 0;
 }
 
+/* BOT WRITE(10) of one 512-byte block at `lba` from in[512].  The data phase is a bulk-OUT,
+ * and usb-storage's block write is async -- so the CSW-IN completes through the controller's
+ * port .complete path, exercising the async host completion for real. */
+static int msc_write_block(uint32_t lba, const uint8_t *in)
+{
+    uint8_t cbw[31] = { 0 };
+    uint8_t csw[13];
+    cbw[0] = 0x55; cbw[1] = 0x53; cbw[2] = 0x42; cbw[3] = 0x43;   /* "USBC" */
+    cbw[4] = 0x79;                                                /* tag */
+    cbw[8] = 0x00; cbw[9] = 0x02;                                 /* dCBWDataTransferLength = 512 */
+    cbw[12] = 0x00;                                               /* bmCBWFlags = data-OUT */
+    cbw[14] = 10;                                                 /* CBWCBLength */
+    cbw[15] = 0x2A;                                               /* WRITE(10) */
+    cbw[17] = (lba >> 24) & 0xFF; cbw[18] = (lba >> 16) & 0xFF;
+    cbw[19] = (lba >> 8) & 0xFF;  cbw[20] = lba & 0xFF;
+    cbw[22] = 0x00; cbw[23] = 0x01;                               /* 1 block */
+
+    if (bulk_out(EP_BULK_OUT, cbw, 31) < 0) {
+        return -1;
+    }
+    if (bulk_out(EP_BULK_OUT, in, 512) != 512) {
+        return -2;
+    }
+    if (bulk_in(EP_BULK_IN, csw, 13) < 0) {
+        return -3;
+    }
+    if (csw[0] != 0x55 || csw[1] != 0x53 || csw[2] != 0x42 || csw[3] != 0x53 || csw[12] != 0) {
+        return -4;
+    }
+    return 0;
+}
+
 void cpu0_main(void)
 {
     uint8_t desc[18];
+    static uint8_t wblk[512] __attribute__((aligned(4)));
+    static uint8_t rblk[512] __attribute__((aligned(4)));
     int ok = 1, r, g;
 
     LP_CTRL = (1u << 19);
@@ -281,8 +315,39 @@ void cpu0_main(void)
     }
     ok &= (block0[508] == 0xDE && block0[509] == 0xAD &&
            block0[510] == 0xBE && block0[511] == 0xEF);
-
     puts_(ok ? "USB-MSC READ OK\r\n" : "USB-MSC READ FAIL\r\n");
+
+    /* WRITE block 1 with a signature, read it back, and verify.  The host harness
+     * ALSO re-checks the backing file after exit -- an oracle the model cannot fake. */
+    for (int i = 0; i < 512; i++) {
+        wblk[i] = 0;
+    }
+    static const char wsig[16] = "MCX-WROTE-THIS!!";
+    for (int i = 0; i < 16; i++) {
+        wblk[i] = (uint8_t)wsig[i];
+    }
+    wblk[508] = 0xCA; wblk[509] = 0xFE; wblk[510] = 0xF0; wblk[511] = 0x0D;
+
+    r = -1;
+    for (int attempt = 0; attempt < 4 && r != 0; attempt++) {
+        r = msc_write_block(1, wblk);
+    }
+    ok &= (r == 0);
+    puts_("  write rc="); puthex((uint32_t)(r & 0xff), 2); puts_("\r\n");
+
+    r = -1;
+    for (int attempt = 0; attempt < 4 && r != 0; attempt++) {
+        r = msc_read_block(1, rblk);
+    }
+    ok &= (r == 0);
+    for (int i = 0; i < 16; i++) {
+        if (rblk[i] != (uint8_t)wsig[i]) { ok = 0; }
+    }
+    ok &= (rblk[508] == 0xCA && rblk[509] == 0xFE && rblk[510] == 0xF0 && rblk[511] == 0x0D);
+    puts_("  readback sig="); for (int i = 0; i < 12; i++) putc_(rblk[i] ? rblk[i] : '.');
+    puts_("\r\n");
+
+    puts_(ok ? "USB-MSC RW OK\r\n" : "USB-MSC RW FAIL\r\n");
     for (;;) {
     }
 }
