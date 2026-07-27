@@ -380,6 +380,36 @@ def parse_cmsis(path):
                         if cand not in regs:
                             _put(cand, base + k * step)
 
+            # (b2) FIELD ARRAYS nested inside the struct array -- e.g. FlexPWM's
+            #      `__IO uint16_t DISMAP[1];  ... array step: index*0x60, index2*0x2`.
+            #      These carry a TWO-dimensional step: `index*<struct stride>` for the
+            #      submodule and `index2*<field stride>` for the field array, so branch
+            #      (b) above (which matches a BARE `field;` and a single step) skips them
+            #      entirely -- the whole class was invisible.  The RM names element (k,j)
+            #      as <sname><k><field><j>, e.g. SM[0].DISMAP[0] -> SM0DISMAP0.
+            for f in re.finditer(
+                    r'__[IO]+\s+\w+\s+(\w+)\s*\[(\w+)\]\s*;\s*/\*\*<[^*]*?'
+                    r'array offset:\s*(0x[0-9A-Fa-f]+)'
+                    r'[^*]*?array step:\s*index\s*\*\s*(0x[0-9A-Fa-f]+)'
+                    r'[^*]*?index2\s*\*\s*(0x[0-9A-Fa-f]+)',
+                    body[:sa.start()]):
+                fname = f.group(1)
+                fcount = _count(f.group(2), src)
+                base = int(f.group(3), 16)
+                kstep = int(f.group(4), 16)          # struct-array (submodule) stride
+                jstep = int(f.group(5), 16)          # field-array stride
+                if not fcount:
+                    continue
+                for k in range(n):
+                    for j in range(fcount):
+                        off = base + k * kstep + j * jstep
+                        # every plausible candidate; the (name, offset) join filters.
+                        for cand in ("%s%d%s%d" % (sname, k, fname, j),
+                                     "%s%d%s%d" % (sname, k, fname, j + 1),
+                                     "%s%d%s"   % (sname, k, fname)):
+                            if cand not in regs:
+                                _put(cand, off)
+
         #
         # ⚠ A NAME MAY COLLIDE WITH ITSELF INSIDE CMSIS, AND THE LOSER IS SILENT.
         #

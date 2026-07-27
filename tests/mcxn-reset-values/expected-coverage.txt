@@ -118,8 +118,8 @@ PORT3            12
 PORT4            12
 PORT5            12
 POWERQUAD        44
-PWM0             185
-PWM1             185
+PWM0             189
+PWM1             189
 QDC0             25
 QDC1             25
 RTC0             19

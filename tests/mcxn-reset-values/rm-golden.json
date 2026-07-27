@@ -24508,6 +24508,13 @@
 },
 {
 "inst": "PWM0",
+"reg": "SM0DISMAP0",
+"addr": 1074585644,
+"reset": 65535,
+"width": 16
+},
+{
+"inst": "PWM0",
 "reg": "SM0DTCNT0",
 "addr": 1074585648,
 "reset": 2047,
@@ -24812,6 +24819,13 @@
 "reg": "SM1TCTRL",
 "addr": 1074585738,
 "reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM1DISMAP0",
+"addr": 1074585740,
+"reset": 65535,
 "width": 16
 },
 {
@@ -25131,6 +25145,13 @@
 },
 {
 "inst": "PWM0",
+"reg": "SM2DISMAP0",
+"addr": 1074585836,
+"reset": 65535,
+"width": 16
+},
+{
+"inst": "PWM0",
 "reg": "SM2DTCNT0",
 "addr": 1074585840,
 "reset": 2047,
@@ -25442,6 +25463,13 @@
 "reg": "SM3TCTRL",
 "addr": 1074585930,
 "reset": 0,
+"width": 16
+},
+{
+"inst": "PWM0",
+"reg": "SM3DISMAP0",
+"addr": 1074585932,
+"reset": 65535,
 "width": 16
 },
 {
@@ -25803,6 +25831,13 @@
 },
 {
 "inst": "PWM1",
+"reg": "SM0DISMAP0",
+"addr": 1074593836,
+"reset": 65535,
+"width": 16
+},
+{
+"inst": "PWM1",
 "reg": "SM0DTCNT0",
 "addr": 1074593840,
 "reset": 2047,
@@ -26107,6 +26142,13 @@
 "reg": "SM1TCTRL",
 "addr": 1074593930,
 "reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM1DISMAP0",
+"addr": 1074593932,
+"reset": 65535,
 "width": 16
 },
 {
@@ -26426,6 +26468,13 @@
 },
 {
 "inst": "PWM1",
+"reg": "SM2DISMAP0",
+"addr": 1074594028,
+"reset": 65535,
+"width": 16
+},
+{
+"inst": "PWM1",
 "reg": "SM2DTCNT0",
 "addr": 1074594032,
 "reset": 2047,
@@ -26737,6 +26786,13 @@
 "reg": "SM3TCTRL",
 "addr": 1074594122,
 "reset": 0,
+"width": 16
+},
+{
+"inst": "PWM1",
+"reg": "SM3DISMAP0",
+"addr": 1074594124,
+"reset": 65535,
 "width": 16
 },
 {
