@@ -45,6 +45,17 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNInputMuxState, MCXN_INPUTMUX)
 #define MCXN_INPUTMUX_SRC_CTIMER1_M3 6
 #define MCXN_INPUTMUX_SRC_CTIMER2_M3 7
 /*
+ * CTIMER3/4 -> ADC selectors 8/9 are PER-DESTINATION: ADC0_TRIG=8/9 name Ctimer3M3 /
+ * Ctimer4M3, but ADC1_TRIG=8/9 name Ctimer3M2 / Ctimer4M1 (NXP's connection table).
+ * The shared trig-in source space cannot use the raw selector for both, so the two
+ * ADC1-facing match lines get distinct source ids (>65, clear of every selector value)
+ * and the router remaps ADC1's selectors 8/9 to them (mcxn_inputmux_trigger).
+ */
+#define MCXN_INPUTMUX_SRC_CTIMER3_M3 8    /* ADC0 selector 8 (identity) */
+#define MCXN_INPUTMUX_SRC_CTIMER4_M3 9    /* ADC0 selector 9 (identity) */
+#define MCXN_INPUTMUX_SRC_CTIMER3_M2 96   /* ADC1 selector 8 remaps here */
+#define MCXN_INPUTMUX_SRC_CTIMER4_M1 97   /* ADC1 selector 9 remaps here */
+/*
  * eFlexPWM submodule-0 output triggers -> ADCn trigger.  kINPUTMUX_Pwm{m}A0Trig{t}ToAdc0
  * = 24 + 8*m + t in NXP's driver (submodule-0 = "A0"; the model runs SM0 only).  These
  * are the motor-control synchronous-sampling path: a VALn compare fires PWM_OUT_TRIGt,

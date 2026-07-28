@@ -53,7 +53,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `GDET` | 2 | ✅ functional (register-accurate) |
 | `GPIO` | 6 | ✅ functional |
 | `I3C` | 2 | ✅ functional + active (controller request -> MCTRLDONE/COMPLETE IRQ 95/96 to NVIC; tests/mcxn-i3c) |
-| `INPUTMUX` | 1 | ✅ functional — register-accurate + real trigger routing: an LPTMR compare (selector 50), a CTIMER0/1/2 match-3 (selectors 5/6/7), or a FlexPWM0/1 SM0 output trigger (selectors 24/25, 32/33) routes to ADCn_TRIG → the ADC's HTEN-gated hardware trigger, so "convert on a timer tick/match/PWM-compare" works (the motor-control synchronous-sampling path). Also gates every eDMA request line (DMAn_REQ_ENABLE). tests/mcxn-adc-hwtrig, mcxn-adc-ctimer-trig, mcxn-adc-pwm-trig, mcxn-inputmux-gate |
+| `INPUTMUX` | 1 | ✅ functional — register-accurate + real trigger routing: an LPTMR compare (selector 50), a CTIMER0/1/2 match-3 (selectors 5/6/7), or a FlexPWM0/1 SM0 output trigger (selectors 24/25, 32/33) routes to ADCn_TRIG → the ADC's HTEN-gated hardware trigger, so "convert on a timer tick/match/PWM-compare" works (the motor-control synchronous-sampling path). Selectors are PER-DESTINATION where silicon says so: selector 8/9 = CTIMER3/4 M3 for ADC0 but CTIMER3 M2 / CTIMER4 M1 for ADC1 (mutation-proven). Also gates every eDMA request line (DMAn_REQ_ENABLE). tests/mcxn-adc-hwtrig, mcxn-adc-ctimer-trig, mcxn-adc-ctimer-adc1-trig, mcxn-adc-pwm-trig, mcxn-inputmux-gate |
 | `INTM` | 1 | ✅ functional (register-accurate) |
 | `ITRC` | 1 | ✅ functional (register-accurate) |
 | `LPI2C` | 10 | ✅ functional (LP_FLEXCOMM I2C mode; shares the FlexComm window) |

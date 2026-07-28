@@ -1437,6 +1437,28 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                             DEVICE(&s->inputmux), "trig-in",
                                             ctimer_m3_src[i]));
         }
+        /*
+         * CTIMER3/4 -> ADC is PER-DESTINATION: selector 8/9 names M3 for ADC0 but
+         * M2/M1 for ADC1 (NXP's connection table).  Wire each physical match line to
+         * its own INPUTMUX source; the router remaps ADC1's selectors 8/9 to the
+         * M2/M1 sources so one written selector value reaches the right match per ADC.
+         */
+        if (MCXN_NUM_CTIMER > 3) {
+            qdev_connect_gpio_out_named(DEVICE(&s->ctimer[3]), "match-trig", 3,
+                qdev_get_gpio_in_named(DEVICE(&s->inputmux), "trig-in",
+                                       MCXN_INPUTMUX_SRC_CTIMER3_M3));   /* ADC0 sel 8 */
+            qdev_connect_gpio_out_named(DEVICE(&s->ctimer[3]), "match-trig", 2,
+                qdev_get_gpio_in_named(DEVICE(&s->inputmux), "trig-in",
+                                       MCXN_INPUTMUX_SRC_CTIMER3_M2));   /* ADC1 sel 8 */
+        }
+        if (MCXN_NUM_CTIMER > 4) {
+            qdev_connect_gpio_out_named(DEVICE(&s->ctimer[4]), "match-trig", 3,
+                qdev_get_gpio_in_named(DEVICE(&s->inputmux), "trig-in",
+                                       MCXN_INPUTMUX_SRC_CTIMER4_M3));   /* ADC0 sel 9 */
+            qdev_connect_gpio_out_named(DEVICE(&s->ctimer[4]), "match-trig", 1,
+                qdev_get_gpio_in_named(DEVICE(&s->inputmux), "trig-in",
+                                       MCXN_INPUTMUX_SRC_CTIMER4_M1));   /* ADC1 sel 9 */
+        }
     }
     /*
      * eFlexPWM{0,1} submodule-0 output triggers (PWM_OUT_TRIG0/1) -> INPUTMUX -> ADCn.

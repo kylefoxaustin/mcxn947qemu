@@ -201,6 +201,29 @@ static uint64_t mcxn_inputmux_read(void *opaque, hwaddr offset, unsigned size)
  * happened.  Nothing logged, nothing faulted -- the stock lpadc/edma example just
  * sat there.  A router that routes nothing looks exactly like a router.
  */
+/*
+ * The physical trigger source that (destination ADC, selector value) connects to.
+ *
+ * Almost every selector is identity -- the selector value IS the source id.  The
+ * exception is CTIMER3/4 -> ADC: ADC0_TRIG=8/9 name Ctimer3M3 / Ctimer4M3, but
+ * ADC1_TRIG=8/9 name Ctimer3M2 / Ctimer4M1 (a PER-DESTINATION connection, from NXP's
+ * INPUTMUX table).  Those two ADC1-facing lines carry distinct source ids, so the same
+ * written selector value routes to the correct physical match line for each ADC -- a
+ * shared-selector model that ignored this would fire ADC1 on the wrong CTIMER match.
+ */
+static uint32_t im_adc_sel_to_src(int adc, uint32_t sel)
+{
+    if (adc == 1) {
+        if (sel == 8) {
+            return MCXN_INPUTMUX_SRC_CTIMER3_M2;
+        }
+        if (sel == 9) {
+            return MCXN_INPUTMUX_SRC_CTIMER4_M1;
+        }
+    }
+    return sel;
+}
+
 static void mcxn_inputmux_trigger(void *opaque, int src, int level)
 {
     MCXNInputMuxState *s = MCXN_INPUTMUX(opaque);
@@ -216,7 +239,8 @@ static void mcxn_inputmux_trigger(void *opaque, int src, int level)
         for (t = 0; t < MCXN_INPUTMUX_NADC_TRIG; t++) {
             uint32_t sel = s->regs[(base + t * 4) / 4] & IM_TRIG_SEL_MASK;
 
-            if (sel != IM_TRIG_NONE && sel == (uint32_t)src) {
+            if (sel != IM_TRIG_NONE &&
+                im_adc_sel_to_src(adc, sel) == (uint32_t)src) {
                 qemu_irq_pulse(s->adc_trig[adc][t]);
             }
         }
