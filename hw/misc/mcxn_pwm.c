@@ -14,6 +14,7 @@
 #include "qemu/timer.h"
 #include "hw/misc/mcxn_pwm.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev.h"
 #include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
 
@@ -39,8 +40,13 @@
 #define PWM_SM_DISMAP0     0x2C    /* Fault Disable Mapping 0 (reset 0xFFFF, RM Table 54.5.23) */
 #define PWM_SM_DTCNT0      0x30    /* Deadtime Count 0 (reset 0x07FF, RM 54.5.24) */
 #define PWM_SM_DTCNT1      0x32    /* Deadtime Count 1 (reset 0x07FF, RM 54.5.25) */
+#define PWM_SM_TCTRL       0x2A    /* Output Trigger Control (OUT_TRIG_EN / TRGFRQ) */
 #define PWM_SM_CAPTCTRLA   0x34    /* Capture Control A (arm + edge select) */
 #define PWM_SM_CVAL0       0x40    /* Capture Value 0 (input A, capture circuit 0), RO */
+
+/* TCTRL[OUT_TRIG_EN] (CMSIS PWM_TCTRL_OUT_TRIG_EN, mask 0x3F): bit n makes the VALn
+ * compare emit an output trigger -- even n -> PWM_OUT_TRIG0, odd n -> PWM_OUT_TRIG1. */
+#define PWM_TCTRL_OUT_TRIG_EN_MASK 0x3Fu
 
 /* OCTRL[POLA]/[POLB]/[POLX]: invert PWM_A/PWM_B/PWM_X output polarity (CMSIS, bits 10/9/8). */
 #define PWM_OCTRL_POLA     0x0400u
@@ -575,6 +581,100 @@ static int64_t mcxn_pwm_period_ns(MCXNPWMState *s)
 }
 
 /*
+ * FlexPWM submodule-0 OUTPUT TRIGGERS (PWM_OUT_TRIG0/1) -> INPUTMUX -> ADC.
+ *
+ * The motor-control SYNCHRONOUS-SAMPLING path: TCTRL[OUT_TRIG_EN] bit n makes the VALn
+ * compare emit a trigger pulse -- even n -> OUT_TRIG0, odd n -> OUT_TRIG1 (RM / CMSIS
+ * PWM_TCTRL_OUT_TRIG_EN) -- so the ADC samples motor phase-current at a PRECISE point in
+ * the PWM carrier (typically mid-cycle, away from the switching edges) with zero CPU
+ * involvement.  Unlike the value-register DMA request, which fires at the RELOAD boundary
+ * and can ride the reload timer, an output trigger fires MID-PERIOD at the VALn count, so
+ * it needs its own compare deadline: the reload timer only knows the period edge.
+ *
+ * The counter sweeps [INIT, VAL1] once per period; it reaches value v at
+ *   period_start + (v - INIT) * period / span,   span = VAL1 - INIT + 1
+ * (period_start = next_reload_ns - period, i.e. the instant the counter was last at INIT).
+ *
+ * ⚠ Scope, stated: submodule 0 only (the one submodule whose counter this model runs) and
+ * the full-rate case (TCTRL[TRGFRQ]=0 -- a trigger every period); TRGFRQ's every-other-
+ * period division is not modelled.  A VALn outside [INIT, VAL1] never matches (the counter
+ * reloads before reaching it), exactly as on silicon.
+ */
+static int64_t mcxn_pwm_next_trig(MCXNPWMState *s, int64_t now, unsigned *mask_out)
+{
+    uint16_t tren = pwm_ld16(s, PWM_SM_TCTRL) & PWM_TCTRL_OUT_TRIG_EN_MASK;
+    uint16_t init = pwm_ld16(s, PWM_SM_INIT);
+    uint16_t val1 = pwm_ld16(s, PWM_SM_VAL1);
+    int64_t period = mcxn_pwm_period_ns(s);
+    int64_t span = (uint16_t)(val1 - init) + 1;
+    int64_t period_start = s->next_reload_ns - period;
+    int64_t best = 0;
+    unsigned mask = 0;
+    int n;
+
+    *mask_out = 0;
+    if (!tren || period <= 0 || span <= 0 || !timer_pending(&s->reload_timer)) {
+        return 0;
+    }
+    for (n = 0; n < 6; n++) {
+        uint16_t valn;
+        int64_t off, t;
+        unsigned line;
+
+        if (!(tren & (1u << n))) {
+            continue;
+        }
+        valn = pwm_ld16(s, PWM_SM_VAL0 + n * 4);
+        if (valn < init || valn > val1) {
+            continue;                    /* never reached in [INIT, VAL1] */
+        }
+        off = (uint16_t)(valn - init);
+        t = period_start + off * period / span;
+        while (t <= now) {
+            t += period;                 /* this compare has passed: next period's copy */
+        }
+        line = 1u << (n & 1);            /* even VALn -> OUT_TRIG0, odd -> OUT_TRIG1 */
+        if (best == 0 || t < best) {
+            best = t;
+            mask = line;
+        } else if (t == best) {
+            mask |= line;                /* two VALn share this instant */
+        }
+    }
+    *mask_out = mask;
+    return best;
+}
+
+static void mcxn_pwm_arm_trig(MCXNPWMState *s, int64_t now)
+{
+    unsigned mask;
+    int64_t t = mcxn_pwm_next_trig(s, now, &mask);
+
+    if (t == 0) {
+        timer_del(&s->trig_timer);
+        s->trig_mask = 0;
+        return;
+    }
+    s->next_trig_ns = t;
+    s->trig_mask = (uint8_t)mask;
+    timer_mod(&s->trig_timer, t);
+}
+
+static void mcxn_pwm_trig_tick(void *opaque)
+{
+    MCXNPWMState *s = opaque;
+    int64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+
+    if (s->trig_mask & 1) {
+        qemu_irq_pulse(s->out_trig[0]);
+    }
+    if (s->trig_mask & 2) {
+        qemu_irq_pulse(s->out_trig[1]);
+    }
+    mcxn_pwm_arm_trig(s, now);            /* schedule the next enabled compare */
+}
+
+/*
  * One submodule-0 reload: set the reload flag and re-arm.
  *
  * The next deadline is computed from the PREVIOUS DEADLINE, not from "now".
@@ -605,6 +705,8 @@ static void mcxn_pwm_reload_tick(void *opaque)
         }
         s->next_reload_ns += period;
         timer_mod(&s->reload_timer, s->next_reload_ns);
+        /* Re-frame the output triggers onto the new period (period_start moved). */
+        mcxn_pwm_arm_trig(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
     }
 }
 
@@ -652,11 +754,14 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
             if (period > 0) {
                 s->next_reload_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + period;
                 timer_mod(&s->reload_timer, s->next_reload_ns);
+                mcxn_pwm_arm_trig(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
             } else {
                 timer_del(&s->reload_timer);   /* no counter clock: does not run */
+                timer_del(&s->trig_timer);
             }
         } else {
             timer_del(&s->reload_timer);
+            timer_del(&s->trig_timer);
         }
         return;
     }
@@ -722,6 +827,14 @@ static void mcxn_pwm_write(void *opaque, hwaddr offset, uint64_t value,
     if (s->val_dma_lvl && offset + size > PWM_SM_VAL0 && offset <= PWM_SM_VAL5 + 1) {
         mcxn_pwm_set_val_dma(s, false);
     }
+
+    /* A write to submodule-0's counting/compare config (INIT, CTRL/PRSC, VAL0..VAL5) or
+     * TCTRL[OUT_TRIG_EN] changes WHEN the output triggers fire: re-frame them while the
+     * submodule is running.  (INIT..TCTRL is one contiguous span, 0x02..0x2B.) */
+    if (offset < PWM_SM_TCTRL + 2 && offset + size > PWM_SM_INIT &&
+        timer_pending(&s->reload_timer)) {
+        mcxn_pwm_arm_trig(s, qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL));
+    }
 }
 
 static const MemoryRegionOps mcxn_pwm_ops = {
@@ -753,6 +866,8 @@ static void mcxn_pwm_reset(DeviceState *dev)
         pwm_st16(s, b + PWM_SM_DISMAP0, PWM_DISMAP_RESET);
     }
     timer_del(&s->reload_timer);
+    timer_del(&s->trig_timer);
+    s->trig_mask = 0;
     qemu_set_irq(s->irq, 0);
     s->val_dma_lvl = false;
     qemu_set_irq(s->dma_req_val, 0);
@@ -801,13 +916,16 @@ static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_val);  /* 1: value-register DMA req */
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_capa); /* 2: input-A capture DMA req */
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq_fault);    /* 3: FLEXPWMn_FAULT to NVIC */
+    /* Submodule-0 output triggers PWM_OUT_TRIG0/1 -> INPUTMUX -> ADC hardware trigger. */
+    qdev_init_gpio_out_named(dev, s->out_trig, "out-trig", 2);
     timer_init_ns(&s->reload_timer, QEMU_CLOCK_VIRTUAL, mcxn_pwm_reload_tick, s);
+    timer_init_ns(&s->trig_timer, QEMU_CLOCK_VIRTUAL, mcxn_pwm_trig_tick, s);
 }
 
 static const VMStateDescription vmstate_mcxn_pwm = {
     .name = TYPE_MCXN_PWM,
-    .version_id = 4,
-    .minimum_version_id = 4,
+    .version_id = 5,
+    .minimum_version_id = 5,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNPWMState, MCXN_PWM_SIZE),
         VMSTATE_TIMER(reload_timer, MCXNPWMState),
@@ -815,6 +933,9 @@ static const VMStateDescription vmstate_mcxn_pwm = {
         VMSTATE_BOOL(val_dma_lvl, MCXNPWMState),
         VMSTATE_BOOL(capa_level, MCXNPWMState),
         VMSTATE_BOOL(fault_level, MCXNPWMState),
+        VMSTATE_TIMER(trig_timer, MCXNPWMState),
+        VMSTATE_INT64(next_trig_ns, MCXNPWMState),
+        VMSTATE_UINT8(trig_mask, MCXNPWMState),
         VMSTATE_END_OF_LIST()
     },
 };

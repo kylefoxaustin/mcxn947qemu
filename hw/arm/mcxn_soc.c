@@ -1438,6 +1438,28 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                             ctimer_m3_src[i]));
         }
     }
+    /*
+     * eFlexPWM{0,1} submodule-0 output triggers (PWM_OUT_TRIG0/1) -> INPUTMUX -> ADCn.
+     * The motor-control synchronous-sampling path: a VALn compare mid-carrier pulses an
+     * output trigger and the ADC samples phase-current at that exact counter position,
+     * CPU-free.  Selectors 24/25 (PWM0) and 32/33 (PWM1) = Pwm{m}A0Trig{0,1} in NXP's
+     * driver.  Model scope is submodule 0 of each FlexPWM.
+     */
+    {
+        static const int pwm_sm0_trig_src[2][2] = {
+            { MCXN_INPUTMUX_SRC_PWM0_SM0_TRIG0, MCXN_INPUTMUX_SRC_PWM0_SM0_TRIG1 },
+            { MCXN_INPUTMUX_SRC_PWM1_SM0_TRIG0, MCXN_INPUTMUX_SRC_PWM1_SM0_TRIG1 },
+        };
+        int t;
+        for (i = 0; i < 2 && i < MCXN_NUM_PWM; i++) {
+            for (t = 0; t < 2; t++) {
+                qdev_connect_gpio_out_named(DEVICE(&s->pwm[i]), "out-trig", t,
+                                            qdev_get_gpio_in_named(
+                                                DEVICE(&s->inputmux), "trig-in",
+                                                pwm_sm0_trig_src[i][t]));
+            }
+        }
+    }
     for (i = 0; i < MCXN_NUM_ADC && i < 2; i++) {
         g_autofree char *out = g_strdup_printf("adc%d-trig", i);
         int t;

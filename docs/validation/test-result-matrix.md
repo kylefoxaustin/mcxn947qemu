@@ -70,7 +70,7 @@ register-only≈registration/Tier-C.
 | lptmr | ✓ | ✓ | functional | mcxn-timers, mcxn-lptmr | SKIP |
 | ostimer | ✓ | ✓ | functional | mcxn-ostimer, mcxn-timers | SKIP |
 | sct | ✓ | ✓ | functional | mcxn-sct | SKIP |
-| pwm | ✓ | ✓ | functional | mcxn-pwm, mcxn-flexpwm-dma, mcxn-flexpwm-capture, mcxn-flexpwm-fault, mcxn-flexpwm-output, mcxn-flexpwm-deadtime, mcxn-flexpwm-pwmx | SKIP |
+| pwm | ✓ | ✓ | functional | mcxn-pwm, mcxn-flexpwm-dma, mcxn-flexpwm-capture, mcxn-flexpwm-fault, mcxn-flexpwm-output, mcxn-flexpwm-deadtime, mcxn-flexpwm-pwmx, mcxn-adc-pwm-trig | SKIP |
 | rtc | ✓ | ✓ | functional | mcxn-rtc | SKIP |
 | utick | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | wwdt | ✓ | ◐ | register-only | boot, corpus | SKIP |
@@ -89,7 +89,7 @@ register-only≈registration/Tier-C.
 
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
-| adc | ✓ | ✓ | operator-driven | mcxn-adc, mcxn-adc-dma, mcxn-adc-fifo, mcxn-adc-hwtrig, mcxn-adc-ctimer-trig | SKIP |
+| adc | ✓ | ✓ | operator-driven | mcxn-adc, mcxn-adc-dma, mcxn-adc-fifo, mcxn-adc-hwtrig, mcxn-adc-ctimer-trig, mcxn-adc-pwm-trig | SKIP |
 | cmp | ✓ | ✓ | operator-driven | mcxn-cmp | SKIP |
 | tsi | ✓ | ✓ | operator-driven | mcxn-tsi | SKIP |
 | dac | ✓ | ✓ | functional | mcxn-dac, mcxn-dac-dma | SKIP |
@@ -105,7 +105,7 @@ register-only≈registration/Tier-C.
 | gpio | ✓ | ✓ | functional | mcxn-gpio | SKIP |
 | port | ✓ | ✓ | register-only | mcxn-gpio, mcxn-mcuxpresso, mcxn-port-pads | SKIP |
 | edma | ✓ | ✓ | functional | mcxn-dma, mcxn-dma-nbytes, mcxn-sai-dma, mcxn-dac-dma, mcxn-uart-dma, mcxn-adc-dma, mcxn-sinc-dma, mcxn-flexspi-dma, mcxn-flexpwm-dma, mcxn-flexpwm-capture, mcxn-ctimer-dma, mcxn-sct-dma, mcxn-cmp-dma, mcxn-pint-dma, mcxn-pdm-dma, mcxn-lpuart-edma-stock, mcxn-edma-stock | SKIP |
-| inputmux | ✓ | ✓ | functional | mcxn-inputmux-gate, mcxn-adc-hwtrig, mcxn-adc-ctimer-trig, mcxn-reset-values | SKIP |
+| inputmux | ✓ | ✓ | functional | mcxn-inputmux-gate, mcxn-adc-hwtrig, mcxn-adc-ctimer-trig, mcxn-adc-pwm-trig, mcxn-reset-values | SKIP |
 | pint | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | intm | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | evtg | ✓ | ◐ | register-only | boot, corpus | SKIP |

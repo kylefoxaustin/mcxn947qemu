@@ -44,6 +44,16 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNInputMuxState, MCXN_INPUTMUX)
 #define MCXN_INPUTMUX_SRC_CTIMER0_M3 5
 #define MCXN_INPUTMUX_SRC_CTIMER1_M3 6
 #define MCXN_INPUTMUX_SRC_CTIMER2_M3 7
+/*
+ * eFlexPWM submodule-0 output triggers -> ADCn trigger.  kINPUTMUX_Pwm{m}A0Trig{t}ToAdc0
+ * = 24 + 8*m + t in NXP's driver (submodule-0 = "A0"; the model runs SM0 only).  These
+ * are the motor-control synchronous-sampling path: a VALn compare fires PWM_OUT_TRIGt,
+ * which the ADC samples phase-current on, mid-carrier.
+ */
+#define MCXN_INPUTMUX_SRC_PWM0_SM0_TRIG0 24
+#define MCXN_INPUTMUX_SRC_PWM0_SM0_TRIG1 25
+#define MCXN_INPUTMUX_SRC_PWM1_SM0_TRIG0 32
+#define MCXN_INPUTMUX_SRC_PWM1_SM0_TRIG1 33
 
 struct MCXNInputMuxState {
     /*< private >*/

@@ -40,6 +40,10 @@ struct MCXNPWMState {
     bool         fault_level;   /* operator-driven FAULT0 input pin level (for edge-detect) */
     QEMUTimer    reload_timer;  /* submodule-0 periodic reload */
     int64_t      next_reload_ns; /* the reload DEADLINE, so the carrier cannot drift */
+    qemu_irq     out_trig[2];   /* submodule-0 PWM_OUT_TRIG0/1 -> INPUTMUX -> ADC trigger */
+    QEMUTimer    trig_timer;    /* fires at the next enabled VALn output-trigger compare */
+    int64_t      next_trig_ns;  /* deadline of the pending output-trigger compare */
+    uint8_t      trig_mask;     /* which OUT_TRIG lines fire at next_trig_ns (bit0/bit1) */
 
     uint8_t regs[MCXN_PWM_SIZE];
 };
