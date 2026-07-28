@@ -28,6 +28,7 @@ struct MCXNCTimerState {
     MemoryRegion iomem;
     qemu_irq     irq;
     qemu_irq     dma_req[2];   /* match-0 / match-1 eDMA request (pulse per match) */
+    qemu_irq     match_trig[4]; /* per-match trigger output (INPUTMUX -> ADCn_TRIG) */
     QEMUTimer    timer;
     Clock       *clk;
 

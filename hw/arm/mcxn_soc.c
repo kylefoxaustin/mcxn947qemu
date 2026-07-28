@@ -1417,6 +1417,27 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                 qdev_get_gpio_in_named(DEVICE(&s->inputmux),
                                                        "trig-in",
                                                        MCXN_INPUTMUX_SRC_LPTMR0));
+    /*
+     * CTIMER{0,1,2} match-3 -> INPUTMUX -> ADCn_TRIG.  "Convert on a timer match" is
+     * the other canonical hardware-triggered ADC pattern (the motor-control loop
+     * paces current sampling off a periodic match with zero CPU involvement).  M3 is
+     * the ADC-facing match on all three; the selector value equals 5+k in NXP's
+     * compiled INPUTMUX driver.  CTIMER3/4 route different matches (M2/M1) to ADC1 --
+     * a divergence this shared-selector model does not carry (documented boundary).
+     */
+    {
+        static const int ctimer_m3_src[3] = {
+            MCXN_INPUTMUX_SRC_CTIMER0_M3,
+            MCXN_INPUTMUX_SRC_CTIMER1_M3,
+            MCXN_INPUTMUX_SRC_CTIMER2_M3,
+        };
+        for (i = 0; i < 3 && i < MCXN_NUM_CTIMER; i++) {
+            qdev_connect_gpio_out_named(DEVICE(&s->ctimer[i]), "match-trig", 3,
+                                        qdev_get_gpio_in_named(
+                                            DEVICE(&s->inputmux), "trig-in",
+                                            ctimer_m3_src[i]));
+        }
+    }
     for (i = 0; i < MCXN_NUM_ADC && i < 2; i++) {
         g_autofree char *out = g_strdup_printf("adc%d-trig", i);
         int t;

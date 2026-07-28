@@ -53,7 +53,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `GDET` | 2 | ✅ functional (register-accurate) |
 | `GPIO` | 6 | ✅ functional |
 | `I3C` | 2 | ✅ functional + active (controller request -> MCTRLDONE/COMPLETE IRQ 95/96 to NVIC; tests/mcxn-i3c) |
-| `INPUTMUX` | 1 | ✅ functional (register-accurate) |
+| `INPUTMUX` | 1 | ✅ functional — register-accurate + real trigger routing: an LPTMR compare (selector 50) or a CTIMER0/1/2 match-3 (selectors 5/6/7) routes to ADCn_TRIG → the ADC's HTEN-gated hardware trigger, so "convert on a timer tick/match" works (the motor-control current-sampling path). Also gates every eDMA request line (DMAn_REQ_ENABLE). tests/mcxn-adc-hwtrig, mcxn-adc-ctimer-trig, mcxn-inputmux-gate |
 | `INTM` | 1 | ✅ functional (register-accurate) |
 | `ITRC` | 1 | ✅ functional (register-accurate) |
 | `LPI2C` | 10 | ✅ functional (LP_FLEXCOMM I2C mode; shares the FlexComm window) |

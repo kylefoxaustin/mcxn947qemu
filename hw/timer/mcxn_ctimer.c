@@ -7,6 +7,7 @@
 #include "qemu/log.h"
 #include "hw/timer/mcxn_ctimer.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev.h"
 #include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
 
@@ -174,6 +175,16 @@ static void ctimer_tick(void *opaque)
                 if (n < 2) {
                     qemu_irq_pulse(s->dma_req[n]);
                 }
+                /*
+                 * Every match also emits a one-shot trigger EVENT that INPUTMUX can
+                 * route to an ADCn_TRIG selector (kINPUTMUX_Ctimer{k}M3ToAdc0Trigger
+                 * = selector 5+k in NXP's driver).  This is the "sample the ADC on a
+                 * timer match" path: a periodic match (MCR[MRnR] set) paces conversions
+                 * with zero CPU involvement -- exactly like the DMA request above, but
+                 * feeding the ADC's HTEN-gated trigger input instead of the eDMA.  It is
+                 * an EDGE, so a pulse: one match, one conversion.
+                 */
+                qemu_irq_pulse(s->match_trig[n]);
             }
         }
         if (do_reset) {
@@ -298,6 +309,8 @@ static void mcxn_ctimer_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);          /* 0: NVIC match interrupt */
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[0]);   /* 1: match-0 eDMA request */
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);   /* 2: match-1 eDMA request */
+    /* Per-match trigger EVENT outputs, routed by INPUTMUX to the ADC trigger inputs. */
+    qdev_init_gpio_out_named(dev, s->match_trig, "match-trig", 4);
     timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, ctimer_tick, s);
 }
 
