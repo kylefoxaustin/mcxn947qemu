@@ -42,6 +42,16 @@
 #define IM_TRIG_SEL_MASK 0x7Fu
 #define IM_TRIG_NONE     0x7Fu
 
+/*
+ * DACn_TRIG: one 6-bit trigger selector per DAC (reset 0x3F = NO INPUT).  DAC0 @0x300,
+ * DAC1 @0x320, DAC2 @0x340 (regular 0x20 step).  A routed source advances the DAC's
+ * output FIFO (waveform generation paced by a timer/PWM).
+ */
+#define IM_DAC0_TRIG      0x300
+#define IM_DAC_TRIG_STEP  0x20
+#define IM_TRIG6_MASK     0x3Fu
+#define IM_TRIG6_NONE     0x3Fu
+
 #define IM_DMA0_REQ_ENABLE0  0x700
 #define IM_DMA1_REQ_ENABLE0  0x780
 #define IM_REQ_ENABLE_STRIDE 0x010   /* per 32-bit bank: reg, SET, CLR, TOG */
@@ -245,6 +255,16 @@ static void mcxn_inputmux_trigger(void *opaque, int src, int level)
             }
         }
     }
+
+    /* DACn_TRIG: one 6-bit selector per DAC; a match advances that DAC's output FIFO. */
+    for (t = 0; t < MCXN_INPUTMUX_NDAC; t++) {
+        uint32_t sel = s->regs[(IM_DAC0_TRIG + t * IM_DAC_TRIG_STEP) / 4]
+                       & IM_TRIG6_MASK;
+
+        if (sel != IM_TRIG6_NONE && sel == (uint32_t)src) {
+            qemu_irq_pulse(s->dac_trig[t]);
+        }
+    }
 }
 
 static void mcxn_inputmux_write(void *opaque, hwaddr offset, uint64_t value,
@@ -329,6 +349,7 @@ static void mcxn_inputmux_realize(DeviceState *dev, Error **errp)
                              MCXN_INPUTMUX_NADC_TRIG);
     qdev_init_gpio_out_named(dev, s->adc_trig[1], "adc1-trig",
                              MCXN_INPUTMUX_NADC_TRIG);
+    qdev_init_gpio_out_named(dev, s->dac_trig, "dac-trig", MCXN_INPUTMUX_NDAC);
 }
 
 static const VMStateDescription vmstate_mcxn_inputmux = {

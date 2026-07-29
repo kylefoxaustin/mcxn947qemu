@@ -1492,6 +1492,16 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                             DEVICE(&s->adc[i]), "trigger", t));
         }
     }
+    /*
+     * DACn_TRIG -> INPUTMUX -> DAC hardware trigger: a timer/PWM paces the DAC's output
+     * FIFO (waveform generation with zero CPU involvement), the counterpart of the ADC's
+     * "sample on a trigger" path.  DAC advances only in hardware-trigger mode (GCR[TRGSEL]=0).
+     */
+    for (i = 0; i < MCXN_NUM_DAC && i < MCXN_INPUTMUX_NDAC; i++) {
+        qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "dac-trig", i,
+                                    qdev_get_gpio_in_named(DEVICE(&s->dac[i]),
+                                                           "trigger", 0));
+    }
 }
 
 static const Property mcxn_soc_properties[] = {

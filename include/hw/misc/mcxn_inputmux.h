@@ -26,6 +26,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNInputMuxState, MCXN_INPUTMUX)
 /* ADC0_TRIG[4] @0x280, ADC1_TRIG[4] @0x2C0 (CMSIS INPUTMUX_Type). */
 #define MCXN_INPUTMUX_NADC      2
 #define MCXN_INPUTMUX_NADC_TRIG 4
+#define MCXN_INPUTMUX_NDAC      3   /* DAC0/1/2, one trigger selector each */
 #define MCXN_INPUTMUX_NTRIG_SRC 128   /* selector values we can route */
 
 /*
@@ -99,6 +100,7 @@ struct MCXNInputMuxState {
      * i.e. "write 50 into the register at offset 0x280".
      */
     qemu_irq adc_trig[MCXN_INPUTMUX_NADC][MCXN_INPUTMUX_NADC_TRIG];
+    qemu_irq dac_trig[MCXN_INPUTMUX_NDAC];   /* DAC0/1/2 hardware trigger */
 };
 
 #endif /* HW_MISC_MCXN_INPUTMUX_H */
