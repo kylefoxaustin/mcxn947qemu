@@ -52,6 +52,13 @@
 #define IM_TRIG6_MASK     0x3Fu
 #define IM_TRIG6_NONE     0x3Fu
 
+/*
+ * CMPn_TRIG: one 6-bit trigger selector per comparator, at IRREGULAR offsets
+ * (CMP0 @0x260, CMP1 @0x4E0, CMP2 @0x500).  A routed source paces the comparator's
+ * round-robin sampling.
+ */
+static const uint16_t im_cmp_trig_off[MCXN_INPUTMUX_NCMP] = { 0x260, 0x4E0, 0x500 };
+
 #define IM_DMA0_REQ_ENABLE0  0x700
 #define IM_DMA1_REQ_ENABLE0  0x780
 #define IM_REQ_ENABLE_STRIDE 0x010   /* per 32-bit bank: reg, SET, CLR, TOG */
@@ -265,6 +272,16 @@ static void mcxn_inputmux_trigger(void *opaque, int src, int level)
             qemu_irq_pulse(s->dac_trig[t]);
         }
     }
+
+    /* CMPn_TRIG: one 6-bit selector per comparator (irregular offsets); a match paces
+     * that comparator's round-robin sampling. */
+    for (t = 0; t < MCXN_INPUTMUX_NCMP; t++) {
+        uint32_t sel = s->regs[im_cmp_trig_off[t] / 4] & IM_TRIG6_MASK;
+
+        if (sel != IM_TRIG6_NONE && sel == (uint32_t)src) {
+            qemu_irq_pulse(s->cmp_trig[t]);
+        }
+    }
 }
 
 static void mcxn_inputmux_write(void *opaque, hwaddr offset, uint64_t value,
@@ -350,6 +367,7 @@ static void mcxn_inputmux_realize(DeviceState *dev, Error **errp)
     qdev_init_gpio_out_named(dev, s->adc_trig[1], "adc1-trig",
                              MCXN_INPUTMUX_NADC_TRIG);
     qdev_init_gpio_out_named(dev, s->dac_trig, "dac-trig", MCXN_INPUTMUX_NDAC);
+    qdev_init_gpio_out_named(dev, s->cmp_trig, "cmp-trig", MCXN_INPUTMUX_NCMP);
 }
 
 static const VMStateDescription vmstate_mcxn_inputmux = {

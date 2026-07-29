@@ -1502,6 +1502,15 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                     qdev_get_gpio_in_named(DEVICE(&s->dac[i]),
                                                            "trigger", 0));
     }
+    /*
+     * CMPn_TRIG -> INPUTMUX -> CMP round-robin trigger: a timer paces the comparator's
+     * round-robin sampling (the low-power "monitor a signal, wake on deviation" path).
+     */
+    for (i = 0; i < MCXN_NUM_CMP && i < MCXN_INPUTMUX_NCMP; i++) {
+        qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "cmp-trig", i,
+                                    qdev_get_gpio_in_named(DEVICE(&s->cmp[i]),
+                                                           "trigger", 0));
+    }
 }
 
 static const Property mcxn_soc_properties[] = {

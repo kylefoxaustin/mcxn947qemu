@@ -35,6 +35,11 @@ struct MCXNCMPState {
      * +/- inputs would resolve to.  Settable via the "comparator-output" QOM
      * property; a transition latches CSR[CFR] (rising) / CSR[CFF] (falling). */
     bool cout;
+
+    /* Round-robin baseline: the channel-0 output captured when RR_EN was set
+     * (the RR_INITMOD "expected" state).  A triggered round-robin sample that
+     * deviates from it sets CSR[RRF]. */
+    bool rr_baseline;
 };
 
 #endif /* HW_MISC_MCXN_CMP_H */

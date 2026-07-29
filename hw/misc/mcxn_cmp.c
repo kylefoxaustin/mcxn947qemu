@@ -25,6 +25,7 @@
 #include "qemu/osdep.h"
 #include "hw/misc/mcxn_cmp.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev.h"
 #include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 
@@ -49,9 +50,16 @@
 #define CMP_CSR_COUT    (1u << 8)   /* comparator output level, RO */
 #define CMP_CSR_W1C_MASK  (CMP_CSR_CFR | CMP_CSR_CFF | CMP_CSR_RRF)
 
-/* IER edge-interrupt enables align 1:1 with the CSR flag bits (CFR_IE/CFF_IE at 0/1). */
+/* IER edge-interrupt enables align 1:1 with the CSR flag bits (CFR_IE/CFF_IE/RRF_IE at 0/1/2). */
 #define CMP_IER_CFR_IE  (1u << 0)
 #define CMP_IER_CFF_IE  (1u << 1)
+#define CMP_IER_RRF_IE  (1u << 2)
+
+/* RRCR0 (round-robin control 0). */
+#define CMP_RRCR0_RR_EN      (1u << 0)   /* round-robin enable */
+#define CMP_RRCR0_RR_TRG_SEL (1u << 1)   /* 0 = external trigger, 1 = internal timer */
+/* RRCSR (round-robin control & status): per-channel captured outputs, bit n = channel n. */
+#define CMP_RRCSR_RR_CH0OUT  (1u << 0)
 
 /* CCR1[DMA_EN] (bit 2): when set, an IER-enabled edge forces a DMA request rather than a
  * CPU interrupt (fsl_lpcmp: LPCMP_EnableDMA -> CCR1[DMA_EN]).  The DMA request is a
@@ -122,9 +130,64 @@ static void mcxn_cmp_write(void *opaque, hwaddr offset, uint64_t value,
         s->regs[CMP_IER / 4] = value;
         mcxn_cmp_update_irq(s);
         return;
+    case CMP_RRCR0: {
+        /* Enabling round-robin captures the current channel-0 output as the
+         * baseline (the RR_INITMOD "expected" state) -- only on the 0->1
+         * transition of RR_EN, so a later reconfigure does not re-baseline. */
+        bool was_en = s->regs[CMP_RRCR0 / 4] & CMP_RRCR0_RR_EN;
+        bool now_en = value & CMP_RRCR0_RR_EN;
+
+        s->regs[CMP_RRCR0 / 4] = value;
+        if (now_en && !was_en) {
+            s->rr_baseline = s->cout;
+        }
+        return;
+    }
     default:
         s->regs[offset / 4] = value;
         return;
+    }
+}
+
+/*
+ * A HARDWARE trigger routed in by INPUTMUX from CMPn_TRIG (e.g. a CTIMER match): take one
+ * round-robin sample of the comparator.  Round-robin monitors an input and flags when it
+ * DEVIATES from the state captured at RR_INITMOD -- the low-power "watch a signal, wake on
+ * change" path, paced by a timer with no CPU involvement.  CSR[RRF] latches the deviation
+ * (RM: "Round-Robin Flag -- Detected") and, gated by IER[RRF_IE], raises the comparator IRQ.
+ *
+ * RRCR0[RR_TRG_SEL] picks the trigger: 0 = external (this INPUTMUX path), 1 = the internal
+ * round-robin timer.  A routed external trigger while internal-timer mode is selected must
+ * NOT sample.
+ *
+ * ⚠ Scope, stated: channel 0 only (the operator-driven `comparator-output` is the single
+ * analog seam), and deviation-from-baseline.  The multi-channel sweep (RRCR1[RR_CHnEN]/
+ * FIXCH/FIXP), the per-channel RRCSR[RR_CHnOUT] fan-out and the internal RR timer (RRCR2)
+ * are not modelled -- an honest subset, the single-channel monitor the trigger path needs.
+ */
+static void cmp_hw_trigger(void *opaque, int n, int level)
+{
+    MCXNCMPState *s = MCXN_CMP(opaque);
+    uint32_t rrcr0 = s->regs[CMP_RRCR0 / 4];
+    bool cur;
+
+    if (!level) {
+        return;                            /* a trigger is an edge, not a level */
+    }
+    if (!(rrcr0 & CMP_RRCR0_RR_EN)) {
+        return;                            /* round-robin disabled */
+    }
+    if (rrcr0 & CMP_RRCR0_RR_TRG_SEL) {
+        return;                            /* internal-timer mode: ignore the external trigger */
+    }
+
+    /* Sample channel 0's (operator-driven) output; flag a deviation from the baseline. */
+    cur = s->cout;
+    s->regs[CMP_RRCSR / 4] = (s->regs[CMP_RRCSR / 4] & ~CMP_RRCSR_RR_CH0OUT) |
+                             (cur ? CMP_RRCSR_RR_CH0OUT : 0);
+    if (cur != s->rr_baseline) {
+        s->regs[CMP_CSR / 4] |= CMP_CSR_RRF;
+        mcxn_cmp_update_irq(s);
     }
 }
 
@@ -180,6 +243,7 @@ static void mcxn_cmp_reset(DeviceState *dev)
     memset(s->regs, 0, sizeof(s->regs));
     s->regs[CMP_CCR0 / 4] = CMP_CCR0_RESET;
     s->cout = false;
+    s->rr_baseline = false;
     qemu_set_irq(s->irq, 0);
 }
 
@@ -201,15 +265,18 @@ static void mcxn_cmp_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);       /* 0: NVIC comparator interrupt */
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req);   /* 1: DMA request (edge pulse)  */
+    /* Hardware trigger routed in by INPUTMUX from CMPn_TRIG (timer -> round-robin sample). */
+    qdev_init_gpio_in_named(dev, cmp_hw_trigger, "trigger", 1);
 }
 
 static const VMStateDescription vmstate_mcxn_cmp = {
     .name = TYPE_MCXN_CMP,
-    .version_id = 2,
-    .minimum_version_id = 2,
+    .version_id = 3,
+    .minimum_version_id = 3,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNCMPState, MCXN_CMP_SIZE / 4),
         VMSTATE_BOOL(cout, MCXNCMPState),
+        VMSTATE_BOOL(rr_baseline, MCXNCMPState),
         VMSTATE_END_OF_LIST()
     },
 };
