@@ -373,6 +373,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     const MCXNConfig *cfg;
     uint32_t ncpu;
     int i;
+    DeviceState *qdc_dev[MCXN_INPUTMUX_NQDC] = { NULL };
+    int qdc_n = 0;
 
     cfg = mcxn_lookup(s->part ? s->part : "MCXN947");
     if (!cfg) {
@@ -1227,6 +1229,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         object_property_add_child(OBJECT(dev), cn, OBJECT(d));
         sysbus_realize_and_unref(SYS_BUS_DEVICE(d), &error_abort);
         sysbus_mmio_map(SYS_BUS_DEVICE(d), 0, mcxn_cfgdev[i].base);
+        /* Capture the QDC handles so INPUTMUX can drive their position-capture trigger. */
+        if (!strcmp(mcxn_cfgdev[i].type, TYPE_MCXN_QDC) &&
+            qdc_n < MCXN_INPUTMUX_NQDC) {
+            qdc_dev[qdc_n++] = d;
+        }
         mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(d), 0);
         memory_region_init_alias(al, OBJECT(dev), an, mr, 0,
                                  memory_region_size(mr));
@@ -1510,6 +1517,15 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "cmp-trig", i,
                                     qdev_get_gpio_in_named(DEVICE(&s->cmp[i]),
                                                            "trigger", 0));
+    }
+    /*
+     * QDCn_TRIG -> INPUTMUX -> QDC position capture/clear: a timer/PWM snapshots the
+     * encoder position into the hold registers (or re-zeros it) -- the motor-control
+     * "read a coherent position sample synchronised to the PWM carrier" path.
+     */
+    for (i = 0; i < qdc_n; i++) {
+        qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "qdc-trig", i,
+                                    qdev_get_gpio_in_named(qdc_dev[i], "trigger", 0));
     }
 }
 

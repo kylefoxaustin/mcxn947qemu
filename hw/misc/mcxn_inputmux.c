@@ -59,6 +59,13 @@
  */
 static const uint16_t im_cmp_trig_off[MCXN_INPUTMUX_NCMP] = { 0x260, 0x4E0, 0x500 };
 
+/*
+ * QDCn_TRIG: one 6-bit trigger selector per quadrature decoder (QDC0 @0x360, QDC1 @0x380,
+ * regular 0x20 step).  A routed source captures or clears the QDC position counters.
+ */
+#define IM_QDC0_TRIG      0x360
+#define IM_QDC_TRIG_STEP  0x20
+
 #define IM_DMA0_REQ_ENABLE0  0x700
 #define IM_DMA1_REQ_ENABLE0  0x780
 #define IM_REQ_ENABLE_STRIDE 0x010   /* per 32-bit bank: reg, SET, CLR, TOG */
@@ -282,6 +289,16 @@ static void mcxn_inputmux_trigger(void *opaque, int src, int level)
             qemu_irq_pulse(s->cmp_trig[t]);
         }
     }
+
+    /* QDCn_TRIG: one 6-bit selector per quadrature decoder; a match captures/clears the
+     * QDC position counters (encoder-position snapshot synchronised to a timer/PWM). */
+    for (t = 0; t < MCXN_INPUTMUX_NQDC; t++) {
+        uint32_t sel = s->regs[(IM_QDC0_TRIG + t * IM_QDC_TRIG_STEP) / 4] & IM_TRIG6_MASK;
+
+        if (sel != IM_TRIG6_NONE && sel == (uint32_t)src) {
+            qemu_irq_pulse(s->qdc_trig[t]);
+        }
+    }
 }
 
 static void mcxn_inputmux_write(void *opaque, hwaddr offset, uint64_t value,
@@ -368,6 +385,7 @@ static void mcxn_inputmux_realize(DeviceState *dev, Error **errp)
                              MCXN_INPUTMUX_NADC_TRIG);
     qdev_init_gpio_out_named(dev, s->dac_trig, "dac-trig", MCXN_INPUTMUX_NDAC);
     qdev_init_gpio_out_named(dev, s->cmp_trig, "cmp-trig", MCXN_INPUTMUX_NCMP);
+    qdev_init_gpio_out_named(dev, s->qdc_trig, "qdc-trig", MCXN_INPUTMUX_NQDC);
 }
 
 static const VMStateDescription vmstate_mcxn_inputmux = {

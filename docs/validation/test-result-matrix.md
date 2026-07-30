@@ -105,12 +105,12 @@ register-only≈registration/Tier-C.
 | gpio | ✓ | ✓ | functional | mcxn-gpio | SKIP |
 | port | ✓ | ✓ | register-only | mcxn-gpio, mcxn-mcuxpresso, mcxn-port-pads | SKIP |
 | edma | ✓ | ✓ | functional | mcxn-dma, mcxn-dma-nbytes, mcxn-sai-dma, mcxn-dac-dma, mcxn-uart-dma, mcxn-adc-dma, mcxn-sinc-dma, mcxn-flexspi-dma, mcxn-flexpwm-dma, mcxn-flexpwm-capture, mcxn-ctimer-dma, mcxn-sct-dma, mcxn-cmp-dma, mcxn-pint-dma, mcxn-pdm-dma, mcxn-lpuart-edma-stock, mcxn-edma-stock | SKIP |
-| inputmux | ✓ | ✓ | functional | mcxn-inputmux-gate, mcxn-adc-hwtrig, mcxn-adc-ctimer-trig, mcxn-adc-ctimer-adc1-trig, mcxn-adc-pwm-trig, mcxn-dac-hwtrig, mcxn-cmp-trig, mcxn-reset-values | SKIP |
+| inputmux | ✓ | ✓ | functional | mcxn-inputmux-gate, mcxn-adc-hwtrig, mcxn-adc-ctimer-trig, mcxn-adc-ctimer-adc1-trig, mcxn-adc-pwm-trig, mcxn-dac-hwtrig, mcxn-cmp-trig, mcxn-qdc-trig, mcxn-reset-values | SKIP |
 | pint | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | intm | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | evtg | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | flexio | ✓ | ◐ | register-only | boot, corpus | SKIP |
-| qdc | ✓ | ◐ | register-only | boot, corpus | SKIP |
+| qdc | ✓ | ◐ | register-only | boot, corpus, mcxn-qdc-trig | SKIP |
 | plu | ✓ | ◐ | register-only | boot, corpus | SKIP |
 
 ## Memory / flash / cache
