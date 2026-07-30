@@ -3,9 +3,11 @@
  *
  * Models the timer counter (TC) with prescale (PR/PC), the four match
  * registers (MR0..3) and their per-match interrupt / reset / stop actions
- * (MCR), and the interrupt flags (IR) driving the NVIC line.  Capture (CCR/CR),
- * external match (EMR) and PWM (PWMC/MSR) registers are stored but not yet
- * functional.  Register layout from the MCXN947 CMSIS header (CTIMER_Type).
+ * (MCR), and the interrupt flags (IR) driving the NVIC line.  INPUT CAPTURE on
+ * channel 0 is functional: an operator-driven capture-input edge (CCR-selected)
+ * latches the live counter into CR0 and raises IR[CR0INT].  External match (EMR)
+ * and PWM (PWMC/MSR) registers are stored but not yet functional.  Register layout
+ * from the MCXN947 CMSIS header (CTIMER_Type).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -44,6 +46,11 @@ struct MCXNCTimerState {
     uint32_t tc;          /* timer counter      */
     uint32_t pc;          /* prescale counter   */
     int64_t  base_ns;     /* when tc/pc were last synced */
+
+    /* Operator-driven capture input 0 (the CAP0 pin level), for input capture:
+     * a CCR-selected edge latches the live TC into CR0.  The pin has no signal
+     * source in emulation, so it is driven via the "capture-input" QOM property. */
+    bool cap0_level;
 };
 
 #endif /* HW_TIMER_MCXN_CTIMER_H */

@@ -35,6 +35,13 @@
 #define MCR_STOP(n)  (1u << (3 * (n) + 2))
 #define MCR_ANY(n)   (MCR_INT(n) | MCR_RST(n) | MCR_STOP(n))
 
+/* CCR packs 3 bits per capture channel: RE (capture on rising), FE (falling), I (interrupt). */
+#define CCR_CAP0RE   (1u << 0)
+#define CCR_CAP0FE   (1u << 1)
+#define CCR_CAP0I    (1u << 2)
+/* IR capture flags: CR0INT..CR3INT at bits 4..7 (match flags MR0..3 are 0..3). */
+#define IR_CR0INT    (1u << 4)
+
 static bool ctimer_running(MCXNCTimerState *s)
 {
     return (s->tcr & TCR_CEN) && !(s->tcr & TCR_CRST);
@@ -197,6 +204,50 @@ static void ctimer_tick(void *opaque)
     ctimer_reschedule(s, now);
 }
 
+/*
+ * INPUT CAPTURE on channel 0.  A capture input (a pin, routed via INPUTMUX's CTIMERnCAPm
+ * selector) with a CCR-selected edge LATCHES the live timer counter into CR0 -- the
+ * "timestamp an external event / measure a pulse width" path.  It was dead: CR0..3 were
+ * read-only storage that nothing ever loaded, so a capture driver read a frozen zero.
+ *
+ * The pin has no signal source in emulation, so its level is OPERATOR-DRIVEN via the
+ * "capture-input" QOM property (the same seam as FlexPWM's capture-a-input / the CMP output).
+ * CCR[CAP0RE]/[CAP0FE] select which edge captures; CCR[CAP0I] gates the capture interrupt
+ * (IR[CR0INT]).  The CR0 load itself happens on the selected edge regardless of CAP0I -- the
+ * interrupt is separate from the capture, exactly as on silicon.
+ *
+ * ⚠ Scope, stated: capture channel 0 only (channels 1..3 share the identical per-channel CCR
+ * logic but have no injection seam); the counter-input / CTCR edge-count modes are unmodelled.
+ */
+static void ctimer_capture0(MCXNCTimerState *s, bool level)
+{
+    int64_t now = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL);
+    bool rising = level && !s->cap0_level;
+    bool falling = !level && s->cap0_level;
+    uint32_t tc, pc;
+
+    s->cap0_level = level;
+
+    if ((rising && (s->ccr & CCR_CAP0RE)) || (falling && (s->ccr & CCR_CAP0FE))) {
+        ctimer_peek(s, now, &tc, &pc);       /* the counter value AT the edge */
+        s->cr[0] = tc;                       /* latch it into CR0 (RO to the guest) */
+        if (s->ccr & CCR_CAP0I) {
+            s->ir |= IR_CR0INT;
+            ctimer_update_irq(s);
+        }
+    }
+}
+
+static void ctimer_set_capture(Object *obj, bool value, Error **errp)
+{
+    ctimer_capture0(MCXN_CTIMER(obj), value);
+}
+
+static bool ctimer_get_capture(Object *obj, Error **errp)
+{
+    return MCXN_CTIMER(obj)->cap0_level;
+}
+
 static uint64_t ctimer_read(void *opaque, hwaddr off, unsigned size)
 {
     MCXNCTimerState *s = MCXN_CTIMER(opaque);
@@ -290,6 +341,7 @@ static void mcxn_ctimer_reset(DeviceState *dev)
     memset(s->msr, 0, sizeof(s->msr));
     s->tc = s->pc = 0;
     s->base_ns = 0;
+    s->cap0_level = false;
 }
 
 static void mcxn_ctimer_init(Object *obj)
@@ -297,6 +349,10 @@ static void mcxn_ctimer_init(Object *obj)
     MCXNCTimerState *s = MCXN_CTIMER(obj);
 
     s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
+    /* Operator-driven capture-0 input pin:
+     *   qom-set /machine/soc/ctimer0 capture-input true   */
+    object_property_add_bool(obj, "capture-input",
+                             ctimer_get_capture, ctimer_set_capture);
 }
 
 static void mcxn_ctimer_realize(DeviceState *dev, Error **errp)
@@ -316,8 +372,8 @@ static void mcxn_ctimer_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_ctimer = {
     .name = TYPE_MCXN_CTIMER,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_TIMER(timer, MCXNCTimerState),
         VMSTATE_UINT32(ir, MCXNCTimerState),
@@ -334,6 +390,7 @@ static const VMStateDescription vmstate_mcxn_ctimer = {
         VMSTATE_UINT32(tc, MCXNCTimerState),
         VMSTATE_UINT32(pc, MCXNCTimerState),
         VMSTATE_INT64(base_ns, MCXNCTimerState),
+        VMSTATE_BOOL(cap0_level, MCXNCTimerState),
         VMSTATE_END_OF_LIST()
     },
 };
