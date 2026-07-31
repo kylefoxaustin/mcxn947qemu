@@ -12,6 +12,7 @@
 #include "hw/core/irq.h"
 #include "hw/core/qdev-properties.h"
 #include "hw/core/qdev-properties-system.h"
+#include "hw/i2c/i2c.h"
 #include "migration/vmstate.h"
 
 /* --- LPUART core register offsets ------------------------------------------ */
@@ -681,7 +682,14 @@ static uint64_t mcxn_lpi2c_read(MCXNLPUARTState *s, hwaddr offset)
         uint32_t v;
         if (s->i2c_rx_full) {
             v = s->i2c_mrdr;
-            s->i2c_rx_full = false;
+            /* Refill the 1-byte lookahead from the bus if more bytes were requested,
+             * so a multi-byte receive drains one MRDR read at a time. */
+            if (s->i2c_rx_pending) {
+                s->i2c_mrdr = i2c_recv(s->i2c_bus);
+                s->i2c_rx_pending--;
+            } else {
+                s->i2c_rx_full = false;
+            }
             mcxn_flexcomm_update_irq(s);
         } else {
             v = LPI2C_MRDR_RXEMPTY;
@@ -711,6 +719,7 @@ static void mcxn_lpi2c_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
         if (value & LPI2C_MCR_RST) {
             s->i2c_mcr = s->i2c_msr = s->i2c_mier = 0;
             s->i2c_rx_full = s->i2c_busy = false;
+            s->i2c_rx_pending = 0;
         } else {
             s->i2c_mcr = value & ~(LPI2C_MCR_RTF | LPI2C_MCR_RRF);
             if (value & LPI2C_MCR_RRF) {
@@ -742,10 +751,17 @@ static void mcxn_lpi2c_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
         break;
     case LPI2C_MTDR: {
         /*
-         * Controller command FIFO.  No external I2C bus is modelled; instead a
-         * tiny echo target ACKs every address and returns the most recently
-         * transmitted byte on a receive command, so a master read-after-write
-         * sequence completes deterministically (the FlexCAN/I3C loopback idiom).
+         * Controller command engine, driving a REAL I2C bus (the test attaches a genuine
+         * at24c EEPROM to it) -- NOT the echo target this used to be.  The old model ACKed
+         * every address and returned the last transmitted byte on a receive, so its own
+         * tests passed against a fabricated peer (the uSDHC bug class: the model was its own
+         * oracle).  Now:
+         *   START+addr (cmd 4..7): DATA = (7-bit addr << 1) | R/W.  i2c_start_transfer drives
+         *      the bus; a device that does not ACK sets MSR[NDF] (a real bus error).
+         *   TXDATA (cmd 0): i2c_send; a NACKed byte sets NDF.
+         *   RXDATA (cmd 1): receive DATA+1 bytes (drained lazily by MRDR reads, so a
+         *      multi-byte read needs no deep FIFO -- one lookahead byte + a pending count).
+         *   STOP  (cmd 2): i2c_end_transfer + SDF/EPF.
          */
         uint32_t cmd = (value & LPI2C_MTDR_CMD_MASK) >> LPI2C_MTDR_CMD_SHIFT;
         uint8_t data = value & LPI2C_MTDR_DATA_MASK;
@@ -755,18 +771,31 @@ static void mcxn_lpi2c_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
         }
         switch (cmd) {
         case LPI2C_CMD_START:
-        case 5: case 6: case 7:          /* all START + address variants */
-            s->i2c_busy = true;          /* target present -> ACK, no NDF */
+        case 5: case 6: case 7:          /* all (repeated) START + address variants */
+            if (i2c_start_transfer(s->i2c_bus, data >> 1, data & 1)) {
+                s->i2c_msr |= LPI2C_MSR_NDF;   /* no device ACKed the address */
+                s->i2c_busy = false;
+            } else {
+                s->i2c_busy = true;
+            }
             break;
         case LPI2C_CMD_TXDATA:
-            s->i2c_last_tx = data;       /* echoed back by a receive command */
+            if (i2c_send(s->i2c_bus, data)) {
+                s->i2c_msr |= LPI2C_MSR_NDF;   /* the addressed device NACKed the byte */
+            }
             break;
         case LPI2C_CMD_RXDATA:
-            s->i2c_mrdr = s->i2c_last_tx;
-            s->i2c_rx_full = true;
+            s->i2c_rx_pending += (uint32_t)data + 1;   /* receive DATA+1 bytes */
+            if (!s->i2c_rx_full && s->i2c_rx_pending) {
+                s->i2c_mrdr = i2c_recv(s->i2c_bus);    /* fetch the lookahead byte */
+                s->i2c_rx_full = true;
+                s->i2c_rx_pending--;
+            }
             break;
         case LPI2C_CMD_STOP:
+            i2c_end_transfer(s->i2c_bus);
             s->i2c_busy = false;
+            s->i2c_rx_pending = 0;
             s->i2c_msr |= LPI2C_MSR_SDF | LPI2C_MSR_EPF;
             break;
         default:
@@ -1165,7 +1194,7 @@ static void mcxn_lpuart_reset(DeviceState *dev)
     s->i2c_mcr = s->i2c_msr = s->i2c_mier = s->i2c_mcfgr1 = 0;
     s->i2c_mrdr = 0;
     s->i2c_rx_full = s->i2c_busy = false;
-    s->i2c_last_tx = 0;
+    s->i2c_rx_pending = 0;
 }
 
 static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
@@ -1188,12 +1217,21 @@ static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
     if (s->spi_bus_name) {
         s->spi_bus = ssi_create_bus(dev, s->spi_bus_name);
     }
+
+    /* The FlexComm's LPI2C function drives a REAL I2C bus, named "<flexcommN>-i2c" so a
+     * test can attach a genuine device to a specific FlexComm:
+     *   -device at24c-eeprom,bus=flexcomm0-i2c,address=0x50 */
+    {
+        g_autofree char *busname = g_strdup_printf(
+            "%s-i2c", object_get_canonical_path_component(OBJECT(dev)));
+        s->i2c_bus = i2c_init_bus(dev, busname);
+    }
 }
 
 static const VMStateDescription vmstate_mcxn_lpuart = {
     .name = TYPE_MCXN_LPUART,
-    .version_id = 3,
-    .minimum_version_id = 3,
+    .version_id = 4,
+    .minimum_version_id = 4,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(global, MCXNLPUARTState),
         VMSTATE_UINT32(pincfg, MCXNLPUARTState),
@@ -1239,7 +1277,7 @@ static const VMStateDescription vmstate_mcxn_lpuart = {
         VMSTATE_UINT32(i2c_mrdr, MCXNLPUARTState),
         VMSTATE_BOOL(i2c_rx_full, MCXNLPUARTState),
         VMSTATE_BOOL(i2c_busy, MCXNLPUARTState),
-        VMSTATE_UINT8(i2c_last_tx, MCXNLPUARTState),
+        VMSTATE_UINT32(i2c_rx_pending, MCXNLPUARTState),
         VMSTATE_END_OF_LIST()
     },
 };

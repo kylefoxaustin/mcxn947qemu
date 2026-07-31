@@ -17,6 +17,7 @@
 #include "hw/core/sysbus.h"
 #include "chardev/char-fe.h"
 #include "hw/ssi/ssi.h"
+#include "hw/i2c/i2c.h"
 #include "qom/object.h"
 
 #define TYPE_MCXN_LPUART "mcxn-lpuart"
@@ -116,10 +117,11 @@ struct MCXNLPUARTState {
     uint32_t i2c_mier;
     uint32_t i2c_mcfgr1;
     uint32_t i2c_mder;    /* DMA Enable — the stock EDMA driver sets TDDE/RDDE */
-    uint32_t i2c_mrdr;    /* rx data holding */
-    bool     i2c_rx_full;
+    uint32_t i2c_mrdr;    /* rx data holding (1-byte lookahead popped by MRDR) */
+    bool     i2c_rx_full; /* the lookahead byte is valid */
     bool     i2c_busy;    /* asserted between START and STOP */
-    uint8_t  i2c_last_tx; /* echoed back by a receive command */
+    uint32_t i2c_rx_pending; /* bytes still to pull from the bus after the lookahead */
+    I2CBus  *i2c_bus;     /* the real I2C bus — the test attaches an at24c EEPROM to it */
 };
 
 #endif /* HW_CHAR_MCXN_LPUART_H */

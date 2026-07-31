@@ -53,7 +53,7 @@ register-only≈registration/Tier-C.
 | flexcan | ✓ | ✓ | functional | mcxn-flexcan, mcxn-flexcan-rx, mcxn-can-link | SKIP |
 | lpuart | ✓ | ✓ | functional | mcxn-multiuart, mcxn-flexcomm, mcxn-uart-dma, mcxn-lpuart-edma-stock | SKIP |
 | lpspi | ✓ | ✓ | functional | mcxn-flexcomm, mcxn-spi-link | SKIP |
-| lpi2c | ✓ | ✓ | functional | mcxn-flexcomm | SKIP |
+| lpi2c | ✓ | ✓ | functional | mcxn-flexcomm, mcxn-lpi2c-eeprom | SKIP |
 | i3c | ✓ | ✓ | functional | mcxn-i3c | SKIP |
 | usdhc | ✓ | ✓ | functional | mcxn-usdhc | SKIP |
 | flexspi | ✓ | ✓ | functional | mcxn-flexspi, mcxn-flexspi-nor, mcxn-xip, mcxn-qspi-boot | SKIP |

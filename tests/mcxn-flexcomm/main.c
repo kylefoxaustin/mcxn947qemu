@@ -9,14 +9,14 @@
  *     FIFO (physical MOSI->MISO jumper), sets WCF/FCF/TCF + RDF and raises the
  *     shared FlexComm IRQ.  The ISR reads RDR and checks it equals the TX word.
  *
- *   - FlexComm0 @ 0x40092000 (IRQ 35) as an LPI2C controller: enable, issue
- *     START+address, transmit a byte, then a receive command (the model's echo
- *     target returns the last transmitted byte), read MRDR, then STOP which
- *     sets SDF|EPF and raises the IRQ.
+ *   - FlexComm0 @ 0x40092000 (IRQ 35) as an LPI2C controller: enable, WRITE a byte to
+ *     a REAL at24c EEPROM (attached to flexcomm0-i2c), then READ it back -- the byte
+ *     round-trips through the EEPROM's storage, not a fabricated echo -- then STOP,
+ *     which sets SDF|EPF and raises the IRQ.
  *
  * Prints "FLEXCOMM PASS" via the FlexComm4 console once both the SPI loopback
- * word and the I2C echo byte arrive AND both shared FlexComm interrupts have
- * been delivered through the NVIC.
+ * word and the I2C byte read back from the EEPROM arrive AND both shared FlexComm
+ * interrupts have been delivered through the NVIC.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -165,8 +165,20 @@ static void i2c_test(void)
     I2C_MIER = I2C_MIER_EPIE;           /* completion IRQ only; RX is polled */
     NVIC_ISER1 = (1u << (FC0_IRQ - 32));
 
+    /*
+     * A REAL EEPROM transaction (a genuine at24c is attached to flexcomm0-i2c on the
+     * command line) -- NOT the model's old echo target.  Write I2C_TX_BYTE to EEPROM
+     * offset 0x20, then read it back: i2c_rx equals I2C_TX_BYTE because the byte round-trips
+     * through the EEPROM's own storage, an oracle the model cannot fabricate.
+     */
     I2C_MTDR = I2C_CMD(I2C_CMD_START, I2C_DEV_ADDR << 1);  /* START + addr (W) */
-    I2C_MTDR = I2C_CMD(I2C_CMD_TX, I2C_TX_BYTE);           /* transmit a byte */
+    I2C_MTDR = I2C_CMD(I2C_CMD_TX, 0x20);                  /* word address */
+    I2C_MTDR = I2C_CMD(I2C_CMD_TX, I2C_TX_BYTE);           /* data */
+    I2C_MTDR = I2C_CMD(I2C_CMD_STOP, 0);                   /* STOP -> SDF|EPF */
+
+    I2C_MTDR = I2C_CMD(I2C_CMD_START, I2C_DEV_ADDR << 1);  /* START + addr (W) */
+    I2C_MTDR = I2C_CMD(I2C_CMD_TX, 0x20);                  /* set the read pointer */
+    I2C_MTDR = I2C_CMD(I2C_CMD_START, (I2C_DEV_ADDR << 1) | 1); /* repeated START (R) */
     I2C_MTDR = I2C_CMD(I2C_CMD_RX, 0);                     /* receive 1 byte */
 
     while (I2C_MSR & I2C_MSR_RDF) {
