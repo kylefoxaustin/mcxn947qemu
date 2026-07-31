@@ -36,6 +36,11 @@ struct MCXNSCTState {
     QEMUTimer    event_timer;
     int64_t next_event_ns; /* deadline: periodic timers must not drift */   /* periodic match/limit event 0 */
 
+    /* Operator-driven SCT input pin levels (AIN0..7), for input-conditioned events:
+     * an edge that matches an event's IOCOND/IOSEL fires that event.  The pins have no
+     * signal source in emulation, so they are driven via the "sct-inputs" QOM property. */
+    uint8_t in_level;
+
     uint8_t regs[MCXN_SCT_SIZE];
 };
 

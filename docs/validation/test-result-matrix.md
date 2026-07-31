@@ -69,7 +69,7 @@ register-only≈registration/Tier-C.
 | mrt | ✓ | ✓ | functional | mcxn-timers, mcxn-mrt | SKIP |
 | lptmr | ✓ | ✓ | functional | mcxn-timers, mcxn-lptmr | SKIP |
 | ostimer | ✓ | ✓ | functional | mcxn-ostimer, mcxn-timers | SKIP |
-| sct | ✓ | ✓ | functional | mcxn-sct | SKIP |
+| sct | ✓ | ✓ | functional | mcxn-sct, mcxn-sct-dma, mcxn-sct-input | SKIP |
 | pwm | ✓ | ✓ | functional | mcxn-pwm, mcxn-flexpwm-dma, mcxn-flexpwm-capture, mcxn-flexpwm-fault, mcxn-flexpwm-output, mcxn-flexpwm-deadtime, mcxn-flexpwm-pwmx, mcxn-adc-pwm-trig | SKIP |
 | rtc | ✓ | ✓ | functional | mcxn-rtc | SKIP |
 | utick | ✓ | ◐ | register-only | boot, corpus | SKIP |

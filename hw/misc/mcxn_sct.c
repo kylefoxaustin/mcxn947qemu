@@ -16,6 +16,8 @@
 #include "hw/core/clock.h"
 #include "hw/core/qdev-clock.h"
 #include "migration/vmstate.h"
+#include "qom/object.h"
+#include "qapi/visitor.h"
 
 /* Register offsets (CMSIS SCT_Type). */
 #define SCT_CONFIG   0x00
@@ -40,6 +42,26 @@
 
 /* Event 0 (the modelled match/limit event) in EVFLAG/EVEN. */
 #define SCT_EV0   (1u << 0)
+
+/* Input-conditioned events: an SCT input edge fires an event whose IOCOND/IOSEL match. */
+#define SCT_STATE_REG 0x44          /* current state machine value */
+#define SCT_INPUT     0x48          /* Input State (AIN0..7 = bits 0..7, RO) */
+#define SCT_NEV       16
+#define SCT_EV_STATE(n) (0x300 + (n) * 8)   /* event n state mask   */
+#define SCT_EV_CTRL(n)  (0x304 + (n) * 8)   /* event n control      */
+/* EV[n].CTRL fields (CMSIS SCT_EV_CTRL_*). */
+#define EV_CTRL_OUTSEL      (1u << 5)        /* 0 = IOSEL is an input, 1 = an output */
+#define EV_CTRL_IOSEL_MASK  0x3C0u
+#define EV_CTRL_IOSEL_SHIFT 6
+#define EV_CTRL_IOCOND_MASK 0xC00u
+#define EV_CTRL_IOCOND_SHIFT 10
+#define EV_CTRL_COMBMODE_MASK  0x3000u
+#define EV_CTRL_COMBMODE_SHIFT 12
+#define IOCOND_LOW 0u
+#define IOCOND_RISE 1u
+#define IOCOND_FALL 2u
+#define IOCOND_HIGH 3u
+#define COMBMODE_IO 2u              /* event triggered by the IO condition alone */
 
 /*
  * The SCT counter clock.
@@ -117,6 +139,84 @@ static void mcxn_sct_update_irq(MCXNSCTState *s)
 {
     bool active = (sct_ld32(s, SCT_EVFLAG) & sct_ld32(s, SCT_EVEN)) != 0;
     qemu_set_irq(s->irq, active);
+}
+
+/*
+ * INPUT-CONDITIONED EVENTS.  An SCT input pin (AIN0..7), routed in by INPUTMUX's SCT0_INMUX
+ * mux, drives an event: when the input changes, each event whose EV[n].CTRL selects the IO
+ * condition (COMBMODE=IO, OUTSEL=input, IOSEL=this pin) and whose IOCOND matches the
+ * transition FIRES -- EVFLAG[n] latches and, gated by EVEN[n], the SCT interrupt asserts.
+ * The event must be active in the current state (EV[n].STATE has the STATE-register bit).
+ *
+ * This was absent: only the match/limit event 0 (the timer path) existed, so an SCT wired
+ * to act on an input pin did nothing.  The pin has no signal source in emulation, so its
+ * level is OPERATOR-DRIVEN via the "sct-inputs" QOM property (the CTIMER-capture / CMP seam).
+ *
+ * ⚠ Scope, stated: the IO-only combination with the EVFLAG + EVEN interrupt effect is
+ * modelled; the OR/AND-with-match combinations, the event->output set/clear actions and the
+ * state-machine transitions (STATELD/STATEV) are not (the base model has no output or
+ * multi-state machinery).  The flag + interrupt an input-event handler binds to is what runs.
+ */
+static void mcxn_sct_eval_inputs(MCXNSCTState *s, uint8_t oldv, uint8_t newv)
+{
+    uint32_t curstate = sct_ld32(s, SCT_STATE_REG) & 0x1F;
+    uint32_t evflag = sct_ld32(s, SCT_EVFLAG);
+    bool changed = false;
+    int n;
+
+    for (n = 0; n < SCT_NEV; n++) {
+        uint32_t ctrl = sct_ld32(s, SCT_EV_CTRL(n));
+        uint32_t combmode = (ctrl & EV_CTRL_COMBMODE_MASK) >> EV_CTRL_COMBMODE_SHIFT;
+        uint32_t iosel = (ctrl & EV_CTRL_IOSEL_MASK) >> EV_CTRL_IOSEL_SHIFT;
+        uint32_t iocond = (ctrl & EV_CTRL_IOCOND_MASK) >> EV_CTRL_IOCOND_SHIFT;
+        bool ob, nb, fire = false;
+
+        if (combmode != COMBMODE_IO || (ctrl & EV_CTRL_OUTSEL)) {
+            continue;                    /* only input-conditioned (IO-only) events here */
+        }
+        if (!(sct_ld32(s, SCT_EV_STATE(n)) & (1u << curstate))) {
+            continue;                    /* event not enabled in the current state */
+        }
+        ob = (oldv >> iosel) & 1;
+        nb = (newv >> iosel) & 1;
+        switch (iocond) {
+        case IOCOND_RISE: fire = !ob && nb; break;
+        case IOCOND_FALL: fire = ob && !nb; break;
+        case IOCOND_HIGH: fire = nb; break;
+        case IOCOND_LOW:  fire = !nb; break;
+        }
+        if (fire) {
+            evflag |= (1u << n);
+            changed = true;
+        }
+    }
+    if (changed) {
+        sct_st32(s, SCT_EVFLAG, evflag);
+        mcxn_sct_update_irq(s);
+    }
+}
+
+static void mcxn_sct_get_inputs(Object *obj, Visitor *v, const char *name,
+                                void *opaque, Error **errp)
+{
+    uint8_t val = MCXN_SCT(obj)->in_level;
+
+    visit_type_uint8(v, name, &val, errp);
+}
+
+static void mcxn_sct_set_inputs(Object *obj, Visitor *v, const char *name,
+                                void *opaque, Error **errp)
+{
+    MCXNSCTState *s = MCXN_SCT(obj);
+    uint8_t oldv = s->in_level;
+    uint8_t val;
+
+    if (!visit_type_uint8(v, name, &val, errp)) {
+        return;
+    }
+    s->in_level = val;
+    sct_st32(s, SCT_INPUT, val);         /* the INPUT register mirrors the pin levels */
+    mcxn_sct_eval_inputs(s, oldv, val);
 }
 
 static int64_t mcxn_sct_period_ns(MCXNSCTState *s)
@@ -261,6 +361,7 @@ static void mcxn_sct_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     timer_del(&s->event_timer);
+    s->in_level = 0;
     qemu_set_irq(s->irq, 0);
 }
 
@@ -279,11 +380,12 @@ static void mcxn_sct_realize(DeviceState *dev, Error **errp)
 
 static const VMStateDescription vmstate_mcxn_sct = {
     .name = TYPE_MCXN_SCT,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNSCTState, MCXN_SCT_SIZE),
         VMSTATE_TIMER(event_timer, MCXNSCTState),
+        VMSTATE_UINT8(in_level, MCXNSCTState),
         VMSTATE_END_OF_LIST()
     },
 };
@@ -309,6 +411,11 @@ static void mcxn_sct_init(Object *obj)
     MCXNSCTState *s = MCXN_SCT(obj);
 
     s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
+
+    /* Operator-driven SCT input pin levels (AIN0..7):
+     *   qom-set /machine/soc/sct0 sct-inputs 1   (drive input 0 high) */
+    object_property_add(obj, "sct-inputs", "uint8",
+                        mcxn_sct_get_inputs, mcxn_sct_set_inputs, NULL, NULL);
 }
 
 static const TypeInfo mcxn_sct_types[] = {
