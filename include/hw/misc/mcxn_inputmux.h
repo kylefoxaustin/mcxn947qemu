@@ -39,6 +39,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNInputMuxState, MCXN_INPUTMUX)
  * -> "write 50 (0x32) into the register at offset 0x280", which is ADC0_TRIG[0].
  */
 #define MCXN_INPUTMUX_SRC_LPTMR0 50
+#define MCXN_INPUTMUX_SRC_LPTMR1 51
 /*
  * CTIMER{k} match-3 -> ADCn trigger.  kINPUTMUX_Ctimer{k}M3ToAdc0Trigger = 5+k in
  * NXP's driver.  CTIMER0/1/2 use M3 for BOTH ADC0 and ADC1 (collision-free in this
@@ -105,6 +106,7 @@ struct MCXNInputMuxState {
     qemu_irq dac_trig[MCXN_INPUTMUX_NDAC];   /* DAC0/1/2 hardware trigger */
     qemu_irq cmp_trig[MCXN_INPUTMUX_NCMP];   /* CMP0/1/2 round-robin trigger */
     qemu_irq qdc_trig[MCXN_INPUTMUX_NQDC];   /* QDC0/1 position-capture trigger */
+    qemu_irq tsi_trig;                        /* TSI0 scan trigger */
 };
 
 #endif /* HW_MISC_MCXN_INPUTMUX_H */

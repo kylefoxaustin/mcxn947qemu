@@ -17,6 +17,7 @@
 #include "qemu/osdep.h"
 #include "hw/misc/mcxn_tsi.h"
 #include "hw/core/irq.h"
+#include "hw/core/qdev.h"
 #include "hw/core/qdev-properties.h"
 #include "migration/vmstate.h"
 
@@ -86,6 +87,26 @@ static void mcxn_tsi_do_scan(MCXNTSIState *s)
     mcxn_tsi_update_irq(s);
 }
 
+/*
+ * A HARDWARE trigger routed in by INPUTMUX from TSI_TRIG (an LPTMR compare): start a scan,
+ * the counterpart of the ADC's "convert on a timer tick" for touch sensing -- a low-power
+ * loop wakes the TSI periodically off a timer with no CPU involvement.  GENCS[STM] gates it:
+ * the routed trigger scans only in HARDWARE-trigger mode (STM=1); in software mode (STM=0)
+ * the block is driven by SWTS instead and a stray routed edge must NOT scan.
+ */
+static void mcxn_tsi_hw_trigger(void *opaque, int n, int level)
+{
+    MCXNTSIState *s = MCXN_TSI(opaque);
+
+    if (!level) {
+        return;                          /* a trigger is an edge, not a level */
+    }
+    if (!(s->regs[R_GENCS / 4] & GENCS_STM)) {
+        return;                          /* software-trigger mode: ignore the routed trigger */
+    }
+    mcxn_tsi_do_scan(s);                 /* do_scan re-checks GENCS[TSIEN] */
+}
+
 static uint64_t mcxn_tsi_read(void *opaque, hwaddr offset, unsigned size)
 {
     MCXNTSIState *s = MCXN_TSI(opaque);
@@ -107,9 +128,13 @@ static void mcxn_tsi_write(void *opaque, hwaddr offset, uint64_t value,
 
     switch (offset) {
     case R_GENCS:
-        /* SWTS is a self-clearing software trigger. */
+        /* SWTS is a self-clearing software trigger.  GENCS[STM] only SELECTS the trigger
+         * source (0 = software / SWTS, 1 = hardware, i.e. the INPUTMUX-routed TSI_TRIG);
+         * it does NOT itself start a scan -- a scan in hardware-trigger mode waits for the
+         * routed edge (mcxn_tsi_hw_trigger).  The old code scanned on the STM write, which
+         * FABRICATED one scan with no trigger source behind it. */
         s->regs[R_GENCS / 4] = v & ~GENCS_SWTS;
-        if ((v & GENCS_SWTS) || (v & GENCS_STM)) {
+        if (v & GENCS_SWTS) {
             mcxn_tsi_do_scan(s);
         } else {
             mcxn_tsi_update_irq(s);
@@ -204,6 +229,8 @@ static void mcxn_tsi_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_TSI, MCXN_TSI_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    /* Hardware trigger routed in by INPUTMUX from TSI_TRIG (LPTMR -> periodic scan). */
+    qdev_init_gpio_in_named(dev, mcxn_tsi_hw_trigger, "trigger", 1);
 }
 
 static const VMStateDescription vmstate_mcxn_tsi = {

@@ -66,6 +66,15 @@ static const uint16_t im_cmp_trig_off[MCXN_INPUTMUX_NCMP] = { 0x260, 0x4E0, 0x50
 #define IM_QDC0_TRIG      0x360
 #define IM_QDC_TRIG_STEP  0x20
 
+/*
+ * TSI_TRIG @0x4A0: a 2-bit selector (reset 0x3 = NO INPUT).  PER-DESTINATION namespace --
+ * for the TSI, selector 0 = LPTMR0 and 1 = LPTMR1 (vs the ADC, where LPTMR0 = selector 50)
+ * -- so the router remaps the TSI selector to the physical LPTMR source id.
+ */
+#define IM_TSI_TRIG       0x4A0
+#define IM_TRIG2_MASK     0x3u
+#define IM_TRIG2_NONE     0x3u
+
 #define IM_DMA0_REQ_ENABLE0  0x700
 #define IM_DMA1_REQ_ENABLE0  0x780
 #define IM_REQ_ENABLE_STRIDE 0x010   /* per 32-bit bank: reg, SET, CLR, TOG */
@@ -299,6 +308,18 @@ static void mcxn_inputmux_trigger(void *opaque, int src, int level)
             qemu_irq_pulse(s->qdc_trig[t]);
         }
     }
+
+    /* TSI_TRIG: PER-DESTINATION selector -- 0 = LPTMR0, 1 = LPTMR1 (the ADC calls the same
+     * LPTMR0 "50"), so remap the 2-bit selector to the physical LPTMR source id. */
+    {
+        uint32_t sel = s->regs[IM_TSI_TRIG / 4] & IM_TRIG2_MASK;
+        uint32_t phys = (sel == 0) ? MCXN_INPUTMUX_SRC_LPTMR0 :
+                        (sel == 1) ? MCXN_INPUTMUX_SRC_LPTMR1 : IM_TRIG2_NONE;
+
+        if (sel != IM_TRIG2_NONE && phys == (uint32_t)src) {
+            qemu_irq_pulse(s->tsi_trig);
+        }
+    }
 }
 
 static void mcxn_inputmux_write(void *opaque, hwaddr offset, uint64_t value,
@@ -386,6 +407,7 @@ static void mcxn_inputmux_realize(DeviceState *dev, Error **errp)
     qdev_init_gpio_out_named(dev, s->dac_trig, "dac-trig", MCXN_INPUTMUX_NDAC);
     qdev_init_gpio_out_named(dev, s->cmp_trig, "cmp-trig", MCXN_INPUTMUX_NCMP);
     qdev_init_gpio_out_named(dev, s->qdc_trig, "qdc-trig", MCXN_INPUTMUX_NQDC);
+    qdev_init_gpio_out_named(dev, &s->tsi_trig, "tsi-trig", 1);
 }
 
 static const VMStateDescription vmstate_mcxn_inputmux = {

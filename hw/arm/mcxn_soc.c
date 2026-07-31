@@ -1424,6 +1424,12 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                 qdev_get_gpio_in_named(DEVICE(&s->inputmux),
                                                        "trig-in",
                                                        MCXN_INPUTMUX_SRC_LPTMR0));
+    if (MCXN_NUM_LPTMR > 1) {
+        qdev_connect_gpio_out_named(DEVICE(&s->lptmr[1]), "trigger", 0,
+                                    qdev_get_gpio_in_named(DEVICE(&s->inputmux),
+                                                           "trig-in",
+                                                           MCXN_INPUTMUX_SRC_LPTMR1));
+    }
     /*
      * CTIMER{0,1,2} match-3 -> INPUTMUX -> ADCn_TRIG.  "Convert on a timer match" is
      * the other canonical hardware-triggered ADC pattern (the motor-control loop
@@ -1526,6 +1532,16 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     for (i = 0; i < qdc_n; i++) {
         qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "qdc-trig", i,
                                     qdev_get_gpio_in_named(qdc_dev[i], "trigger", 0));
+    }
+    /*
+     * TSI_TRIG -> INPUTMUX -> TSI0 scan trigger: an LPTMR paces the touch scan (the
+     * low-power "wake the TSI off a timer" path), the touch-sensing counterpart of the
+     * ADC's convert-on-a-timer.
+     */
+    if (MCXN_NUM_TSI > 0) {
+        qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "tsi-trig", 0,
+                                    qdev_get_gpio_in_named(DEVICE(&s->tsi[0]),
+                                                           "trigger", 0));
     }
 }
 
