@@ -109,7 +109,7 @@ register-only≈registration/Tier-C.
 | pint | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | intm | ✓ | ◐ | register-only | boot, corpus | SKIP |
 | evtg | ✓ | ◐ | register-only | boot, corpus | SKIP |
-| flexio | ✓ | ◐ | register-only | boot, corpus | SKIP |
+| flexio | ✓ | ✓ | functional | boot, corpus, mcxn-flexio-spi-nor | SKIP |
 | qdc | ✓ | ◐ | register-only | boot, corpus, mcxn-qdc-trig | SKIP |
 | plu | ✓ | ◐ | register-only | boot, corpus | SKIP |
 

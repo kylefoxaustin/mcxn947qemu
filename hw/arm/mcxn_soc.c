@@ -375,6 +375,7 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     int i;
     DeviceState *qdc_dev[MCXN_INPUTMUX_NQDC] = { NULL };
     int qdc_n = 0;
+    DeviceState *flexio_dev = NULL;
 
     cfg = mcxn_lookup(s->part ? s->part : "MCXN947");
     if (!cfg) {
@@ -1253,11 +1254,29 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
             qdc_n < MCXN_INPUTMUX_NQDC) {
             qdc_dev[qdc_n++] = d;
         }
+        /* Capture the FlexIO handle so an m25p80 can be attached to its SPI bus. */
+        if (!strcmp(mcxn_cfgdev[i].type, TYPE_MCXN_FLEXIO)) {
+            flexio_dev = d;
+        }
         mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(d), 0);
         memory_region_init_alias(al, OBJECT(dev), an, mr, 0,
                                  memory_region_size(mr));
         memory_region_add_subregion(system_memory,
                                      mcxn_cfgdev[i].base + MCXN_SECURE_ALIAS, al);
+    }
+
+    /*
+     * A second on-board SPI-NOR on the FlexIO's SPI bus: FlexIO emulates an SPI master
+     * in software (shifter + timer), and here it drives a genuine m25p80.  CS = FlexIO
+     * sysbus IRQ 1 -> the flash's SSI chip-select (the board wires FlexIO pin 4 to it).
+     */
+    if (flexio_dev) {
+        DeviceState *nor = qdev_new("w25q64");
+
+        qdev_realize_and_unref(nor, BUS(MCXN_FLEXIO(flexio_dev)->spi_bus),
+                               &error_fatal);
+        sysbus_connect_irq(SYS_BUS_DEVICE(flexio_dev), 1,
+                           qdev_get_gpio_in_named(nor, SSI_GPIO_CS, 0));
     }
 
     /* Generic permissive stubs for every other peripheral present on the SoC
