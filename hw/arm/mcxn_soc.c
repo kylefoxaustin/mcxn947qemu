@@ -556,6 +556,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         if (i == 5) {
             qdev_prop_set_string(fc, "spi-bus-name", "mcxn-lpspi");
         }
+        /* FlexComm1 carries an on-board SPI-NOR on its LPSPI: give it a real SSI bus so
+         * the m25p80 attached below (with its CS wired) is reachable. */
+        if (i == 1) {
+            qdev_prop_set_string(fc, "spi-bus-name", "flexcomm1-spi");
+        }
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->flexcomm[i]), errp)) {
             return;
         }
@@ -570,6 +575,20 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_add_subregion(system_memory,
                                      mcxn_flexcomm_cfg[i].base + MCXN_SECURE_ALIAS,
                                      &s->flexcomm_s_alias[i]);
+    }
+
+    /*
+     * An on-board SPI-NOR on FlexComm1's LPSPI: a real QEMU m25p80 (w25q64), so a
+     * developer's LPSPI flash code talks to genuine NOR physics (JEDEC ID, WREN latch,
+     * page-program, erase-before-write) instead of a loopback echo.  CS = FlexComm1
+     * sysbus IRQ 3 -> the flash's SSI chip-select.
+     */
+    {
+        DeviceState *nor = qdev_new("w25q64");
+
+        qdev_realize_and_unref(nor, BUS(s->flexcomm[1].spi_bus), &error_fatal);
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[1]), 3,
+                           qdev_get_gpio_in_named(nor, SSI_GPIO_CS, 0));
     }
 
     /* SCG0 is realized BEFORE the cores (above) so its mainclk output can feed cpuclk. */

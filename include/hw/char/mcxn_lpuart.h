@@ -110,6 +110,8 @@ struct MCXNLPUARTState {
     uint32_t spi_der;     /* DMA Enable — the stock EDMA driver sets TDDE/RDDE */
     uint32_t spi_rdr;     /* rx data holding */
     bool     spi_rx_full;
+    qemu_irq spi_cs;      /* LPSPI chip-select (active low), wired to an SSI device's CS */
+    bool     spi_cs_asserted;  /* current CS state, so a burst keeps it low (TCR[CONT]) */
 
     /* LPI2C (master) */
     uint32_t i2c_mcr;

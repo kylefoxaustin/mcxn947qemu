@@ -255,6 +255,7 @@ QEMU_BUILD_BUG_ON((1u << LPUART_PARAM_FIFO_EXP) >
 #define LPSPI_IER_RDIE  0x2u
 #define LPSPI_TCR_FRAMESZ 0xFFFu
 #define LPSPI_TCR_RXMSK 0x80000u
+#define LPSPI_TCR_CONT  0x200000u   /* continuous transfer: hold CS asserted across frames */
 #define LPSPI_RSR_RXEMPTY 0x2u
 
 #define LPSPI_VERID_VALUE  0x01010004u
@@ -573,6 +574,10 @@ static void mcxn_lpspi_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
         if (value & LPSPI_CR_RST) {
             s->spi_cr = s->spi_sr = s->spi_ier = 0;
             s->spi_rx_full = false;
+            if (s->spi_cs_asserted) {          /* a reset releases the chip-select */
+                qemu_set_irq(s->spi_cs, 1);
+                s->spi_cs_asserted = false;
+            }
         } else {
             s->spi_cr = value & ~(LPSPI_CR_RTF | LPSPI_CR_RRF);
             if (value & LPSPI_CR_RRF) {
@@ -618,9 +623,22 @@ static void mcxn_lpspi_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
                 uint32_t mask = (framesz >= 32) ? 0xFFFFFFFFu
                                                 : ((1u << framesz) - 1);
                 if (s->spi_bus) {
-                    /* Board-to-board: shift the word out over the SSI bus (to a
-                     * spi-link -> socket -> peer); MISO comes back from the bus. */
+                    /*
+                     * Shift the word out over the SSI bus.  The chip-select is asserted
+                     * (active low) before the first frame and held while TCR[CONT] is set,
+                     * so a multi-byte command (e.g. m25p80 RDID: 0x9F then 3 ID bytes) is
+                     * ONE transaction -- CS drops only when a frame clears CONT.  For a
+                     * board-to-board spi-link the CS line is unwired and this is a no-op.
+                     */
+                    if (!s->spi_cs_asserted) {
+                        qemu_set_irq(s->spi_cs, 0);
+                        s->spi_cs_asserted = true;
+                    }
                     s->spi_rdr = ssi_transfer(s->spi_bus, value & mask) & mask;
+                    if (!(s->spi_tcr & LPSPI_TCR_CONT)) {
+                        qemu_set_irq(s->spi_cs, 1);
+                        s->spi_cs_asserted = false;
+                    }
                 } else {
                     /* Self-contained loopback (MOSI->MISO jumper). */
                     s->spi_rdr = value & mask;
@@ -1191,6 +1209,7 @@ static void mcxn_lpuart_reset(DeviceState *dev)
     s->spi_tcr = LPSPI_TCR_RESET;
     s->spi_rdr = 0;
     s->spi_rx_full = false;
+    s->spi_cs_asserted = false;
     s->i2c_mcr = s->i2c_msr = s->i2c_mier = s->i2c_mcfgr1 = 0;
     s->i2c_mrdr = 0;
     s->i2c_rx_full = s->i2c_busy = false;
@@ -1208,6 +1227,7 @@ static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(sbd, &s->irq);
     sysbus_init_irq(sbd, &s->dma_req_tx);   /* -> eDMA source 70 + 2n */
     sysbus_init_irq(sbd, &s->dma_req_rx);   /* -> eDMA source 69 + 2n */
+    sysbus_init_irq(sbd, &s->spi_cs);       /* 3: LPSPI chip-select (to an SSI device) */
 
     qemu_chr_fe_set_handlers(&s->chr, mcxn_lpuart_can_rx, mcxn_lpuart_rx,
                              NULL, NULL, s, NULL, true);

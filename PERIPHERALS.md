@@ -57,7 +57,7 @@ the blocks whose dynamics firmware/tests can observe — see below.
 | `INTM` | 1 | ✅ functional (register-accurate) |
 | `ITRC` | 1 | ✅ functional (register-accurate) |
 | `LPI2C` | 10 | ✅ functional **master → a REAL device**: drives a genuine QEMU I2C bus (`<flexcommN>-i2c`); the MTDR command engine does real START/addr/TX/RX/STOP transactions, NACK→MSR[NDF]. A real at24c EEPROM write-then-read is byte-exact (replaced a fabricated echo target); mutation-proven; tests/mcxn-lpi2c-eeprom. Slave engine not modelled |
-| `LPSPI` | 10 | ✅ functional (LP_FLEXCOMM SPI mode; shares the FlexComm window) |
+| `LPSPI` | 10 | ✅ functional **master → a REAL m25p80 NOR**: FlexComm1 drives an on-board w25q64 (CS held across a burst via TCR[CONT]); JEDEC-ID read (0xEF4017) + WREN/page-program/read-back byte-exact against the flash (replaced a loopback echo); mutation-proven; tests/mcxn-lpspi-nor. Loopback (no device) + b2b spi-link still supported |
 | `LPTMR` | 2 | ✅ functional (up-count to compare -> NVIC IRQ) — clock **selected by PSR[PCS]** per RM Table 463 (00 FRO_12M / 01 FRO_16K / 10 32K_CLK / 11 OSC_SYS-seam), a low-power clock not the 150 MHz bus clock it wrongly used before; tests/mcxn-lptmr |
 | `LPUART` | 10 | ✅ functional (10 FlexComm UARTs) |
 | `LP_FLEXCOMM` | 10 | ✅ functional (all 10 as LPUART; cpu0+cpu1 consoles) |
