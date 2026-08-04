@@ -82,7 +82,7 @@ register-only≈registration/Tier-C.
 |-------|:---:|:---:|-------|-----------|:---:|
 | powerquad | ✓ | ✓ | computes | mcxn-powerquad, mcxn-powerquad-coproc | SKIP |
 | powerquad-fixedpt | ✓ | ✓ | honest-fault | mcxn-powerquad-coproc | SKIP |
-| smartdma | ✓ | ◐ | honest-fault | boot, corpus | SKIP |
+| smartdma | ✓ | ◐ | honest-fault | mcxn-smartdma | SKIP |
 | neutron-npu | ✓ | ✓ | honest-fault | mcxn-neutron | SKIP |
 
 ## Analog (operator-driven)

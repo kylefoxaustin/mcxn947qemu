@@ -35,6 +35,18 @@ struct MCXNSmartDMAState {
      * "programs-started" so the farm control-plane can detect a guest trusting
      * an accelerator that isn't computing — without hanging it. */
     uint32_t programs_started;
+
+    /* Boot decode, for an INFORMATIVE honest-fault (still no compute).  On a
+     * keyed CTRL boot we recover which documented operation was requested — the
+     * apiIndex from the firmware jump table at SRAMX, plus the raw entry, the
+     * ARM2EZH-carried pParam and its 2-bit mask.  Exposed via QOM so the farm
+     * control-plane sees exactly which op a guest asked an un-run engine for.
+     * last_apiindex == 0xFFFFFFFF means "not recovered" (unrecognised firmware
+     * or non-standard load address). */
+    uint32_t last_bootadr;
+    uint32_t last_apiindex;
+    uint32_t last_pparam;
+    uint32_t last_mask;
 };
 
 #endif /* HW_MISC_MCXN_SMARTDMA_H */
