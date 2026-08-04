@@ -180,10 +180,18 @@ static void mcxn_sct_eval_inputs(MCXNSCTState *s, uint8_t oldv, uint8_t newv)
         ob = (oldv >> iosel) & 1;
         nb = (newv >> iosel) & 1;
         switch (iocond) {
-        case IOCOND_RISE: fire = !ob && nb; break;
-        case IOCOND_FALL: fire = ob && !nb; break;
-        case IOCOND_HIGH: fire = nb; break;
-        case IOCOND_LOW:  fire = !nb; break;
+        case IOCOND_RISE:
+            fire = !ob && nb;
+            break;
+        case IOCOND_FALL:
+            fire = ob && !nb;
+            break;
+        case IOCOND_HIGH:
+            fire = nb;
+            break;
+        case IOCOND_LOW:
+            fire = !nb;
+            break;
         }
         if (fire) {
             evflag |= (1u << n);

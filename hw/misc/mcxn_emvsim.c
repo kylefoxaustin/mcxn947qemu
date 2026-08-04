@@ -102,12 +102,24 @@ static void mcxn_emvsim_update_irq(MCXNEMVSIMState *s)
     uint32_t rx   = s->regs[EMVSIM_RX_STATUS / 4];
     int level = 0;
 
-    if ((tx & TX_STATUS_TCF)     && !(mask & INT_MASK_TC_IM))      level = 1;
-    if ((tx & TX_STATUS_ETCF)    && !(mask & INT_MASK_ETC_IM))     level = 1;
-    if ((tx & TX_STATUS_TDTF)    && !(mask & INT_MASK_TDT_IM))     level = 1;
-    if ((tx & TX_STATUS_TFE)     && !(mask & INT_MASK_TFE_IM))     level = 1;
-    if ((rx & RX_STATUS_RDTF)    && !(mask & INT_MASK_RDT_IM))     level = 1;
-    if ((rx & RX_STATUS_RX_DATA) && !(mask & INT_MASK_RX_DATA_IM)) level = 1;
+    if ((tx & TX_STATUS_TCF)     && !(mask & INT_MASK_TC_IM)) {
+        level = 1;
+    }
+    if ((tx & TX_STATUS_ETCF)    && !(mask & INT_MASK_ETC_IM)) {
+        level = 1;
+    }
+    if ((tx & TX_STATUS_TDTF)    && !(mask & INT_MASK_TDT_IM)) {
+        level = 1;
+    }
+    if ((tx & TX_STATUS_TFE)     && !(mask & INT_MASK_TFE_IM)) {
+        level = 1;
+    }
+    if ((rx & RX_STATUS_RDTF)    && !(mask & INT_MASK_RDT_IM)) {
+        level = 1;
+    }
+    if ((rx & RX_STATUS_RX_DATA) && !(mask & INT_MASK_RX_DATA_IM)) {
+        level = 1;
+    }
 
     qemu_set_irq(s->irq, level);
 }

@@ -113,10 +113,17 @@ static void mcxn_usbphy_write(void *opaque, hwaddr off, uint64_t value,
         uint32_t cur = s->regs[base >> 2];
 
         switch (strobe) {
-        case 0x4: cur |= v;  break;     /* SET */
-        case 0x8: cur &= ~v; break;     /* CLR */
-        case 0xC: cur ^= v;  break;     /* TOG */
-        default:  break;
+        case 0x4:
+            cur |= v;
+            break;     /* SET */
+        case 0x8:
+            cur &= ~v;
+            break;     /* CLR */
+        case 0xC:
+            cur ^= v;
+            break;     /* TOG */
+        default:
+            break;
         }
         s->regs[base >> 2] = cur;
         return;

@@ -257,9 +257,13 @@ static uint64_t ctimer_read(void *opaque, hwaddr off, unsigned size)
     switch (off) {
     case R_IR:   return s->ir;
     case R_TCR:  return s->tcr;
-    case R_TC:   ctimer_peek(s, now, &tc, &pc); return tc;
+    case R_TC:
+        ctimer_peek(s, now, &tc, &pc);
+        return tc;
     case R_PR:   return s->pr;
-    case R_PC:   ctimer_peek(s, now, &tc, &pc); return pc;
+    case R_PC:
+        ctimer_peek(s, now, &tc, &pc);
+        return pc;
     case R_MCR:  return s->mcr;
     case R_MR0: case R_MR0 + 4: case R_MR0 + 8: case R_MR0 + 12:
         return s->mr[(off - R_MR0) / 4];
@@ -296,21 +300,45 @@ static void ctimer_write(void *opaque, hwaddr off, uint64_t val, unsigned size)
         }
         ctimer_reschedule(s, now);
         return;
-    case R_TC:  ctimer_sync(s, now); s->tc = v; ctimer_reschedule(s, now); return;
-    case R_PR:  ctimer_sync(s, now); s->pr = v; ctimer_reschedule(s, now); return;
-    case R_PC:  ctimer_sync(s, now); s->pc = v; ctimer_reschedule(s, now); return;
-    case R_MCR: ctimer_sync(s, now); s->mcr = v; ctimer_reschedule(s, now); return;
+    case R_TC:
+        ctimer_sync(s, now);
+        s->tc = v;
+        ctimer_reschedule(s, now);
+        return;
+    case R_PR:
+        ctimer_sync(s, now);
+        s->pr = v;
+        ctimer_reschedule(s, now);
+        return;
+    case R_PC:
+        ctimer_sync(s, now);
+        s->pc = v;
+        ctimer_reschedule(s, now);
+        return;
+    case R_MCR:
+        ctimer_sync(s, now);
+        s->mcr = v;
+        ctimer_reschedule(s, now);
+        return;
     case R_MR0: case R_MR0 + 4: case R_MR0 + 8: case R_MR0 + 12:
         ctimer_sync(s, now);
         s->mr[(off - R_MR0) / 4] = v;
         ctimer_reschedule(s, now);
         return;
-    case R_CCR:  s->ccr = v; return;
+    case R_CCR:
+        s->ccr = v;
+        return;
     case R_CR0: case R_CR0 + 4: case R_CR0 + 8: case R_CR0 + 12:
         return;                        /* capture registers are read-only */
-    case R_EMR:  s->emr = v; return;
-    case R_CTCR: s->ctcr = v; return;
-    case R_PWMC: s->pwmc = v; return;
+    case R_EMR:
+        s->emr = v;
+        return;
+    case R_CTCR:
+        s->ctcr = v;
+        return;
+    case R_PWMC:
+        s->pwmc = v;
+        return;
     case R_MSR0: case R_MSR0 + 4: case R_MSR0 + 8: case R_MSR0 + 12:
         s->msr[(off - R_MSR0) / 4] = v;
         return;

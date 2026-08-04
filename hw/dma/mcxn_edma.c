@@ -534,7 +534,9 @@ static void edma_write(void *opaque, hwaddr off, uint64_t val, unsigned size)
 
     if (off < 0x1000) {
         switch (off) {
-        case R_MP_CSR: s->mp_csr = v; return;
+        case R_MP_CSR:
+            s->mp_csr = v;
+            return;
         default:
             if (off >= R_CH_GRPRI && off < R_CH_GRPRI + 4 * MCXN_EDMA_CHANNELS) {
                 s->ch_grpri[(off - R_CH_GRPRI) / 4] = v;
@@ -565,18 +567,42 @@ static void edma_write(void *opaque, hwaddr off, uint64_t val, unsigned size)
     case R_CH_ES:
         c->es &= ~v;                      /* W1C */
         return;
-    case R_CH_SBR:  c->sbr = v; return;
-    case R_CH_PRI:  c->pri = v; return;
-    case R_CH_MUX:  c->mux = v; return;
-    case R_TCD_SADDR: c->tcd_saddr = v; return;
-    case R_TCD_SOFF:  c->tcd_soff = v; return;
-    case R_TCD_ATTR:  c->tcd_attr = v; return;
-    case R_TCD_NBYTES: c->tcd_nbytes = v; return;
-    case R_TCD_SLAST: c->tcd_slast = v; return;
-    case R_TCD_DADDR: c->tcd_daddr = v; return;
-    case R_TCD_DOFF:  c->tcd_doff = v; return;
-    case R_TCD_CITER: c->tcd_citer = v; return;
-    case R_TCD_DLAST: c->tcd_dlast = v; return;
+    case R_CH_SBR:
+        c->sbr = v;
+        return;
+    case R_CH_PRI:
+        c->pri = v;
+        return;
+    case R_CH_MUX:
+        c->mux = v;
+        return;
+    case R_TCD_SADDR:
+        c->tcd_saddr = v;
+        return;
+    case R_TCD_SOFF:
+        c->tcd_soff = v;
+        return;
+    case R_TCD_ATTR:
+        c->tcd_attr = v;
+        return;
+    case R_TCD_NBYTES:
+        c->tcd_nbytes = v;
+        return;
+    case R_TCD_SLAST:
+        c->tcd_slast = v;
+        return;
+    case R_TCD_DADDR:
+        c->tcd_daddr = v;
+        return;
+    case R_TCD_DOFF:
+        c->tcd_doff = v;
+        return;
+    case R_TCD_CITER:
+        c->tcd_citer = v;
+        return;
+    case R_TCD_DLAST:
+        c->tcd_dlast = v;
+        return;
     case R_TCD_CSR:
         c->tcd_csr = v;
         if (v & TCD_CSR_START) {
@@ -584,8 +610,11 @@ static void edma_write(void *opaque, hwaddr off, uint64_t val, unsigned size)
             edma_run(s, n);
         }
         return;
-    case R_TCD_BITER: c->tcd_biter = v; return;
-    default: return;
+    case R_TCD_BITER:
+        c->tcd_biter = v;
+        return;
+    default:
+        return;
     }
 }
 

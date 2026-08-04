@@ -175,10 +175,18 @@ static void mcxn_syscon_update_clocks(MCXNSysconState *s)
     int n;
 
     switch (sel) {
-    case 0:  hz = CLK16K_HZ; break;
-    case 1:  hz = OSC32K_HZ; break;
-    case 2:  hz = CLK1M_HZ;  break;
-    default: hz = 0;         break;   /* no source selected -- the timer STOPS */
+    case 0:
+        hz = CLK16K_HZ;
+        break;
+    case 1:
+        hz = OSC32K_HZ;
+        break;
+    case 2:
+        hz = CLK1M_HZ;
+        break;
+    default:
+        hz = 0;
+        break;   /* no source selected -- the timer STOPS */
     }
     clock_update_hz(s->ostimer_clk, hz);
 

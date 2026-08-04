@@ -127,7 +127,7 @@ static uint32_t bdt_base(MCXNUSBFSState *s)
 
 static uint32_t bd_off(int ep, bool tx, int odd)
 {
-    return (((ep * 4) + (tx ? 2 : 0) + (odd & 1)) * 8);
+    return ((ep * 4) + (tx ? 2 : 0) + (odd & 1)) * 8;
 }
 
 static uint32_t bd_ld(uint32_t addr)

@@ -295,9 +295,21 @@ static void mcxn_flexio_write(void *opaque, hwaddr off, uint64_t value,
     {
         uint32_t written = (uint32_t)(value << shift) & mask;
 
-        if (idx == R_PINOUTSET) { s->regs[R_PINOUTD / 4] |=  written; mcxn_flexio_update_cs(s); return; }
-        if (idx == R_PINOUTCLR) { s->regs[R_PINOUTD / 4] &= ~written; mcxn_flexio_update_cs(s); return; }
-        if (idx == R_PINOUTTOG) { s->regs[R_PINOUTD / 4] ^=  written; mcxn_flexio_update_cs(s); return; }
+        if (idx == R_PINOUTSET) {
+            s->regs[R_PINOUTD / 4] |=  written;
+            mcxn_flexio_update_cs(s);
+            return;
+        }
+        if (idx == R_PINOUTCLR) {
+            s->regs[R_PINOUTD / 4] &= ~written;
+            mcxn_flexio_update_cs(s);
+            return;
+        }
+        if (idx == R_PINOUTTOG) {
+            s->regs[R_PINOUTD / 4] ^=  written;
+            mcxn_flexio_update_cs(s);
+            return;
+        }
     }
 
     s->regs[idx >> 2] = v;

@@ -334,11 +334,20 @@ static void mcxn_inputmux_write(void *opaque, hwaddr offset, uint64_t value,
         uint32_t *reg = &s->regs[base / 4];
 
         switch (alias) {
-        case 0: *reg  = value; break;   /* the register itself */
-        case 1: *reg |= value; break;   /* SET */
-        case 2: *reg &= ~(uint32_t)value; break;   /* CLR */
-        case 3: *reg ^= value; break;   /* TOG */
-        default: break;
+        case 0:
+            *reg  = value;
+            break;   /* the register itself */
+        case 1:
+            *reg |= value;
+            break;   /* SET */
+        case 2:
+            *reg &= ~(uint32_t)value;
+            break;   /* CLR */
+        case 3:
+            *reg ^= value;
+            break;   /* TOG */
+        default:
+            break;
         }
         im_push_req_enable(s, dma, bank);
         return;

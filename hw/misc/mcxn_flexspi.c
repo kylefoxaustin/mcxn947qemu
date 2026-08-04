@@ -231,12 +231,24 @@ static void flexspi_flush_loader_image(MCXNFlexSPIState *s)
 static void seq_add(FlexSPISeq *q, uint32_t op, uint32_t operand)
 {
     switch (op & ~LUT_DDR) {
-    case LUT_CMD:   q->cmd = operand; q->valid = true; break;
-    case LUT_RADDR: q->addr_bits = operand;            break;
-    case LUT_DUMMY: q->dummy_cycles = operand;         break;
-    case LUT_READ:  q->has_read = true;                break;
-    case LUT_WRITE: q->has_write = true;               break;
-    default: break;
+    case LUT_CMD:
+        q->cmd = operand;
+        q->valid = true;
+        break;
+    case LUT_RADDR:
+        q->addr_bits = operand;
+        break;
+    case LUT_DUMMY:
+        q->dummy_cycles = operand;
+        break;
+    case LUT_READ:
+        q->has_read = true;
+        break;
+    case LUT_WRITE:
+        q->has_write = true;
+        break;
+    default:
+        break;
     }
 }
 

@@ -1,7 +1,7 @@
 /*
- * NXP MCX N EWM (External Watchdog Monitor) — faithful register model.  See
- * header.  Byte-wide registers; no real timeout is modelled, so configuring or
- * servicing the EWM never asserts the ewm_out_b signal.
+ * NXP MCX N EWM (External Watchdog Monitor) - faithful register model.  See
+ * the header.  Byte-wide registers; no real timeout is modelled, so configuring
+ * or servicing the EWM never asserts the ewm_out_b signal.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -21,29 +21,49 @@ static uint64_t mcxn_ewm_read(void *opaque, hwaddr off, unsigned size)
     MCXNEWMState *s = MCXN_EWM(opaque);
 
     switch (off) {
-    case R_CTRL:         return s->ctrl;
-    case R_SERV:         return 0;            /* service register reads 0 */
-    case R_CMPL:         return s->cmpl;
-    case R_CMPH:         return s->cmph;
-    case R_CLKCTRL:      return s->clkctrl;
-    case R_CLKPRESCALER: return s->clkprescaler;
-    default:             return 0;
+    case R_CTRL:
+        return s->ctrl;
+    case R_SERV:
+        return 0;            /* service register reads 0 */
+    case R_CMPL:
+        return s->cmpl;
+    case R_CMPH:
+        return s->cmph;
+    case R_CLKCTRL:
+        return s->clkctrl;
+    case R_CLKPRESCALER:
+        return s->clkprescaler;
+    default:
+        return 0;
     }
 }
 
-static void mcxn_ewm_write(void *opaque, hwaddr off, uint64_t val, unsigned size)
+static void mcxn_ewm_write(void *opaque, hwaddr off, uint64_t val,
+                           unsigned size)
 {
     MCXNEWMState *s = MCXN_EWM(opaque);
     uint8_t v = val;
 
     switch (off) {
-    case R_CTRL:         s->ctrl = v; break;
-    case R_SERV:         break;              /* service: no timeout modelled */
-    case R_CMPL:         s->cmpl = v; break;
-    case R_CMPH:         s->cmph = v; break;
-    case R_CLKCTRL:      s->clkctrl = v; break;
-    case R_CLKPRESCALER: s->clkprescaler = v; break;
-    default:             break;
+    case R_CTRL:
+        s->ctrl = v;
+        break;
+    case R_SERV:
+        break;               /* service: no timeout modelled */
+    case R_CMPL:
+        s->cmpl = v;
+        break;
+    case R_CMPH:
+        s->cmph = v;
+        break;
+    case R_CLKCTRL:
+        s->clkctrl = v;
+        break;
+    case R_CLKPRESCALER:
+        s->clkprescaler = v;
+        break;
+    default:
+        break;
     }
 }
 

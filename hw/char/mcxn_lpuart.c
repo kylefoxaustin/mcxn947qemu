@@ -549,8 +549,10 @@ static uint64_t mcxn_lpspi_read(MCXNLPUARTState *s, hwaddr offset)
     case LPSPI_CCR:   return s->spi_ccr;
     case LPSPI_FCR:   return s->spi_fcr;
     case LPSPI_TCR:   return s->spi_tcr;
-    case LPSPI_FSR:   return s->spi_rx_full ? (1u << 16) : 0; /* RXCOUNT=1 */
-    case LPSPI_RSR:   return s->spi_rx_full ? 0 : LPSPI_RSR_RXEMPTY;
+    case LPSPI_FSR:
+        return s->spi_rx_full ? (1u << 16) : 0; /* RXCOUNT=1 */
+    case LPSPI_RSR:
+        return s->spi_rx_full ? 0 : LPSPI_RSR_RXEMPTY;
     case LPSPI_RDROR: return s->spi_rdr;                       /* peek, no pop */
     case LPSPI_RDR: {
         uint32_t v = s->spi_rdr;
@@ -595,11 +597,21 @@ static void mcxn_lpspi_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
         s->spi_ier = value;
         mcxn_flexcomm_update_irq(s);
         break;
-    case LPSPI_CFGR0: s->spi_cfgr0 = value; break;
-    case LPSPI_CFGR1: s->spi_cfgr1 = value; break;
-    case LPSPI_CCR:   s->spi_ccr = value;   break;
-    case LPSPI_FCR:   s->spi_fcr = value;   break;
-    case LPSPI_TCR:   s->spi_tcr = value;   break;
+    case LPSPI_CFGR0:
+        s->spi_cfgr0 = value;
+        break;
+    case LPSPI_CFGR1:
+        s->spi_cfgr1 = value;
+        break;
+    case LPSPI_CCR:
+        s->spi_ccr = value;
+        break;
+    case LPSPI_FCR:
+        s->spi_fcr = value;
+        break;
+    case LPSPI_TCR:
+        s->spi_tcr = value;
+        break;
     case LPSPI_CCR1:
         break;  /* accepted, not modelled */
     case LPSPI_DER:
@@ -666,7 +678,8 @@ static uint64_t mcxn_lpi2c_read(MCXNLPUARTState *s, hwaddr offset)
     case LPI2C_MSR:    return mcxn_lpi2c_status(s);
     case LPI2C_MIER:   return s->i2c_mier;
     case LPI2C_MCFGR1: return s->i2c_mcfgr1;
-    case LPI2C_MFSR:   return s->i2c_rx_full ? (1u << 16) : 0;  /* RXCOUNT=1 */
+    case LPI2C_MFSR:
+        return s->i2c_rx_full ? (1u << 16) : 0;  /* RXCOUNT=1 */
     /*
      * ⚠ MRDR WAS RIGHT AND ITS ALIAS WAS WRONG, WHICH IS THE WHOLE POINT.
      *
@@ -754,7 +767,9 @@ static void mcxn_lpi2c_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
         s->i2c_mier = value;
         mcxn_flexcomm_update_irq(s);
         break;
-    case LPI2C_MCFGR1: s->i2c_mcfgr1 = value; break;
+    case LPI2C_MCFGR1:
+        s->i2c_mcfgr1 = value;
+        break;
     case LPI2C_MCFGR0:
     case LPI2C_MCFGR2:
     case LPI2C_MCFGR3:

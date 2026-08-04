@@ -48,7 +48,8 @@ static uint32_t lptmr_divider(MCXNLPTMRState *s)
 static uint32_t lptmr_source_hz(MCXNLPTMRState *s)
 {
     switch (s->psr & PSR_PCS) {
-    case 0:  return s->clk ? clock_get_hz(s->clk) : 0;  /* FRO_12M (from SCG)  */
+    case 0:
+        return s->clk ? clock_get_hz(s->clk) : 0;  /* FRO_12M (from SCG)  */
     case 1:  return FRO_16K_HZ;                          /* FRO_16K            */
     case 2:  return CLK_32K_HZ;                          /* 32K_CLK            */
     default:                                             /* 11 = OSC_SYS       */
@@ -167,10 +168,18 @@ static void lptmr_write(void *opaque, hwaddr off, uint64_t val, unsigned size)
         lptmr_reschedule(s, now);
         return;
     }
-    case R_PSR: s->psr = v; lptmr_reschedule(s, now); return;
-    case R_CMR: s->cmr = v & 0xFFFF; lptmr_reschedule(s, now); return;
-    case R_CNR: return;                /* writing CNR latches on HW; ignore */
-    default:    return;
+    case R_PSR:
+        s->psr = v;
+        lptmr_reschedule(s, now);
+        return;
+    case R_CMR:
+        s->cmr = v & 0xFFFF;
+        lptmr_reschedule(s, now);
+        return;
+    case R_CNR:
+        return;                /* writing CNR latches on HW; ignore */
+    default:
+        return;
     }
 }
 

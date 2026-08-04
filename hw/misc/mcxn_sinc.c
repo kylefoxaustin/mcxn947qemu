@@ -173,11 +173,23 @@ static void sinc_push_result(MCXNSINCState *s, int n, int64_t v)
     /* Saturate into the 24-bit result field, and say so (CSR[PFSAT]) rather
      * than silently wrapping. */
     if (ccfr & CCFR_RDFMT) {                 /* unsigned */
-        if (v < 0)          { v = 0;          csr |= CSR_PFSAT; }
-        if (v > 0xFFFFFF)   { v = 0xFFFFFF;   csr |= CSR_PFSAT; }
+        if (v < 0) {
+            v = 0;
+            csr |= CSR_PFSAT;
+        }
+        if (v > 0xFFFFFF) {
+            v = 0xFFFFFF;
+            csr |= CSR_PFSAT;
+        }
     } else {                                 /* signed */
-        if (v < -0x800000)  { v = -0x800000;  csr |= CSR_PFSAT; }
-        if (v > 0x7FFFFF)   { v = 0x7FFFFF;   csr |= CSR_PFSAT; }
+        if (v < -0x800000) {
+            v = -0x800000;
+            csr |= CSR_PFSAT;
+        }
+        if (v > 0x7FFFFF) {
+            v = 0x7FFFFF;
+            csr |= CSR_PFSAT;
+        }
     }
     res = (int32_t)v;
 
@@ -290,8 +302,12 @@ static void sinc_feed_mpdata(MCXNSINCState *s, int n, uint32_t value)
     }
 
     switch (ibfmt) {
-    case IBFMT_PM: nbits = 16; break;   /* low 16 bits  (§47.3.2.3.7) */
-    case IBFMT_SM: nbits = 32; break;   /* all 32 bits  (§47.3.2.3.8) */
+    case IBFMT_PM:
+        nbits = 16;
+        break;   /* low 16 bits  (§47.3.2.3.7) */
+    case IBFMT_SM:
+        nbits = 32;
+        break;   /* all 32 bits  (§47.3.2.3.8) */
     default:
         /* IBFMT selects an external modulator pin; a write to CnMPDATA is not
          * the bitstream source in that case. */

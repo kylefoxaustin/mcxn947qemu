@@ -111,8 +111,12 @@ static uint64_t mcxn_ostimer_read(void *opaque, hwaddr off, unsigned size)
     case R_EVTIMERH:  return (bin_to_gray(ostimer_count(s, now)) >> 32) & 0x3FF;
     case R_CAPTURE_L: return s->capture_l;
     case R_CAPTURE_H: return s->capture_h;
-    case R_MATCH_L:   gray = bin_to_gray(s->match); return gray & 0xFFFFFFFF;
-    case R_MATCH_H:   gray = bin_to_gray(s->match); return (gray >> 32) & 0x3FF;
+    case R_MATCH_L:
+        gray = bin_to_gray(s->match);
+        return gray & 0xFFFFFFFF;
+    case R_MATCH_H:
+        gray = bin_to_gray(s->match);
+        return (gray >> 32) & 0x3FF;
     case R_OSEVENT_CTRL: return s->ctrl;
     default: return 0;
     }

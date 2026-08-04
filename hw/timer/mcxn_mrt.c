@@ -133,14 +133,19 @@ static uint64_t mrt_read(void *opaque, hwaddr off, unsigned size)
     case R_IDLE_CH: {
         int idle = 0;
         for (n = 0; n < MCXN_MRT_CHANNELS; n++) {
-            if (!(s->stat[n] & STAT_RUN)) { idle = n; break; }
+            if (!(s->stat[n] & STAT_RUN)) {
+                idle = n;
+                break;
+            }
         }
         return idle << 4;
     }
     case R_IRQ_FLAG: {
         uint32_t f = 0;
         for (n = 0; n < MCXN_MRT_CHANNELS; n++) {
-            if (s->stat[n] & STAT_INTFLAG) { f |= (1u << n); }
+            if (s->stat[n] & STAT_INTFLAG) {
+                f |= (1u << n);
+            }
         }
         return f;
     }
