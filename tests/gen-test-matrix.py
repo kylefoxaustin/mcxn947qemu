@@ -117,7 +117,8 @@ LEGEND = """## Class legend
 | **functional** | Moves real data / generates real events + IRQs on a verified data path. |
 | **operator-driven** | No physical stimulus in QEMU; the input is a runtime QOM property (analog). |
 | **register-only** | Register-accurate; no compute expected (config / cache / ID / security-trim). |
-| **honest-fault** | Compute not modelled; the op FAILS to the GUEST through the block's own non-gating error channel, and no result is fabricated. The guest is told, and is never hung. |
+| **honest-fault** | Compute not modelled but MODELABLE (documented op, just not done yet); the op FAILS to the GUEST through the block's own non-gating error channel, and no result is fabricated. The guest is told, and is never hung. Tier B. |
+| **proprietary** | Silicon present but the compute is PROPRIETARY microcode with no public ISA/semantics (Neutron NPU, SmartDMA EZH) — it cannot be modelled honestly at all, so it fails to the guest exactly like honest-fault (non-gating error channel, never faked). Distinguished from honest-fault only to carry Tier C (present-but-proprietary) vs B (stubbed-but-doable). |
 | **flag-at-operator** | DEPRECATED — do not use for anything the guest reads. See below. |
 | **not-modelled** | Silicon present but the compute register set is not modelled (honest). |
 
@@ -143,14 +144,19 @@ operator-driven≈HONEST-PARAMETERIZABLE, honest-fault≈HONEST-FAULT,
 register-only≈registration/Tier-C.
 """
 
-# yaml class -> condensed README tier.  A = real data/math verified (data-path);
-# B = register-accurate bring-up (operator-driven analog, honest-flagged accels,
-# config/security/clock registers).  The README table renders these; the detailed
-# matrix renders the full class.  One source of truth, two renderings.
+# yaml class -> condensed README tier (fleet-common A/B/C/N-A taxonomy, 95emulator
+# 2026-08-03).  A = real data/math verified (data-path); B = register-accurate
+# bring-up, compute stubbed-but-MODELABLE (operator-driven analog, config/security/
+# clock registers, honest-fault where the op is documented and just not done yet);
+# C = present but PROPRIETARY / out-of-scope compute (no public ISA — cannot be
+# modelled, GPU/VPU/NPU-class), still honestly flagged to the guest, never faked;
+# N/A = absent on this silicon.  C and B are DIFFERENT facts: proprietary-forever
+# vs stubbed-but-doable.  One source of truth, two renderings.
 CLASS_TIER = {
     "computes": "A", "functional": "A",
     "operator-driven": "B", "register-only": "B",
     "honest-fault": "B", "flag-at-operator": "B", "not-modelled": "B",
+    "proprietary": "C",
 }
 
 
