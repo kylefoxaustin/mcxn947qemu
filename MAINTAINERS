@@ -943,6 +943,14 @@ F: docs/system/arm/imx8m.rst
 F: tests/functional/aarch64/test_imx8mp_evk.py
 F: tests/qtest/rs5c372-test.c
 
+MCX N947 (FRDM-MCXN947)
+M: Kyle Fox <kylefoxaustin@gmail.com>
+L: qemu-arm@nongnu.org
+S: Maintained
+F: hw/*/mcxn_*.c
+F: include/hw/*/mcxn_*.h
+F: docs/system/arm/frdm-mcxn947.rst
+
 MPS2 / MPS3
 M: Peter Maydell <peter.maydell@linaro.org>
 L: qemu-arm@nongnu.org
