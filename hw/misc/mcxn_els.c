@@ -6,24 +6,27 @@
  * that reports success without computing is the most dangerous silent-wrong a
  * machine model can contain.
  *
- * The trap, and why the previous model fell into it: EVERY dangerous ELS command
- * writes its result by DMA into a guest buffer (ELS_DMA_RES0), not into a
- * register.  The old model latched the command, computed nothing, left the result
- * buffer UNTOUCHED, and then reported ELS_STATUS as "not busy, no error" with
- * ELS_ERR_STATUS hardwired to 0.  So firmware ran an ECDSA sign, a SHA-256, an
- * AES encrypt or a key-derivation, saw a clean completion, and read uninitialised
- * memory as its signature / digest / ciphertext / session key.  An ECDSA VERIFY
- * would "succeed" against garbage.  Nothing — not the guest, not the host log —
- * knew.  (Class identified by rt1180emulator, who found the identical bug in his
- * EdgeLock message unit: "if your uncomputed-flag is gated on reply SHAPE rather
- * than command SEMANTICS, the commands that write their result to a buffer are
- * the ones your heuristic will miss, and they are the ones that matter.")
+ * The trap, and why the previous model fell into it: EVERY dangerous ELS
+ * command writes its result by DMA into a guest buffer (ELS_DMA_RES0), not
+ * into a register.  The old model latched the command, computed nothing,
+ * left the result buffer UNTOUCHED, and then reported ELS_STATUS as "not
+ * busy, no error" with ELS_ERR_STATUS hardwired to 0.  So firmware ran an
+ * ECDSA sign, a SHA-256, an AES encrypt or a key-derivation, saw a clean
+ * completion, and read uninitialised memory as its signature / digest /
+ * ciphertext / session key.  An ECDSA VERIFY would "succeed" against
+ * garbage.  Nothing — not the guest, not the host log — knew.  (Class
+ * identified by rt1180emulator, who found the identical bug in his
+ * EdgeLock message unit: "if your uncomputed-flag is gated on reply SHAPE
+ * rather than command SEMANTICS, the commands that write their result to a
+ * buffer are the ones your heuristic will miss, and they are the ones that
+ * matter.")
  *
  * So this model splits the command set by what it can honestly do:
  *
- *   HONOURED   RND_REQ  — we have real entropy, so we DMA real random bytes into
- *                         the result buffer.  This is a genuine data path.
- *              DTRNG config / DRBG test / key delete — no result data to fake.
+ *   HONOURED   RND_REQ  — we have real entropy, so we DMA real random bytes
+ *                         into the result buffer.  This is a genuine data path.
+ *              DTRNG config / DRBG test / key delete — no result data to
+ *              fake.
  *
  *   FAULTED    every actual cryptographic operation (cipher, AEAD, hash, HMAC,
  *              CMAC, ECDSA sign/verify, ECDH, key gen/in/out/prov, CKDF/HKDF,
@@ -31,19 +34,21 @@
  *              error channel: ELS_STATUS[ELS_ERR] + ELS_ERR_STATUS[OPN_ERR].
  *
  * The channel matters.  BUSY still clears, so the driver's "wait for done" loop
- * always terminates — the guest is never hung, it is told.  mcuxClEls checks
- * ELS_STATUS[ELS_ERR] after the wait and returns an error to its caller, which is
- * exactly what silicon would do for an operation it could not perform.  Faulting
- * through the completion path instead would hang the driver rather than inform it
- * (fleet finding).
+ * always terminates — the guest is never hung, it is told.  mcuxClEls
+ * checks ELS_STATUS[ELS_ERR] after the wait and returns an error to its
+ * caller, which is exactly what silicon would do for an operation it could
+ * not perform.  Faulting through the completion path instead would hang the
+ * driver rather than inform it (fleet finding).
  *
- * The PRNG behind ELS_PRNG_DATOUT and RND_REQ is an xorshift32 DRBG seeded, at every
- * reset, from qemu_guest_getrandom() — so its output VARIES PER BOOT (and is unique
- * per QEMU instance), which is what a physical DTRNG does and what a per-boot beacon
- * incarnation or an ASLR base depends on.  A constant seed made every boot identical;
- * "that ever matters" arrived when the L2 lab needed to tell a peer's REBOOT from a
- * REPLAY.  It stays reproducible under `-seed`.  It is still NOT cryptographically
- * strong, and firmware must not be relied on to notice.
+ * The PRNG behind ELS_PRNG_DATOUT and RND_REQ is an xorshift32 DRBG
+ * seeded, at every reset, from qemu_guest_getrandom() — so its output
+ * VARIES PER BOOT (and is unique per QEMU instance), which is what a
+ * physical DTRNG does and what a per-boot beacon incarnation or an ASLR
+ * base depends on.  A constant seed made every boot identical; "that
+ * ever matters" arrived when the L2 lab needed to tell a peer's REBOOT
+ * from a REPLAY.  It stays reproducible under `-seed`.  It is still NOT
+ * cryptographically strong, and firmware must not be relied on to
+ * notice.
  *
  * Offsets/bits from the MCXN947 CMSIS header (S50_Type); command IDs from the
  * MCUXpresso els_pkc driver (mcuxClEls_Crc.h).
@@ -103,7 +108,8 @@
 #define ELS_CTRL_CMD(v) (((v) >> 3) & 0x1F)
 
 /* ELS_ERR_STATUS bits (CMSIS S50_ELS_ERR_STATUS_*). */
-#define ELS_ERR_OPN     (1u << 1)   /* operation error: could not be performed */
+/* operation error: could not be performed */
+#define ELS_ERR_OPN     (1u << 1)
 
 /* ELS command IDs (MCUXpresso mcuxClEls_Crc.h, ELS_CTRL[ELS_CMD]). */
 #define ELS_CMD_CIPHER          0
@@ -137,9 +143,9 @@
 #define ELS_RND_MAX  4096
 
 /*
- * Real, varying entropy — not cryptographically strong.  A constant here yields
- * all-zero entropy and anything seeded from it (stack-pointer randomisation, a
- * CSPRNG) degenerates silently.
+ * Real, varying entropy — not cryptographically strong.  A constant here
+ * yields all-zero entropy and anything seeded from it (stack-pointer
+ * randomisation, a CSPRNG) degenerates silently.
  */
 static uint32_t els_prng_next(MCXNELSState *s)
 {
@@ -175,7 +181,9 @@ static const char *els_cmd_name(uint32_t cmd)
     }
 }
 
-/* RND_REQ: the one command we can honestly satisfy — DMA real random bytes. */
+/*
+ * RND_REQ: the one command we can honestly satisfy — DMA real random bytes.
+ */
 static void els_do_rnd_req(MCXNELSState *s)
 {
     uint32_t addr = s->regs[ELS_DMA_RES0 / 4];
@@ -222,10 +230,10 @@ static void els_start_command(MCXNELSState *s)
 
     default:
         /*
-         * A real cryptographic operation we do not implement.  Report it through
-         * the engine's own error channel so mcuxClEls returns a failure to its
-         * caller.  BUSY still clears, so the driver's wait loop terminates: the
-         * guest is informed, not hung.
+         * A real cryptographic operation we do not implement.  Report it
+         * through the engine's own error channel so mcuxClEls returns a
+         * failure to its caller.  BUSY still clears, so the driver's wait loop
+         * terminates: the guest is informed, not hung.
          */
         s->err_status |= ELS_ERR_OPN;
         qemu_log_mask(LOG_UNIMP,
@@ -344,25 +352,29 @@ static void mcxn_els_reset(DeviceState *dev)
     memset(s->regs, 0, sizeof(s->regs));
 
     /*
-     * ⭐ A DTRNG THAT SEEDS FROM A CONSTANT IS A CONSTANT WEARING A NONCE'S NAME.
+     * ⭐ A DTRNG THAT SEEDS FROM A CONSTANT IS A CONSTANT WEARING A
+     * NONCE'S NAME.
      *   (rt1180emulator / 95emulator, hardening the L2-lab beacon)
      *
-     * This used to be `s->rng_state = ELS_PRNG_SEED` -- a fixed constant -- so the
-     * engine produced the IDENTICAL byte stream on every boot.  That satisfies "is
-     * this non-zero and non-repeating" (the els test) but is a LIE for anything that
-     * needs a value UNIQUE PER POWER-ON: a beacon incarnation, an ASLR base, a
-     * challenge nonce.  Real silicon reseeds a DTRNG from physical entropy at every
-     * reset, so its output varies boot to boot -- and NO single-boot test can see the
+     * This used to be `s->rng_state = ELS_PRNG_SEED` -- a fixed constant
+     * -- so the engine produced the IDENTICAL byte stream on every boot.
+     * That satisfies "is this non-zero and non-repeating" (the els test)
+     * but is a LIE for anything that needs a value UNIQUE PER POWER-ON: a
+     * beacon incarnation, an ASLR base, a challenge nonce.  Real silicon
+     * reseeds a DTRNG from physical entropy at every reset, so its output
+     * varies boot to boot -- and NO single-boot test can see the
      * difference (that is exactly why the class hides).
      *
-     * qemu_guest_getrandom_nofail() is the faithful model: real host entropy per boot,
-     * yet DETERMINISTIC when the operator pins `-seed` (reproducible replay stays
-     * reproducible).  The xorshift below is then the DRBG expansion of a per-boot seed
-     * -- which is what a DTRNG-seeded DRBG actually is -- not a fabricated stream.
+     * qemu_guest_getrandom_nofail() is the faithful model: real host
+     * entropy per boot, yet DETERMINISTIC when the operator pins `-seed`
+     * (reproducible replay stays reproducible).  The xorshift below is
+     * then the DRBG expansion of a per-boot seed -- which is what a
+     * DTRNG-seeded DRBG actually is -- not a fabricated stream.
      */
     qemu_guest_getrandom_nofail(&s->rng_state, sizeof(s->rng_state));
     if (s->rng_state == 0) {
-        s->rng_state = ELS_PRNG_SEED;   /* xorshift32 degenerates on a zero seed */
+        /* xorshift32 degenerates on a zero seed */
+        s->rng_state = ELS_PRNG_SEED;
     }
     s->err_status = 0;
 }

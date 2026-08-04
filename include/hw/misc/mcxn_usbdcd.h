@@ -1,12 +1,13 @@
 /*
  * NXP MCX N USBDCD0 — USB Device Charger Detection.
  *
- * Runs the BC1.2 detection SEQUENCE (data-pin contact -> primary SDP-vs-charging
- * -> secondary CDP-vs-DCP), stepping through STATUS[SEQ_STAT]/[SEQ_RES] with an
- * interrupt per phase, exactly as the USBDCD_Type block does.  What is attached to
- * the port has no physical existence in QEMU, so the CLASSIFICATION is operator-
- * driven (the `charger` QOM property / SIGNAL_OVERRIDE), never fabricated -- the
- * model runs the protocol and reports the port the operator wired to it.
+ * Runs the BC1.2 detection SEQUENCE (data-pin contact -> primary
+ * SDP-vs-charging -> secondary CDP-vs-DCP), stepping through
+ * STATUS[SEQ_STAT]/[SEQ_RES] with an interrupt per phase, exactly as
+ * the USBDCD_Type block does.  What is attached to the port has no physical
+ * existence in QEMU, so the CLASSIFICATION is operator-driven (the `charger`
+ * QOM property / SIGNAL_OVERRIDE), never fabricated -- the model runs the
+ * protocol and reports the port the operator wired to it.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -38,7 +39,8 @@ struct MCXNUSBDCDState {
     qemu_irq     irq;
     uint32_t     regs[MCXN_USBDCD_SIZE / 4];
 
-    uint8_t      charger;    /* operator property: what is attached (MCXN_DCD_*) */
+    /* operator property: what is attached (MCXN_DCD_*) */
+    uint8_t      charger;
     uint8_t      phase;      /* BC1.2 sequence phase (0 = idle) */
 };
 

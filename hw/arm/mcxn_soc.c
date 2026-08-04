@@ -81,18 +81,24 @@
 #include "hw/misc/mcxn_npu.h"
 #include "hw/misc/mcxn_neutron.h"
 #include "system/address-spaces.h"
-#include "system/system.h"             /* serial_hd (older trees: sysemu/sysemu.h) */
+/* serial_hd (older trees: sysemu/sysemu.h) */
+#include "system/system.h"
 #include "target/arm/cpu-qom.h" /* ARM_CPU_TYPE_NAME */
 
-/* FRDM-MCXN947 debug console: FlexComm4 / LPUART4 (NS alias) + its NVIC line. */
+/*
+ * FRDM-MCXN947 debug console: FlexComm4 / LPUART4 (NS alias) + its NVIC line.
+ */
 #define MCXN_FLEXCOMM4_BASE  0x400B4000
 #define MCXN_FLEXCOMM4_IRQ   39          /* CMSIS: LP_FLEXCOMM4_IRQn */
 #define MCXN_SCG0_BASE       0x40044000  /* system clock generator (NS alias) */
 #define MCXN_SYSCON_BASE     0x40000000  /* SYSCON (NS alias); CPU1 boot ctrl */
-#define MCXN_SPC0_BASE       0x40045000  /* system power controller (NS alias) */
+/* system power controller (NS alias) */
+#define MCXN_SPC0_BASE       0x40045000
 
-/* On-chip memory apertures (RM Table 16): each memory has a non-secure base
- * and a secure-alias base (TZ-M). */
+/*
+ * On-chip memory apertures (RM Table 16): each memory has a non-secure base
+ * and a secure-alias base (TZ-M).
+ */
 #define MCXN_FLASH_NS   0x00000000        /* program flash, 2 MB             */
 #define MCXN_FLASH_S    0x10000000
 #define MCXN_ROM_NS     0x03000000        /* boot ROM, 256 KB               */
@@ -109,7 +115,8 @@
 /* TrustZone-M: secure peripheral alias = non-secure base + 0x1000_0000. */
 #define MCXN_SECURE_ALIAS    0x10000000
 
-/* ------------------------------------------------------------------------- *
+/*
+ * ------------------------------------------------------------------------- *
  *  Per-SKU table.  Add new MCX variants here; nothing else needs to change.
  *
  *  MCXN947 values verified against the CMSIS device header
@@ -122,14 +129,15 @@
  *  the 512 KiB SRAM has a system-bus view at 0x2000_0000 and a code-bus alias
  *  at 0x3000_0000 (the view Zephyr links its RAM to), and SRAMX (96 KiB) sits
  *  at 0x1400_0000.  cpu reset reads its vector table from flash (init-svtor).
- * ------------------------------------------------------------------------- */
+ * ------------------------------------------------------------------------- *
+ */
 static const MCXNConfig mcxn_configs[] = {
     {
         .name          = "MCXN947",
         .cpu_type      = ARM_CPU_TYPE_NAME("cortex-m33"),
-        .num_cpus      = 2,            /* dual Cortex-M33 (cpu0 + cpu1)        */
-        .num_irq       = 156,          /* CMSIS: CTI0_IRQn=155, +1             */
-        .num_prio_bits = 3,            /* CMSIS: __NVIC_PRIO_BITS              */
+        .num_cpus      = 2,            /* dual Cortex-M33 (cpu0 + cpu1) */
+        .num_irq       = 156,          /* CMSIS: CTI0_IRQn=155, +1 */
+        .num_prio_bits = 3,            /* CMSIS: __NVIC_PRIO_BITS */
         .flash_base    = 0x10000000,   /* secure flash aperture (boot/svtor)  */
         .flash_size    = 2 * MiB,
         .sram_base     = 0x20000000,   /* main SRAM (RAMA..H) system-bus view */
@@ -138,8 +146,10 @@ static const MCXNConfig mcxn_configs[] = {
     /* Add MCX N54x / N23x / A-series / W-series entries here. */
 };
 
-/* GPIO0..5 / PORT0..5 NS base addresses (CMSIS).  GPIO0..4 and PORT0..4 are on
- * a regular stride; GPIO5/PORT5 sit in a separate aliased block. */
+/*
+ * GPIO0..5 / PORT0..5 NS base addresses (CMSIS).  GPIO0..4 and PORT0..4 are on
+ * a regular stride; GPIO5/PORT5 sit in a separate aliased block.
+ */
 static const hwaddr mcxn_gpio_base[MCXN_NUM_GPIO] = {
     0x40096000, 0x40098000, 0x4009A000, 0x4009C000, 0x4009E000, 0x40040000,
 };
@@ -148,7 +158,8 @@ static const hwaddr mcxn_port_base[MCXN_NUM_PORT] = {
 };
 
 /* CTIMER0..4: NS base + NVIC IRQ (CMSIS). */
-static const struct { hwaddr base; int irq; } mcxn_ctimer_cfg[MCXN_NUM_CTIMER] = {
+static const struct { hwaddr base; int irq; }
+mcxn_ctimer_cfg[MCXN_NUM_CTIMER] = {
     { 0x4000C000, 31 }, { 0x4000D000, 32 }, { 0x4000E000, 34 },
     { 0x4000F000, 55 }, { 0x40010000, 56 },
 };
@@ -161,8 +172,10 @@ static const struct { hwaddr base; int irq; } mcxn_lptmr_cfg[MCXN_NUM_LPTMR] = {
     { 0x4004A000, 143 }, { 0x4004B000, 144 },
 };
 
-/* LP_FLEXCOMM0..9 in LPUART mode: base, NVIC IRQ, and host -serial index
- * (-1 = no backend).  FlexComm4 = cpu0 console, FlexComm2 = cpu1 console. */
+/*
+ * LP_FLEXCOMM0..9 in LPUART mode: base, NVIC IRQ, and host -serial index
+ * (-1 = no backend).  FlexComm4 = cpu0 console, FlexComm2 = cpu1 console.
+ */
 static const struct { hwaddr base; int irq; int serial; }
 mcxn_flexcomm_cfg[MCXN_NUM_FLEXCOMM] = {
     { 0x40092000, 35, -1 }, { 0x40093000, 36, -1 }, { 0x40094000, 37,  1 },
@@ -171,8 +184,10 @@ mcxn_flexcomm_cfg[MCXN_NUM_FLEXCOMM] = {
     { 0x400B9000, 44, -1 },
 };
 
-/* Every other peripheral present on the SoC, covered by the generic permissive
- * stub until it gets a real model (see mcxn_peripherals.inc). */
+/*
+ * Every other peripheral present on the SoC, covered by the generic permissive
+ * stub until it gets a real model (see mcxn_peripherals.inc).
+ */
 typedef struct MCXNStubDesc {
     hwaddr      base;
     uint64_t    size;
@@ -203,7 +218,9 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_CMX_PERFMON, 0x400C1000 },   /* CMX_PERFMON0 */
     { TYPE_MCXN_CMX_PERFMON, 0x400C2000 },   /* CMX_PERFMON1 */
     { TYPE_MCXN_SEMA42,   0x400B1000 },
-    /* MAILBOX 0x400B2000 instantiated explicitly below (cross-core IRQ wired). */
+    /*
+     * MAILBOX 0x400B2000 instantiated explicitly below (cross-core IRQ wired).
+     */
     { TYPE_MCXN_VBAT,     0x40059000 },
     { TYPE_MCXN_WUU,      0x40046000 },
     { TYPE_MCXN_OTPC,     0x400C9000 },
@@ -212,8 +229,10 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     { TYPE_MCXN_AHBSC,    0x40120000 },
     { TYPE_MCXN_BSP32,    0x40032000 },
     { TYPE_MCXN_DM,       0x400BD000 },
-    /* PINT 0x40004000 instantiated explicitly below (operator-driven pin input +
-     * NVIC IRQ 47 + INT0..3 eDMA request lines). */
+    /*
+     * PINT 0x40004000 instantiated explicitly below (operator-driven pin
+     * input + NVIC IRQ 47 + INT0..3 eDMA request lines).
+     */
     { TYPE_MCXN_UTICK,    0x40012000 },
     { TYPE_MCXN_WWDT,     0x40016000 },   /* WWDT0 */
     { TYPE_MCXN_WWDT,     0x40017000 },   /* WWDT1 */
@@ -231,20 +250,29 @@ static const struct { const char *type; hwaddr base; } mcxn_cfgdev[] = {
     /* Comm/serial: FlexIO.  (I3C0/1 instantiated below — IRQs wired.) */
     { TYPE_MCXN_FLEXIO,   0x40105000 },
     /* Connectivity: FlexCAN0/1 and ENET instantiated below (IRQs wired). */
-    /* Analog: TSI0 + ADC0/1 instantiated explicitly below (operator-driven
-     * inputs + IRQ).  RTC also below. */
+    /*
+     * Analog: TSI0 + ADC0/1 instantiated explicitly below (operator-driven
+     * inputs + IRQ).  RTC also below.
+     */
     /* (SAI0/1 + uSDHC + FlexSPI instantiated below — IRQs wired.) */
     /* Motor/timer: QDC0/1.  (eFlexPWM0/1 + SCT below — IRQs wired.) */
     { TYPE_MCXN_QDC,      0x400CF000 },   /* QDC0 */
     { TYPE_MCXN_QDC,      0x400D1000 },   /* QDC1 */
-    /* USB: FS-OTG, charger detect, HS PHY + HS core/non-core (OBMF-ICP path). */
-    /* USBFS0 @ 0x400DD000 instantiated explicitly (device-mode engine + IRQ). */
+    /*
+     * USB: FS-OTG, charger detect, HS PHY + HS core/non-core (OBMF-ICP path).
+     */
+    /*
+     * USBFS0 @ 0x400DD000 instantiated explicitly (device-mode engine + IRQ).
+     */
     { TYPE_MCXN_USBDCD,       0x400DC000 },
     { TYPE_MCXN_USBPHY,       0x4010A000 },   /* 0x800 window */
     { TYPE_MCXN_USBHS_PHYDCD, 0x4010A800 },   /* 0x800 window */
     /* USBHS core @ 0x4010B000 instantiated explicitly (device engine + IRQ). */
     { TYPE_MCXN_USBHS_NC,     0x4010B200 },   /* 0xE00 window */
-    /* Accelerators: SmartDMA, eIQ Neutron NPU (NPX).  (PowerQuad below — IRQ.) */
+    /*
+     * Accelerators: SmartDMA, eIQ Neutron NPU (NPX).
+     * (PowerQuad below — IRQ.)
+     */
     { TYPE_MCXN_SMARTDMA,  0x40033000 },
     { TYPE_MCXN_NPU,       0x400CC000 },
 };
@@ -283,8 +311,10 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_PORT; i++) {
         g_autofree char *name = g_strdup_printf("port%d", i);
         object_initialize_child(obj, name, &s->port[i], TYPE_MCXN_PORT);
-        /* The RM's pad reset values DIFFER PER PORT (PORT0's SWD pins are non-zero),
-         * so each PORT must know which one it is. */
+        /*
+         * The RM's pad reset values DIFFER PER PORT (PORT0's SWD pins are
+         * non-zero), so each PORT must know which one it is.
+         */
         qdev_prop_set_uint8(DEVICE(&s->port[i]), "port-id", i);
     }
     for (i = 0; i < MCXN_NUM_CTIMER; i++) {
@@ -304,9 +334,11 @@ static void mcxn_soc_instance_init(Object *obj)
     for (i = 0; i < MCXN_NUM_EDMA; i++) {
         g_autofree char *name = g_strdup_printf("edma%d", i);
         object_initialize_child(obj, name, &s->edma[i], TYPE_MCXN_EDMA);
-        /* CH_SBR[MID] -- the BUS MASTER ID -- differs per instance (RM: DMA0=6, DMA1=7),
-         * and Linux read-modify-writes that register, so a wrong reset gets laundered
-         * into the guest's own configuration. */
+        /*
+         * CH_SBR[MID] -- the BUS MASTER ID -- differs per instance (RM:
+         * DMA0=6, DMA1=7), and Linux read-modify-writes that register, so a
+         * wrong reset gets laundered into the guest's own configuration.
+         */
         qdev_prop_set_uint8(DEVICE(&s->edma[i]), "dma-id", i);
     }
     for (i = 0; i < MCXN_NUM_ADC; i++) {
@@ -384,7 +416,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     }
     s->cfg = cfg;
 
-    /* --- On-chip memories (RM Table 16) ---------------------------------- *
+    /*
+     * --- On-chip memories (RM Table 16) ---------------------------------- *
      * Flash, boot ROM, SRAM and SRAMX, each reachable via a non-secure base
      * and a secure-alias base (TZ-M).
      *
@@ -423,18 +456,22 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                              &s->sram, 0, cfg->sram_size);
     memory_region_add_subregion(system_memory, MCXN_SRAM_S, &s->sram_alias);
 
-    /* --- Cortex-M33 cores + NVIC + SysTick ------------------------------- *
+    /*
+     * --- Cortex-M33 cores + NVIC + SysTick ------------------------------- *
      * The MCXN947 is a dual-M33 part.  Each ARMV7M wraps its "memory" link in
      * its own private per-core container (with that core's NVIC/SysTick/PPB),
-     * so the two cores cannot share a single MemoryRegion directly — each gets
-     * its OWN alias of the shared SoC map instead.  cpu0 is the primary boot
-     * core; cpu1 starts held in reset (start-powered-off) and is released at
-     * runtime by cpu0 firmware via the SYSCON CPUCTRL/CPBOOT block (see
-     * mcxn_syscon).
+     * so the two cores cannot share a single MemoryRegion directly — each
+     * gets its OWN alias of the shared SoC map instead.  cpu0 is the primary
+     * boot core; cpu1 starts held in reset (start-powered-off) and is
+     * released at runtime by cpu0 firmware via the SYSCON CPUCTRL/CPBOOT
+     * block (see mcxn_syscon).
      */
-    /* SCG0 clock generator — realized here, BEFORE the cores, so its derived main
-     * clock (RCCR[SCS] -> FRO_HF at reset -> 48 MHz; PLL0 after firmware -> 150 MHz)
-     * can drive the M33 cpuclk/refclk below instead of a fixed board constant. */
+    /*
+     * SCG0 clock generator — realized here, BEFORE the cores, so its derived
+     * main clock (RCCR[SCS] -> FRO_HF at reset -> 48 MHz; PLL0 after firmware
+     * -> 150 MHz) can drive the M33 cpuclk/refclk below instead of a fixed
+     * board constant.
+     */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->scg0), errp)) {
         return;
     }
@@ -447,11 +484,13 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
 
     /*
      * SYSCON is realized HERE, before the cores, so its AHB busclk output
-     * (= SCG mainclk / (AHBCLKDIV+1)) can drive the M33 cpuclk/refclk below.  Its clock
-     * inputs come from the SCG (already realized).  SYSCON's cpu1 link is set AFTER the cores
-     * realize (a settable-anytime link, added in instance_init) -- SYSCON never reads cpu1 at
-     * realize, only at runtime on the CPUCTRL write, so this breaks the busclk<->cpu1 cycle.
-     * (qdev_connect_clock_in asserts !realized, so the inputs are connected first.)
+     * (= SCG mainclk / (AHBCLKDIV+1)) can drive the M33 cpuclk/refclk below.
+     * Its clock inputs come from the SCG (already realized).  SYSCON's cpu1
+     * link is set AFTER the cores realize (a settable-anytime link, added
+     * in instance_init) -- SYSCON never reads cpu1 at realize, only at
+     * runtime on the CPUCTRL write, so this breaks the busclk<->cpu1 cycle.
+     * (qdev_connect_clock_in asserts !realized, so the inputs are connected
+     * first.)
      */
     qdev_connect_clock_in(DEVICE(&s->syscon), "fro12m",
                           qdev_get_clock_out(DEVICE(&s->scg0), "fro12m"));
@@ -489,24 +528,34 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         qdev_prop_set_uint8(cpudev, "num-prio-bits", cfg->num_prio_bits);
         qdev_prop_set_string(cpudev, "cpu-type",      cfg->cpu_type);
         qdev_prop_set_bit(cpudev, "enable-bitband", false); /* M33: none */
-        /* PowerQuad CP0 scalar-math coprocessor: both M33s have it on silicon. */
+        /*
+         * PowerQuad CP0 scalar-math coprocessor: both M33s have it on silicon.
+         */
         qdev_prop_set_bit(cpudev, "powerquad",     true);
-        /* Reset reads the vector table (initial SP + reset PC) from flash.  In QSPI
-         * execute-in-place boot the reset vector lives in the external FlexSPI NOR instead of
-         * internal flash -- the production boot mode where there is no internal-flash image;
-         * the boot ROM has (in this model) already configured FlexSPI.  Use the SECURE XIP
-         * alias (0x9000_0000), consistent with the secure internal-flash boot (0x1000_0000)
-         * and the addressable-as-memory NOR window firmware executes in place from. */
+        /*
+         * Reset reads the vector table (initial SP + reset PC) from flash.
+         * In QSPI execute-in-place boot the reset vector lives in the
+         * external FlexSPI NOR instead of internal flash -- the production
+         * boot mode where there is no internal-flash image; the boot ROM has
+         * (in this model) already configured FlexSPI.  Use the SECURE XIP
+         * alias (0x9000_0000), consistent with the secure internal-flash boot
+         * (0x1000_0000) and the addressable-as-memory NOR window firmware
+         * executes in place from.
+         */
         qdev_prop_set_uint32(cpudev, "init-svtor",
-                             s->qspi_boot ? MCXN_FLEXSPI0_AHB_S : cfg->flash_base);
+                             s->qspi_boot ? MCXN_FLEXSPI0_AHB_S
+                                          : cfg->flash_base);
         if (i > 0) {
             /* Secondary core(s) wait for an explicit SYSCON release. */
             qdev_prop_set_bit(cpudev, "start-powered-off", true);
         }
-        /* The M33 core + SysTick derive from the AHB busclk = SCG mainclk / (AHBCLKDIV+1):
-         * 48 MHz FRO_HF out of reset, 150 MHz once firmware brings up PLL0, and it follows an
-         * AHBCLKDIV write.  refclk (the SysTick alternate reference) shares it -- the
-         * SYSTICKCLKSEL divider is not modelled, so it tracks the core clock. */
+        /*
+         * The M33 core + SysTick derive from the AHB busclk = SCG mainclk
+         * / (AHBCLKDIV+1): 48 MHz FRO_HF out of reset, 150 MHz once firmware
+         * brings up PLL0, and it follows an AHBCLKDIV write.  refclk (the
+         * SysTick alternate reference) shares it -- the SYSTICKCLKSEL divider
+         * is not modelled, so it tracks the core clock.
+         */
         qdev_connect_clock_in(cpudev, "cpuclk",
                               qdev_get_clock_out(DEVICE(&s->syscon), "busclk"));
         qdev_connect_clock_in(cpudev, "refclk",
@@ -518,7 +567,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         }
     }
 
-    /* --- Peripherals ----------------------------------------------------- *
+    /*
+     * --- Peripherals ----------------------------------------------------- *
      * Catch-all over BOTH peripheral aliases.  MCX N is TrustZone-M: every
      * peripheral is mapped twice — non-secure at 0x400x_xxxx and secure at
      * 0x500x_xxxx (CMSIS confirms bases up to ~0x4012_3000 / 0x5012_3000).
@@ -538,10 +588,12 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
      */
     create_unimplemented_device("mcxn.periph", 0x40000000, 0x20000000);
 
-    /* LP_FLEXCOMM0..9 as LPUARTs: each NS-mapped + secure alias, NVIC line
+    /*
+     * LP_FLEXCOMM0..9 as LPUARTs: each NS-mapped + secure alias, NVIC line
      * connected.  The console instances bind a host -serial chardev
      * (FlexComm4 = cpu0 console on serial_hd(0); FlexComm2 = cpu1 on
-     * serial_hd(1)); the rest run without a host backend. */
+     * serial_hd(1)); the rest run without a host backend.
+     */
     for (i = 0; i < MCXN_NUM_FLEXCOMM; i++) {
         DeviceState *fc = DEVICE(&s->flexcomm[i]);
         g_autofree char *aname = g_strdup_printf("mcxn.flexcomm%d.s", i);
@@ -551,14 +603,19 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         if (chr) {
             qdev_prop_set_chr(fc, "chardev", chr);
         }
-        /* FlexComm5 is the LPSPI board-to-board node: expose a named SSI bus so
-         * a `-device spi-link,bus=mcxn-lpspi,chardev=...` bridges it to a socket
-         * (inter-QEMU SPI link, like the UART/USB b2b links). */
+        /*
+         * FlexComm5 is the LPSPI board-to-board node: expose a named SSI
+         * bus so a `-device spi-link,bus=mcxn-lpspi,chardev=...` bridges it
+         * to a socket (inter-QEMU SPI link, like the UART/USB b2b links).
+         */
         if (i == 5) {
             qdev_prop_set_string(fc, "spi-bus-name", "mcxn-lpspi");
         }
-        /* FlexComm1 carries an on-board SPI-NOR on its LPSPI: give it a real SSI bus so
-         * the m25p80 attached below (with its CS wired) is reachable. */
+        /*
+         * FlexComm1 carries an on-board SPI-NOR on its LPSPI: give it a
+         * real SSI bus so the m25p80 attached below (with its CS wired) is
+         * reachable.
+         */
         if (i == 1) {
             qdev_prop_set_string(fc, "spi-bus-name", "flexcomm1-spi");
         }
@@ -574,15 +631,17 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_init_alias(&s->flexcomm_s_alias[i], OBJECT(dev), aname,
                                  &s->flexcomm[i].iomem, 0, 0x1000);
         memory_region_add_subregion(system_memory,
-                                     mcxn_flexcomm_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     mcxn_flexcomm_cfg[i].base +
+                                     MCXN_SECURE_ALIAS,
                                      &s->flexcomm_s_alias[i]);
     }
 
     /*
-     * An on-board SPI-NOR on FlexComm1's LPSPI: a real QEMU m25p80 (w25q64), so a
-     * developer's LPSPI flash code talks to genuine NOR physics (JEDEC ID, WREN latch,
-     * page-program, erase-before-write) instead of a loopback echo.  CS = FlexComm1
-     * sysbus IRQ 3 -> the flash's SSI chip-select.
+     * An on-board SPI-NOR on FlexComm1's LPSPI: a real QEMU m25p80 (w25q64),
+     * so a developer's LPSPI flash code talks to genuine NOR physics (JEDEC
+     * ID, WREN latch, page-program, erase-before-write) instead of a
+     * loopback echo.  CS = FlexComm1 sysbus IRQ 3 -> the flash's SSI
+     * chip-select.
      */
     {
         DeviceState *nor = qdev_new("w25q64");
@@ -592,20 +651,29 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                            qdev_get_gpio_in_named(nor, SSI_GPIO_CS, 0));
     }
 
-    /* SCG0 is realized BEFORE the cores (above) so its mainclk output can feed cpuclk. */
+    /*
+     * SCG0 is realized BEFORE the cores (above) so its mainclk output can
+     * feed cpuclk.
+     */
 
-    /* SYSCON (realized above, before the cores) drives the CPUCTRL/CPBOOT handover cpu0 uses
-     * to release cpu1.  cpu1 is set HERE -- after the cores realize, so armv7m[1].cpu exists;
-     * SYSCON only reads it at runtime on the CPUCTRL write, never at realize, which is what
-     * lets SYSCON realize BEFORE the cores (to feed cpuclk from busclk).  A direct field set:
-     * the SoC owns SYSCON, the CPU lives for the machine's lifetime (no ref management), and a
-     * DEFINE_PROP_LINK would have had to be set before realize -- the ordering we can't meet. */
+    /*
+     * SYSCON (realized above, before the cores) drives the CPUCTRL/CPBOOT
+     * handover cpu0 uses to release cpu1.  cpu1 is set HERE -- after the
+     * cores realize, so armv7m[1].cpu exists; SYSCON only reads it at
+     * runtime on the CPUCTRL write, never at realize, which is what lets
+     * SYSCON realize BEFORE the cores (to feed cpuclk from busclk).  A
+     * direct field set: the SoC owns SYSCON, the CPU lives for the
+     * machine's lifetime (no ref management), and a DEFINE_PROP_LINK would
+     * have had to be set before realize -- the ordering we can't meet.
+     */
     if (ncpu > 1) {
         s->syscon.cpu1 = s->armv7m[1].cpu;
     }
 
-    /* Inter-CPU MAILBOX: cross-core notification.  IRQ[0]->cpu0, IRQ[1]->cpu1,
-     * both on MAILBOX_IRQn = 54.  This is the rpmsg/OpenAMP signalling path. */
+    /*
+     * Inter-CPU MAILBOX: cross-core notification.  IRQ[0]->cpu0, IRQ[1]->cpu1,
+     * both on MAILBOX_IRQn = 54.  This is the rpmsg/OpenAMP signalling path.
+     */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->mailbox), errp)) {
         return;
     }
@@ -613,7 +681,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->mailbox), 0,
                        qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 54));
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->mailbox), 1,
-                       qdev_get_gpio_in(DEVICE(&s->armv7m[ncpu > 1 ? 1 : 0]), 54));
+                       qdev_get_gpio_in(DEVICE(&s->armv7m[ncpu > 1 ? 1 : 0]),
+                                        54));
     memory_region_init_alias(&s->mailbox_s_alias, OBJECT(dev), "mcxn.mailbox.s",
                              &s->mailbox.iomem, 0, MCXN_MAILBOX_SIZE);
     memory_region_add_subregion(system_memory, 0x400B2000 + MCXN_SECURE_ALIAS,
@@ -626,7 +695,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->spc0), 0, MCXN_SPC0_BASE);
     memory_region_init_alias(&s->spc0_s_alias, OBJECT(dev), "mcxn.spc0.s",
                              &s->spc0.iomem, 0, MCXN_SPC_SIZE);
-    memory_region_add_subregion(system_memory, MCXN_SPC0_BASE + MCXN_SECURE_ALIAS,
+    memory_region_add_subregion(system_memory,
+                                MCXN_SPC0_BASE + MCXN_SECURE_ALIAS,
                                 &s->spc0_s_alias);
 
     /* GPIO0..5 controllers and PORT0..5 pin-mux, each NS + secure alias. */
@@ -655,19 +725,22 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      &s->port_s_alias[i]);
     }
 
-    /* CTIMER0..4: functional counter/timers, IRQ to cpu0 NVIC, clocked by the
-     * SoC main clock (real divider lives in the stubbed clock tree). */
+    /*
+     * CTIMER0..4: functional counter/timers, IRQ to cpu0 NVIC, clocked by the
+     * SoC main clock (real divider lives in the stubbed clock tree).
+     */
     for (i = 0; i < MCXN_NUM_CTIMER; i++) {
         DeviceState *t = DEVICE(&s->ctimer[i]);
         g_autofree char *aname = g_strdup_printf("mcxn.ctimer%d.s", i);
 
         /*
-         * The CTIMER's rate is DECIDED by SYSCON[CTIMERCLKSEL[i]] / CTIMERCLKDIV[i]
-         * -- and this used to be hardwired to sysclk, so the selector did nothing.
-         * Real firmware does CLOCK_AttachClk(kFRO_HF_to_CTIMER0), computes its match
-         * values from CLOCK_GetCTimerClkFreq() = 48 MHz, and we ticked it at 150 MHz:
-         * EVERY DELAY 3.1x TOO SHORT, silently.  Measured with SysTick before the fix:
-         * 12011 ticks where the SDK's own arithmetic expects 150000.
+         * The CTIMER's rate is DECIDED by SYSCON[CTIMERCLKSEL[i]] /
+         * CTIMERCLKDIV[i] -- and this used to be hardwired to sysclk, so the
+         * selector did nothing.  Real firmware does
+         * CLOCK_AttachClk(kFRO_HF_to_CTIMER0), computes its match values from
+         * CLOCK_GetCTimerClkFreq() = 48 MHz, and we ticked it at 150 MHz:
+         * EVERY DELAY 3.1x TOO SHORT, silently.  Measured with SysTick before
+         * the fix: 12011 ticks where the SDK's own arithmetic expects 150000.
          */
         g_autofree char *cn = g_strdup_printf("ctimer%d-clk", i);
 
@@ -676,21 +749,26 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->ctimer[i]), errp)) {
             return;
         }
-        sysbus_mmio_map(SYS_BUS_DEVICE(&s->ctimer[i]), 0, mcxn_ctimer_cfg[i].base);
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->ctimer[i]), 0,
+                        mcxn_ctimer_cfg[i].base);
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->ctimer[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             mcxn_ctimer_cfg[i].irq));
         memory_region_init_alias(&s->ctimer_s_alias[i], OBJECT(dev), aname,
                                  &s->ctimer[i].iomem, 0, 0x1000);
         memory_region_add_subregion(system_memory,
-                                     mcxn_ctimer_cfg[i].base + MCXN_SECURE_ALIAS,
+                                     mcxn_ctimer_cfg[i].base +
+                                     MCXN_SECURE_ALIAS,
                                      &s->ctimer_s_alias[i]);
     }
 
-    /* MRT (Multi-Rate Timer): runs on the AHB/bus clock, which is the SCG main clock
-     * (kCLOCK_Mrt = AHB_CLK_CTRL1 gate, no selector).  Now DERIVED from mainclk -- 48 MHz
-     * at reset, 150 MHz once firmware brings up PLL0 -- instead of the raw sysclk constant.
-     * (AHBCLKDIV is not modelled; the core takes mainclk directly too, so both assume /1.) */
+    /*
+     * MRT (Multi-Rate Timer): runs on the AHB/bus clock, which is the SCG
+     * main clock (kCLOCK_Mrt = AHB_CLK_CTRL1 gate, no selector).  Now
+     * DERIVED from mainclk -- 48 MHz at reset, 150 MHz once firmware brings
+     * up PLL0 -- instead of the raw sysclk constant.  (AHBCLKDIV is not
+     * modelled; the core takes mainclk directly too, so both assume /1.)
+     */
     qdev_connect_clock_in(DEVICE(&s->mrt0), "clk",
                           qdev_get_clock_out(DEVICE(&s->syscon), "busclk"));
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->mrt0), errp)) {
@@ -701,13 +779,17 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                        qdev_get_gpio_in(DEVICE(&s->armv7m[0]), MCXN_MRT0_IRQ));
     memory_region_init_alias(&s->mrt0_s_alias, OBJECT(dev), "mcxn.mrt0.s",
                              &s->mrt0.iomem, 0, 0x1000);
-    memory_region_add_subregion(system_memory, MCXN_MRT0_BASE + MCXN_SECURE_ALIAS,
+    memory_region_add_subregion(system_memory,
+                                MCXN_MRT0_BASE + MCXN_SECURE_ALIAS,
                                 &s->mrt0_s_alias);
 
-    /* LPTMR0..1: functional, IRQ to cpu0 NVIC.  The "clk" input is FRO_12M (PSR[PCS]=00,
-     * the reset default), driven from the SCG -- 12 MHz, a LOW-POWER clock, not the 150 MHz
-     * bus clock the old model wrongly used (the LPTMR max is 25 MHz).  The other PCS sources
-     * (FRO_16K, 32K_CLK, OSC_SYS) are resolved inside the model per RM Table 463. */
+    /*
+     * LPTMR0..1: functional, IRQ to cpu0 NVIC.  The "clk" input is FRO_12M
+     * (PSR[PCS]=00, the reset default), driven from the SCG -- 12 MHz, a
+     * LOW-POWER clock, not the 150 MHz bus clock the old model wrongly used
+     * (the LPTMR max is 25 MHz).  The other PCS sources (FRO_16K, 32K_CLK,
+     * OSC_SYS) are resolved inside the model per RM Table 463.
+     */
     for (i = 0; i < MCXN_NUM_LPTMR; i++) {
         DeviceState *t = DEVICE(&s->lptmr[i]);
         g_autofree char *aname = g_strdup_printf("mcxn.lptmr%d.s", i);
@@ -717,7 +799,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->lptmr[i]), errp)) {
             return;
         }
-        sysbus_mmio_map(SYS_BUS_DEVICE(&s->lptmr[i]), 0, mcxn_lptmr_cfg[i].base);
+        sysbus_mmio_map(SYS_BUS_DEVICE(&s->lptmr[i]), 0,
+                        mcxn_lptmr_cfg[i].base);
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->lptmr[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             mcxn_lptmr_cfg[i].irq));
@@ -729,10 +812,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     }
 
     /*
-     * INPUTMUX0.  Realized BEFORE the eDMAs so its gate outputs exist, but WIRED
-     * after them (see below): qdev_get_gpio_in_named() only resolves once the
-     * TARGET is realized, and sysbus_connect_irq() only once the SOURCE is.  The
-     * ordering is a constraint in BOTH directions, which is exactly how the
+     * INPUTMUX0.  Realized BEFORE the eDMAs so its gate outputs exist, but
+     * WIRED after them (see below): qdev_get_gpio_in_named() only resolves once
+     * the TARGET is realized, and sysbus_connect_irq() only once the SOURCE is.
+     * The ordering is a constraint in BOTH directions, which is exactly how the
      * peripheral DMA request wiring got silently dropped once already.
      */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->inputmux), errp)) {
@@ -740,7 +823,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->inputmux), 0, 0x40006000);
     {
-        MemoryRegion *mr = sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->inputmux), 0);
+        MemoryRegion *mr =
+            sysbus_mmio_get_region(SYS_BUS_DEVICE(&s->inputmux), 0);
 
         memory_region_init_alias(&s->inputmux_s_alias, OBJECT(dev),
                                  "mcxn.inputmux.s", mr, 0,
@@ -816,8 +900,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      &s->cmp_s_alias[i]);
     }
 
-    /* PINT (pin interrupt): operator-driven pin input, shared NVIC line PINT0_IRQn=47.
-     * The INT0..3 eDMA request lines are connected in the DMA-request block below. */
+    /*
+     * PINT (pin interrupt): operator-driven pin input, shared NVIC line
+     * PINT0_IRQn=47.  The INT0..3 eDMA request lines are connected in the
+     * DMA-request block below.
+     */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->pint0), errp)) {
         return;
     }
@@ -829,7 +916,9 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, 0x40004000 + MCXN_SECURE_ALIAS,
                                  &s->pint0_s_alias);
 
-    /* TSI0 (touch sense): operator-driven per-channel count, end-of-scan IRQ. */
+    /*
+     * TSI0 (touch sense): operator-driven per-channel count, end-of-scan IRQ.
+     */
     for (i = 0; i < MCXN_NUM_TSI; i++) {
         static const struct { hwaddr base; int irq; }
         tsi_cfg[MCXN_NUM_TSI] = { { 0x40050000, 101 } };
@@ -852,7 +941,8 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     /* EMVSIM0..1 (smartcard): transmit-complete IRQ to cpu0 NVIC. */
     for (i = 0; i < MCXN_NUM_EMVSIM; i++) {
         static const struct { hwaddr base; int irq; }
-        emvsim_cfg[MCXN_NUM_EMVSIM] = { { 0x40103000, 103 }, { 0x40104000, 104 } };
+        emvsim_cfg[MCXN_NUM_EMVSIM] = { { 0x40103000, 103 },
+                                        { 0x40104000, 104 } };
         g_autofree char *aname = g_strdup_printf("mcxn.emvsim%d.s", i);
 
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->emvsim[i]), errp)) {
@@ -869,14 +959,18 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      &s->emvsim_s_alias[i]);
     }
 
-    /* FlexCAN CAN0..1: message-buffer interrupt to cpu0 NVIC.  0x4000 window. */
+    /*
+     * FlexCAN CAN0..1: message-buffer interrupt to cpu0 NVIC.  0x4000 window.
+     */
     for (i = 0; i < MCXN_NUM_FLEXCAN; i++) {
         static const struct { hwaddr base; int irq; }
         can_cfg[MCXN_NUM_FLEXCAN] = { { 0x400D4000, 62 }, { 0x400D8000, 63 } };
         g_autofree char *aname = g_strdup_printf("mcxn.flexcan%d.s", i);
 
-        /* Board-to-board CAN: forward the per-controller canbus link (set from
-         * `-machine canbus0=...,canbus1=...`) to the FlexCAN before realize. */
+        /*
+         * Board-to-board CAN: forward the per-controller canbus link (set from
+         * `-machine canbus0=...,canbus1=...`) to the FlexCAN before realize.
+         */
         if (s->canbus[i]) {
             object_property_set_link(OBJECT(&s->flexcan[i]), "canbus",
                                      OBJECT(s->canbus[i]), &error_abort);
@@ -895,9 +989,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      &s->flexcan_s_alias[i]);
     }
 
-    /* ENET (Ethernet QoS): MAC/PHY-event interrupt to cpu0 NVIC.  0x2000 win.
+    /*
+     * ENET (Ethernet QoS): MAC/PHY-event interrupt to cpu0 NVIC.  0x2000 win.
      * Connect a host network backend (-nic) so real frames can flow; MAC
-     * loopback mode still works without one. */
+     * loopback mode still works without one.
+     */
     qemu_configure_nic_device(DEVICE(&s->enet0), true, NULL);
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->enet0), errp)) {
         return;
@@ -943,10 +1039,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     /*
      * The board's external flash: a Winbond W25Q64 (8 MiB, JEDEC 0xef4017) on
      * the FlexSPI's SSI bus.  QEMU's m25p80 models this exact part, so the NOR
-     * physics — erase-before-write, bits only 1 -> 0, page-program wrap, the WREN
-     * latch — come from the upstream flash model instead of being re-invented in
-     * the controller.  m25p80 is the sole authority for flash content; the AHB
-     * XIP window is only a mirror derived from it (see hw/misc/mcxn_flexspi.c).
+     * physics — erase-before-write, bits only 1 -> 0, page-program wrap, the
+     * WREN latch — come from the upstream flash model instead of being
+     * re-invented in the controller.  m25p80 is the sole authority for flash
+     * content; the AHB XIP window is only a mirror derived from it (see
+     * hw/misc/mcxn_flexspi.c).
      */
     {
         DeviceState *nor = qdev_new("w25q64");
@@ -959,14 +1056,17 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexspi0), 1,
                        qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 58));
 
-    memory_region_init_alias(&s->flexspi0_s_alias, OBJECT(dev), "mcxn.flexspi0.s",
-                             &s->flexspi0.iomem, 0, MCXN_FLEXSPI_SIZE);
+    memory_region_init_alias(&s->flexspi0_s_alias, OBJECT(dev),
+                             "mcxn.flexspi0.s", &s->flexspi0.iomem, 0,
+                             MCXN_FLEXSPI_SIZE);
     memory_region_add_subregion(system_memory, 0x400C8000 + MCXN_SECURE_ALIAS,
                                 &s->flexspi0_s_alias);
-    /* FlexSPI0 AHB-mapped external NOR (XIP window): non-secure @ 0x8000_0000,
+    /*
+     * FlexSPI0 AHB-mapped external NOR (XIP window): non-secure @ 0x8000_0000,
      * secure alias @ 0x9000_0000 (N947 DTS: spi@500c8000 ahb = 0x9000_0000,
      * +0x1000_0000 TZ-M offset).  Backs the window with real executable memory
-     * so code linked there boots/runs in place instead of faulting. */
+     * so code linked there boots/runs in place instead of faulting.
+     */
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->flexspi0), 1, MCXN_FLEXSPI0_AHB_NS);
     memory_region_init_alias(&s->flexspi0_nor_s_alias, OBJECT(dev),
                              "mcxn.flexspi0.nor.s", &s->flexspi0.nor, 0,
@@ -974,13 +1074,16 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, MCXN_FLEXSPI0_AHB_S,
                                 &s->flexspi0_nor_s_alias);
 
-    /* USB device-mode: two independent controllers, each with its own usbredir
+    /*
+     * USB device-mode: two independent controllers, each with its own usbredir
      * core (so each is a distinct inter-QEMU link).  Each core's socket is
-     * attached by a well-known chardev id — `-chardev socket,id=mcxn-usbfs,...`
-     * for USBFS0, `id=mcxn-usbhs,...` for USBHS1 — looked up here (absent = the
-     * controller simply never appears on a host).  USBFS0: KHCI device engine,
-     * NS @ 0x400D_D000 + secure alias, IRQ 50 (USB0_FS_IRQn).  USBHS1: ChipIdea
-     * device engine, NS @ 0x4010_B000 + secure alias, IRQ 67 (USB1_HS_IRQn). */
+     * attached by a well-known chardev id — `-chardev
+     * socket,id=mcxn-usbfs,...` for USBFS0, `id=mcxn-usbhs,...` for USBHS1 —
+     * looked up here (absent = the controller simply never appears on a host).
+     * USBFS0: KHCI device engine, NS @ 0x400D_D000 + secure alias, IRQ 50
+     * (USB0_FS_IRQn).  USBHS1: ChipIdea device engine, NS @ 0x4010_B000 +
+     * secure alias, IRQ 67 (USB1_HS_IRQn).
+     */
     {
         Chardev *c0 = qemu_chr_find("mcxn-usbfs");
         Chardev *c1 = qemu_chr_find("mcxn-usbhs");
@@ -1024,16 +1127,20 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, 0x4010B000 + MCXN_SECURE_ALIAS,
                                 &s->usbhs_core_s_alias);
 
-    /* eIQ Neutron NPU: NS @ 0x400B_E000 + secure alias, IRQ 97 (RM NPU line;
-     * "Reserved113" in CMSIS).  FLAG-AT-OPERATOR — see hw/misc/mcxn_neutron.c. */
+    /*
+     * eIQ Neutron NPU: NS @ 0x400B_E000 + secure alias, IRQ 97 (RM NPU line;
+     * "Reserved113" in CMSIS).  FLAG-AT-OPERATOR — see
+     * hw/misc/mcxn_neutron.c.
+     */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->neutron0), errp)) {
         return;
     }
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->neutron0), 0, 0x400BE000);
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->neutron0), 0,
                        qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 97));
-    memory_region_init_alias(&s->neutron0_s_alias, OBJECT(dev), "mcxn.neutron0.s",
-                             &s->neutron0.iomem, 0, MCXN_NEUTRON_SIZE);
+    memory_region_init_alias(&s->neutron0_s_alias, OBJECT(dev),
+                             "mcxn.neutron0.s", &s->neutron0.iomem, 0,
+                             MCXN_NEUTRON_SIZE);
     memory_region_add_subregion(system_memory, 0x400BE000 + MCXN_SECURE_ALIAS,
                                 &s->neutron0_s_alias);
 
@@ -1044,8 +1151,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         g_autofree char *aname = g_strdup_printf("mcxn.sai%d.s", i);
         g_autofree char *cn = g_strdup_printf("sai%d-clk", i);
 
-        /* SAI function clock (MCLK) from SYSCON SAInCLKSEL/CLKDIV -- DERIVED (PLL0/ExtClk/
-         * FRO_HF/PLL1), no longer a hardcoded 12.288 MHz.  Connect before realize. */
+        /*
+         * SAI function clock (MCLK) from SYSCON SAInCLKSEL/CLKDIV -- DERIVED
+         * (PLL0/ExtClk/FRO_HF/PLL1), no longer a hardcoded 12.288 MHz.  Connect
+         * before realize.
+         */
         qdev_connect_clock_in(DEVICE(&s->sai[i]), "clk",
                               qdev_get_clock_out(DEVICE(&s->syscon), cn));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->sai[i]), errp)) {
@@ -1069,8 +1179,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                   { 0x40114000, 108 } };
         g_autofree char *aname = g_strdup_printf("mcxn.dac%d.s", i);
 
-        /* DAC2 is the HPDAC: 14-bit samples and a 32-deep FIFO, where DAC0/1
-         * are 12-bit with a 16-deep one. */
+        /*
+         * DAC2 is the HPDAC: 14-bit samples and a 32-deep FIFO, where DAC0/1
+         * are 12-bit with a 16-deep one.
+         */
         qdev_prop_set_bit(DEVICE(&s->dac[i]), "hpdac", i == 2);
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->dac[i]), errp)) {
             return;
@@ -1086,8 +1198,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                      &s->dac_s_alias[i]);
     }
 
-    /* SINC sigma-delta filter: conversion-complete / FIFO-watermark interrupt
-     * to cpu0 NVIC (SINC_FILTER_IRQn = 142). */
+    /*
+     * SINC sigma-delta filter: conversion-complete / FIFO-watermark interrupt
+     * to cpu0 NVIC (SINC_FILTER_IRQn = 142).
+     */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->sinc0), errp)) {
         return;
     }
@@ -1099,8 +1213,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, 0x40108000 + MCXN_SECURE_ALIAS,
                                 &s->sinc0_s_alias);
 
-    /* PDM / MICFIL (digital microphone): FIFO/error interrupt to cpu0 NVIC
-     * (PDM_EVENT_IRQn = 48). */
+    /*
+     * PDM / MICFIL (digital microphone): FIFO/error interrupt to cpu0 NVIC
+     * (PDM_EVENT_IRQn = 48).
+     */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->pdm0), errp)) {
         return;
     }
@@ -1125,17 +1241,23 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, 0x400BF000 + MCXN_SECURE_ALIAS,
                                 &s->powerquad0_s_alias);
 
-    /* eFlexPWM0..1: submodule-0 reload/compare interrupt + the FAULT interrupt
+    /*
+     * eFlexPWM0..1: submodule-0 reload/compare interrupt + the FAULT interrupt
      * to cpu0 NVIC.  FLEXPWM0_FAULT = 113 / FLEXPWM1_FAULT = 119 (CMSIS), one
-     * below each submodule-0 line. */
+     * below each submodule-0 line.
+     */
     for (i = 0; i < MCXN_NUM_PWM; i++) {
         static const struct { hwaddr base; int irq; int fault_irq; }
-        pwm_cfg[MCXN_NUM_PWM] = { { 0x400CE000, 114, 113 }, { 0x400D0000, 120, 119 } };
+        pwm_cfg[MCXN_NUM_PWM] = { { 0x400CE000, 114, 113 },
+                                 { 0x400D0000, 120, 119 } };
         g_autofree char *aname = g_strdup_printf("mcxn.pwm%d.s", i);
 
-        /* The FlexPWM counter is clocked by the bus clock = the SCG main clock, DERIVED
-         * (48 MHz reset -> 150 MHz once firmware brings up PLL0) instead of a hardcoded
-         * constant.  Connect before realize (qdev_connect_clock_in asserts !realized). */
+        /*
+         * The FlexPWM counter is clocked by the bus clock = the SCG main clock,
+         * DERIVED (48 MHz reset -> 150 MHz once firmware brings up PLL0)
+         * instead of a hardcoded constant.  Connect before realize
+         * (qdev_connect_clock_in asserts !realized).
+         */
         qdev_connect_clock_in(DEVICE(&s->pwm[i]), "clk",
                               qdev_get_clock_out(DEVICE(&s->syscon), "busclk"));
         if (!sysbus_realize(SYS_BUS_DEVICE(&s->pwm[i]), errp)) {
@@ -1145,8 +1267,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 0,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             pwm_cfg[i].irq));
-        /* sysbus line 3 = FLEXPWMn_FAULT (see mcxn_pwm.c realize).  Lines 1/2
-         * (value/capture eDMA) are connected in the DMA-request block below. */
+        /*
+         * sysbus line 3 = FLEXPWMn_FAULT (see mcxn_pwm.c realize).  Lines 1/2
+         * (value/capture eDMA) are connected in the DMA-request block below.
+         */
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 3,
                            qdev_get_gpio_in(DEVICE(&s->armv7m[0]),
                                             pwm_cfg[i].fault_irq));
@@ -1159,10 +1283,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
 
     /* SCT (SCTimer/PWM): match/limit event interrupt to cpu0 NVIC. */
     /*
-     * The SCT's rate is DECIDED by SYSCON[SCTCLKSEL]/[SCTCLKDIV].  It was hardwired to
-     * a 150 MHz constant while its own source comment NAMED those very registers --
-     * and every stock example does CLOCK_AttachClk(kFRO_HF_to_SCT), 48 MHz.  3.1x too
-     * fast, and the test could not see it because the test shared the assumption.
+     * The SCT's rate is DECIDED by SYSCON[SCTCLKSEL]/[SCTCLKDIV].  It was
+     * hardwired to a 150 MHz constant while its own source comment NAMED those
+     * very registers -- and every stock example does
+     * CLOCK_AttachClk(kFRO_HF_to_SCT), 48 MHz.  3.1x too fast, and the test
+     * could not see it because the test shared the assumption.
      */
     qdev_connect_clock_in(DEVICE(&s->sct0), "clk",
                           qdev_get_clock_out(DEVICE(&s->syscon), "sct-clk"));
@@ -1199,18 +1324,21 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
 
     /* OSTIMER (OS event timer): 1 MHz default clock, match IRQ to cpu0 NVIC. */
     /*
-     * The OSTIMER's rate is DECIDED by SYSCON[OSTIMERCLKSEL] -- 16k / 32k / 1M / none.
-     * The device DECLARED this Clock input and the SoC NEVER CONNECTED IT, so the
-     * device fell back to a hardcoded 1 MHz and the selector did nothing at all.
+     * The OSTIMER's rate is DECIDED by SYSCON[OSTIMERCLKSEL] -- 16k / 32k / 1M
+     * / none.  The device DECLARED this Clock input and the SoC NEVER CONNECTED
+     * IT, so the device fell back to a hardcoded 1 MHz and the selector did
+     * nothing at all.
      *
-     * ⚠ qdev_connect_clock_in() ASSERTS !dev->realized -- it must run BEFORE the
-     * target is realized, which is the MIRROR IMAGE of the GPIO rule
-     * (qdev_get_gpio_in() needs the target ALREADY realized).  The two constraints
-     * point in OPPOSITE directions, and getting it wrong the other way is what
-     * silently dropped the peripheral DMA request wiring once already.
+     * ⚠ qdev_connect_clock_in() ASSERTS !dev->realized -- it must run BEFORE
+     * the target is realized, which is the MIRROR IMAGE of the GPIO rule
+     * (qdev_get_gpio_in() needs the target ALREADY realized).  The two
+     * constraints point in OPPOSITE directions, and getting it wrong the other
+     * way is what silently dropped the peripheral DMA request wiring once
+     * already.
      */
     qdev_connect_clock_in(DEVICE(&s->ostimer0), "clk",
-                          qdev_get_clock_out(DEVICE(&s->syscon), "ostimer-clk"));
+                          qdev_get_clock_out(DEVICE(&s->syscon),
+                                             "ostimer-clk"));
 
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->ostimer0), errp)) {
         return;
@@ -1218,14 +1346,16 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     sysbus_mmio_map(SYS_BUS_DEVICE(&s->ostimer0), 0, 0x40049000);
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->ostimer0), 0,
                        qdev_get_gpio_in(DEVICE(&s->armv7m[0]), 57));
-    memory_region_init_alias(&s->ostimer0_s_alias, OBJECT(dev), "mcxn.ostimer0.s",
-                             &s->ostimer0.iomem, 0, 0x1000);
+    memory_region_init_alias(&s->ostimer0_s_alias, OBJECT(dev),
+                             "mcxn.ostimer0.s", &s->ostimer0.iomem, 0, 0x1000);
     memory_region_add_subregion(system_memory, 0x40049000 + MCXN_SECURE_ALIAS,
                                 &s->ostimer0_s_alias);
 
-    /* FMU flash controller.  The flash backing was handed to it above (it owns
+    /*
+     * FMU flash controller.  The flash backing was handed to it above (it owns
      * the ROM-device region, so guest stores land in its program/erase state
-     * machine); here we just map its registers and IRQ to the cpu0 NVIC. */
+     * machine); here we just map its registers and IRQ to the cpu0 NVIC.
+     */
     if (!sysbus_realize(SYS_BUS_DEVICE(&s->fmu0), errp)) {
         return;
     }
@@ -1237,8 +1367,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     memory_region_add_subregion(system_memory, 0x40043000 + MCXN_SECURE_ALIAS,
                                 &s->fmu0_s_alias);
 
-    /* Functional register-accurate config blocks (MMIO only): each NS + secure
-     * alias.  Instantiated dynamically since they need no IRQ/clock wiring. */
+    /*
+     * Functional register-accurate config blocks (MMIO only): each NS + secure
+     * alias.  Instantiated dynamically since they need no IRQ/clock wiring.
+     */
     for (i = 0; i < (int)ARRAY_SIZE(mcxn_cfgdev); i++) {
         DeviceState *d = qdev_new(mcxn_cfgdev[i].type);
         MemoryRegion *al = g_new(MemoryRegion, 1);
@@ -1249,12 +1381,18 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         object_property_add_child(OBJECT(dev), cn, OBJECT(d));
         sysbus_realize_and_unref(SYS_BUS_DEVICE(d), &error_abort);
         sysbus_mmio_map(SYS_BUS_DEVICE(d), 0, mcxn_cfgdev[i].base);
-        /* Capture the QDC handles so INPUTMUX can drive their position-capture trigger. */
+        /*
+         * Capture the QDC handles so INPUTMUX can drive their position-capture
+         * trigger.
+         */
         if (!strcmp(mcxn_cfgdev[i].type, TYPE_MCXN_QDC) &&
             qdc_n < MCXN_INPUTMUX_NQDC) {
             qdc_dev[qdc_n++] = d;
         }
-        /* Capture the FlexIO handle so an m25p80 can be attached to its SPI bus. */
+        /*
+         * Capture the FlexIO handle so an m25p80 can be attached to its SPI
+         * bus.
+         */
         if (!strcmp(mcxn_cfgdev[i].type, TYPE_MCXN_FLEXIO)) {
             flexio_dev = d;
         }
@@ -1262,13 +1400,15 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         memory_region_init_alias(al, OBJECT(dev), an, mr, 0,
                                  memory_region_size(mr));
         memory_region_add_subregion(system_memory,
-                                     mcxn_cfgdev[i].base + MCXN_SECURE_ALIAS, al);
+                                     mcxn_cfgdev[i].base + MCXN_SECURE_ALIAS,
+                                     al);
     }
 
     /*
-     * A second on-board SPI-NOR on the FlexIO's SPI bus: FlexIO emulates an SPI master
-     * in software (shifter + timer), and here it drives a genuine m25p80.  CS = FlexIO
-     * sysbus IRQ 1 -> the flash's SSI chip-select (the board wires FlexIO pin 4 to it).
+     * A second on-board SPI-NOR on the FlexIO's SPI bus: FlexIO emulates an SPI
+     * master in software (shifter + timer), and here it drives a genuine
+     * m25p80.  CS = FlexIO sysbus IRQ 1 -> the flash's SSI chip-select (the
+     * board wires FlexIO pin 4 to it).
      */
     if (flexio_dev) {
         DeviceState *nor = qdev_new("w25q64");
@@ -1279,9 +1419,11 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                            qdev_get_gpio_in_named(nor, SSI_GPIO_CS, 0));
     }
 
-    /* Generic permissive stubs for every other peripheral present on the SoC
+    /*
+     * Generic permissive stubs for every other peripheral present on the SoC
      * (present + register read-back + non-blocking), each NS + secure alias.
-     * Replace entries with real device models over time. */
+     * Replace entries with real device models over time.
+     */
     for (i = 0; i < (int)ARRAY_SIZE(mcxn_stub_table); i++) {
         const MCXNStubDesc *d = &mcxn_stub_table[i];
         DeviceState *stub = qdev_new(TYPE_MCXN_STUB);
@@ -1294,33 +1436,37 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         sysbus_realize_and_unref(SYS_BUS_DEVICE(stub), &error_abort);
         sysbus_mmio_map(SYS_BUS_DEVICE(stub), 0, d->base);
         memory_region_init_alias(salias, OBJECT(dev), sname,
-                                 sysbus_mmio_get_region(SYS_BUS_DEVICE(stub), 0),
+                                 sysbus_mmio_get_region(SYS_BUS_DEVICE(stub),
+                                                        0),
                                  0, d->size);
         memory_region_add_subregion(system_memory,
                                      d->base + MCXN_SECURE_ALIAS, salias);
     }
 
     /*
-     * ═══ PERIPHERAL DMA REQUEST LINES — ALL OF THEM, HERE, LAST ═══
+     * ═══ PERIPHERAL DMA REQUEST LINES —
+     * ALL OF THEM, HERE, LAST ═══
      *
      * ⚠ qdev_get_gpio_in() only works once the target is REALIZED, and
      * sysbus_connect_irq() only works once the SOURCE is realized.  So this
      * wiring is order-dependent in BOTH directions, and I got burned BOTH ways:
      *
      *   - FlexComm realizes BEFORE the eDMA, so wiring it in its own loop
-     *     silently connected NOTHING (SAI and DAC only worked by accident, being
-     *     declared after the eDMA);
-     *   - then I moved the wiring to just after the eDMA -- and the ADC realizes
-     *     AFTER that, so QEMU aborted outright:
+     *     silently connected NOTHING (SAI and DAC only worked by accident,
+     *     being declared after the eDMA);
+     *   - then I moved the wiring to just after the eDMA -- and the ADC
+     *     realizes AFTER that, so QEMU aborted outright:
      *         "Property 'mcxn-adc.sysbus-irq[1]' not found".
      *
-     * Two opposite failures from the same cause.  Doing every request line HERE,
-     * at the END, after EVERY peripheral exists, removes the dependency instead of
-     * tiptoeing around it.  Add new request lines to THIS block and nowhere else.
+     * Two opposite failures from the same cause.  Doing every request line
+     * HERE, at the END, after EVERY peripheral exists, removes the dependency
+     * instead of tiptoeing around it.  Add new request lines to THIS block and
+     * nowhere else.
      *
      * Source numbers are CMSIS dma_request_source_t.
      */
-    for (i = 0; i < MCXN_NUM_ADC; i++) {                  /* FIFO A/B = 21+2n, 22+2n */
+    /* FIFO A/B = 21+2n, 22+2n */
+    for (i = 0; i < MCXN_NUM_ADC; i++) {
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->adc[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
                                             MCXN_DMA_REQ_ADC0_FIFO_A + 2 * i));
@@ -1328,12 +1474,14 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
                                             MCXN_DMA_REQ_ADC0_FIFO_B + 2 * i));
     }
-    for (i = 0; i < MCXN_NUM_DAC; i++) {                  /* DAC0/1/2 = 25/26/27 */
+    /* DAC0/1/2 = 25/26/27 */
+    for (i = 0; i < MCXN_NUM_DAC; i++) {
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->dac[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
                                             MCXN_DMA_REQ_DAC0_FIFO + i));
     }
-    for (i = 0; i < MCXN_NUM_SAI; i++) {                  /* SAI Tx=100+2n, Rx=99+2n */
+    /* SAI Tx=100+2n, Rx=99+2n */
+    for (i = 0; i < MCXN_NUM_SAI; i++) {
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->sai[i]), 1,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
                                             MCXN_DMA_REQ_SAI0_TX + 2 * i));
@@ -1341,18 +1489,28 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
                                             MCXN_DMA_REQ_SAI0_RX + 2 * i));
     }
-    for (i = 0; i < MCXN_SINC_NUM_CH; i++) {             /* SINC0 ch n -> 103+n */
-        sysbus_connect_irq(SYS_BUS_DEVICE(&s->sinc0), 1 + i,   /* sysbus IRQ 0 is the NVIC line */
+    /* SINC0 ch n -> 103+n */
+    for (i = 0; i < MCXN_SINC_NUM_CH; i++) {
+        /* sysbus IRQ 0 is the NVIC line */
+        sysbus_connect_irq(SYS_BUS_DEVICE(&s->sinc0), 1 + i,
                            qdev_get_gpio_in(DEVICE(&s->edma[0]),
                                             MCXN_DMA_REQ_SINC0_CH0 + i));
     }
-    /* FlexSPI0: sysbus IRQ 2 = Rx (src 1), IRQ 3 = Tx (src 2).  IRQ 0/1 are cs/NVIC. */
+    /*
+     * FlexSPI0: sysbus IRQ 2 = Rx (src 1), IRQ 3 = Tx (src 2).  IRQ 0/1 are
+     * cs/NVIC.
+     */
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexspi0), 2,
-                       qdev_get_gpio_in(DEVICE(&s->edma[0]), MCXN_DMA_REQ_FLEXSPI0_RX));
+                       qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                        MCXN_DMA_REQ_FLEXSPI0_RX));
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexspi0), 3,
-                       qdev_get_gpio_in(DEVICE(&s->edma[0]), MCXN_DMA_REQ_FLEXSPI0_TX));
-    /* eFlexPWM0/1: sysbus IRQ 1 = SM0 value-register DMA request (reload-driven).
-     * PWM0 SM0 Val0 = 43, PWM1 SM0 Val0 = 51.  IRQ 0 is the NVIC reload/compare line. */
+                       qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                        MCXN_DMA_REQ_FLEXSPI0_TX));
+    /*
+     * eFlexPWM0/1: sysbus IRQ 1 = SM0 value-register DMA request
+     * (reload-driven).  PWM0 SM0 Val0 = 43, PWM1 SM0 Val0 = 51.  IRQ 0 is the
+     * NVIC reload/compare line.
+     */
     {
         static const int pwm_val_src[MCXN_NUM_PWM] = {
             MCXN_DMA_REQ_FLEXPWM0_VAL0, MCXN_DMA_REQ_FLEXPWM1_VAL0
@@ -1361,75 +1519,105 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
             MCXN_DMA_REQ_FLEXPWM0_CAP0, MCXN_DMA_REQ_FLEXPWM1_CAP0
         };
         for (i = 0; i < MCXN_NUM_PWM; i++) {
-            /* IRQ 1 = value-reg DMA (a FIFO-ish reload level); IRQ 2 = SM0 input-A capture
-             * DMA (a one-shot PULSE, so it drives the eDMA "req-pulse" input). */
+            /*
+             * IRQ 1 = value-reg DMA (a FIFO-ish reload level); IRQ 2 = SM0
+             * input-A capture DMA (a one-shot PULSE, so it drives the eDMA
+             * "req-pulse" input).
+             */
             sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 1,
-                               qdev_get_gpio_in(DEVICE(&s->edma[0]), pwm_val_src[i]));
+                               qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                                pwm_val_src[i]));
             sysbus_connect_irq(SYS_BUS_DEVICE(&s->pwm[i]), 2,
-                               qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                               qdev_get_gpio_in_named(DEVICE(&s->edma[0]),
+                                                      "req-pulse",
                                                       pwm_cap_src[i]));
         }
     }
-    /* CTIMER0..4: sysbus IRQ 1 = match-0 request, IRQ 2 = match-1 request.  These are
-     * one-shot PULSE sources (a match is an event, not a FIFO level), so they drive the
-     * eDMA's "req-pulse" input, not the plain level input.  CTIMER{k} M0 = 7+2k, M1 = 8+2k. */
+    /*
+     * CTIMER0..4: sysbus IRQ 1 = match-0 request, IRQ 2 = match-1 request.
+     * These are one-shot PULSE sources (a match is an event, not a FIFO level),
+     * so they drive the eDMA's "req-pulse" input, not the plain level input.
+     * CTIMER{k} M0 = 7+2k, M1 = 8+2k.
+     */
     for (i = 0; i < MCXN_NUM_CTIMER; i++) {
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->ctimer[i]), 1,
-                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
-                                                  MCXN_DMA_REQ_CTIMER0_M0 + 2 * i));
+                           qdev_get_gpio_in_named(
+                               DEVICE(&s->edma[0]), "req-pulse",
+                               MCXN_DMA_REQ_CTIMER0_M0 + 2 * i));
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->ctimer[i]), 2,
-                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
-                                                  MCXN_DMA_REQ_CTIMER0_M1 + 2 * i));
+                           qdev_get_gpio_in_named(
+                               DEVICE(&s->edma[0]), "req-pulse",
+                               MCXN_DMA_REQ_CTIMER0_M1 + 2 * i));
     }
-    /* SCT0: sysbus IRQ 1 = DMA request 0 (src 19), IRQ 2 = DMA request 1 (src 20).  An SCT
-     * event is a one-shot PULSE, so these drive the eDMA "req-pulse" input.  IRQ 0 is NVIC. */
+    /*
+     * SCT0: sysbus IRQ 1 = DMA request 0 (src 19), IRQ 2 = DMA request 1
+     * (src 20).  An SCT event is a one-shot PULSE, so these drive the eDMA
+     * "req-pulse" input.  IRQ 0 is NVIC.
+     */
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->sct0), 1,
                        qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
                                               MCXN_DMA_REQ_SCT0_DMA0));
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->sct0), 2,
                        qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
                                               MCXN_DMA_REQ_SCT0_DMA1));
-    /* CMP0..2 (HsCmp): sysbus IRQ 1 = DMA request (src 28+n).  A comparator crossing is a
-     * one-shot PULSE, so it drives the eDMA "req-pulse" input.  IRQ 0 is the NVIC line. */
+    /*
+     * CMP0..2 (HsCmp): sysbus IRQ 1 = DMA request (src 28+n).  A comparator
+     * crossing is a one-shot PULSE, so it drives the eDMA "req-pulse" input.
+     * IRQ 0 is the NVIC line.
+     */
     for (i = 0; i < MCXN_NUM_CMP; i++) {
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->cmp[i]), 1,
-                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]),
+                                                  "req-pulse",
                                                   MCXN_DMA_REQ_HSCMP0 + i));
     }
-    /* PINT INT0..3: sysbus IRQ 1..4 = DMA request (src 3+n).  A pin edge is a one-shot
-     * PULSE, so it drives the eDMA "req-pulse" input.  IRQ 0 is the shared NVIC line. */
+    /*
+     * PINT INT0..3: sysbus IRQ 1..4 = DMA request (src 3+n).  A pin edge is a
+     * one-shot PULSE, so it drives the eDMA "req-pulse" input.  IRQ 0 is the
+     * shared NVIC line.
+     */
     for (i = 0; i < MCXN_PINT_DMA_LINES; i++) {
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->pint0), 1 + i,
-                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]), "req-pulse",
+                           qdev_get_gpio_in_named(DEVICE(&s->edma[0]),
+                                                  "req-pulse",
                                                   MCXN_DMA_REQ_PINT0 + i));
     }
-    /* PDM/MICFIL0: sysbus IRQ 1 = FIFO DMA request (src 18).  A FIFO watermark is a LEVEL
-     * (like the SAI), so it drives the plain eDMA request input.  IRQ 0 is the NVIC line. */
+    /*
+     * PDM/MICFIL0: sysbus IRQ 1 = FIFO DMA request (src 18).  A FIFO watermark
+     * is a LEVEL (like the SAI), so it drives the plain eDMA request input.
+     * IRQ 0 is the NVIC line.
+     */
     sysbus_connect_irq(SYS_BUS_DEVICE(&s->pdm0), 1,
-                       qdev_get_gpio_in(DEVICE(&s->edma[0]), MCXN_DMA_REQ_MICFIL0));
-    for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {   /* Tx=70+2n, Rx=69+2n */
+                       qdev_get_gpio_in(DEVICE(&s->edma[0]),
+                                        MCXN_DMA_REQ_MICFIL0));
+    /* Tx=70+2n, Rx=69+2n */
+    for (i = 0; i < MCXN_NUM_FLEXCOMM && i < 10; i++) {
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 1,
-                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
-                                            MCXN_DMA_REQ_LPFLEXCOMM0_TX + 2 * i));
+                           qdev_get_gpio_in(
+                               DEVICE(&s->edma[0]),
+                               MCXN_DMA_REQ_LPFLEXCOMM0_TX + 2 * i));
         sysbus_connect_irq(SYS_BUS_DEVICE(&s->flexcomm[i]), 2,
-                           qdev_get_gpio_in(DEVICE(&s->edma[0]),
-                                            MCXN_DMA_REQ_LPFLEXCOMM0_RX + 2 * i));
+                           qdev_get_gpio_in(
+                               DEVICE(&s->edma[0]),
+                               MCXN_DMA_REQ_LPFLEXCOMM0_RX + 2 * i));
     }
 
     /*
      * INPUTMUX gates every one of those request lines.
      *
-     * DMAn_REQ_ENABLE0..3 is one bit per request source, and it decides whether a
-     * peripheral's request reaches the engine AT ALL (RM: "0: DMA request to DMA0
-     * and response from DMA0 are blocked").  It resets to all-enabled, which is why
-     * nothing broke while it was unmodelled -- and also why it was worth modelling:
-     * an UNGATED model is MORE PERMISSIVE THAN THE SILICON, so a guest that CLOSES a
-     * gate sees the request keep coming.  That is the silent-wrong-answer class
-     * inverted: it does not fail here, IT FAILS ON THE BOARD.
+     * DMAn_REQ_ENABLE0..3 is one bit per request source, and it decides whether
+     * a peripheral's request reaches the engine AT ALL (RM: "0: DMA request to
+     * DMA0 and response from DMA0 are blocked").  It resets to all-enabled,
+     * which is why nothing broke while it was unmodelled -- and also why it was
+     * worth modelling: an UNGATED model is MORE PERMISSIVE THAN THE SILICON, so
+     * a guest that CLOSES a gate sees the request keep coming.  That is the
+     * silent-wrong-answer class inverted: it does not fail here, IT FAILS ON
+     * THE BOARD.
      *
      * Wired last, with the rest of the DMA request lines, because
-     * qdev_get_gpio_in_named() needs the TARGET realized and qdev_connect_gpio_out
-     * needs the SOURCE realized -- an ordering constraint in both directions.
+     * qdev_get_gpio_in_named() needs the TARGET realized and
+     * qdev_connect_gpio_out needs the SOURCE realized -- an ordering constraint
+     * in both directions.
      */
     for (i = 0; i < MCXN_NUM_EDMA; i++) {
         g_autofree char *gate = g_strdup_printf("dma%d-req-enable", i);
@@ -1446,35 +1634,39 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
     /*
      * TRIGGER ROUTING:  LPTMR0 compare  ->  INPUTMUX  ->  ADCn_TRIG[0..3].
      *
-     * "Convert on a timer tick" is THE canonical embedded ADC pattern, and it was
-     * IMPOSSIBLE here: the only way to start a conversion was a CPU write to SWTRIG.
-     * The stock lpadc/edma example attaches LPTMR0 to ADC0_TRIG[0], starts the timer,
-     * arms an eDMA channel and waits -- and the timer ticked, THE TRIGGER WENT
-     * NOWHERE, and not one conversion ever happened.  Nothing logged, nothing
-     * faulted.  A router that routes nothing looks exactly like a router.
+     * "Convert on a timer tick" is THE canonical embedded ADC pattern, and it
+     * was IMPOSSIBLE here: the only way to start a conversion was a CPU write
+     * to SWTRIG.  The stock lpadc/edma example attaches LPTMR0 to ADC0_TRIG[0],
+     * starts the timer, arms an eDMA channel and waits -- and the timer ticked,
+     * THE TRIGGER WENT NOWHERE, and not one conversion ever happened.  Nothing
+     * logged, nothing faulted.  A router that routes nothing looks exactly like
+     * a router.
      *
-     * Selector 50 = LPTMR0.  Decoded from NXP's OWN COMPILED DRIVER, not guessed:
-     * kINPUTMUX_Lptmr0ToAdc0Trigger = 0x2800_0032, and INPUTMUX_AttachSignal() is
+     * Selector 50 = LPTMR0.  Decoded from NXP's OWN COMPILED DRIVER, not
+     * guessed: kINPUTMUX_Lptmr0ToAdc0Trigger = 0x2800_0032, and
+     * INPUTMUX_AttachSignal() is
      *     *(base + (conn >> 20) + idx * 4) = conn & 0xFFFFF
-     * i.e. "write 50 into the register at offset 0x280" -- which is ADC0_TRIG[0].
+     * i.e. "write 50 into the register at offset 0x280" -- which is
+     * ADC0_TRIG[0].
      */
     qdev_connect_gpio_out_named(DEVICE(&s->lptmr[0]), "trigger", 0,
-                                qdev_get_gpio_in_named(DEVICE(&s->inputmux),
-                                                       "trig-in",
-                                                       MCXN_INPUTMUX_SRC_LPTMR0));
+                                qdev_get_gpio_in_named(
+                                    DEVICE(&s->inputmux), "trig-in",
+                                    MCXN_INPUTMUX_SRC_LPTMR0));
     if (MCXN_NUM_LPTMR > 1) {
         qdev_connect_gpio_out_named(DEVICE(&s->lptmr[1]), "trigger", 0,
-                                    qdev_get_gpio_in_named(DEVICE(&s->inputmux),
-                                                           "trig-in",
-                                                           MCXN_INPUTMUX_SRC_LPTMR1));
+                                    qdev_get_gpio_in_named(
+                                        DEVICE(&s->inputmux), "trig-in",
+                                        MCXN_INPUTMUX_SRC_LPTMR1));
     }
     /*
-     * CTIMER{0,1,2} match-3 -> INPUTMUX -> ADCn_TRIG.  "Convert on a timer match" is
-     * the other canonical hardware-triggered ADC pattern (the motor-control loop
-     * paces current sampling off a periodic match with zero CPU involvement).  M3 is
-     * the ADC-facing match on all three; the selector value equals 5+k in NXP's
-     * compiled INPUTMUX driver.  CTIMER3/4 route different matches (M2/M1) to ADC1 --
-     * a divergence this shared-selector model does not carry (documented boundary).
+     * CTIMER{0,1,2} match-3 -> INPUTMUX -> ADCn_TRIG.  "Convert on a timer
+     * match" is the other canonical hardware-triggered ADC pattern (the
+     * motor-control loop paces current sampling off a periodic match with zero
+     * CPU involvement).  M3 is the ADC-facing match on all three; the selector
+     * value equals 5+k in NXP's compiled INPUTMUX driver.  CTIMER3/4 route
+     * different matches (M2/M1) to ADC1 -- a divergence this shared-selector
+     * model does not carry (documented boundary).
      */
     {
         static const int ctimer_m3_src[3] = {
@@ -1489,39 +1681,51 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                             ctimer_m3_src[i]));
         }
         /*
-         * CTIMER3/4 -> ADC is PER-DESTINATION: selector 8/9 names M3 for ADC0 but
-         * M2/M1 for ADC1 (NXP's connection table).  Wire each physical match line to
-         * its own INPUTMUX source; the router remaps ADC1's selectors 8/9 to the
-         * M2/M1 sources so one written selector value reaches the right match per ADC.
+         * CTIMER3/4 -> ADC is PER-DESTINATION: selector 8/9 names M3 for ADC0
+         * but M2/M1 for ADC1 (NXP's connection table).  Wire each physical
+         * match line to its own INPUTMUX source; the router remaps ADC1's
+         * selectors 8/9 to the M2/M1 sources so one written selector value
+         * reaches the right match per ADC.
          */
         if (MCXN_NUM_CTIMER > 3) {
+            /* ADC0 sel 8 */
             qdev_connect_gpio_out_named(DEVICE(&s->ctimer[3]), "match-trig", 3,
                 qdev_get_gpio_in_named(DEVICE(&s->inputmux), "trig-in",
-                                       MCXN_INPUTMUX_SRC_CTIMER3_M3));   /* ADC0 sel 8 */
+                                       MCXN_INPUTMUX_SRC_CTIMER3_M3));
+            /* ADC1 sel 8 */
             qdev_connect_gpio_out_named(DEVICE(&s->ctimer[3]), "match-trig", 2,
                 qdev_get_gpio_in_named(DEVICE(&s->inputmux), "trig-in",
-                                       MCXN_INPUTMUX_SRC_CTIMER3_M2));   /* ADC1 sel 8 */
+                                       MCXN_INPUTMUX_SRC_CTIMER3_M2));
         }
         if (MCXN_NUM_CTIMER > 4) {
+            /* ADC0 sel 9 */
             qdev_connect_gpio_out_named(DEVICE(&s->ctimer[4]), "match-trig", 3,
                 qdev_get_gpio_in_named(DEVICE(&s->inputmux), "trig-in",
-                                       MCXN_INPUTMUX_SRC_CTIMER4_M3));   /* ADC0 sel 9 */
+                                       MCXN_INPUTMUX_SRC_CTIMER4_M3));
+            /* ADC1 sel 9 */
             qdev_connect_gpio_out_named(DEVICE(&s->ctimer[4]), "match-trig", 1,
                 qdev_get_gpio_in_named(DEVICE(&s->inputmux), "trig-in",
-                                       MCXN_INPUTMUX_SRC_CTIMER4_M1));   /* ADC1 sel 9 */
+                                       MCXN_INPUTMUX_SRC_CTIMER4_M1));
         }
     }
     /*
-     * eFlexPWM{0,1} submodule-0 output triggers (PWM_OUT_TRIG0/1) -> INPUTMUX -> ADCn.
-     * The motor-control synchronous-sampling path: a VALn compare mid-carrier pulses an
-     * output trigger and the ADC samples phase-current at that exact counter position,
-     * CPU-free.  Selectors 24/25 (PWM0) and 32/33 (PWM1) = Pwm{m}A0Trig{0,1} in NXP's
-     * driver.  Model scope is submodule 0 of each FlexPWM.
+     * eFlexPWM{0,1} submodule-0 output triggers (PWM_OUT_TRIG0/1) -> INPUTMUX
+     * -> ADCn.  The motor-control synchronous-sampling path: a VALn compare
+     * mid-carrier pulses an output trigger and the ADC samples phase-current at
+     * that exact counter position, CPU-free.  Selectors 24/25 (PWM0) and 32/33
+     * (PWM1) = Pwm{m}A0Trig{0,1} in NXP's driver.  Model scope is submodule 0
+     * of each FlexPWM.
      */
     {
         static const int pwm_sm0_trig_src[2][2] = {
-            { MCXN_INPUTMUX_SRC_PWM0_SM0_TRIG0, MCXN_INPUTMUX_SRC_PWM0_SM0_TRIG1 },
-            { MCXN_INPUTMUX_SRC_PWM1_SM0_TRIG0, MCXN_INPUTMUX_SRC_PWM1_SM0_TRIG1 },
+            {
+                MCXN_INPUTMUX_SRC_PWM0_SM0_TRIG0,
+                MCXN_INPUTMUX_SRC_PWM0_SM0_TRIG1
+            },
+            {
+                MCXN_INPUTMUX_SRC_PWM1_SM0_TRIG0,
+                MCXN_INPUTMUX_SRC_PWM1_SM0_TRIG1
+            },
         };
         int t;
         for (i = 0; i < 2 && i < MCXN_NUM_PWM; i++) {
@@ -1544,9 +1748,10 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
         }
     }
     /*
-     * DACn_TRIG -> INPUTMUX -> DAC hardware trigger: a timer/PWM paces the DAC's output
-     * FIFO (waveform generation with zero CPU involvement), the counterpart of the ADC's
-     * "sample on a trigger" path.  DAC advances only in hardware-trigger mode (GCR[TRGSEL]=0).
+     * DACn_TRIG -> INPUTMUX -> DAC hardware trigger: a timer/PWM paces the
+     * DAC's output FIFO (waveform generation with zero CPU involvement), the
+     * counterpart of the ADC's "sample on a trigger" path.  DAC advances only
+     * in hardware-trigger mode (GCR[TRGSEL]=0).
      */
     for (i = 0; i < MCXN_NUM_DAC && i < MCXN_INPUTMUX_NDAC; i++) {
         qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "dac-trig", i,
@@ -1554,8 +1759,9 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                                            "trigger", 0));
     }
     /*
-     * CMPn_TRIG -> INPUTMUX -> CMP round-robin trigger: a timer paces the comparator's
-     * round-robin sampling (the low-power "monitor a signal, wake on deviation" path).
+     * CMPn_TRIG -> INPUTMUX -> CMP round-robin trigger: a timer paces the
+     * comparator's round-robin sampling (the low-power "monitor a signal, wake
+     * on deviation" path).
      */
     for (i = 0; i < MCXN_NUM_CMP && i < MCXN_INPUTMUX_NCMP; i++) {
         qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "cmp-trig", i,
@@ -1563,18 +1769,20 @@ static void mcxn_soc_realize(DeviceState *dev, Error **errp)
                                                            "trigger", 0));
     }
     /*
-     * QDCn_TRIG -> INPUTMUX -> QDC position capture/clear: a timer/PWM snapshots the
-     * encoder position into the hold registers (or re-zeros it) -- the motor-control
-     * "read a coherent position sample synchronised to the PWM carrier" path.
+     * QDCn_TRIG -> INPUTMUX -> QDC position capture/clear: a timer/PWM
+     * snapshots the encoder position into the hold registers (or re-zeros it)
+     * -- the motor-control "read a coherent position sample synchronised to the
+     * PWM carrier" path.
      */
     for (i = 0; i < qdc_n; i++) {
         qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "qdc-trig", i,
-                                    qdev_get_gpio_in_named(qdc_dev[i], "trigger", 0));
+                                    qdev_get_gpio_in_named(qdc_dev[i],
+                                                           "trigger", 0));
     }
     /*
-     * TSI_TRIG -> INPUTMUX -> TSI0 scan trigger: an LPTMR paces the touch scan (the
-     * low-power "wake the TSI off a timer" path), the touch-sensing counterpart of the
-     * ADC's convert-on-a-timer.
+     * TSI_TRIG -> INPUTMUX -> TSI0 scan trigger: an LPTMR paces the touch scan
+     * (the low-power "wake the TSI off a timer" path), the touch-sensing
+     * counterpart of the ADC's convert-on-a-timer.
      */
     if (MCXN_NUM_TSI > 0) {
         qdev_connect_gpio_out_named(DEVICE(&s->inputmux), "tsi-trig", 0,

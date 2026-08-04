@@ -10,11 +10,12 @@
  *
  * A pin edge has no source in emulation, so the 8 channel input levels are
  * OPERATOR-DRIVEN via the "pin-input" QOM property (like the CMP comparator
- * output).  A change edge-detects each channel: a rising edge on an IENR-enabled
- * channel sets RISE+IST, a falling edge on an IENF-enabled channel sets FALL+IST,
- * the IRQ tracks IST, and for channels 0..3 the edge also pulses the eDMA request
- * (CMSIS PINT INT0..3 = sources 3..6) — the pin-paced-DMA path.  Only edge mode
- * (ISEL[ch]=0) is modelled; the level-sensitive mode is a stated boundary.
+ * output).  A change edge-detects each channel: a rising edge on an
+ * IENR-enabled channel sets RISE+IST, a falling edge on an IENF-enabled
+ * channel sets FALL+IST, the IRQ tracks IST, and for channels 0..3 the edge
+ * also pulses the eDMA request (CMSIS PINT INT0..3 = sources 3..6) — the
+ * pin-paced-DMA path.  Only edge mode (ISEL[ch]=0) is modelled; the
+ * level-sensitive mode is a stated boundary.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -69,7 +70,8 @@ static void mcxn_pint_drive_input(MCXNPINTState *s, uint8_t level)
         bool fired = false;
 
         if (isel & m) {
-            continue;                     /* level-sensitive mode: not modelled */
+            /* level-sensitive mode: not modelled */
+            continue;
         }
         if (now && !was && (ienr & m)) {          /* rising edge, enabled  */
             s->regs[PINT_RISE / 4] |= m;
@@ -125,8 +127,10 @@ static uint64_t mcxn_pint_read(void *opaque, hwaddr off, unsigned size)
         /* Write-only set/clear aliases read as 0. */
         return 0;
     default:
-        /* RISE/FALL/IST are real edge/status state now; everything else is
-         * plain storage. */
+        /*
+         * RISE/FALL/IST are real edge/status state now; everything else is
+         * plain storage.
+         */
         return s->regs[off >> 2];
     }
 }
@@ -162,7 +166,10 @@ static void mcxn_pint_write(void *opaque, hwaddr off,
         s->regs[off >> 2] &= ~v;
         break;
     case PINT_IST:
-        /* Write-1-to-clear status; clearing the last pending bit drops the IRQ. */
+        /*
+         * Write-1-to-clear status; clearing the last pending bit drops
+         * the IRQ.
+         */
         s->regs[PINT_IST / 4] &= ~v;
         mcxn_pint_update_irq(s);
         break;
@@ -193,8 +200,11 @@ static void mcxn_pint_reset(DeviceState *dev)
 
 static void mcxn_pint_init(Object *obj)
 {
-    /* Operator-driven pin input: the 8 channel levels the selected pins would
-     * resolve to.  qom-set /machine/soc/pint0 pin-input 1  drives channel 0 high. */
+    /*
+     * Operator-driven pin input: the 8 channel levels the selected pins
+     * would resolve to.  qom-set /machine/soc/pint0 pin-input 1  drives
+     * channel 0 high.
+     */
     object_property_add(obj, "pin-input", "uint8",
                         mcxn_pint_get_input, mcxn_pint_set_input, NULL, NULL);
 }
@@ -207,9 +217,11 @@ static void mcxn_pint_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_pint_ops, s,
                           TYPE_MCXN_PINT, MCXN_PINT_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);          /* 0: PINT0_IRQn = 47 */
+    /* 0: PINT0_IRQn = 47 */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
     for (i = 0; i < MCXN_PINT_DMA_LINES; i++) {
-        sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[i]); /* 1..4: INT0..3 DMA */
+        /* 1..4: INT0..3 DMA */
+        sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[i]);
     }
 }
 

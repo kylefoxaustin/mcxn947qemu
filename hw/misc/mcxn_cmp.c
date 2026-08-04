@@ -50,20 +50,29 @@
 #define CMP_CSR_COUT    (1u << 8)   /* comparator output level, RO */
 #define CMP_CSR_W1C_MASK  (CMP_CSR_CFR | CMP_CSR_CFF | CMP_CSR_RRF)
 
-/* IER edge-interrupt enables align 1:1 with the CSR flag bits (CFR_IE/CFF_IE/RRF_IE at 0/1/2). */
+/*
+ * IER edge-interrupt enables align 1:1 with the CSR flag bits
+ * (CFR_IE/CFF_IE/RRF_IE at 0/1/2).
+ */
 #define CMP_IER_CFR_IE  (1u << 0)
 #define CMP_IER_CFF_IE  (1u << 1)
 #define CMP_IER_RRF_IE  (1u << 2)
 
 /* RRCR0 (round-robin control 0). */
 #define CMP_RRCR0_RR_EN      (1u << 0)   /* round-robin enable */
-#define CMP_RRCR0_RR_TRG_SEL (1u << 1)   /* 0 = external trigger, 1 = internal timer */
-/* RRCSR (round-robin control & status): per-channel captured outputs, bit n = channel n. */
+/* 0 = external trigger, 1 = internal timer */
+#define CMP_RRCR0_RR_TRG_SEL (1u << 1)
+/*
+ * RRCSR (round-robin control & status): per-channel captured outputs,
+ * bit n = channel n.
+ */
 #define CMP_RRCSR_RR_CH0OUT  (1u << 0)
 
-/* CCR1[DMA_EN] (bit 2): when set, an IER-enabled edge forces a DMA request rather than a
- * CPU interrupt (fsl_lpcmp: LPCMP_EnableDMA -> CCR1[DMA_EN]).  The DMA request is a
- * one-shot PULSE serviced through the eDMA edge path. */
+/*
+ * CCR1[DMA_EN] (bit 2): when set, an IER-enabled edge forces a DMA request
+ * rather than a CPU interrupt (fsl_lpcmp: LPCMP_EnableDMA -> CCR1[DMA_EN]).
+ * The DMA request is a one-shot PULSE serviced through the eDMA edge path.
+ */
 #define CMP_CCR1_DMA_EN (1u << 2)
 
 /* Constant RO values (RM reset values). */
@@ -83,9 +92,12 @@ static void mcxn_cmp_update_irq(MCXNCMPState *s)
     bool active = (s->regs[CMP_CSR / 4] & s->regs[CMP_IER / 4] &
                    CMP_CSR_W1C_MASK) != 0;
 
-    /* CCR1[DMA_EN] REDIRECTS an enabled edge to the DMA request "rather than a CPU
-     * interrupt instead" (RM / fsl_lpcmp): with DMA enabled the comparator does not
-     * raise the NVIC line -- the event goes to the eDMA (see mcxn_cmp_set_cout). */
+    /*
+     * CCR1[DMA_EN] REDIRECTS an enabled edge to the DMA request "rather than
+     * a CPU interrupt instead" (RM / fsl_lpcmp): with DMA enabled the
+     * comparator does not raise the NVIC line -- the event goes to the eDMA
+     * (see mcxn_cmp_set_cout).
+     */
     if (s->regs[CMP_CCR1 / 4] & CMP_CCR1_DMA_EN) {
         active = false;
     }
@@ -102,8 +114,10 @@ static uint64_t mcxn_cmp_read(void *opaque, hwaddr offset, unsigned size)
     case CMP_PARAM:
         return CMP_PARAM_VALUE;
     case CMP_CSR:
-        /* COUT reflects the operator-set output level; the edge/round-robin
-         * flags hold whatever software has not yet cleared. */
+        /*
+         * COUT reflects the operator-set output level; the edge/round-robin
+         * flags hold whatever software has not yet cleared.
+         */
         return (s->regs[CMP_CSR / 4] & ~CMP_CSR_COUT) |
                (s->cout ? CMP_CSR_COUT : 0);
     default:
@@ -131,9 +145,11 @@ static void mcxn_cmp_write(void *opaque, hwaddr offset, uint64_t value,
         mcxn_cmp_update_irq(s);
         return;
     case CMP_RRCR0: {
-        /* Enabling round-robin captures the current channel-0 output as the
+        /*
+         * Enabling round-robin captures the current channel-0 output as the
          * baseline (the RR_INITMOD "expected" state) -- only on the 0->1
-         * transition of RR_EN, so a later reconfigure does not re-baseline. */
+         * transition of RR_EN, so a later reconfigure does not re-baseline.
+         */
         bool was_en = s->regs[CMP_RRCR0 / 4] & CMP_RRCR0_RR_EN;
         bool now_en = value & CMP_RRCR0_RR_EN;
 
@@ -150,20 +166,22 @@ static void mcxn_cmp_write(void *opaque, hwaddr offset, uint64_t value,
 }
 
 /*
- * A HARDWARE trigger routed in by INPUTMUX from CMPn_TRIG (e.g. a CTIMER match): take one
- * round-robin sample of the comparator.  Round-robin monitors an input and flags when it
- * DEVIATES from the state captured at RR_INITMOD -- the low-power "watch a signal, wake on
- * change" path, paced by a timer with no CPU involvement.  CSR[RRF] latches the deviation
- * (RM: "Round-Robin Flag -- Detected") and, gated by IER[RRF_IE], raises the comparator IRQ.
+ * A HARDWARE trigger routed in by INPUTMUX from CMPn_TRIG (e.g. a CTIMER
+ * match): take one round-robin sample of the comparator.  Round-robin monitors
+ * an input and flags when it DEVIATES from the state captured at RR_INITMOD --
+ * the low-power "watch a signal, wake on change" path, paced by a timer with no
+ * CPU involvement.  CSR[RRF] latches the deviation (RM: "Round-Robin Flag --
+ * Detected") and, gated by IER[RRF_IE], raises the comparator IRQ.
  *
- * RRCR0[RR_TRG_SEL] picks the trigger: 0 = external (this INPUTMUX path), 1 = the internal
- * round-robin timer.  A routed external trigger while internal-timer mode is selected must
- * NOT sample.
+ * RRCR0[RR_TRG_SEL] picks the trigger: 0 = external (this INPUTMUX path), 1 =
+ * the internal round-robin timer.  A routed external trigger while
+ * internal-timer mode is selected must NOT sample.
  *
- * ⚠ Scope, stated: channel 0 only (the operator-driven `comparator-output` is the single
- * analog seam), and deviation-from-baseline.  The multi-channel sweep (RRCR1[RR_CHnEN]/
- * FIXCH/FIXP), the per-channel RRCSR[RR_CHnOUT] fan-out and the internal RR timer (RRCR2)
- * are not modelled -- an honest subset, the single-channel monitor the trigger path needs.
+ * ⚠ Scope, stated: channel 0 only (the operator-driven `comparator-output`
+ * is the single analog seam), and deviation-from-baseline.  The multi-channel
+ * sweep (RRCR1[RR_CHnEN]/FIXCH/FIXP), the per-channel RRCSR[RR_CHnOUT] fan-out
+ * and the internal RR timer (RRCR2) are not modelled -- an honest subset, the
+ * single-channel monitor the trigger path needs.
  */
 static void cmp_hw_trigger(void *opaque, int n, int level)
 {
@@ -172,16 +190,22 @@ static void cmp_hw_trigger(void *opaque, int n, int level)
     bool cur;
 
     if (!level) {
-        return;                            /* a trigger is an edge, not a level */
+        /* a trigger is an edge, not a level */
+        return;
     }
     if (!(rrcr0 & CMP_RRCR0_RR_EN)) {
-        return;                            /* round-robin disabled */
+        /* round-robin disabled */
+        return;
     }
     if (rrcr0 & CMP_RRCR0_RR_TRG_SEL) {
-        return;                            /* internal-timer mode: ignore the external trigger */
+        /* internal-timer mode: ignore the external trigger */
+        return;
     }
 
-    /* Sample channel 0's (operator-driven) output; flag a deviation from the baseline. */
+    /*
+     * Sample channel 0's (operator-driven) output; flag a deviation from
+     * the baseline.
+     */
     cur = s->cout;
     s->regs[CMP_RRCSR / 4] = (s->regs[CMP_RRCSR / 4] & ~CMP_RRCSR_RR_CH0OUT) |
                              (cur ? CMP_RRCSR_RR_CH0OUT : 0);
@@ -213,8 +237,11 @@ static void mcxn_cmp_set_cout(Object *obj, bool value, Error **errp)
     }
     s->cout = value;
 
-    /* An IER-enabled edge with DMA enabled fires the eDMA request (CMSIS HsCmp{n} = 28+n)
-     * instead of the NVIC line -- a one-shot PULSE (one crossing, one minor loop). */
+    /*
+     * An IER-enabled edge with DMA enabled fires the eDMA request (CMSIS
+     * HsCmp{n} = 28+n) instead of the NVIC line -- a one-shot PULSE (one
+     * crossing, one minor loop).
+     */
     if (edge_dma) {
         qemu_irq_pulse(s->dma_req);
     }
@@ -249,9 +276,11 @@ static void mcxn_cmp_reset(DeviceState *dev)
 
 static void mcxn_cmp_init(Object *obj)
 {
-    /* Expose the comparator output level as a runtime QOM property so an
+    /*
+     * Expose the comparator output level as a runtime QOM property so an
      * operator can drive what the +/- inputs would resolve to:
-     *   qom-set /machine/.../cmp0 comparator-output true   */
+     *   qom-set /machine/.../cmp0 comparator-output true
+     */
     object_property_add_bool(obj, "comparator-output",
                              mcxn_cmp_get_cout, mcxn_cmp_set_cout);
 }
@@ -263,9 +292,14 @@ static void mcxn_cmp_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_cmp_ops, s,
                           TYPE_MCXN_CMP, MCXN_CMP_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);       /* 0: NVIC comparator interrupt */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req);   /* 1: DMA request (edge pulse)  */
-    /* Hardware trigger routed in by INPUTMUX from CMPn_TRIG (timer -> round-robin sample). */
+    /* 0: NVIC comparator interrupt */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    /* 1: DMA request (edge pulse) */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req);
+    /*
+     * Hardware trigger routed in by INPUTMUX from CMPn_TRIG (timer ->
+     * round-robin sample).
+     */
     qdev_init_gpio_in_named(dev, cmp_hw_trigger, "trigger", 1);
 }
 

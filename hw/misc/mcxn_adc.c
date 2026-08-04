@@ -5,7 +5,8 @@
  * trigger, poll the result FIFO, read the result".  This model presents a
  * completed conversion the instant a trigger is observed: STAT[RDY0] sets,
  * FCTRL0[FCOUNT] reads one entry, and reading RESFIFO[0] returns the
- * OPERATOR-SET 16-bit result with the VALID bit set.  The sample is NOT invented
+ * OPERATOR-SET 16-bit result with the VALID bit set.
+ * The sample is NOT invented
  * here: an ADC's answer is whatever voltage is on the pin, so the pin is the
  * seam and the operator drives it (QOM property).  A model that made up a
  * "plausible" reading would be a silent-wrong-answer generator — this comment
@@ -100,7 +101,8 @@
  * sec/64-bit FIFO entries, differential supported).  Marked best-effort.
  */
 #define ADC_VERID_VALUE   0x02000209u   /* MAJOR=2 MINOR=0 NUM_FIFO=2 ... */
-#define ADC_PARAM_VALUE   0x0F0F0F08u   /* CMD_NUM=15 CV_NUM=15 FIFOSIZE=15 TRIG_NUM=8 */
+/* CMD_NUM=15 CV_NUM=15 FIFOSIZE=15 TRIG_NUM=8 */
+#define ADC_PARAM_VALUE   0x0F0F0F08u
 
 /* Default operator-input value: documented mid-scale (override via QOM). */
 #define ADC_CH_DEFAULT 0x0800u
@@ -109,17 +111,22 @@
 #define CMDL_ADCH_MASK   0x1Fu
 #define TCTRL_TCMD_SHIFT 24
 #define TCTRL_TCMD_MASK  0xFu
-/* TCTRL[FIFO_SEL_A] (CMSIS bit 1): destination FIFO for a conversion.
+/*
+ * TCTRL[FIFO_SEL_A] (CMSIS bit 1): destination FIFO for a conversion.
  * RM: "0b - FIFO 0 / 1b - FIFO 1 ... the destination for all single-ended and
  * differential conversions".  (FIFO_SEL_B, bit 2, only applies to dual
- * single-ended mode, CMDL[CTYPE]=11b, which this model does not implement.) */
+ * single-ended mode, CMDL[CTYPE]=11b, which this model does not implement.)
+ */
 #define TCTRL_FIFO_SEL_A (1u << 1)
 #define TCTRL_HTEN       (1u << 0)   /* CMSIS ADC_TCTRL_HTEN: Trigger Enable */
 /* RESFIFO CMDSRC field (which command produced the entry). */
 #define RESFIFO_CMDSRC_SHIFT 24
 #define RESFIFO_CMDSRC_MASK  0xFu
 
-/* DE (DMA Enable) — the stock LPADC EDMA driver arms these (CMSIS ADC_DE_*). */
+/*
+ * DE (DMA Enable) — the stock LPADC EDMA driver arms these
+ * (CMSIS ADC_DE_*).
+ */
 #define DE_FWMDE0   0x1u        /* FIFO 0 watermark DMA enable */
 #define DE_FWMDE1   0x2u        /* FIFO 1 watermark DMA enable */
 #define FCTRL_FCOUNT_MASK  0x1Fu
@@ -136,10 +143,10 @@ static uint32_t adc_fwmark(MCXNADCState *s, int f)
 }
 
 /*
- * STAT[RDYn] is a LEVEL, not a latch: the FIFO is "ready" exactly while it holds
- * more entries than the watermark.  It is recomputed on every change of either
- * term (a push, a pop, a FIFO reset, or a write to FCTRL[FWMARK]) -- which is why
- * every one of those paths ends here.
+ * STAT[RDYn] is a LEVEL, not a latch: the FIFO is "ready" exactly while it
+ * holds more entries than the watermark.  It is recomputed on every change of
+ * either term (a push, a pop, a FIFO reset, or a write to FCTRL[FWMARK]) --
+ * which is why every one of those paths ends here.
  */
 static void mcxn_adc_update_status(MCXNADCState *s)
 {
@@ -158,18 +165,21 @@ static void mcxn_adc_update_status(MCXNADCState *s)
 }
 
 /*
- * Push a conversion result.  RM, STAT[FOFn]: "Indicates that more data has been
- * written to the Result FIFO than it can hold.  THE NEWER DATA IS NOT STORED and
- * the FIFO holds the original contents."  So on overflow the hardware drops the
- * ARRIVING result and says so.  The old model dropped the STORED one and said
- * NOTHING -- a conversion that silently ceased to exist, which is the exact shape
- * of a silent wrong answer: the guest's data is short and nothing is flagged.
+ * Push a conversion result.  RM, STAT[FOFn]: "Indicates that more data has
+ * been written to the Result FIFO than it can hold.  THE NEWER DATA IS NOT
+ * STORED and the FIFO holds the original contents."  So on overflow the
+ * hardware drops the ARRIVING result and says so.  The old model dropped the
+ * STORED one and said NOTHING -- a conversion that silently ceased to exist,
+ * which is the exact shape of a silent wrong answer: the guest's data is
+ * short and nothing is flagged.
  */
 static void adc_fifo_push(MCXNADCState *s, int f, uint32_t val)
 {
     if (s->fifo_count[f] >= MCXN_ADC_FIFO_DEPTH) {
-        s->regs[R_STAT / 4] |= f ? STAT_FOF1 : STAT_FOF0;   /* sticky, W1C */
-        return;                                             /* new data dropped */
+        /* sticky, W1C */
+        s->regs[R_STAT / 4] |= f ? STAT_FOF1 : STAT_FOF0;
+        /* new data dropped */
+        return;
     }
     s->fifo[f][s->fifo_count[f]++] = val;
 }
@@ -196,13 +206,13 @@ static void mcxn_adc_update_irq(MCXNADCState *s)
     int f;
 
     /*
-     * IE bits 0..3 (FWMIE0/FOFIE0/FWMIE1/FOFIE1) line up 1:1 with STAT bits 0..3
-     * (RDY0/FOF0/RDY1/FOF1), and TEXC_IE lines up with TEXC_INT at bit 8 -- so a
-     * plain STAT & IE is right for those.  TCOMP DOES NOT LINE UP: STAT[TCOMP_INT]
-     * is bit 9 but IE[TCOMP_IE] is bit 16, so the old blanket `stat & ie` ANDed
-     * STAT bit 9 against an IE bit that does not exist and the trigger-completion
-     * interrupt COULD NOT FIRE AT ALL.  Two registers that look parallel, and are
-     * not, for one bit.
+     * IE bits 0..3 (FWMIE0/FOFIE0/FWMIE1/FOFIE1) line up 1:1 with STAT bits
+     * 0..3 (RDY0/FOF0/RDY1/FOF1), and TEXC_IE lines up with TEXC_INT at bit 8
+     * -- so a plain STAT & IE is right for those.  TCOMP DOES NOT LINE UP:
+     * STAT[TCOMP_INT] is bit 9 but IE[TCOMP_IE] is bit 16, so the old blanket
+     * `stat & ie` ANDed STAT bit 9 against an IE bit that does not exist and
+     * the trigger-completion interrupt COULD NOT FIRE AT ALL.  Two registers
+     * that look parallel, and are not, for one bit.
      */
     active = (stat & ie & (STAT_RDY0 | STAT_FOF0 | STAT_RDY1 | STAT_FOF1 |
                            STAT_TEXC_INT)) != 0;
@@ -215,21 +225,22 @@ static void mcxn_adc_update_irq(MCXNADCState *s)
     /*
      * THE DMA REQUEST LINES (ADC0 FIFO A/B = mux sources 21/22, ADC1 = 23/24).
      *
-     * ⚠ These did not exist, and DE -- the register the stock LPADC EDMA driver
-     * writes to arm them -- was stored and IGNORED.  So the stock
-     * driver_examples/lpadc/edma hung at "Configuring LPADC...": it armed an eDMA
-     * channel at RESFIFO, set DE[FWMDE0], and waited for a request NOTHING COULD
-     * RAISE.
+     * ⚠ These did not exist, and DE -- the register the stock LPADC EDMA
+     * driver writes to arm them -- was stored and IGNORED.  So the stock
+     * driver_examples/lpadc/edma hung at "Configuring LPADC...": it armed an
+     * eDMA channel at RESFIFO, set DE[FWMDE0], and waited for a request
+     * NOTHING COULD RAISE.
      *
      * The FIFO asks for service when its occupancy EXCEEDS the watermark
      * (FCTRL[FWMARK]), which is exactly the condition the RM gives.
      */
     for (f = 0; f < MCXN_ADC_NFIFO; f++) {
         /*
-         * ⚠ FCOUNT IS NOT IN regs[].  It is computed from the FIFO itself (see
-         * mcxn_adc_read), so reading it back out of the register array gives ZERO,
-         * ALWAYS -- and the request would never fire.  The state lives in the FIFO;
-         * the register array is only the shadow.  Read the state.
+         * ⚠ FCOUNT IS NOT IN regs[].  It is computed from the FIFO itself
+         * (see mcxn_adc_read), so reading it back out of the register array
+         * gives ZERO, ALWAYS -- and the request would never fire.  The state
+         * lives in the FIFO; the register array is only the shadow.  Read the
+         * state.
          */
         bool req = (de & (f ? DE_FWMDE1 : DE_FWMDE0)) &&
                    s->fifo_count[f] > adc_fwmark(s, f);
@@ -277,9 +288,10 @@ static void mcxn_adc_do_conversion(MCXNADCState *s, uint32_t swtrig)
     adc_fifo_push(s, fifo, (uint32_t)s->adc_ch[ch] | RESFIFO_VALID |
                   ((cmd & RESFIFO_CMDSRC_MASK) << RESFIFO_CMDSRC_SHIFT));
     /*
-     * RDY is NOT set here.  It is a level -- "occupancy > watermark" -- so it is
-     * derived, never asserted.  Setting it unconditionally on a conversion (which
-     * is what this line used to do) made STAT[RDY0] mean "a conversion happened",
+     * RDY is NOT set here.  It is a level -- "occupancy > watermark" -- so it
+     * is derived, never asserted.  Setting it unconditionally on a conversion
+     * (which is what this line used to do) made STAT[RDY0] mean "a conversion
+     * happened",
      * not "the FIFO is above its watermark", and those coincide only when
      * FWMARK == 0.
      */
@@ -287,18 +299,18 @@ static void mcxn_adc_do_conversion(MCXNADCState *s, uint32_t swtrig)
 }
 
 /*
- * A HARDWARE trigger arrived on TCTRLn, routed here by INPUTMUX from (e.g.) an LPTMR
- * compare match.
+ * A HARDWARE trigger arrived on TCTRLn, routed here by INPUTMUX from (e.g.) an
+ * LPTMR compare match.
  *
- * ⚠ THIS PATH DID NOT EXIST.  The ONLY way to start a conversion was a SWTRIG write
- * from the CPU -- so "convert on a timer tick", the single most common thing an ADC
- * is asked to do, was impossible.  The stock lpadc/edma example attaches LPTMR0 to
- * ADC0_TRIG[0], starts the timer, arms an eDMA channel, and waits: the timer ticked,
- * the trigger went nowhere, and NOT ONE CONVERSION EVER HAPPENED.  Nothing logged,
- * nothing faulted.  It just sat there.
+ * ⚠ THIS PATH DID NOT EXIST.  The ONLY way to start a conversion was a SWTRIG
+ * write from the CPU -- so "convert on a timer tick", the single most common
+ * thing an ADC is asked to do, was impossible.  The stock lpadc/edma example
+ * attaches LPTMR0 to ADC0_TRIG[0], starts the timer, arms an eDMA channel, and
+ * waits: the timer ticked, the trigger went nowhere, and NOT ONE CONVERSION
+ * EVER HAPPENED.  Nothing logged, nothing faulted.  It just sat there.
  *
- * TCTRLn[HTEN] gates it: a routed trigger that the guest has not ENABLED must not
- * convert.  (The RM calls the bit "Trigger Enable" and the SDK sets it in
+ * TCTRLn[HTEN] gates it: a routed trigger that the guest has not ENABLED must
+ * not convert.  (The RM calls the bit "Trigger Enable" and the SDK sets it in
  * LPADC_SetConvTriggerConfig via kLPADC_TriggerEnable.)
  */
 static void mcxn_adc_hw_trigger(void *opaque, int trig, int level)
@@ -323,35 +335,40 @@ static uint64_t mcxn_adc_read(void *opaque, hwaddr offset, unsigned size)
     case R_GCC0:
     case R_GCC1:
         /*
-         * Gain calibration.  LPADC_FinishAutoCalibration() SPINS on GCC[n][RDY]:
+         * Gain calibration.  LPADC_FinishAutoCalibration() SPINS on
+         * GCC[n][RDY]:
          *     while (!(base->GCC[0] & ADC_GCC_RDY_MASK) ||
          *            !(base->GCC[1] & ADC_GCC_RDY_MASK)) { }
-         * and these registers were not modelled at all, so it hung forever -- the
-         * second half of the SDK's standard ADC init.
+         * and these registers were not modelled at all, so it hung forever --
+         * the second half of the SDK's standard ADC init.
          *
          * GAIN_CAL = 0 is the honest value: the driver computes
-         * GCR = 131072 / (131072 - GAIN_CAL), which for 0 gives UNITY GAIN.  There
-         * is no analog gain error to correct in a model, and inventing a non-zero
-         * trim would make the guest apply a correction for a distortion that does
-         * not exist.
+         * GCR = 131072 / (131072 - GAIN_CAL), which for 0 gives UNITY GAIN.
+         * There is no analog gain error to correct in a model, and inventing a
+         * non-zero trim would make the guest apply a correction for a
+         * distortion that does not exist.
          *
-         * ⚠ BUT RDY WAS HARDWIRED -- `return GCC_RDY;` -- AND THE RM RESETS GCC TO 0.
+         * ⚠ BUT RDY WAS HARDWIRED -- `return GCC_RDY;` -- AND THE RM RESETS
+         * GCC TO 0.
          *
-         * That is a FABRICATED READY, and it is the FOURTH instance of that exact
-         * class in this tree (SCG's "always valid/locked" oscillators, VBAT's "always
-         * ready" LDO, SYSCON's clock nobody selected -- and now this one, WHICH I
-         * WROTE TODAY, in the fix for a different bug).  Every time, the mechanism is
-         * identical: WE HAND THE GUEST SOMETHING IT HAS NOT EARNED AND IT BELIEVES US.
-         * A part that says "my gain calibration is complete" before anyone asked for
-         * one is lying, and firmware that reads GCC without calibrating gets a
-         * trim it never computed.
+         * That is a FABRICATED READY, and it is the FOURTH instance of that
+         * exact class in this tree (SCG's "always valid/locked" oscillators,
+         * VBAT's "always ready" LDO, SYSCON's clock nobody selected -- and now
+         * this one, WHICH I WROTE TODAY, in the fix for a different bug).
+         * Every time, the mechanism is identical: WE HAND THE GUEST SOMETHING
+         * IT HAS NOT EARNED AND IT BELIEVES US.  A part that says "my gain
+         * calibration is complete" before anyone asked for one is lying, and
+         * firmware that reads GCC without calibrating gets a trim it never
+         * computed.
          *
-         * It was invisible until the golden's coverage doubled: GCC is an ARRAY
-         * register, and the extractor could not see array rows.  COVERAGE IS A FLOOR.
+         * It was invisible until the golden's coverage doubled: GCC is an
+         * ARRAY register, and the extractor could not see array rows.
+         * COVERAGE IS A FLOOR.
          *
-         * RDY now FOLLOWS THE CALIBRATION ACTUALLY BEING REQUESTED (STAT[CAL_RDY],
-         * which CTRL[CAL_REQ]/[CALOFS] sets).  The SDK still never spins: calibration
-         * completes the instant it is asked for.  But it is not complete BEFORE.
+         * RDY now FOLLOWS THE CALIBRATION ACTUALLY BEING REQUESTED
+         * (STAT[CAL_RDY], which CTRL[CAL_REQ]/[CALOFS] sets).  The SDK still
+         * never spins: calibration completes the instant it is asked for.  But
+         * it is not complete BEFORE.
          */
         return (s->regs[R_STAT / 4] & STAT_CAL_RDY) ? GCC_RDY : 0;
 
@@ -362,7 +379,8 @@ static uint64_t mcxn_adc_read(void *opaque, hwaddr offset, unsigned size)
     case R_SWTRIG:
         return 0;   /* write-only */
     case R_FCTRL0:
-    case R_FCTRL1:  /* FWMARK moved: RDY and the DMA request must be re-derived */ {
+    case R_FCTRL1: {
+        /* FWMARK moved: RDY and the DMA request must be re-derived */
         int f = (offset == R_FCTRL1);
 
         val = s->regs[offset / 4] & ~FCTRL_FCOUNT_MASK;
@@ -397,15 +415,16 @@ static void mcxn_adc_write(void *opaque, hwaddr offset, uint64_t value,
         /*
          * ⚠ ARMING A DMA-ENABLE MUST RE-EVALUATE THE REQUEST LINE.
          *
-         * DE carries FWMDE0/FWMDE1 -- the bits the stock LPADC EDMA driver sets to
-         * ask the eDMA for service -- and FCTRL carries the watermark.  These fell
-         * through to a PLAIN STORE, so a driver that armed DE last (as they all do)
-         * never raised a request at all.
+         * DE carries FWMDE0/FWMDE1 -- the bits the stock LPADC EDMA driver
+         * sets to ask the eDMA for service -- and FCTRL carries the watermark.
+         * These fell through to a PLAIN STORE, so a driver that armed DE last
+         * (as they all do) never raised a request at all.
          *
-         * ⭐ THIS IS THE THIRD TIME TODAY: the DAC's DER, the LPUART's BAUD[TDMAE],
-         * and now the ADC's DE.  Identical bug, three peripherals.  A FIX APPLIED IN
-         * ONE PLACE IS NOT A FIX -- I wrote that sentence this morning and then made
-         * the same mistake twice more.  Any register that gates a request line must
+         * ⭐ THIS IS THE THIRD TIME TODAY: the DAC's DER, the LPUART's
+         * BAUD[TDMAE], and now the ADC's DE.  Identical bug, three
+         * peripherals.  A FIX APPLIED IN ONE PLACE IS NOT A FIX -- I wrote
+         * that sentence this morning and then made the same mistake twice
+         * more.  Any register that gates a request line must
          * call the update function on write.  Check that FIRST when adding one.
          */
         s->regs[offset / 4] = v;
@@ -414,20 +433,23 @@ static void mcxn_adc_write(void *opaque, hwaddr offset, uint64_t value,
 
     case R_CTRL:
         /*
-         * ⚠ CALIBRATION MUST COMPLETE, OR THE STOCK DRIVER HANGS ON ITS FIRST STEP.
+         * ⚠ CALIBRATION MUST COMPLETE, OR THE STOCK DRIVER HANGS ON ITS FIRST
+         * STEP.
          *
          * LPADC_DoOffsetCalibration() sets CTRL[CALOFS] and then spins:
          *     while (!(base->STAT & ADC_STAT_CAL_RDY_MASK)) { }
-         * and LPADC_DoAutoCalibration() does the same with CTRL[CAL_REQ].  This is
-         * what the SDK's STANDARD ADC INIT does, so ANY firmware using the stock
-         * LPADC driver hung here forever -- STAT[CAL_RDY] was never set.
+         * and LPADC_DoAutoCalibration() does the same with CTRL[CAL_REQ].
+         * This is what the SDK's STANDARD ADC INIT does, so ANY firmware using
+         * the stock LPADC driver hung here forever -- STAT[CAL_RDY] was never
+         * set.
          *
-         * My hand-written ADC test passed the whole time, because I never called
-         * calibration.  The stock driver hangs on its very first step.  (Found by
-         * running the real driver and then asking gdb WHERE THE CPU WAS, rather
-         * than interrogating the subsystem I suspected.)
+         * My hand-written ADC test passed the whole time, because I never
+         * called calibration.  The stock driver hangs on its very first step.
+         * (Found by running the real driver and then asking gdb WHERE THE CPU
+         * WAS, rather than interrogating the subsystem I suspected.)
          *
-         * There is no analog trim to model, so calibration completes immediately.
+         * There is no analog trim to model, so calibration completes
+         * immediately.
          */
         if (v & (CTRL_CALOFS | CTRL_CAL_REQ)) {
             s->regs[R_STAT / 4] |= STAT_CAL_RDY;
@@ -438,8 +460,10 @@ static void mcxn_adc_write(void *opaque, hwaddr offset, uint64_t value,
             s->regs[R_STAT / 4] = 0;
             memset(s->fifo_count, 0, sizeof(s->fifo_count));
         }
-        /* RSTFIFO0 and RSTFIFO1 are SEPARATE bits for SEPARATE FIFOs.  The old
-         * code drained "the" FIFO on either, because there was only one. */
+        /*
+         * RSTFIFO0 and RSTFIFO1 are SEPARATE bits for SEPARATE FIFOs.  The old
+         * code drained "the" FIFO on either, because there was only one.
+         */
         if (v & CTRL_RSTFIFO0) {
             s->fifo_count[0] = 0;
             s->regs[R_STAT / 4] &= ~STAT_FOF0;
@@ -455,8 +479,8 @@ static void mcxn_adc_write(void *opaque, hwaddr offset, uint64_t value,
         /*
          * W1C the sticky flags.  RDYn is NOT sticky -- it is a level, so
          * update_status re-derives it immediately and a W1C write to it is a
-         * no-op, exactly as on silicon.  The old code responded to a W1C of RDY0
-         * by THROWING AWAY THE FIFO CONTENTS: acknowledging an interrupt
+         * no-op, exactly as on silicon.  The old code responded to a W1C of
+         * RDY0 by THROWING AWAY THE FIFO CONTENTS: acknowledging an interrupt
          * destroyed the very data the interrupt was announcing.
          */
         s->regs[R_STAT / 4] &= ~(v & (STAT_FOF0 | STAT_FOF1 |
@@ -508,8 +532,11 @@ static void mcxn_adc_reset(DeviceState *dev)
     s->regs[0x020 / 4] = 0x00800000u;   /* CFG */
     memset(s->fifo, 0, sizeof(s->fifo));
     memset(s->fifo_count, 0, sizeof(s->fifo_count));
-    /* Default analog inputs to documented mid-scale (operator overrides persist
-     * across guest soft-resets — this only re-defaults on a full machine reset). */
+    /*
+     * Default analog inputs to documented mid-scale (operator overrides
+     * persist across guest soft-resets — this only re-defaults on a full
+     * machine reset).
+     */
     for (i = 0; i < MCXN_ADC_CHANNELS; i++) {
         s->adc_ch[i] = ADC_CH_DEFAULT;
     }
@@ -521,9 +548,11 @@ static void mcxn_adc_init(Object *obj)
     MCXNADCState *s = MCXN_ADC(obj);
     int i;
 
-    /* Expose each analog input as a runtime QOM property "adc-chN" so an
+    /*
+     * Expose each analog input as a runtime QOM property "adc-chN" so an
      * operator can inject the value a board pin would drive:
-     *   qom-set /machine/.../adc0 adc-ch5 2748   */
+     *   qom-set /machine/.../adc0 adc-ch5 2748
+     */
     for (i = 0; i < MCXN_ADC_CHANNELS; i++) {
         g_autofree char *name = g_strdup_printf("adc-ch%d", i);
         s->adc_ch[i] = ADC_CH_DEFAULT;

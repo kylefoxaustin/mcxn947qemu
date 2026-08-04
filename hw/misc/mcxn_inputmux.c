@@ -17,25 +17,27 @@
 
 /*
  * DMAn_REQ_ENABLE{0..3}: one bit per eDMA request source, with the usual NXP
- * SET/CLR/TOG write aliases.  RM 26.5.1.56: "DMA request 0-31 enable for DMA0.  One
- * bit per request.  0: DMA request to DMA0 and response from DMA0 are blocked.
- * 1: DMA request and response are enabled for DMA0."
+ * SET/CLR/TOG write aliases.  RM 26.5.1.56: "DMA request 0-31 enable for DMA0.
+ * One bit per request.  0: DMA request to DMA0 and response from DMA0 are
+ * blocked.  1: DMA request and response are enabled for DMA0."
  *
  *   DMA0_REQ_ENABLE0 @0x700  (SET 0x704, CLR 0x708, TOG 0x70C)
  *   DMA0_REQ_ENABLE1 @0x710 ... DMA0_REQ_ENABLE3 @0x730
  *   DMA1_REQ_ENABLE0 @0x780 ... DMA1_REQ_ENABLE3 @0x7B0
  *
- * Reset (RM): FFFF_FFFF, FFFF_FFFF, FFFF_FFFF, 03FF_FFFF -- ALL 122 REQUEST LINES
- * ENABLED OUT OF RESET.  That reset value is why nothing broke while this was
- * unmodelled: the gate is open by default, so every stock example still worked.  It
- * is also exactly why it was worth modelling -- a guest that CLOSES a gate expects
- * the request to stop, and in an ungated model it does not.  The model was MORE
- * PERMISSIVE THAN THE SILICON, which ships the bug to the board.
+ * Reset (RM): FFFF_FFFF, FFFF_FFFF, FFFF_FFFF, 03FF_FFFF -- ALL 122 REQUEST
+ * LINES ENABLED OUT OF RESET.  That reset value is why nothing broke while this
+ * was unmodelled: the gate is open by default, so every stock example still
+ * worked.  It is also exactly why it was worth modelling -- a guest that CLOSES
+ * a gate expects the request to stop, and in an ungated model it does not.
+ * The model was MORE PERMISSIVE THAN THE SILICON, which ships the bug to the
+ * board.
  */
 /*
- * ADC trigger selectors.  RM/CMSIS: ADC0_TRIG[4] @0x280 (step 4), ADC1_TRIG[4] @0x2C0.
- * Reset value 0x7F = NO INPUT CONNECTED -- which is why a zero reset here is a real
- * bug and not a harmless default: 0 NAMES INPUT 0, and 0x7F names nothing.
+ * ADC trigger selectors.  RM/CMSIS: ADC0_TRIG[4] @0x280 (step 4),
+ * ADC1_TRIG[4] @0x2C0.  Reset value 0x7F = NO INPUT CONNECTED -- which is why
+ * a zero reset here is a real bug and not a harmless default: 0 NAMES INPUT 0,
+ * and 0x7F names nothing.
  */
 #define IM_ADC0_TRIG     0x280
 #define IM_ADC1_TRIG     0x2C0
@@ -43,9 +45,9 @@
 #define IM_TRIG_NONE     0x7Fu
 
 /*
- * DACn_TRIG: one 6-bit trigger selector per DAC (reset 0x3F = NO INPUT).  DAC0 @0x300,
- * DAC1 @0x320, DAC2 @0x340 (regular 0x20 step).  A routed source advances the DAC's
- * output FIFO (waveform generation paced by a timer/PWM).
+ * DACn_TRIG: one 6-bit trigger selector per DAC (reset 0x3F = NO INPUT).
+ * DAC0 @0x300, DAC1 @0x320, DAC2 @0x340 (regular 0x20 step).  A routed source
+ * advances the DAC's output FIFO (waveform generation paced by a timer/PWM).
  */
 #define IM_DAC0_TRIG      0x300
 #define IM_DAC_TRIG_STEP  0x20
@@ -54,22 +56,26 @@
 
 /*
  * CMPn_TRIG: one 6-bit trigger selector per comparator, at IRREGULAR offsets
- * (CMP0 @0x260, CMP1 @0x4E0, CMP2 @0x500).  A routed source paces the comparator's
- * round-robin sampling.
+ * (CMP0 @0x260, CMP1 @0x4E0, CMP2 @0x500).  A routed source paces the
+ * comparator's round-robin sampling.
  */
-static const uint16_t im_cmp_trig_off[MCXN_INPUTMUX_NCMP] = { 0x260, 0x4E0, 0x500 };
+static const uint16_t im_cmp_trig_off[MCXN_INPUTMUX_NCMP] = {
+    0x260, 0x4E0, 0x500
+};
 
 /*
- * QDCn_TRIG: one 6-bit trigger selector per quadrature decoder (QDC0 @0x360, QDC1 @0x380,
- * regular 0x20 step).  A routed source captures or clears the QDC position counters.
+ * QDCn_TRIG: one 6-bit trigger selector per quadrature decoder (QDC0 @0x360,
+ * QDC1 @0x380, regular 0x20 step).  A routed source captures or clears the
+ * QDC position counters.
  */
 #define IM_QDC0_TRIG      0x360
 #define IM_QDC_TRIG_STEP  0x20
 
 /*
- * TSI_TRIG @0x4A0: a 2-bit selector (reset 0x3 = NO INPUT).  PER-DESTINATION namespace --
- * for the TSI, selector 0 = LPTMR0 and 1 = LPTMR1 (vs the ADC, where LPTMR0 = selector 50)
- * -- so the router remaps the TSI selector to the physical LPTMR source id.
+ * TSI_TRIG @0x4A0: a 2-bit selector (reset 0x3 = NO INPUT).  PER-DESTINATION
+ * namespace -- for the TSI, selector 0 = LPTMR0 and 1 = LPTMR1 (vs the ADC,
+ * where LPTMR0 = selector 50) -- so the router remaps the TSI selector to the
+ * physical LPTMR source id.
  */
 #define IM_TSI_TRIG       0x4A0
 #define IM_TRIG2_MASK     0x3u
@@ -185,11 +191,13 @@ static bool im_decode_req_enable(hwaddr off, int *dma, int *bank, int *alias)
     hwaddr rel;
 
     if (off >= IM_DMA0_REQ_ENABLE0 &&
-        off < IM_DMA0_REQ_ENABLE0 + IM_REQ_ENABLE_BANKS * IM_REQ_ENABLE_STRIDE) {
+        off < IM_DMA0_REQ_ENABLE0 +
+              IM_REQ_ENABLE_BANKS * IM_REQ_ENABLE_STRIDE) {
         *dma = 0;
         rel = off - IM_DMA0_REQ_ENABLE0;
     } else if (off >= IM_DMA1_REQ_ENABLE0 &&
-               off < IM_DMA1_REQ_ENABLE0 + IM_REQ_ENABLE_BANKS * IM_REQ_ENABLE_STRIDE) {
+               off < IM_DMA1_REQ_ENABLE0 +
+                     IM_REQ_ENABLE_BANKS * IM_REQ_ENABLE_STRIDE) {
         *dma = 1;
         rel = off - IM_DMA1_REQ_ENABLE0;
     } else {
@@ -228,21 +236,24 @@ static uint64_t mcxn_inputmux_read(void *opaque, hwaddr offset, unsigned size)
  * A trigger source fired.  Forward the EDGE to every destination whose selector
  * currently names this source.
  *
- * ⚠ THIS IS THE HALF OF INPUTMUX THAT WAS MISSING, AND ITS ABSENCE WAS SILENT.  A
- * guest could attach LPTMR0 to ADC0_TRIG[0], start the timer, arm the ADC, and wait
- * forever: the timer ticked, the trigger went NOWHERE, and no conversion ever
- * happened.  Nothing logged, nothing faulted -- the stock lpadc/edma example just
- * sat there.  A router that routes nothing looks exactly like a router.
+ * ⚠ THIS IS THE HALF OF INPUTMUX THAT WAS MISSING, AND ITS ABSENCE WAS
+ * SILENT.  A guest could attach LPTMR0 to ADC0_TRIG[0], start the timer, arm
+ * the ADC, and wait forever: the timer ticked, the trigger went NOWHERE, and
+ * no conversion ever happened.  Nothing logged, nothing faulted -- the stock
+ * lpadc/edma example just sat there.  A router that routes nothing looks
+ * exactly like a router.
  */
 /*
- * The physical trigger source that (destination ADC, selector value) connects to.
+ * The physical trigger source that (destination ADC, selector value) connects
+ * to.
  *
- * Almost every selector is identity -- the selector value IS the source id.  The
- * exception is CTIMER3/4 -> ADC: ADC0_TRIG=8/9 name Ctimer3M3 / Ctimer4M3, but
- * ADC1_TRIG=8/9 name Ctimer3M2 / Ctimer4M1 (a PER-DESTINATION connection, from NXP's
- * INPUTMUX table).  Those two ADC1-facing lines carry distinct source ids, so the same
- * written selector value routes to the correct physical match line for each ADC -- a
- * shared-selector model that ignored this would fire ADC1 on the wrong CTIMER match.
+ * Almost every selector is identity -- the selector value IS the source id.
+ * The exception is CTIMER3/4 -> ADC: ADC0_TRIG=8/9 name Ctimer3M3 / Ctimer4M3,
+ * but ADC1_TRIG=8/9 name Ctimer3M2 / Ctimer4M1 (a PER-DESTINATION connection,
+ * from NXP's INPUTMUX table).  Those two ADC1-facing lines carry distinct
+ * source ids, so the same written selector value routes to the correct
+ * physical match line for each ADC -- a shared-selector model that ignored
+ * this would fire ADC1 on the wrong CTIMER match.
  */
 static uint32_t im_adc_sel_to_src(int adc, uint32_t sel)
 {
@@ -279,7 +290,10 @@ static void mcxn_inputmux_trigger(void *opaque, int src, int level)
         }
     }
 
-    /* DACn_TRIG: one 6-bit selector per DAC; a match advances that DAC's output FIFO. */
+    /*
+     * DACn_TRIG: one 6-bit selector per DAC; a match advances that DAC's
+     * output FIFO.
+     */
     for (t = 0; t < MCXN_INPUTMUX_NDAC; t++) {
         uint32_t sel = s->regs[(IM_DAC0_TRIG + t * IM_DAC_TRIG_STEP) / 4]
                        & IM_TRIG6_MASK;
@@ -289,8 +303,10 @@ static void mcxn_inputmux_trigger(void *opaque, int src, int level)
         }
     }
 
-    /* CMPn_TRIG: one 6-bit selector per comparator (irregular offsets); a match paces
-     * that comparator's round-robin sampling. */
+    /*
+     * CMPn_TRIG: one 6-bit selector per comparator (irregular offsets); a
+     * match paces that comparator's round-robin sampling.
+     */
     for (t = 0; t < MCXN_INPUTMUX_NCMP; t++) {
         uint32_t sel = s->regs[im_cmp_trig_off[t] / 4] & IM_TRIG6_MASK;
 
@@ -299,18 +315,25 @@ static void mcxn_inputmux_trigger(void *opaque, int src, int level)
         }
     }
 
-    /* QDCn_TRIG: one 6-bit selector per quadrature decoder; a match captures/clears the
-     * QDC position counters (encoder-position snapshot synchronised to a timer/PWM). */
+    /*
+     * QDCn_TRIG: one 6-bit selector per quadrature decoder; a match
+     * captures/clears the QDC position counters (encoder-position snapshot
+     * synchronised to a timer/PWM).
+     */
     for (t = 0; t < MCXN_INPUTMUX_NQDC; t++) {
-        uint32_t sel = s->regs[(IM_QDC0_TRIG + t * IM_QDC_TRIG_STEP) / 4] & IM_TRIG6_MASK;
+        uint32_t sel = s->regs[(IM_QDC0_TRIG + t * IM_QDC_TRIG_STEP) / 4]
+                       & IM_TRIG6_MASK;
 
         if (sel != IM_TRIG6_NONE && sel == (uint32_t)src) {
             qemu_irq_pulse(s->qdc_trig[t]);
         }
     }
 
-    /* TSI_TRIG: PER-DESTINATION selector -- 0 = LPTMR0, 1 = LPTMR1 (the ADC calls the same
-     * LPTMR0 "50"), so remap the 2-bit selector to the physical LPTMR source id. */
+    /*
+     * TSI_TRIG: PER-DESTINATION selector -- 0 = LPTMR0, 1 = LPTMR1 (the ADC
+     * calls the same LPTMR0 "50"), so remap the 2-bit selector to the physical
+     * LPTMR source id.
+     */
     {
         uint32_t sel = s->regs[IM_TSI_TRIG / 4] & IM_TRIG2_MASK;
         uint32_t phys = (sel == 0) ? MCXN_INPUTMUX_SRC_LPTMR0 :
@@ -376,14 +399,14 @@ static void mcxn_inputmux_reset(DeviceState *dev)
     /*
      * Reset values, TAKEN FROM THE RM'S REGISTER MAP, not from zero.
      *
-     * A SELECTOR THAT RESETS TO 0 IS NOT "UNCONFIGURED" -- IT NAMES INPUT 0.  The
-     * real reset is 0x7F (or 0x3F on the 6-bit selectors) and that value means NO
-     * INPUT CONNECTED.  Reading 0 tells the guest a source is already attached, and
-     * a guest that reads-modifies-writes a selector inherits a connection nobody
-     * made.
+     * A SELECTOR THAT RESETS TO 0 IS NOT "UNCONFIGURED" -- IT NAMES INPUT 0.
+     * The real reset is 0x7F (or 0x3F on the 6-bit selectors) and that value
+     * means NO INPUT CONNECTED.  Reading 0 tells the guest a source is already
+     * attached, and a guest that reads-modifies-writes a selector inherits a
+     * connection nobody made.
      *
-     * DMAn_REQ_ENABLE resets to all-ones: every eDMA request line ENABLED.  A zero
-     * there would BLOCK EVERY PERIPHERAL-TRIGGERED TRANSFER ON THE CHIP.
+     * DMAn_REQ_ENABLE resets to all-ones: every eDMA request line ENABLED.  A
+     * zero there would BLOCK EVERY PERIPHERAL-TRIGGERED TRANSFER ON THE CHIP.
      *
      * Generated from the reference manual, so it cannot drift into invention.
      */
@@ -406,7 +429,10 @@ static void mcxn_inputmux_realize(DeviceState *dev, Error **errp)
     qdev_init_gpio_out_named(dev, s->dma_req_enable[1], "dma1-req-enable",
                              MCXN_INPUTMUX_NREQ);
 
-    /* Trigger routing: one input per selector value, one output per ADC trigger. */
+    /*
+     * Trigger routing: one input per selector value, one output per ADC
+     * trigger.
+     */
     qdev_init_gpio_in_named(dev, mcxn_inputmux_trigger, "trig-in",
                             MCXN_INPUTMUX_NTRIG_SRC);
     qdev_init_gpio_out_named(dev, s->adc_trig[0], "adc0-trig",

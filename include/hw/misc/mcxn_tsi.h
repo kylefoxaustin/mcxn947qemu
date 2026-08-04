@@ -29,11 +29,13 @@ struct MCXNTSIState {
     qemu_irq irq;
     uint32_t regs[MCXN_TSI_SIZE / 4];
 
-    /* Operator-driven analog: there is no physical electrode in QEMU, so the
+    /*
+     * Operator-driven analog: there is no physical electrode in QEMU, so the
      * per-channel touch counter a scan would measure is exposed as a runtime
      * QOM property "tsi-countN" (the value a real electrode's capacitance would
      * drive) instead of a hidden constant.  A scan latches DATA[TSICNT] from
-     * tsi_count[ CONFIG[TSICH] ].  Default = a documented sample count. */
+     * tsi_count[ CONFIG[TSICH] ].  Default = a documented sample count.
+     */
     uint16_t tsi_count[MCXN_TSI_CHANNELS];
 };
 

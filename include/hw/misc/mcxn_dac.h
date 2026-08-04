@@ -3,16 +3,17 @@
  * output-FIFO model.
  *
  * The analog voltage is the only part of this block firmware cannot observe.
- * Everything else — FIFO occupancy, FULL/EMPTY/watermark, overflow, underflow,
- * the read/write pointers — is purely digital and fully specified, so it is
- * modelled for real (RM rev 7 §42.3 / §43.3):
+ * Everything else — FIFO occupancy, FULL/EMPTY/watermark, overflow,
+ * underflow, the read/write pointers — is purely digital and fully
+ * specified, so it is modelled for real (RM rev 7 §42.3 / §43.3):
  *
  *   - a DATA write pushes a sample (buffer mode: it *is* the output);
  *   - a trigger (TCR[SWTRG] or hardware) pops one sample to the output;
  *   - FULL/EMPTY/WM are computed from occupancy against FCR[WML];
- *   - writing a full FIFO drops the sample and sets FSR[OF] — the write pointer
- *     does not advance;
- *   - triggering an empty FIFO sets FSR[UF] and the output holds its last value.
+ *   - writing a full FIFO drops the sample and sets FSR[OF] — the
+ *     write pointer does not advance;
+ *   - triggering an empty FIFO sets FSR[UF] and the output holds its
+ *     last value.
  *
  * Why this matters (each was a silent-wrong-answer in the previous bring-up
  * model, which had no FIFO at all and reported FSR = EMPTY|WM forever):
@@ -23,8 +24,8 @@
  *     survive that — it was validating the model's fiction.)
  *   - Overflow was invisible: firmware could burst 64 samples into a 16-deep
  *     FIFO and see a happy, empty FIFO, while silicon drops 48 of them.
- *   - Underflow was invisible: a DMA-fed waveform that falls behind gets FSR[UF]
- *     and a frozen output on silicon; here it looked perfect.
+ *   - Underflow was invisible: a DMA-fed waveform that falls behind
+ *     gets FSR[UF] and a frozen output on silicon; here it looked perfect.
  *   - `while (!(FSR & FULL)) DATA = *p++;` — a legitimate fill loop — never
  *     terminated.
  *
@@ -60,8 +61,10 @@ struct MCXNDACState {
     MemoryRegion iomem;
     qemu_irq irq;
 
-    /* DMA request line into the eDMA (DAC0/1/2 = mux source 25/26/27), driven
-     * by the FIFO watermark/empty condition gated by DER. */
+    /*
+     * DMA request line into the eDMA (DAC0/1/2 = mux source 25/26/27), driven
+     * by the FIFO watermark/empty condition gated by DER.
+     */
     qemu_irq dma_req;
     bool     dma_req_level;
     uint32_t regs[MCXN_DAC_SIZE / 4];

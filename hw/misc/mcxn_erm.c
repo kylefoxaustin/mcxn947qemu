@@ -6,7 +6,8 @@
  * register (SYNn) and a correctable-error counter (CORR_ERR_CNTn).
  *
  * In emulation no ECC error is ever raised, so:
- *   - The status registers SR0/SR1 are write-1-to-clear and stay 0 ("no error").
+ *   - The status registers SR0/SR1 are write-1-to-clear and stay 0
+ *     ("no error").
  *   - The error-address EARn and syndrome SYNn registers are read-only (CMSIS
  *     __I) and read 0.
  *   - CR0/CR1 and the CORR_ERR_CNTn counters are plain RW storage.

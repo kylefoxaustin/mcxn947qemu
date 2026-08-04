@@ -4,8 +4,9 @@
  * The windowed watchdog is modelled as a register file so that firmware can
  * configure it (MOD/TC/WINDOW/WARNINT) and feed it (FEED) without the model
  * ever asserting a watchdog timeout or chip reset.  TC holds the reload value;
- * the read-only TV (timer value) reports the configured reload value so a driver
- * reading the down-counter sees a sane, non-zero value.  FEED is write-only and
+ * the read-only TV (timer value) reports the configured reload value so a
+ * driver reading the down-counter sees a sane, non-zero value.  FEED is
+ * write-only and
  * reloads the (virtual) counter — no reset is generated.  The MOD.WDTOF /
  * MOD.WDINT status flags are never set because no timeout is ever produced.
  * One shared type drives two instances (WWDT0, WWDT1).  Offsets and reset

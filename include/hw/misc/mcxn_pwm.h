@@ -30,20 +30,33 @@ struct MCXNPWMState {
 
     /*< public >*/
     MemoryRegion iomem;
-    Clock       *clk;           /* IPBus/bus clock — derived from the SCG main clock */
-    qemu_irq     irq;           /* main submodule-0 capture/compare/reload line */
-    qemu_irq     dma_req_val;   /* submodule-0 value-register DMA request (reload-driven) */
-    bool         val_dma_lvl;   /* current level of dma_req_val, so we edge-detect */
-    qemu_irq     dma_req_capa;  /* submodule-0 input-A capture DMA request (pulse per edge) */
-    bool         capa_level;    /* operator-driven input-A pin level (for edge-detect) */
-    qemu_irq     irq_fault;     /* FlexPWM FAULT interrupt line (NVIC FLEXPWMn_FAULT) */
-    bool         fault_level;   /* operator-driven FAULT0 input pin level (for edge-detect) */
+    /* IPBus/bus clock — derived from the SCG main clock */
+    Clock       *clk;
+    /* main submodule-0 capture/compare/reload line */
+    qemu_irq     irq;
+    /* submodule-0 value-register DMA request (reload-driven) */
+    qemu_irq     dma_req_val;
+    /* current level of dma_req_val, so we edge-detect */
+    bool         val_dma_lvl;
+    /* submodule-0 input-A capture DMA request (pulse per edge) */
+    qemu_irq     dma_req_capa;
+    /* operator-driven input-A pin level (for edge-detect) */
+    bool         capa_level;
+    /* FlexPWM FAULT interrupt line (NVIC FLEXPWMn_FAULT) */
+    qemu_irq     irq_fault;
+    /* operator-driven FAULT0 input pin level (for edge-detect) */
+    bool         fault_level;
     QEMUTimer    reload_timer;  /* submodule-0 periodic reload */
-    int64_t      next_reload_ns; /* the reload DEADLINE, so the carrier cannot drift */
-    qemu_irq     out_trig[2];   /* submodule-0 PWM_OUT_TRIG0/1 -> INPUTMUX -> ADC trigger */
-    QEMUTimer    trig_timer;    /* fires at the next enabled VALn output-trigger compare */
-    int64_t      next_trig_ns;  /* deadline of the pending output-trigger compare */
-    uint8_t      trig_mask;     /* which OUT_TRIG lines fire at next_trig_ns (bit0/bit1) */
+    /* the reload DEADLINE, so the carrier cannot drift */
+    int64_t      next_reload_ns;
+    /* submodule-0 PWM_OUT_TRIG0/1 -> INPUTMUX -> ADC trigger */
+    qemu_irq     out_trig[2];
+    /* fires at the next enabled VALn output-trigger compare */
+    QEMUTimer    trig_timer;
+    /* deadline of the pending output-trigger compare */
+    int64_t      next_trig_ns;
+    /* which OUT_TRIG lines fire at next_trig_ns (bit0/bit1) */
+    uint8_t      trig_mask;
 
     uint8_t regs[MCXN_PWM_SIZE];
 };

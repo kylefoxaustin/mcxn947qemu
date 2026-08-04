@@ -29,32 +29,37 @@ struct MCXNSCGState {
 
     /*
      * THE SOURCE CLOCKS SCG ACTUALLY PRODUCES.  SYSCON muxes these to the
-     * peripherals per its *CLKSEL registers.  Both are DERIVED from registers the
-     * guest writes -- never asserted by us:
+     * peripherals per its *CLKSEL registers.  Both are DERIVED from
+     * registers the guest writes -- never asserted by us:
      *
      *   fro12m : 12 MHz, gated by SIRCCSR[SIRC_CLK_PERIPH_EN]
-     *   frohf  : 0 if !FIRCCSR[FIRCEN]; 144 MHz if FIRCCFG[RANGE]; else 48 MHz
-     *            (fsl_clock.c: CLOCK_GetFroHfFreq -- the SDK's own logic, mirrored)
+     *   frohf  : 0 if !FIRCCSR[FIRCEN]; 144 MHz if FIRCCFG[RANGE];
+     *            else 48 MHz
+     *            (fsl_clock.c: CLOCK_GetFroHfFreq -- the SDK's own
+     *            logic, mirrored)
      */
     Clock *fro12m;
     Clock *frohf;
 
     /*
-     * PLL0 (APLL) and PLL1 (SPLL) outputs — DERIVED from the APLL/SPLL NDIV/MDIV/PDIV
-     * registers via the RM formula (fsl_clock.c CLOCK_GetPll0OutFreq): Fout =
-     * (Fin/N)*M/postdiv, gated by the PLL power/enable.  SYSCON muxes these to the
-     * peripherals that can select a PLL source (the CTIMER/SCT selectors), so a guest
-     * that programs PLL0 to 150 MHz and points a timer at it gets 150 MHz — and a guest
-     * that reconfigures the PLL moves that timer with it, instead of a 0-Hz stub.
+     * PLL0 (APLL) and PLL1 (SPLL) outputs — DERIVED from the APLL/SPLL
+     * NDIV/MDIV/PDIV registers via the RM formula
+     * (fsl_clock.c CLOCK_GetPll0OutFreq): Fout = (Fin/N)*M/postdiv, gated
+     * by the PLL power/enable.  SYSCON muxes these to the peripherals
+     * that can select a PLL source (the CTIMER/SCT selectors), so a
+     * guest that programs PLL0 to 150 MHz and points a timer at it gets
+     * 150 MHz — and a guest that reconfigures the PLL moves that timer
+     * with it, instead of a 0-Hz stub.
      */
     Clock *apll;
     Clock *spll;
 
     /*
-     * The SCG main clock — RCCR[SCS] selects its source (FRO_HF at reset -> 48 MHz;
-     * PLL0 after BOARD_InitBootClocks -> 150 MHz).  Feeds the M33 cpuclk/refclk, so
-     * SysTick and the core derive from it: an un-configured guest runs at the real
-     * 48 MHz reset rate, a configured one at 150 MHz, and a reconfigure moves both.
+     * The SCG main clock — RCCR[SCS] selects its source (FRO_HF at reset
+     * -> 48 MHz; PLL0 after BOARD_InitBootClocks -> 150 MHz).  Feeds the
+     * M33 cpuclk/refclk, so SysTick and the core derive from it: an
+     * un-configured guest runs at the real 48 MHz reset rate, a
+     * configured one at 150 MHz, and a reconfigure moves both.
      */
     Clock *mainclk;
 };

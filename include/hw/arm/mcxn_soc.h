@@ -101,7 +101,8 @@ struct MCXNState {
 
     /*< public >*/
     ARMv7MState  armv7m[MCXN_MAX_CPUS];   /* dual Cortex-M33 (cpu0 + cpu1) */
-    MemoryRegion cpu_mem[MCXN_MAX_CPUS];  /* per-core alias view of the SoC map */
+    /* per-core alias view of the SoC map */
+    MemoryRegion cpu_mem[MCXN_MAX_CPUS];
     MCXNLPUARTState flexcomm[MCXN_NUM_FLEXCOMM]; /* LP_FLEXCOMM0..9 (LPUART) */
     MCXNSCGState    scg0;          /* system clock generator (stub) */
     MCXNSysconState syscon;        /* CPU1 boot control (CPUCTRL/CPBOOT) */
@@ -114,10 +115,10 @@ struct MCXNState {
     MCXNFMUState    fmu0;                      /* flash management unit */
     MCXNOSTimerState ostimer0;                 /* OS event timer */
     MCXNEDMAState   edma[MCXN_NUM_EDMA];        /* DMA0..1 (eDMA) */
-    MCXNInputMuxState inputmux;                 /* INPUTMUX0: trigger + DMA gating */
+    MCXNInputMuxState inputmux; /* INPUTMUX0: trigger + DMA gating */
     MCXNADCState    adc[MCXN_NUM_ADC];           /* ADC0..1 (LPADC) */
     MCXNCMPState    cmp[MCXN_NUM_CMP];           /* CMP0..2 (LPCMP) */
-    MCXNPINTState   pint0;                        /* PINT (pin interrupt, IRQ 47) */
+    MCXNPINTState   pint0; /* PINT (pin interrupt, IRQ 47) */
     MCXNTSIState    tsi[MCXN_NUM_TSI];           /* TSI0 (touch sense) */
     MCXNEMVSIMState emvsim[MCXN_NUM_EMVSIM];      /* EMVSIM0..1 (smartcard) */
     MCXNFlexCanState flexcan[MCXN_NUM_FLEXCAN];   /* CAN0..1 (FlexCAN) */
@@ -126,30 +127,36 @@ struct MCXNState {
     MCXNMailboxState mailbox;                      /* Inter-CPU mailbox */
     MCXNRTCState    rtc0;                          /* RTC (calendar) */
     MCXNUSDHCState  usdhc0;                        /* uSDHC (SD/MMC host) */
-    MCXNFlexSPIState flexspi0;                     /* FlexSPI (ext flash ctrl) */
+    MCXNFlexSPIState flexspi0; /* FlexSPI (ext flash ctrl) */
     MCXNSAIState    sai[MCXN_NUM_SAI];             /* SAI0..1 (audio) */
     MCXNDACState    dac[MCXN_NUM_DAC];             /* DAC0..2 */
     MCXNSINCState   sinc0;                        /* SINC sigma-delta filter */
-    MCXNPDMState    pdm0;                         /* PDM / MICFIL (digital mic) */
+    MCXNPDMState    pdm0; /* PDM / MICFIL (digital mic) */
     MCXNPowerQuadState powerquad0;                 /* PowerQuad DSP coproc */
     MCXNPWMState    pwm[MCXN_NUM_PWM];             /* eFlexPWM0..1 */
     MCXNSCTState    sct0;                          /* SCTimer/PWM */
     MCXNI3CState    i3c[MCXN_NUM_I3C];             /* I3C0..1 */
     MCXNUsbDevState usbdev;                         /* usbredir core (USBFS) */
-    MCXNUSBFSState  usbfs0;                         /* USBFS (KHCI) device mode */
+    MCXNUSBFSState  usbfs0; /* USBFS (KHCI) device mode */
     MCXNUsbDevState usbdev_hs;                       /* usbredir core (USBHS) */
-    MCXNUSBHSCoreState usbhs_core;                   /* USBHS (ChipIdea) device */
+    MCXNUSBHSCoreState usbhs_core; /* USBHS (ChipIdea) device */
     MCXNNeutronState neutron0;                       /* eIQ Neutron NPU */
     Clock      *sysclk;
     Clock      *refclk;
 
-    /* On-chip memories — each reachable via a non-secure and a secure
+    /*
+     * On-chip memories — each reachable via a non-secure and a secure
      * aperture (TZ-M); per RM Table 16. The real region is added at the NS
-     * base, an alias at the secure base. */
-    MemoryRegion flash;   MemoryRegion flash_alias;  /* 0x0 / 0x10000000  2 MB  */
-    MemoryRegion rom;     MemoryRegion rom_alias;    /* 0x03000000 / 0x13000000 */
-    MemoryRegion sramx;   MemoryRegion sramx_alias;  /* 0x04000000 / 0x14000000 */
-    MemoryRegion sram;    MemoryRegion sram_alias;   /* 0x20000000 / 0x30000000 */
+     * base, an alias at the secure base.
+     */
+    /* 0x0 / 0x10000000  2 MB  */
+    MemoryRegion flash;   MemoryRegion flash_alias;
+    /* 0x03000000 / 0x13000000 */
+    MemoryRegion rom;     MemoryRegion rom_alias;
+    /* 0x04000000 / 0x14000000 */
+    MemoryRegion sramx;   MemoryRegion sramx_alias;
+    /* 0x20000000 / 0x30000000 */
+    MemoryRegion sram;    MemoryRegion sram_alias;
     MemoryRegion flexcomm_s_alias[MCXN_NUM_FLEXCOMM]; /* secure aliases */
     MemoryRegion scg0_s_alias;      /* TrustZone secure alias of SCG0 */
     MemoryRegion syscon_s_alias;    /* TrustZone secure alias of SYSCON */
@@ -162,35 +169,41 @@ struct MCXNState {
     MemoryRegion fmu0_s_alias;                    /* secure alias of FMU */
     MemoryRegion ostimer0_s_alias;                /* secure alias of OSTIMER */
     MemoryRegion edma_s_alias[MCXN_NUM_EDMA];     /* secure aliases of eDMA */
-    MemoryRegion inputmux_s_alias;                /* secure alias of INPUTMUX0 */
-    MemoryRegion adc_s_alias[MCXN_NUM_ADC];       /* secure aliases of ADC0..1 */
-    MemoryRegion cmp_s_alias[MCXN_NUM_CMP];       /* secure aliases of CMP0..2 */
+    MemoryRegion inputmux_s_alias;              /* secure alias of INPUTMUX0 */
+    MemoryRegion adc_s_alias[MCXN_NUM_ADC];     /* secure aliases of ADC0..1 */
+    MemoryRegion cmp_s_alias[MCXN_NUM_CMP];     /* secure aliases of CMP0..2 */
     MemoryRegion pint0_s_alias;                   /* secure alias of PINT */
     MemoryRegion tsi_s_alias[MCXN_NUM_TSI];       /* secure aliases of TSI0 */
-    MemoryRegion emvsim_s_alias[MCXN_NUM_EMVSIM]; /* secure aliases of EMVSIM0..1 */
-    MemoryRegion flexcan_s_alias[MCXN_NUM_FLEXCAN]; /* secure aliases of CAN0..1 */
+    /* secure aliases of EMVSIM0..1 */
+    MemoryRegion emvsim_s_alias[MCXN_NUM_EMVSIM];
+    /* secure aliases of CAN0..1 */
+    MemoryRegion flexcan_s_alias[MCXN_NUM_FLEXCAN];
     MemoryRegion enet0_s_alias;                   /* secure alias of ENET */
     MemoryRegion mailbox_s_alias;                  /* secure alias of mailbox */
     MemoryRegion rtc0_s_alias;                     /* secure alias of RTC */
     MemoryRegion usdhc0_s_alias;                   /* secure alias of uSDHC */
-    MemoryRegion flexspi0_s_alias;                 /* secure alias of FlexSPI regs */
-    MemoryRegion flexspi0_nor_s_alias;             /* secure alias of FlexSPI NOR (XIP) */
-    MemoryRegion sai_s_alias[MCXN_NUM_SAI];        /* secure aliases of SAI0..1 */
-    MemoryRegion dac_s_alias[MCXN_NUM_DAC];        /* secure aliases of DAC0..2 */
+    MemoryRegion flexspi0_s_alias;           /* secure alias of FlexSPI regs */
+    /* secure alias of FlexSPI NOR (XIP) */
+    MemoryRegion flexspi0_nor_s_alias;
+    MemoryRegion sai_s_alias[MCXN_NUM_SAI];     /* secure aliases of SAI0..1 */
+    MemoryRegion dac_s_alias[MCXN_NUM_DAC];     /* secure aliases of DAC0..2 */
     MemoryRegion sinc0_s_alias;                    /* secure alias of SINC */
     MemoryRegion pdm0_s_alias;                     /* secure alias of PDM */
-    MemoryRegion powerquad0_s_alias;               /* secure alias of PowerQuad */
-    MemoryRegion pwm_s_alias[MCXN_NUM_PWM];        /* secure aliases of PWM0..1 */
+    MemoryRegion powerquad0_s_alias;            /* secure alias of PowerQuad */
+    MemoryRegion pwm_s_alias[MCXN_NUM_PWM];     /* secure aliases of PWM0..1 */
     MemoryRegion sct0_s_alias;                     /* secure alias of SCT */
-    MemoryRegion i3c_s_alias[MCXN_NUM_I3C];        /* secure aliases of I3C0..1 */
+    MemoryRegion i3c_s_alias[MCXN_NUM_I3C];     /* secure aliases of I3C0..1 */
     MemoryRegion usbfs0_s_alias;                    /* secure alias of USBFS0 */
-    MemoryRegion usbhs_core_s_alias;                /* secure alias of USBHS core */
-    MemoryRegion neutron0_s_alias;                  /* secure alias of Neutron NPU */
+    MemoryRegion usbhs_core_s_alias;         /* secure alias of USBHS core */
+    MemoryRegion neutron0_s_alias;           /* secure alias of Neutron NPU */
 
     const MCXNConfig *cfg;      /* resolved from "part" at realize time       */
     char            *part;      /* settable property: selects the MCXNConfig  */
-    bool            qspi_boot;  /* "qspi-boot" prop: reset from the FlexSPI XIP NOR, not
-                                 * internal flash (production QSPI execute-in-place boot) */
+    /*
+     * "qspi-boot" prop: reset from the FlexSPI XIP NOR, not internal flash
+     * (production QSPI execute-in-place boot)
+     */
+    bool            qspi_boot;
 };
 
 #endif /* HW_ARM_MCXN_SOC_H */

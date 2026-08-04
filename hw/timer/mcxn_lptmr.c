@@ -27,12 +27,15 @@
 
 /*
  * PSR[PCS] selects the LPTMR's functional clock (RM rev 7, Table 463 "LPTMRn
- * prescaler/glitch filter clocking options") -- a LOW-POWER clock, NOT the bus clock:
- *   00 FRO_12M (12 MHz)   01 FRO_16K (16 kHz)   10 32K_CLK (32.768 kHz)   11 OSC_SYS
- * The LPTMR's max is 25 MHz, so a 150 MHz source is impossible on silicon.  FRO_12M
- * comes from the SCG (the "clk" input); FRO_16K and 32K_CLK are fixed low-power
- * oscillators (the same constants SYSCON uses for OSTIMER); OSC_SYS is the external
- * crystal, which has no source in emulation (a board seam) and reports 0.
+ * prescaler/glitch filter clocking options") -- a LOW-POWER clock, NOT the
+ * bus clock:
+ *   00 FRO_12M (12 MHz)   01 FRO_16K (16 kHz)
+ *   10 32K_CLK (32.768 kHz)   11 OSC_SYS
+ * The LPTMR's max is 25 MHz, so a 150 MHz source is impossible on silicon.
+ * FRO_12M comes from the SCG (the "clk" input); FRO_16K and 32K_CLK are fixed
+ * low-power oscillators (the same constants SYSCON uses for OSTIMER); OSC_SYS
+ * is the external crystal, which has no source in emulation (a board seam) and
+ * reports 0.
  */
 #define FRO_16K_HZ   16000u          /* fsl_clock.c: CLOCK_GetClk16KFreq()  */
 #define CLK_32K_HZ   32768u          /* 32K_CLK (OSC_32K / FRO_32K)         */
@@ -50,21 +53,24 @@ static uint32_t lptmr_source_hz(MCXNLPTMRState *s)
     switch (s->psr & PSR_PCS) {
     case 0:
         return s->clk ? clock_get_hz(s->clk) : 0;  /* FRO_12M (from SCG)  */
-    case 1:  return FRO_16K_HZ;                          /* FRO_16K            */
-    case 2:  return CLK_32K_HZ;                          /* 32K_CLK            */
-    default:                                             /* 11 = OSC_SYS       */
+    case 1:  return FRO_16K_HZ;                         /* FRO_16K            */
+    case 2:  return CLK_32K_HZ;                         /* 32K_CLK            */
+    default:                                            /* 11 = OSC_SYS       */
         qemu_log_mask(LOG_UNIMP,
-            "mcxn-lptmr: PCS=3 selects OSC_SYS (external crystal), which has no source "
-            "in emulation -- reporting 0 Hz, so the timer does not run (a board seam, not "
-            "a plausible-but-wrong rate).\n");
+            "mcxn-lptmr: PCS=3 selects OSC_SYS (external crystal), which has "
+            "no source in emulation -- reporting 0 Hz, so the timer does not "
+            "run (a board seam, not a plausible-but-wrong rate).\n");
         return 0;
     }
 }
 
 static uint32_t lptmr_freq(MCXNLPTMRState *s)
 {
-    /* No 150 MHz fallback: a low-power timer never runs on the bus clock, and a source
-     * of 0 (OSC_SYS with no crystal, or an ungated FRO_12M) means it does not run. */
+    /*
+     * No 150 MHz fallback: a low-power timer never runs on the bus clock, and
+     * a source of 0 (OSC_SYS with no crystal, or an ungated FRO_12M) means it
+     * does not run.
+     */
     return lptmr_source_hz(s) / lptmr_divider(s);
 }
 
@@ -94,7 +100,7 @@ static void lptmr_reschedule(MCXNLPTMRState *s, int64_t now)
     }
     freq = lptmr_freq(s);
     if (freq == 0) {
-        return;                          /* no clock source: the timer does not run */
+        return;      /* no clock source: the timer does not run */
     }
     cur = lptmr_peek(s, now);
     period = s->cmr + 1;                 /* compare fires at CNR == CMR */
@@ -120,9 +126,10 @@ static void lptmr_tick(void *opaque)
     lptmr_update_irq(s);
 
     /*
-     * Pulse the trigger output.  A trigger is an EVENT, not a level: INPUTMUX routes
-     * the edge, and the consumer (ADC/DAC) acts on it once.  Holding it high would
-     * make a single compare match look like a continuous conversion request.
+     * Pulse the trigger output.  A trigger is an EVENT, not a level: INPUTMUX
+     * routes the edge, and the consumer (ADC/DAC) acts on it once.  Holding it
+     * high would make a single compare match look like a continuous conversion
+     * request.
      */
     qemu_irq_pulse(s->trigger);
 

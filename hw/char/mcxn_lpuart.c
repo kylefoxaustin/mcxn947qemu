@@ -15,15 +15,17 @@
 #include "hw/i2c/i2c.h"
 #include "migration/vmstate.h"
 
-/* --- LPUART core register offsets ------------------------------------------ */
+/* --- LPUART core register offsets ---------------------------------- */
 #define LPUART_VERID    0x00  /* RO */
 #define LPUART_PARAM    0x04  /* RO */
 #define LPUART_GLOBAL   0x08
 #define LPUART_PINCFG   0x0C
-#define LPUART_MCR      0x40   /* Modem Control -- the STOCK EDMA driver reads
-                                * AND writes this; it was unhandled and showed up
-                                * only when a REAL driver was run against the
-                                * model, never in firmware I wrote myself. */
+#define LPUART_MCR      0x40   /*
+                                * Modem Control -- the STOCK EDMA driver reads
+                                * AND writes this; it was unhandled and showed
+                                * up only when a REAL driver was run against the
+                                * model, never in firmware I wrote myself.
+                                */
 #define LPUART_MSR      0x44   /* Modem Status */
 #define LPUART_BAUD     0x10
 #define LPUART_STAT     0x14
@@ -42,12 +44,13 @@
 #define LPUART_TIMEOUT0 0x60  /* Timeout 0..3 (step 4) */
 #define LPUART_TIMEOUT3 0x6C
 
-/* --- LP_FLEXCOMM wrapper register offsets ---------------------------------- */
+/* --- LP_FLEXCOMM wrapper register offsets ------------------------ */
 #define LPFLEXCOMM_ISTAT   0xFF4  /* RO */
 #define LPFLEXCOMM_PSELID  0xFF8
 
 /*
- * ⚠ LPI2C LIVES AT +0x800 INSIDE THE FLEXCOMM WINDOW.  LPUART AND LPSPI DO NOT.
+ * ⚠ LPI2C LIVES AT +0x800 INSIDE THE FLEXCOMM WINDOW.  LPUART AND LPSPI
+ * DO NOT.
  *
  * CMSIS is unambiguous, and the three do not share a base:
  *     LP_FLEXCOMM0_BASE = 0x4009_2000
@@ -55,43 +58,48 @@
  *     LPSPI0_BASE       = 0x4009_2000    (+0x000)   -- overlays LPUART
  *     LPI2C0_BASE       = 0x4009_2800    (+0x800)   -- DOES NOT
  *
- * This decode had LPI2C at +0x000 alongside the other two.  So every LPI2C
- * register access from real firmware -- which naturally uses LPI2C0_BASE -- landed
- * at window offset 0x8xx, MATCHED NO CASE, AND WAS SILENTLY DROPPED: reads returned
- * 0, writes went nowhere.  THE WHOLE IP WAS UNREACHABLE FROM THE GUEST.  The stock
- * lpi2c examples print their banner and then quietly do nothing, forever, because
+ * This decode had LPI2C at +0x000 alongside the other two.  So every
+ * LPI2C register access from real firmware -- which naturally uses
+ * LPI2C0_BASE -- landed at window offset 0x8xx, MATCHED NO CASE, AND WAS
+ * SILENTLY DROPPED: reads returned 0, writes went nowhere.  THE WHOLE IP
+ * WAS UNREACHABLE FROM THE GUEST.  The stock lpi2c examples print their
+ * banner and then quietly do nothing, forever, because
  * LPI2C_MasterInit()'s every write fell on the floor.
  *
- * And my own LPI2C tests passed the entire time, because they poked THE OFFSETS
- * THIS FILE INVENTED.  The test agreed with the model because the test got its
- * address from the model.  That is not a test, it is a mirror -- and no amount of
- * mutation testing can see it, because mutating the model moves the mirror too.
- * It took an INDEPENDENT golden (the RM's reset values, read back at the addresses
- * CMSIS gives) to notice that nobody was home.
+ * And my own LPI2C tests passed the entire time, because they poked THE
+ * OFFSETS THIS FILE INVENTED.  The test agreed with the model because the
+ * test got its address from the model.  That is not a test, it is a mirror
+ * -- and no amount of mutation testing can see it, because mutating the
+ * model moves the mirror too.  It took an INDEPENDENT golden (the RM's
+ * reset values, read back at the addresses CMSIS gives) to notice that
+ * nobody was home.
  */
 #define LPI2C_WINDOW  0x800
 
 /*
- * Reset values from the RM's register map.  Each of these was ZERO, and zero is a
- * CLAIM the guest acts on -- see the SCG SIRCCSR bug that started this audit.
+ * Reset values from the RM's register map.  Each of these was ZERO, and
+ * zero is a CLAIM the guest acts on -- see the SCG SIRCCSR bug that
+ * started this audit.
  */
-#define LPUART_BAUD_RESET   0x0F000004u  /* OSR=15, SBR=4 -- the SDK DIVIDES by OSR */
+/* OSR=15, SBR=4 -- the SDK DIVIDES by OSR */
+#define LPUART_BAUD_RESET   0x0F000004u
 #define LPUART_TOSR_RESET   0x0000000Fu
 #define LPSPI_TCR_RESET     0x0000001Fu  /* FRAMESZ = 31 -> a 32-bit frame */
 
 /*
  * FIFO[RXFIFOSIZE] (bits 2:0) and FIFO[TXFIFOSIZE] (bits 6:4) are READ-ONLY
- * CAPABILITY fields: the part telling software how deep its FIFOs are.  Reset 0x22
- * = size code 2 on each.  They were 0 (= the smallest FIFO), and worse, they were
- * STORED -- so the SDK's `base->FIFO = ...` during init would have OVERWRITTEN the
- * part's own description of itself.  A capability register that software can change
- * is not a capability register.
+ * CAPABILITY fields: the part telling software how deep its FIFOs are.
+ * Reset 0x22 = size code 2 on each.  They were 0 (= the smallest FIFO),
+ * and worse, they were STORED -- so the SDK's `base->FIFO = ...` during
+ * init would have OVERWRITTEN the part's own description of itself.  A
+ * capability register that software can change is not a capability
+ * register.
  */
 #define LPUART_FIFO_SIZES      0x00000022u
 #define LPUART_FIFO_SIZES_MASK 0x00000077u
 #define LPUART_DATA_RXEMPT     0x00001000u  /* CMSIS LPUART_DATA_RXEMPT_MASK */
 
-/* --- Bit masks (CMSIS) ----------------------------------------------------- */
+/* --- Bit masks (CMSIS) --------------------------------------------- */
 #define STAT_OR     0x00080000u
 #define STAT_IDLE   0x00100000u
 #define STAT_RDRF   0x00200000u
@@ -117,8 +125,9 @@
 /*
  * Read-only capability bits in PSELID: a full LP_FLEXCOMM (as FlexComm4 is)
  * advertises LPUART/LPSPI/LPI2C present.  The MCUXpresso SDK gates LPUART_Init
- * on UARTPRESENT via LP_FLEXCOMM_PeripheralIsPresent() — without it the console
- * driver bails before programming BAUD/CTRL and PRINTF silently emits nothing.
+ * on UARTPRESENT via LP_FLEXCOMM_PeripheralIsPresent() — without it the
+ * console driver bails before programming BAUD/CTRL and PRINTF silently
+ * emits nothing.
  */
 #define PSELID_UARTPRESENT  0x10u
 #define PSELID_SPIPRESENT   0x20u
@@ -127,87 +136,104 @@
     (PSELID_UARTPRESENT | PSELID_SPIPRESENT | PSELID_I2CPRESENT)
 
 /*
- * PSELID[ID] (bits 31:12) -- the block identifying itself.  RM reset for the whole
- * register is 0x0010_3070: the three PRESENT bits (0x70), the ID field (0x103000),
- * and PERSEL = 0 (NO FUNCTION SELECTED).
+ * PSELID[ID] (bits 31:12) -- the block identifying itself.  RM reset
+ * for the whole register is 0x0010_3070: the three PRESENT bits (0x70),
+ * the ID field (0x103000), and PERSEL = 0 (NO FUNCTION SELECTED).
  *
- * We returned 0x71: the present bits, NO ID AT ALL, and PERSEL = 1 (LPUART already
- * chosen).  Both halves were wrong -- the part under-reported what it is, and it
- * claimed a function selection the guest had not made.
+ * We returned 0x71: the present bits, NO ID AT ALL, and PERSEL = 1
+ * (LPUART already chosen).  Both halves were wrong -- the part
+ * under-reported what it is, and it claimed a function selection the
+ * guest had not made.
  */
 #define PSELID_ID_VALUE  0x00103000u
 
 /*
- * VERID/PARAM are read by some HALs to size the FIFO.  PARAM is DERIVED from the
- * modelled FIFO depth (see below) so the two cannot contradict each other.
+ * VERID/PARAM are read by some HALs to size the FIFO.  PARAM is
+ * DERIVED from the modelled FIFO depth (see below) so the two cannot
+ * contradict each other.
  * MCX-class constants; refine against the RM if a HAL ever depends on them.
  */
 #define LPUART_VERID_VALUE  0x04010003u
 /*
  * ⚠ THIS USED TO BE 0x0000_0404, WITH THE COMMENT "Values are plausible".
  *
- *   ⭐ "PLAUSIBLE" IS THE WORD YOU USE WHEN YOU MEAN FABRICATED.  It is in this tree's
- *     own guardrails, and I wrote the rule and then wrote the word.
+ *   ⭐ "PLAUSIBLE" IS THE WORD YOU USE WHEN YOU MEAN FABRICATED.  It is in
+ *     this tree's own guardrails, and I wrote the rule and then wrote the
+ *     word.
  *
- * And once the RX FIFO became REAL (8 deep, per RM FIFO[RXFIFOSIZE]=010b -> "010b - 8"),
- * that fabrication became a CONTRADICTION: FIFO said 8, PARAM said 4.
+ * And once the RX FIFO became REAL (8 deep, per RM FIFO[RXFIFOSIZE]=010b
+ * -> "010b - 8"), that fabrication became a CONTRADICTION: FIFO said 8,
+ * PARAM said 4.
  *   ⭐ TWO REGISTERS THAT DESCRIBE ONE RESOURCE MUST NOT DISAGREE.
  *
- * THE RM IS SILENT ON LPUART PARAM.  It has no row in the register summary and no field
- * description anywhere in 3763 pages -- which is why it never appeared in the reset-value
- * golden, and why the fabrication survived.  AND NO DRIVER READS IT: not the MCUXpresso
- * SDK, not Zephyr.  So there is no manual to quote and no driver to ask.
+ * THE RM IS SILENT ON LPUART PARAM.  It has no row in the register
+ * summary and no field description anywhere in 3763 pages -- which is
+ * why it never appeared in the reset-value golden, and why the
+ * fabrication survived.  AND NO DRIVER READS IT: not the MCUXpresso
+ * SDK, not Zephyr.  So there is no manual to quote and no driver to
+ * ask.
  *
- * MY FIRST FIX WAS 0x0808 (a literal depth of 8), argued from CMSIS making PARAM's fields
- * EIGHT BITS WIDE -- "a 2^n code needs only 4 bits, so 8 bits must mean a literal".
- * ⚠ THAT ARGUMENT IS FALSE, AND THE RM SAYS SO: LPSPI's RXFIFO IS ALSO 8 BITS (15:8) AND
- *   IS EXPLICITLY 2^n -- "the maximum number of words is 2**RXFIFO".  I had built a
- *   derivation out of a coincidence and was one build from shipping it.
+ * MY FIRST FIX WAS 0x0808 (a literal depth of 8), argued from CMSIS
+ * making PARAM's fields EIGHT BITS WIDE -- "a 2^n code needs only 4
+ * bits, so 8 bits must mean a literal".
+ * ⚠ THAT ARGUMENT IS FALSE, AND THE RM SAYS SO: LPSPI's RXFIFO IS ALSO 8
+ *   BITS (15:8) AND IS EXPLICITLY 2^n -- "the maximum number of words is
+ *   2**RXFIFO".  I had built a derivation out of a coincidence and was
+ *   one build from shipping it.
  *
- * All THREE FIFO-size fields the RM does document -- LPI2C's MRXFIFO/MTXFIFO, LPSPI's
- * RXFIFO/TXFIFO -- are 2^n.  But I cannot PROVE LPUART's is, so I do not have to:
+ * All THREE FIFO-size fields the RM does document -- LPI2C's
+ * MRXFIFO/MTXFIFO, LPSPI's RXFIFO/TXFIFO -- are 2^n.  But I cannot
+ * PROVE LPUART's is, so I do not have to:
  *
  *      value    if 2^n (the family convention)        if a literal depth
  *      -----    ------------------------------        ------------------
  *      0x0808   2^8 = 256 -- A CATASTROPHIC OVER-      8  (correct)
  *               PROMISE: a 256-deep FIFO we do not have
- *      0x0303   8 -- correct, and AGREES WITH FIFO     3  (an UNDER-report of 8)
+ *      0x0303   8 -- correct, and AGREES WITH FIFO    3  (an UNDER-report of 8)
  *
- *   ⭐ I DO NOT NEED TO RESOLVE THE ENCODING.  I NEED THE VALUE WHOSE FAILURE MODE IS
- *     UNDER-REPORTING.  On a capability register, under-reporting is a model that
- *     promises less than the chip; OVER-reporting is A PROMISE THE EMULATOR MAKES ON THE
- *     SILICON'S BEHALF, and the guest will hold us to it.  (91emulator, who learned this
- *     when QEMU refused to boot rather than let them advertise hardware they had not
- *     built.)
+ *   ⭐ I DO NOT NEED TO RESOLVE THE ENCODING.  I NEED THE VALUE WHOSE
+ *     FAILURE MODE IS UNDER-REPORTING.  On a capability register,
+ *     under-reporting is a model that promises less than the chip;
+ *     OVER-reporting is A PROMISE THE EMULATOR MAKES ON THE SILICON'S
+ *     BEHALF, and the guest will hold us to it.  (91emulator, who learned
+ *     this when QEMU refused to boot rather than let them advertise
+ *     hardware they had not built.)
  *
- * DERIVED, NOT WRITTEN DOWN: PARAM follows MCXN_LPUART_FIFO_DEPTH.  A capability register
- * that is a CONSTANT can drift from the thing it describes; one COMPUTED FROM it cannot.
+ * DERIVED, NOT WRITTEN DOWN: PARAM follows MCXN_LPUART_FIFO_DEPTH.  A
+ * capability register that is a CONSTANT can drift from the thing it
+ * describes; one COMPUTED FROM it cannot.
  */
-#define LPUART_PARAM_FIFO_EXP 3u   /* 2^3 = 8 = MCXN_LPUART_FIFO_DEPTH; asserted below */
-#define LPUART_PARAM_VALUE  ((LPUART_PARAM_FIFO_EXP << 8) | LPUART_PARAM_FIFO_EXP)
+/* 2^3 = 8 = MCXN_LPUART_FIFO_DEPTH; asserted below */
+#define LPUART_PARAM_FIFO_EXP 3u
+#define LPUART_PARAM_VALUE \
+    ((LPUART_PARAM_FIFO_EXP << 8) | LPUART_PARAM_FIFO_EXP)
 
 /*
  * ⚠ THIS GUARD WAS A MIRROR, AND A SIBLING HAD TO READ MY CODE TO SEE IT.
  *
  *   It used to be:  (1u << LPUART_PARAM_FIFO_EXP) != MCXN_LPUART_FIFO_DEPTH
  *
- *   That is MACRO versus MACRO -- TWO SPELLINGS OF ONE BELIEF, AGREEING WITH THEMSELVES.
- *   It never looks at the array the bytes actually land in.  Respell rx_fifo[] with a
- *   literal and PARAM would go on advertising 8 words over a 4-word buffer, silently.
+ *   That is MACRO versus MACRO -- TWO SPELLINGS OF ONE BELIEF, AGREEING
+ *   WITH THEMSELVES.  It never looks at the array the bytes actually
+ *   land in.  Respell rx_fifo[] with a literal and PARAM would go on
+ *   advertising 8 words over a 4-word buffer, silently.
  *
- *     ⭐ ASSERT AGAINST THE THING THE BYTES LAND IN, NOT AGAINST THE NAME YOU GAVE ITS
- *       SIZE.                                                          (95emulator)
+ *     ⭐ ASSERT AGAINST THE THING THE BYTES LAND IN, NOT AGAINST THE NAME
+ *       YOU GAVE ITS SIZE.                                     (95emulator)
  *
- *   I tested exactly that mutation and the build DID fail -- and I nearly filed the
- *   guard as sound.  IT WAS NOT MY ASSERTION THAT CAUGHT IT.  It was vmstate.h, on a
- *   pointer-type mismatch, because I happen to migrate this array with the same macro as
- *   its length.  PURE LUCK, and if the FIFO were not in the vmstate the guard would be
- *   blind.  ⭐ A SCREEN IS NOT A VERDICT -- INCLUDING THE SCREEN THAT SAYS "CAUGHT".
- *   The catch was real; the ATTRIBUTION was wrong, and only reading the error told me.
+ *   I tested exactly that mutation and the build DID fail -- and I
+ *   nearly filed the guard as sound.  IT WAS NOT MY ASSERTION THAT
+ *   CAUGHT IT.  It was vmstate.h, on a pointer-type mismatch, because I
+ *   happen to migrate this array with the same macro as its length.
+ *   PURE LUCK, and if the FIFO were not in the vmstate the guard would
+ *   be blind.  ⭐ A SCREEN IS NOT A VERDICT -- INCLUDING THE SCREEN THAT
+ *   SAYS "CAUGHT".  The catch was real; the ATTRIBUTION was wrong, and
+ *   only reading the error told me.
  *
- *   And it is `>` and not `!=` on purpose: the model may legitimately hold MORE than it
- *   ADVERTISES -- under-reporting is the safe direction -- and `!=` would forbid exactly
- *   the direction this tree has spent the day arguing FOR.  Over-advertising is the bug.
+ *   And it is `>` and not `!=` on purpose: the model may legitimately
+ *   hold MORE than it ADVERTISES -- under-reporting is the safe
+ *   direction -- and `!=` would forbid exactly the direction this tree
+ *   has spent the day arguing FOR.  Over-advertising is the bug.
  */
 QEMU_BUILD_BUG_ON((1u << LPUART_PARAM_FIFO_EXP) >
                   ARRAY_SIZE(((MCXNLPUARTState *)0)->rx_fifo));
@@ -222,7 +248,7 @@ QEMU_BUILD_BUG_ON((1u << LPUART_PARAM_FIFO_EXP) >
 #define ISTAT_SPI       0x4u
 #define ISTAT_I2CM      0x10u
 
-/* === LPSPI register offsets (PERSEL = 2, master view) ====================== */
+/* === LPSPI register offsets (PERSEL = 2, master view) ================== */
 #define LPSPI_VERID     0x00  /* RO */
 #define LPSPI_PARAM     0x04  /* RO */
 #define LPSPI_CR        0x10
@@ -255,37 +281,42 @@ QEMU_BUILD_BUG_ON((1u << LPUART_PARAM_FIFO_EXP) >
 #define LPSPI_IER_RDIE  0x2u
 #define LPSPI_TCR_FRAMESZ 0xFFFu
 #define LPSPI_TCR_RXMSK 0x80000u
-#define LPSPI_TCR_CONT  0x200000u   /* continuous transfer: hold CS asserted across frames */
+/* continuous transfer: hold CS asserted across frames */
+#define LPSPI_TCR_CONT  0x200000u
 #define LPSPI_RSR_RXEMPTY 0x2u
 
 #define LPSPI_VERID_VALUE  0x01010004u
 /*
- * ⚠ THIS USED TO BE 0x0004_0404 -- "RX/TX FIFO depth exp=4", i.e. 2^4 = SIXTEEN words.
- *   THE MODEL HOLDS ONE BYTE (`spi_rx_full`).  We advertised a 16-deep FIFO and shipped
- *   a single register.
+ * ⚠ THIS USED TO BE 0x0004_0404 -- "RX/TX FIFO depth exp=4", i.e.
+ *   2^4 = SIXTEEN words.  THE MODEL HOLDS ONE BYTE (`spi_rx_full`).  We
+ *   advertised a 16-deep FIFO and shipped a single register.
  *
- *   And the RM is explicit about the encoding here (unlike LPUART's PARAM, which it does
- *   not document at all):
+ *   And the RM is explicit about the encoding here (unlike LPUART's
+ *   PARAM, which it does not document at all):
  *
  *       RXFIFO: "Indicates the maximum number of words in the receive FIFO.
  *                The maximum number of words is 2**RXFIFO."
  *
- *   The SDK's idiom is LPSPI_GetTxFifoSize() = 1U << (PARAM & TXFIFO_MASK), and drivers
- *   push that many words before they bother to check TDF.  ⇒ A GUEST BELIEVING US WOULD
- *   PUSH SIXTEEN WORDS INTO A ONE-WORD REGISTER AND DROP FIFTEEN OF THEM, SILENTLY.
+ *   The SDK's idiom is LPSPI_GetTxFifoSize() = 1U << (PARAM &
+ *   TXFIFO_MASK), and drivers push that many words before they bother
+ *   to check TDF.  ⇒ A GUEST BELIEVING US WOULD PUSH SIXTEEN WORDS INTO
+ *   A ONE-WORD REGISTER AND DROP FIFTEEN OF THEM, SILENTLY.
  *
- *   ⭐ UNDER-REPORTING IS A MODEL THAT PROMISES LESS THAN THE CHIP.  OVER-REPORTING IS A
- *     PROMISE THE EMULATOR MAKES ON THE SILICON'S BEHALF -- AND THE GUEST WILL HOLD US TO
- *     IT.  So we now report what we actually DELIVER: 2^0 = 1 word.
+ *   ⭐ UNDER-REPORTING IS A MODEL THAT PROMISES LESS THAN THE CHIP.
+ *     OVER-REPORTING IS A PROMISE THE EMULATOR MAKES ON THE SILICON'S
+ *     BEHALF -- AND THE GUEST WILL HOLD US TO IT.  So we now report what
+ *     we actually DELIVER: 2^0 = 1 word.
  *
- *   This is a DECISION, not a gap: the real silicon has deeper FIFOs, and when this model
- *   grows them, this value must grow with them.  Filed, with the reason, so the next
- *   person to look does not "fix" it back to the datasheet and re-arm the bug.
+ *   This is a DECISION, not a gap: the real silicon has deeper FIFOs,
+ *   and when this model grows them, this value must grow with them.
+ *   Filed, with the reason, so the next person to look does not "fix"
+ *   it back to the datasheet and re-arm the bug.
  *   (PCSNUM=4 is a pin count, not a FIFO promise, and is left alone.)
  */
-#define LPSPI_PARAM_VALUE  0x00040000u  /* PCSNUM=4; RX/TX FIFO exp=0 -> 1 word, as modelled */
+/* PCSNUM=4; RX/TX FIFO exp=0 -> 1 word, as modelled */
+#define LPSPI_PARAM_VALUE  0x00040000u
 
-/* === LPI2C register offsets (PERSEL = 3, controller/master view) =========== */
+/* === LPI2C register offsets (PERSEL = 3, controller/master view) ========= */
 #define LPI2C_VERID     0x00  /* RO */
 #define LPI2C_PARAM     0x04  /* RO */
 #define LPI2C_MCR       0x10
@@ -329,16 +360,19 @@ QEMU_BUILD_BUG_ON((1u << LPUART_PARAM_FIFO_EXP) >
 #define LPI2C_CMD_TXDATA   0u   /* transmit DATA byte                    */
 #define LPI2C_CMD_RXDATA   1u   /* receive (DATA+1) bytes                */
 #define LPI2C_CMD_STOP     2u   /* generate STOP                         */
-#define LPI2C_CMD_START    4u   /* generate (re)START + transmit address; 4..7 are START variants */
+/* generate (re)START + transmit address; 4..7 are START variants */
+#define LPI2C_CMD_START    4u
 
 #define LPI2C_VERID_VALUE  0x01000003u
 /*
- * ⚠ THIS USED TO BE 0x0000_0202 -- 2^2 = FOUR words each way.  The model holds ONE byte
- *   (`i2c_rx_full`).  RM, explicitly: "Configures the number of words in the controller
- *   receive FIFO to 2**MRXFIFO."  Same over-promise as LPSPI, smaller blast radius.
- *   Report what we deliver: 2^0 = 1.  A DECISION, with its reason -- see LPSPI above.
+ * ⚠ THIS USED TO BE 0x0000_0202 -- 2^2 = FOUR words each way.  The model
+ *   holds ONE byte (`i2c_rx_full`).  RM, explicitly: "Configures the
+ *   number of words in the controller receive FIFO to 2**MRXFIFO."  Same
+ *   over-promise as LPSPI, smaller blast radius.  Report what we deliver:
+ *   2^0 = 1.  A DECISION, with its reason -- see LPSPI above.
  */
-#define LPI2C_PARAM_VALUE  0x00000000u  /* M TX/RX FIFO exp=0 -> 1 word, as modelled */
+/* M TX/RX FIFO exp=0 -> 1 word, as modelled */
+#define LPI2C_PARAM_VALUE  0x00000000u
 
 /* Dynamic LPSPI status: latched W1C flags plus the always-current TDF/RDF. */
 /*
@@ -348,13 +382,15 @@ QEMU_BUILD_BUG_ON((1u << LPUART_PARAM_FIFO_EXP) >
  *   "This field becomes 1 when the number of datawords in the receive buffer is
  *    GREATER THAN the number [in WATER[RXWATER]]."
  *
- * RXWATER resets to 0, so RDRF degenerates to "any byte present" -- which is EXACTLY
- * what a depth-1 holding register does.  That is why a one-byte model passed 70 suites
- * while advertising an 8-deep FIFO: NOTHING WE TEST EVER SET A WATERMARK.  The
- * capability was a promise nobody had called in yet.
+ * RXWATER resets to 0, so RDRF degenerates to "any byte present" --
+ * which is EXACTLY what a depth-1 holding register does.  That is why
+ * a one-byte model passed 70 suites while advertising an 8-deep FIFO:
+ * NOTHING WE TEST EVER SET A WATERMARK.  The capability was a promise
+ * nobody had called in yet.
  *
- * FIFO[RXFE] gates the FIFO: with it clear the receiver is a single dataword, which is
- * what the hardware does too -- so the depth is not a constant, it is a FUNCTION OF
+ * FIFO[RXFE] gates the FIFO: with it clear the receiver is a single
+ * dataword, which is what the hardware does too -- so the depth is
+ * not a constant, it is a FUNCTION OF
  * THE GUEST'S OWN CONFIGURATION, and we must ask it rather than assume it.
  */
 #define FIFO_RXFLUSH 0x00004000u   /* CMSIS LPUART_FIFO_RXFLUSH_MASK */
@@ -372,7 +408,10 @@ static inline unsigned lpuart_rxwater(MCXNLPUARTState *s)
     return (s->water >> 16) & 0x7;   /* CMSIS LPUART_WATER_RXWATER_MASK/SHIFT */
 }
 
-/* RM: RDRF is a LEVEL -- "datawords in the receive buffer GREATER THAN RXWATER". */
+/*
+ * RM: RDRF is a LEVEL -- "datawords in the receive buffer GREATER THAN
+ * RXWATER".
+ */
 static inline bool lpuart_rdrf(MCXNLPUARTState *s)
 {
     return s->rx_count > lpuart_rxwater(s);
@@ -381,7 +420,7 @@ static inline bool lpuart_rdrf(MCXNLPUARTState *s)
 static bool lpuart_rx_push(MCXNLPUARTState *s, uint8_t ch)
 {
     if (s->rx_count >= lpuart_rx_depth(s)) {
-        return false;               /* caller raises STAT[OR]; the byte is LOST */
+        return false;             /* caller raises STAT[OR]; the byte is LOST */
     }
     s->rx_fifo[(s->rx_head + s->rx_count) % MCXN_LPUART_FIFO_DEPTH] = ch;
     s->rx_count++;
@@ -419,11 +458,12 @@ static uint32_t mcxn_lpi2c_status(MCXNLPUARTState *s)
     uint32_t msr = s->i2c_msr;
 
     /*
-     * TDF means "the TX FIFO is at or below its watermark", i.e. THERE IS ROOM.
-     * That is true of an empty FIFO whether or not the module is enabled, which is
-     * why the RM gives MSR a reset value of 1 with MEN still clear.  Gating it on
-     * MEN made TDF mean "enabled AND has room" -- a different claim, and one that
-     * reads back 0 out of reset where silicon reads 1.
+     * TDF means "the TX FIFO is at or below its watermark", i.e. THERE
+     * IS ROOM.  That is true of an empty FIFO whether or not the module
+     * is enabled, which is why the RM gives MSR a reset value of 1 with
+     * MEN still clear.  Gating it on MEN made TDF mean "enabled AND has
+     * room" -- a different claim, and one that reads back 0 out of reset
+     * where silicon reads 1.
      */
     msr |= LPI2C_MSR_TDF;            /* synchronous TX FIFO always has room */
     if (s->i2c_rx_full) {
@@ -456,8 +496,11 @@ static uint32_t mcxn_flexcomm_istat(MCXNLPUARTState *s)
         }
         break;
     default: /* LPUART (or NONE) */
-        /* TX data-register-empty and transmit-complete are always asserted in
-         * this model (writes are synchronous), so TIE/TCIE assert immediately. */
+        /*
+         * TX data-register-empty and transmit-complete are always
+         * asserted in this model (writes are synchronous), so TIE/TCIE
+         * assert immediately.
+         */
         if (s->ctrl & (CTRL_TIE | CTRL_TCIE)) {
             istat |= ISTAT_UARTTX;
         }
@@ -487,8 +530,9 @@ static uint32_t mcxn_flexcomm_istat(MCXNLPUARTState *s)
  *
  * I had flagged this gap in the docs ("wired for SAI and DAC only") and stopped
  * there.  rt1180emulator named the organ: **"An honestly-documented missing
- * capability is still a missing capability.  Naming a gap in the place you first
- * met it is not the same as understanding its extent.  The flag discharges the
+ * capability is still a missing capability.  Naming a gap in the
+ * place you first met it is not the same as understanding its extent.
+ * The flag discharges the
  * anxiety and the gap stays."**  He flagged his in one row and it was a gap in
  * twelve; mine covered four families and the chip has 117 request sources.
  *
@@ -509,10 +553,12 @@ static void mcxn_flexcomm_update_dma(MCXNLPUARTState *s)
         rx = (s->i2c_mder & DER_RDDE) && s->i2c_rx_full;
         break;
     default:                                        /* LPUART */
-        /* TDRE is always asserted here (writes are synchronous), so an armed
-         * TX DMA request is continuously asserted until the channel's major
-         * loop completes and TCD_CSR[DREQ] clears ERQ — which is exactly how a
-         * real UART TX DMA drains a buffer. */
+        /*
+         * TDRE is always asserted here (writes are synchronous), so an
+         * armed TX DMA request is continuously asserted until the
+         * channel's major loop completes and TCD_CSR[DREQ] clears ERQ —
+         * which is exactly how a real UART TX DMA drains a buffer.
+         */
         tx = (s->baud & BAUD_TDMAE) != 0;
         rx = (s->baud & BAUD_RDMAE) && lpuart_rdrf(s);
         break;
@@ -553,7 +599,7 @@ static uint64_t mcxn_lpspi_read(MCXNLPUARTState *s, hwaddr offset)
         return s->spi_rx_full ? (1u << 16) : 0; /* RXCOUNT=1 */
     case LPSPI_RSR:
         return s->spi_rx_full ? 0 : LPSPI_RSR_RXEMPTY;
-    case LPSPI_RDROR: return s->spi_rdr;                       /* peek, no pop */
+    case LPSPI_RDROR: return s->spi_rdr;                     /* peek, no pop */
     case LPSPI_RDR: {
         uint32_t v = s->spi_rdr;
         if (s->spi_rx_full) {
@@ -576,7 +622,7 @@ static void mcxn_lpspi_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
         if (value & LPSPI_CR_RST) {
             s->spi_cr = s->spi_sr = s->spi_ier = 0;
             s->spi_rx_full = false;
-            if (s->spi_cs_asserted) {          /* a reset releases the chip-select */
+            if (s->spi_cs_asserted) {     /* a reset releases the chip-select */
                 qemu_set_irq(s->spi_cs, 1);
                 s->spi_cs_asserted = false;
             }
@@ -615,9 +661,11 @@ static void mcxn_lpspi_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
     case LPSPI_CCR1:
         break;  /* accepted, not modelled */
     case LPSPI_DER:
-        /* The DMA-enable bits.  These used to be ACCEPTED AND DISCARDED, so the
-         * stock LPSPI_MasterTransferEDMA driver armed a channel, set TDDE, and
-         * waited forever for a request nothing could raise. */
+        /*
+         * The DMA-enable bits.  These used to be ACCEPTED AND DISCARDED, so
+         * the stock LPSPI_MasterTransferEDMA driver armed a channel, set
+         * TDDE, and waited forever for a request nothing could raise.
+         */
         s->spi_der = value;
         mcxn_flexcomm_update_irq(s);
         break;
@@ -631,16 +679,19 @@ static void mcxn_lpspi_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
          */
         if (s->spi_cr & LPSPI_CR_MEN) {
             if (!(s->spi_tcr & LPSPI_TCR_RXMSK)) {
-                uint32_t framesz = (s->spi_tcr & LPSPI_TCR_FRAMESZ) + 1; /* bits */
+                /* bits */
+                uint32_t framesz = (s->spi_tcr & LPSPI_TCR_FRAMESZ) + 1;
                 uint32_t mask = (framesz >= 32) ? 0xFFFFFFFFu
                                                 : ((1u << framesz) - 1);
                 if (s->spi_bus) {
                     /*
-                     * Shift the word out over the SSI bus.  The chip-select is asserted
-                     * (active low) before the first frame and held while TCR[CONT] is set,
-                     * so a multi-byte command (e.g. m25p80 RDID: 0x9F then 3 ID bytes) is
-                     * ONE transaction -- CS drops only when a frame clears CONT.  For a
-                     * board-to-board spi-link the CS line is unwired and this is a no-op.
+                     * Shift the word out over the SSI bus.  The chip-select
+                     * is asserted (active low) before the first frame and
+                     * held while TCR[CONT] is set, so a multi-byte command
+                     * (e.g. m25p80 RDID: 0x9F then 3 ID bytes) is ONE
+                     * transaction -- CS drops only when a frame clears CONT.
+                     * For a board-to-board spi-link the CS line is unwired
+                     * and this is a no-op.
                      */
                     if (!s->spi_cs_asserted) {
                         qemu_set_irq(s->spi_cs, 0);
@@ -683,20 +734,24 @@ static uint64_t mcxn_lpi2c_read(MCXNLPUARTState *s, hwaddr offset)
     /*
      * ⚠ MRDR WAS RIGHT AND ITS ALIAS WAS WRONG, WHICH IS THE WHOLE POINT.
      *
-     * MRDROR is the NON-DESTRUCTIVE alias of MRDR -- a peek that does not pop.  It was
-     * not modelled at all, so it fell through to the default and RETURNED ZERO.  And
-     * zero is not "nothing": RXEMPTY is bit 14, so zero means THE RECEIVE FIFO HAS DATA.
+     * MRDROR is the NON-DESTRUCTIVE alias of MRDR -- a peek that does not
+     * pop.  It was not modelled at all, so it fell through to the default
+     * and RETURNED ZERO.  And zero is not "nothing": RXEMPTY is bit 14, so
+     * zero means THE RECEIVE FIFO HAS DATA.
      *
-     *     ⭐ AN UNMODELLED REGISTER IS NOT A FREE REGISTER.  IT STILL ANSWERS -- AND
-     *        ZERO IS AN ANSWER.  (91emulator, who shipped the identical bug: their MRDR
-     *        was correct and its alias was not.)
+     *     ⭐ AN UNMODELLED REGISTER IS NOT A FREE REGISTER.  IT STILL
+     *        ANSWERS -- AND ZERO IS AN ANSWER.  (91emulator, who shipped
+     *        the identical bug: their MRDR was correct and its alias was
+     *        not.)
      *
-     * A driver that polls the non-destructive alias -- exactly what an alias is FOR --
-     * saw RXEMPTY clear and read a PHANTOM BYTE out of an empty FIFO.
+     * A driver that polls the non-destructive alias -- exactly what an
+     * alias is FOR -- saw RXEMPTY clear and read a PHANTOM BYTE out of an
+     * empty FIFO.
      *
-     * The slave registers (SASR/SRDR/SRDROR) are likewise unmodelled, and likewise were
-     * answering "data available" to anyone who asked.  We do not model the LPI2C slave
-     * engine, so they now report HONESTLY EMPTY.  A missing feature that says "empty" is
+     * The slave registers (SASR/SRDR/SRDROR) are likewise unmodelled, and
+     * likewise were answering "data available" to anyone who asked.  We
+     * do not model the LPI2C slave engine, so they now report HONESTLY
+     * EMPTY.  A missing feature that says "empty" is
      * a gap; a missing feature that says "here is a byte" is a lie.
      */
     case LPI2C_MRDROR:
@@ -713,8 +768,11 @@ static uint64_t mcxn_lpi2c_read(MCXNLPUARTState *s, hwaddr offset)
         uint32_t v;
         if (s->i2c_rx_full) {
             v = s->i2c_mrdr;
-            /* Refill the 1-byte lookahead from the bus if more bytes were requested,
-             * so a multi-byte receive drains one MRDR read at a time. */
+            /*
+             * Refill the 1-byte lookahead from the bus if more bytes were
+             * requested, so a multi-byte receive drains one MRDR read at a
+             * time.
+             */
             if (s->i2c_rx_pending) {
                 s->i2c_mrdr = i2c_recv(s->i2c_bus);
                 s->i2c_rx_pending--;
@@ -784,16 +842,19 @@ static void mcxn_lpi2c_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
         break;
     case LPI2C_MTDR: {
         /*
-         * Controller command engine, driving a REAL I2C bus (the test attaches a genuine
-         * at24c EEPROM to it) -- NOT the echo target this used to be.  The old model ACKed
-         * every address and returned the last transmitted byte on a receive, so its own
-         * tests passed against a fabricated peer (the uSDHC bug class: the model was its own
+         * Controller command engine, driving a REAL I2C bus (the test
+         * attaches a genuine at24c EEPROM to it) -- NOT the echo target this
+         * used to be.  The old model ACKed every address and returned the
+         * last transmitted byte on a receive, so its own tests passed against
+         * a fabricated peer (the uSDHC bug class: the model was its own
          * oracle).  Now:
-         *   START+addr (cmd 4..7): DATA = (7-bit addr << 1) | R/W.  i2c_start_transfer drives
-         *      the bus; a device that does not ACK sets MSR[NDF] (a real bus error).
+         *   START+addr (cmd 4..7): DATA = (7-bit addr << 1) | R/W.
+         *      i2c_start_transfer drives the bus; a device that does not ACK
+         *      sets MSR[NDF] (a real bus error).
          *   TXDATA (cmd 0): i2c_send; a NACKed byte sets NDF.
-         *   RXDATA (cmd 1): receive DATA+1 bytes (drained lazily by MRDR reads, so a
-         *      multi-byte read needs no deep FIFO -- one lookahead byte + a pending count).
+         *   RXDATA (cmd 1): receive DATA+1 bytes (drained lazily by MRDR
+         *      reads, so a multi-byte read needs no deep FIFO -- one lookahead
+         *      byte + a pending count).
          *   STOP  (cmd 2): i2c_end_transfer + SDF/EPF.
          */
         uint32_t cmd = (value & LPI2C_MTDR_CMD_MASK) >> LPI2C_MTDR_CMD_SHIFT;
@@ -804,7 +865,7 @@ static void mcxn_lpi2c_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
         }
         switch (cmd) {
         case LPI2C_CMD_START:
-        case 5: case 6: case 7:          /* all (repeated) START + address variants */
+        case 5: case 6: case 7:    /* all (repeated) START + address variants */
             if (i2c_start_transfer(s->i2c_bus, data >> 1, data & 1)) {
                 s->i2c_msr |= LPI2C_MSR_NDF;   /* no device ACKed the address */
                 s->i2c_busy = false;
@@ -814,13 +875,15 @@ static void mcxn_lpi2c_write(MCXNLPUARTState *s, hwaddr offset, uint32_t value)
             break;
         case LPI2C_CMD_TXDATA:
             if (i2c_send(s->i2c_bus, data)) {
-                s->i2c_msr |= LPI2C_MSR_NDF;   /* the addressed device NACKed the byte */
+                /* the addressed device NACKed the byte */
+                s->i2c_msr |= LPI2C_MSR_NDF;
             }
             break;
         case LPI2C_CMD_RXDATA:
-            s->i2c_rx_pending += (uint32_t)data + 1;   /* receive DATA+1 bytes */
+            s->i2c_rx_pending += (uint32_t)data + 1;  /* receive DATA+1 bytes */
             if (!s->i2c_rx_full && s->i2c_rx_pending) {
-                s->i2c_mrdr = i2c_recv(s->i2c_bus);    /* fetch the lookahead byte */
+                /* fetch the lookahead byte */
+                s->i2c_mrdr = i2c_recv(s->i2c_bus);
                 s->i2c_rx_full = true;
                 s->i2c_rx_pending--;
             }
@@ -889,18 +952,21 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
         r = s->mcr;
         break;
     case LPUART_MSR:
-        /* No modem lines are wired on this board: CTS/DSR/RI/DCD all deasserted. */
+        /*
+         * No modem lines are wired on this board: CTS/DSR/RI/DCD all
+         * deasserted.
+         */
         r = 0;
         break;
     case LPUART_STAT:
         /*
-         * TX drains to the chardev instantly, so TXCOUNT is always 0 and TDRE is
-         * always set -- an infinitely fast transmitter, which is the honest emulation
-         * of a baud rate we do not model.
+         * TX drains to the chardev instantly, so TXCOUNT is always 0 and
+         * TDRE is always set -- an infinitely fast transmitter, which is the
+         * honest emulation of a baud rate we do not model.
          *
-         * RDRF is NOT "a byte arrived".  It is a LEVEL against the watermark, and
-         * modelling it as "a byte arrived" is what let a 1-deep receiver impersonate
-         * an 8-deep one for as long as nobody set RXWATER.
+         * RDRF is NOT "a byte arrived".  It is a LEVEL against the watermark,
+         * and modelling it as "a byte arrived" is what let a 1-deep receiver
+         * impersonate an 8-deep one for as long as nobody set RXWATER.
          */
         r = STAT_TDRE | STAT_TC;
         if (lpuart_rdrf(s)) {
@@ -915,18 +981,22 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
     case LPUART_DATARO:
         r = s->rx_count ? s->rx_fifo[s->rx_head] : 0;
         if (!s->rx_count) {
-            /* DATA[RXEMPT] (bit 12).  RM reset 0x0000_1000: an empty receiver SAYS
-             * it is empty.  Reading 0 instead means "byte 0x00 was received", and a
-             * guest polling DATA rather than STAT cannot tell those apart -- a
-             * fabricated NUL in the input stream. */
+            /*
+             * DATA[RXEMPT] (bit 12).  RM reset 0x0000_1000: an empty receiver
+             * SAYS it is empty.  Reading 0 instead means "byte 0x00 was
+             * received", and a guest polling DATA rather than STAT cannot tell
+             * those apart -- a fabricated NUL in the input stream.
+             */
             r |= LPUART_DATA_RXEMPT;
         }
         if (offset == LPUART_DATA && s->rx_count) {
             (void)lpuart_rx_pop(s);
             mcxn_flexcomm_update_irq(s);
-            /* The holding register is free again — tell the chardev to resume
-             * delivering buffered input, or a continuous RX stream stalls after
-             * one byte (can_rx returned 0 under flow control). */
+            /*
+             * The holding register is free again — tell the chardev to
+             * resume delivering buffered input, or a continuous RX stream
+             * stalls after one byte (can_rx returned 0 under flow control).
+             */
             qemu_chr_fe_accept_input(&s->chr);
         }
         break;
@@ -938,9 +1008,10 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
         break;
     case LPUART_FIFO:
         /*
-         * FIFO is a CAPABILITY register: RXFIFOSIZE/TXFIFOSIZE are read-only and
-         * describe the hardware.  RXEMPT/TXEMPT are LIVE and must follow the FIFO --
-         * a constant "empty" is a lie the moment there is anything in it.
+         * FIFO is a CAPABILITY register: RXFIFOSIZE/TXFIFOSIZE are read-only
+         * and describe the hardware.  RXEMPT/TXEMPT are LIVE and must follow
+         * the FIFO -- a constant "empty" is a lie the moment there is anything
+         * in it.
          */
         r = (s->fifo & ~LPUART_FIFO_SIZES_MASK) | LPUART_FIFO_SIZES;
         if (!s->rx_count) {
@@ -950,11 +1021,12 @@ static uint64_t mcxn_lpuart_read(void *opaque, hwaddr offset, unsigned size)
         break;
     case LPUART_WATER:
         /*
-         * TXWATER/RXWATER are the guest's; TXCOUNT/RXCOUNT are OURS and read-only.
-         * A stored WATER that never reports a count is a register that cannot answer
-         * the one question a FIFO driver asks it: HOW MANY BYTES ARE THERE?
+         * TXWATER/RXWATER are the guest's; TXCOUNT/RXCOUNT are OURS and
+         * read-only.  A stored WATER that never reports a count is a register
+         * that cannot answer the one question a FIFO driver asks it: HOW MANY
+         * BYTES ARE THERE?
          */
-        r = s->water & 0x00070007u;              /* TXWATER [2:0], RXWATER [18:16] */
+        r = s->water & 0x00070007u;         /* TXWATER [2:0], RXWATER [18:16] */
         r |= ((uint32_t)s->rx_count & 0xF) << 24; /* RXCOUNT [27:24] */
                                                   /* TXCOUNT [11:8] stays 0 */
         break;
@@ -1033,12 +1105,14 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
     case LPUART_MSR:
         break;                    /* status: W1C bits, none modelled */
     case LPUART_BAUD:
-        /* BAUD carries TDMAE/RDMAE — arming a DMA-enable bit changes whether the
-         * transmitter/receiver is ASKING the eDMA for service, so the request
-         * line must be re-evaluated here.  This used to be a plain store, so a
-         * stock driver that armed TDMAE last (as they all do) never raised a
-         * request at all.  ⚠ THE IDENTICAL BUG I HAD JUST FIXED IN THE DAC's DER
-         * — a fix applied in one place is not a fix. */
+        /*
+         * BAUD carries TDMAE/RDMAE — arming a DMA-enable bit changes
+         * whether the transmitter/receiver is ASKING the eDMA for service,
+         * so the request line must be re-evaluated here.  This used to be a
+         * plain store, so a stock driver that armed TDMAE last (as they all
+         * do) never raised a request at all.  ⚠ THE IDENTICAL BUG I HAD JUST
+         * FIXED IN THE DAC's DER — a fix applied in one place is not a fix.
+         */
         s->baud = value;
         mcxn_flexcomm_update_irq(s);
         break;
@@ -1068,28 +1142,34 @@ static void mcxn_lpuart_write(void *opaque, hwaddr offset,
         s->modir = value;
         break;
     case LPUART_FIFO:
-        /* RXFIFOSIZE/TXFIFOSIZE are RO: the SDK writes this whole register during
-         * init, and storing the written value would let software overwrite the
-         * part's own description of its FIFO depth. */
+        /*
+         * RXFIFOSIZE/TXFIFOSIZE are RO: the SDK writes this whole register
+         * during init, and storing the written value would let software
+         * overwrite the part's own description of its FIFO depth.
+         */
         s->fifo = value & ~LPUART_FIFO_SIZES_MASK;
         /*
-         * RXFLUSH/TXFLUSH are momentary strobes, not state.  A driver that flushes a
-         * stale FIFO and then finds its bytes still there is being lied to about the
-         * one operation whose entire purpose is to make the buffer empty.
+         * RXFLUSH/TXFLUSH are momentary strobes, not state.  A driver that
+         * flushes a stale FIFO and then finds its bytes still there is being
+         * lied to about the one operation whose entire purpose is to make the
+         * buffer empty.
          */
         if (value & FIFO_RXFLUSH) {
             s->rx_count = 0;
             s->rx_head = 0;
             s->fifo &= ~FIFO_RXFLUSH;
-            qemu_chr_fe_accept_input(&s->chr);   /* room again: pull queued input */
+            /* room again: pull queued input */
+            qemu_chr_fe_accept_input(&s->chr);
         }
         s->fifo &= ~FIFO_TXFLUSH;                /* TX has nothing to flush */
-        mcxn_flexcomm_update_irq(s);   /* RXFE just changed the DEPTH, so RDRF may move */
+        /* RXFE just changed the DEPTH, so RDRF may move */
+        mcxn_flexcomm_update_irq(s);
         break;
     case LPUART_WATER:
         /* Only the watermarks are writable.  The counts are the hardware's. */
         s->water = value & 0x00070007u;
-        mcxn_flexcomm_update_irq(s);   /* RDRF is a LEVEL vs RXWATER: it may move NOW */
+        /* RDRF is a LEVEL vs RXWATER: it may move NOW */
+        mcxn_flexcomm_update_irq(s);
         break;
     case LPUART_REIR:
         s->reir = value;
@@ -1129,8 +1209,9 @@ static const MemoryRegionOps mcxn_lpuart_ops = {
      * Accept 1/2/4-byte access.  A real driver moving data over eDMA bursts the
      * FIFO data registers (LPUART DATA, LPSPI TDR/RDR) one byte at a time; an
      * over-strict 4-byte-only window would make the memory core SILENTLY DROP
-     * those byte writes (transfer "completes" but no data reaches the wire) — a
-     * silent-wrong-answer bug (fleet lesson from the i.MX95 LPSPI-over-eDMA
+     * those byte writes (transfer "completes" but no data reaches the
+     * wire) — a silent-wrong-answer bug (fleet lesson from the i.MX95
+     * LPSPI-over-eDMA
      * case).  impl.min=1 routes each byte straight to the handler (no
      * read-modify-write, so the DATA-read RX side effect is not spuriously
      * triggered by a byte write); the data registers hold their value in the
@@ -1147,9 +1228,10 @@ static int mcxn_lpuart_can_rx(void *opaque)
     MCXNLPUARTState *s = MCXN_LPUART(opaque);
 
     /*
-     * Offer the REAL free space.  This used to return a single slot, so QEMU handed
-     * us one byte at a time and an 8-deep FIFO could never actually hold 8 bytes --
-     * the flow control silently enforced the depth-1 model the FIFO register denied.
+     * Offer the REAL free space.  This used to return a single slot, so
+     * QEMU handed us one byte at a time and an 8-deep FIFO could never
+     * actually hold 8 bytes -- the flow control silently enforced the
+     * depth-1 model the FIFO register denied.
      */
     if (!(s->ctrl & CTRL_RE)) {
         return 0;
@@ -1165,26 +1247,28 @@ static void mcxn_lpuart_rx(void *opaque, const uint8_t *buf, int size)
     for (i = 0; i < size; i++) {
         if (!lpuart_rx_push(s, buf[i])) {
             /*
-             * ⭐ FAIL TO THE GUEST, NOT JUST THE LOG.  The byte is GONE.  STAT[OR] is
-             *   the block's own documented, non-gating channel for exactly this, and
-             *   a receiver that drops data silently is indistinguishable from a
-             *   sender that never sent it.
+             * ⭐ FAIL TO THE GUEST, NOT JUST THE LOG.  The byte is GONE.
+             *   STAT[OR] is the block's own documented, non-gating channel for
+             *   exactly this, and a receiver that drops data silently is
+             *   indistinguishable from a sender that never sent it.
              */
             /*
              * ⚠ STATED GAP: A SOCKET-BACKED LPUART CANNOT REACH THIS.
              *
-             * can_receive() reports our free space, so QEMU BACKPRESSURES the sender
-             * and HOLDS the byte rather than handing it to us.  Real silicon has no
-             * such flow control -- a byte on the wire arrives whether or not there is
-             * room, and STAT[OR] fires.  So this path is correct and, with a chardev
-             * backend, UNREACHABLE: we never lose data, and the guest never sees an
-             * overrun it WOULD see on the board.
+             * can_receive() reports our free space, so QEMU BACKPRESSURES the
+             * sender and HOLDS the byte rather than handing it to us.  Real
+             * silicon has no such flow control -- a byte on the wire arrives
+             * whether or not there is room, and STAT[OR] fires.  So this path
+             * is correct and, with a chardev backend, UNREACHABLE: we never
+             * lose data, and the guest never sees an overrun it WOULD see on
+             * the board.
              *
-             * That is a divergence in the FORGIVING direction, and it is the chardev
-             * abstraction's, not ours -- but it is ours to STATE.  A backend that
-             * ignores can_receive (or a future in-model line-rate) reaches this, and
-             * when it does, the guest learns the truth through the block's own
-             * documented, non-gating channel rather than losing bytes in silence.
+             * That is a divergence in the FORGIVING direction, and it is the
+             * chardev abstraction's, not ours -- but it is ours to STATE.  A
+             * backend that ignores can_receive (or a future in-model
+             * line-rate) reaches this, and when it does, the guest learns the
+             * truth through the block's own documented, non-gating channel
+             * rather than losing bytes in silence.
              */
             s->stat_or |= STAT_OR;
             qemu_log_mask(LOG_GUEST_ERROR,
@@ -1203,10 +1287,10 @@ static void mcxn_lpuart_reset(DeviceState *dev)
     s->global = s->pincfg = s->ctrl = 0;
     s->match = s->modir = s->fifo = s->water = 0;
     /*
-     * PERSEL resets to 0 = NO FUNCTION SELECTED (RM).  The decode falls through to
-     * the LPUART register map on PERSEL 0, so the console still works -- but the
-     * register now REPORTS what silicon reports, instead of claiming a selection the
-     * guest never made.
+     * PERSEL resets to 0 = NO FUNCTION SELECTED (RM).  The decode falls
+     * through to the LPUART register map on PERSEL 0, so the console
+     * still works -- but the register now REPORTS what silicon reports,
+     * instead of claiming a selection the guest never made.
      */
     s->pselid = 0;
     s->reir = s->teir = s->hdcr = s->tocr = 0;
@@ -1242,20 +1326,26 @@ static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(sbd, &s->irq);
     sysbus_init_irq(sbd, &s->dma_req_tx);   /* -> eDMA source 70 + 2n */
     sysbus_init_irq(sbd, &s->dma_req_rx);   /* -> eDMA source 69 + 2n */
-    sysbus_init_irq(sbd, &s->spi_cs);       /* 3: LPSPI chip-select (to an SSI device) */
+    /* 3: LPSPI chip-select (to an SSI device) */
+    sysbus_init_irq(sbd, &s->spi_cs);
 
     qemu_chr_fe_set_handlers(&s->chr, mcxn_lpuart_can_rx, mcxn_lpuart_rx,
                              NULL, NULL, s, NULL, true);
 
-    /* Board-to-board LPSPI node: expose a named SSI bus so a `spi-link`
-     * peripheral can bridge this FlexComm's LPSPI to a chardev socket. */
+    /*
+     * Board-to-board LPSPI node: expose a named SSI bus so a `spi-link`
+     * peripheral can bridge this FlexComm's LPSPI to a chardev socket.
+     */
     if (s->spi_bus_name) {
         s->spi_bus = ssi_create_bus(dev, s->spi_bus_name);
     }
 
-    /* The FlexComm's LPI2C function drives a REAL I2C bus, named "<flexcommN>-i2c" so a
-     * test can attach a genuine device to a specific FlexComm:
-     *   -device at24c-eeprom,bus=flexcomm0-i2c,address=0x50 */
+    /*
+     * The FlexComm's LPI2C function drives a REAL I2C bus, named
+     * "<flexcommN>-i2c" so a test can attach a genuine device to a
+     * specific FlexComm:
+     *   -device at24c-eeprom,bus=flexcomm0-i2c,address=0x50
+     */
     {
         g_autofree char *busname = g_strdup_printf(
             "%s-i2c", object_get_canonical_path_component(OBJECT(dev)));
@@ -1277,10 +1367,11 @@ static const VMStateDescription vmstate_mcxn_lpuart = {
         VMSTATE_UINT32(fifo, MCXNLPUARTState),
         VMSTATE_UINT32(water, MCXNLPUARTState),
         /*
-         * The RX FIFO MUST migrate.  91emulator's sdhci `vendor_spec` was "not in the
-         * vmstate at all", so a snapshot came back with the hardware desynced from the
-         * register controlling it.  Buffered bytes are state; state that is not
-         * migrated is state that silently vanishes across a snapshot.
+         * The RX FIFO MUST migrate.  91emulator's sdhci `vendor_spec` was
+         * "not in the vmstate at all", so a snapshot came back with the
+         * hardware desynced from the register controlling it.  Buffered bytes
+         * are state; state that is not migrated is state that silently
+         * vanishes across a snapshot.
          */
         VMSTATE_UINT8_ARRAY(rx_fifo, MCXNLPUARTState, MCXN_LPUART_FIFO_DEPTH),
         VMSTATE_UINT8(rx_head, MCXNLPUARTState),

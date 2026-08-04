@@ -35,8 +35,9 @@ struct MCXNI3CState {
     /*
      * The controller drives a real bus.  I3C is I2C-compatible in legacy mode,
      * so the SoC exposes an I2C bus and the BOARD (or the operator, with
-     * -device ...,bus=...) attaches whatever is wired to it.  The model supplies
-     * the bus, exactly as the silicon does; it does not invent a device onto it.
+     * -device ...,bus=...) attaches whatever is wired to it.  The model
+     * supplies the bus, exactly as the silicon does; it does not invent a
+     * device onto it.
      */
     I2CBus  *bus;
     bool     xfer_active;

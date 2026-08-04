@@ -33,8 +33,10 @@
 /* CTRL2: write-1-to-clear interrupt flags (RUIRQ/ROIRQ/SABIRQ). */
 #define QDC_CTRL2_W1C_MASK   (0x0020u | 0x0080u | 0x0800u)
 /* CTRL2 trigger-behaviour selects (CMSIS QDC_CTRL2_*). */
-#define QDC_CTRL2_UPDHLD     0x0001u   /* on a trigger, snapshot POS/REV -> hold regs */
-#define QDC_CTRL2_UPDPOS     0x0002u   /* on a trigger, clear the POS/REV counters */
+/* on a trigger, snapshot POS/REV -> hold regs */
+#define QDC_CTRL2_UPDHLD     0x0001u
+/* on a trigger, clear the POS/REV counters */
+#define QDC_CTRL2_UPDPOS     0x0002u
 
 static inline uint32_t qdc_ld16(MCXNQDCState *s, hwaddr off)
 {
@@ -97,20 +99,30 @@ static void mcxn_qdc_write(void *opaque, hwaddr offset, uint64_t value,
 }
 
 /*
- * A HARDWARE trigger routed in by INPUTMUX from QDCn_TRIG (e.g. a CTIMER match or a
- * FlexPWM/SCT output): the motor-control "snapshot the encoder position, synchronised to
+ * A HARDWARE trigger routed in by INPUTMUX from QDCn_TRIG (e.g. a CTIMER
+ * match or a
+ * FlexPWM/SCT output): the motor-control "snapshot the encoder position,
+ * synchronised to
  * the PWM carrier" path.  CTRL2 selects what the trigger does:
- *   - UPDHLD: coherently CAPTURE the position/revolution counters into the HOLD registers
- *     (UPOS/LPOS/REV -> UPOSH/LPOSH/REVH), so a FOC loop reads a consistent {position,
- *     revolution} snapshot taken at one instant instead of across three racing reads.
+ *   - UPDHLD: coherently CAPTURE the position/revolution counters into the
+ *     HOLD registers
+ *     (UPOS/LPOS/REV -> UPOSH/LPOSH/REVH), so a FOC loop reads a consistent
+ *     {position,
+ *     revolution} snapshot taken at one instant instead of across three
+ *     racing reads.
  *   - UPDPOS: CLEAR the position/revolution counters (a timed re-zero).
- * Both may be set; on silicon UPDHLD captures before UPDPOS clears, so the snapshot holds
+ * Both may be set; on silicon UPDHLD captures before UPDPOS clears, so the
+ * snapshot holds
  * the pre-clear value -- modelled in that order.
  *
- * ⚠ Scope, stated: the position counters themselves are guest-writable storage (an encoder
- * initialises them), but there is NO quadrature/encoder signal source in emulation, so they
- * do not ADVANCE on their own -- the PHASEA/PHASEB decode is the input seam.  What is
- * modelled is the trigger's CAPTURE/CLEAR of whatever position the guest/encoder set, which
+ * ⚠ Scope, stated: the position counters themselves are guest-writable
+ * storage (an encoder
+ * initialises them), but there is NO quadrature/encoder signal source
+ * in emulation, so they
+ * do not ADVANCE on their own -- the PHASEA/PHASEB decode is the input seam.
+ * What is
+ * modelled is the trigger's CAPTURE/CLEAR of whatever position the
+ * guest/encoder set, which
  * is the entire function of QDCn_TRIG.
  */
 static void mcxn_qdc_hw_trigger(void *opaque, int n, int level)
@@ -146,25 +158,34 @@ static const MemoryRegionOps mcxn_qdc_ops = {
 /*
  * QDC (quadrature decoder) reset values, from the RM.
  *
- * ⭐ POSDPER IS THE POSITION-DIFFERENCE *PERIOD* COUNTER -- THE CLOCKS BETWEEN ENCODER
+ * ⭐ POSDPER IS THE POSITION-DIFFERENCE *PERIOD* COUNTER -- THE CLOCKS
+ *    BETWEEN ENCODER
  *    EDGES -- AND A SPEED OBSERVER DIVIDES BY IT.
  *
- * Silicon resets it (and POSDPERBFR/POSDPERH/LASTEDGE/LASTEDGEH/UCOMP/LCOMP) to 0xFFFF:
- * the MAXIMUM period -- "no edge has been seen; the shaft is not turning".  We reset them
+ * Silicon resets it (and POSDPERBFR/POSDPERH/LASTEDGE/LASTEDGEH/UCOMP/LCOMP)
+ * to 0xFFFF:
+ * the MAXIMUM period -- "no edge has been seen; the shaft is not turning".
+ * We reset them
  * to ZERO, and on a PERIOD register zero does not mean "nothing":
  *
  *     ⭐ ZERO CLOCKS BETWEEN EDGES MEANS *INFINITE SPEED*.
  *
- * A FOC speed loop reading our reset value computes a divide-by-zero, or an infinite rotor
+ * A FOC speed loop reading our reset value computes a divide-by-zero, or an
+ * infinite rotor
  * velocity, BEFORE THE MOTOR HAS MOVED AT ALL.
  *
- *     ⭐ THE DANGEROUS ZEROS ARE THE ONES WHERE ZERO IS A LEGAL, MEANINGFUL, CATASTROPHIC
+ *     ⭐ THE DANGEROUS ZEROS ARE THE ONES WHERE ZERO IS A LEGAL, MEANINGFUL,
+ *     CATASTROPHIC
  *        VALUE -- not the ones where it is merely wrong.
  *
- * ⚠ AND THE GATE COULD NOT SEE ANY OF IT: these are 16-BIT registers, and the extractor
- * kept only 32-bit ones.  rt1180emulator hit the identical 32-bit blindness, and HIS
- * refusal pile contained the eFlexPWM DEAD-TIME counters -- 0x07FF on silicon, ZERO in his
- * model.  Zero dead time is A DIRECT SHORT ACROSS THE DC BUS THROUGH BOTH TRANSISTORS OF
+ * ⚠ AND THE GATE COULD NOT SEE ANY OF IT: these are 16-BIT registers, and
+ * the extractor
+ * kept only 32-bit ones.  rt1180emulator hit the identical 32-bit blindness,
+ * and HIS
+ * refusal pile contained the eFlexPWM DEAD-TIME counters -- 0x07FF on silicon,
+ * ZERO in his
+ * model.  Zero dead time is A DIRECT SHORT ACROSS THE DC BUS THROUGH BOTH
+ * TRANSISTORS OF
  * AN INVERTER LEG.  Every one of his PWM tests was green.
  */
 static const struct { uint16_t off; uint8_t width; uint32_t val; } rst_tbl[] = {
@@ -177,11 +198,14 @@ static const struct { uint16_t off; uint8_t width; uint32_t val; } rst_tbl[] = {
     { 0x030, 16, 0x0000FFFFu },   /* POSDPERH */
 };
 
-/* regs[] is a BYTE array here, and these registers are 8/16 bits.  Write little-endian
- * bytes -- a word store would clobber the neighbouring register that shares the word.
- * (I did exactly that on the first pass and the reset gate caught the regression on the
- * very next run.) */
-static void mcxn_qdc_set_reset(uint8_t *regs, uint16_t off, uint8_t width, uint32_t val)
+/*
+ * regs[] is a BYTE array here, and these registers are 8/16 bits.  Write
+ * little-endian bytes -- a word store would clobber the neighbouring register
+ * that shares the word.  (I did exactly that on the first pass and the reset
+ * gate caught the regression on the very next run.)
+ */
+static void mcxn_qdc_set_reset(uint8_t *regs, uint16_t off, uint8_t width,
+                               uint32_t val)
 {
     int i;
 
@@ -197,7 +221,8 @@ static void mcxn_qdc_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     for (rst_i = 0; rst_i < (int)ARRAY_SIZE(rst_tbl); rst_i++) {
-        mcxn_qdc_set_reset(s->regs, rst_tbl[rst_i].off, rst_tbl[rst_i].width, rst_tbl[rst_i].val);
+        mcxn_qdc_set_reset(s->regs, rst_tbl[rst_i].off, rst_tbl[rst_i].width,
+                           rst_tbl[rst_i].val);
     }
 }
 
@@ -209,7 +234,10 @@ static void mcxn_qdc_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_QDC, MCXN_QDC_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
-    /* Hardware trigger routed in by INPUTMUX from QDCn_TRIG (position capture/clear). */
+    /*
+     * Hardware trigger routed in by INPUTMUX from QDCn_TRIG (position
+     * capture/clear).
+     */
     qdev_init_gpio_in_named(dev, mcxn_qdc_hw_trigger, "trigger", 1);
 }
 

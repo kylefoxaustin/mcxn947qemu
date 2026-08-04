@@ -36,7 +36,8 @@
 #define CTRL_KEY        0xC0DE0000u
 #define CTRL_KEY_MASK   0xFFFF0000u
 #define CTRL_CMD_MASK   0x0000FFFFu
-#define CTRL_START      (1u << 0)  /* boot ignition — HONEST-FAULT: stays set */
+/* boot ignition — HONEST-FAULT: stays set */
+#define CTRL_START      (1u << 0)
 #define CTRL_GPISYNCH   (1u << 4)
 
 /* ARM2EZH low 2 bits = mask; the rest is the (word-aligned) pParam pointer. */
@@ -54,8 +55,11 @@
  */
 #define SMARTDMA_FW_BASE   0x04000000u
 #define SMARTDMA_FW_SLOTS  16
-/* The MCXN display firmware's table starts with this entry (fsl_smartdma_mcxn.c
- * s_smartdmaDisplayFirmware[0..3] = 0x04000024) — a fingerprint, not a fake. */
+/*
+ * The MCXN display firmware's table starts with this entry
+ * (fsl_smartdma_mcxn.c s_smartdmaDisplayFirmware[0..3] = 0x04000024) — a
+ * fingerprint, not a fake.
+ */
 #define SMARTDMA_DISPLAY_FW0  0x04000024u
 
 /* Documented display-firmware API names (enum _smartdma_display_api). */
@@ -76,9 +80,9 @@ static const char *const smartdma_display_api[] = {
  * documented operation the guest asked for, but run nothing and move nothing.
  * The EZH is proprietary microcode with no ISA in the RM and no reference
  * implementation, so its transforms cannot be reproduced byte-exact — faking
- * them would be a silent wrong answer.  We therefore leave START set (the engine
- * never completes) and raise no completion IRQ, exactly as before; the only
- * change is that the diagnostic now names WHICH op was requested.
+ * them would be a silent wrong answer.  We therefore leave START set (the
+ * engine never completes) and raise no completion IRQ, exactly as before; the
+ * only change is that the diagnostic now names WHICH op was requested.
  */
 static void mcxn_smartdma_boot(MCXNSmartDMAState *s)
 {
@@ -133,15 +137,16 @@ static uint64_t mcxn_smartdma_read(void *opaque, hwaddr off, unsigned size)
     switch (off) {
     case R_CTRL:
         /*
-         * START reads back exactly as the engine's real state: still SET, because
-         * the EZH program was never executed and therefore never completed.
+         * START reads back exactly as the engine's real state: still SET,
+         * because the EZH program was never executed and therefore never
+         * completed.
          *
-         * Clearing it (the old behaviour) told a polling guest "your transfer is
-         * done" while the destination buffer had never been touched — a silent
-         * wrong answer, and the worst kind, because SmartDMA's whole job is to
-         * MOVE DATA to a pointer the guest gave us.  A boot-then-poll loop that
-         * never falls through is a dead coprocessor, which is exactly what this
-         * is; the guest can see that, and a LOG_UNIMP says why.
+         * Clearing it (the old behaviour) told a polling guest "your transfer
+         * is done" while the destination buffer had never been touched — a
+         * silent wrong answer, and the worst kind, because SmartDMA's whole job
+         * is to MOVE DATA to a pointer the guest gave us.  A boot-then-poll
+         * loop that never falls through is a dead coprocessor, which is exactly
+         * what this is; the guest can see that, and a LOG_UNIMP says why.
          */
         return v;
     case R_PC:
@@ -243,8 +248,10 @@ static void mcxn_smartdma_init(Object *obj)
 {
     MCXNSmartDMAState *s = MCXN_SMARTDMA(obj);
 
-    /* Farm-control-plane visibility (qom-get): is the engine actually computing,
-     * and how many program starts were acked-but-not-executed. */
+    /*
+     * Farm-control-plane visibility (qom-get): is the engine actually
+     * computing, and how many program starts were acked-but-not-executed.
+     */
     object_property_add_bool(obj, "compute-modelled",
                              mcxn_smartdma_compute_modelled, NULL);
     object_property_add_uint32_ptr(obj, "programs-started",

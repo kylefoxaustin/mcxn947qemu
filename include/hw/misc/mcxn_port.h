@@ -25,7 +25,8 @@ struct MCXNPortState {
     /*< public >*/
     MemoryRegion iomem;
     uint32_t regs[MCXN_PORT_SIZE / 4];
-    uint8_t  port_id;   /* which PORT this is -- the RM's pad resets DIFFER per port */
+    /* which PORT this is -- the RM's pad resets DIFFER per port */
+    uint8_t  port_id;
 };
 
 #endif /* HW_MISC_MCXN_PORT_H */

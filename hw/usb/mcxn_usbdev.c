@@ -24,9 +24,11 @@
 #define USBDEV_VERSION "qemu mcxn-usbdev " QEMU_VERSION
 
 
-/* ------------------------------------------------------------------------- *
+/*
+ * ------------------------------------------------------------------------- *
  * chardev <-> usbredirparser bridge (mirrors hw/usb/redirect.c).
- * ------------------------------------------------------------------------- */
+ * ------------------------------------------------------------------------- *
+ */
 
 static int usbdev_read(void *priv, uint8_t *data, int count)
 {
@@ -84,9 +86,11 @@ static void usbdev_log(void *priv, int level, const char *msg)
     qemu_log_mask(LOG_GUEST_ERROR, "mcxn-usbdev: %s\n", msg);
 }
 
-/* ------------------------------------------------------------------------- *
+/*
+ * ------------------------------------------------------------------------- *
  * Endpoint-slot helpers + pending-request tracking.
- * ------------------------------------------------------------------------- */
+ * ------------------------------------------------------------------------- *
+ */
 
 static int usbdev_slot(uint8_t ep_addr)
 {
@@ -98,18 +102,22 @@ static MCXNUsbPending *usbdev_pending(MCXNUsbDevState *s, uint8_t ep_addr)
     return &s->pending[usbdev_slot(ep_addr)];
 }
 
-/* ------------------------------------------------------------------------- *
+/*
+ * ------------------------------------------------------------------------- *
  * Device-side receive callbacks — forward host transfers to the controller
  * backend (guest firmware), reply over usbredir (sync or async).
- * ------------------------------------------------------------------------- */
+ * ------------------------------------------------------------------------- *
+ */
 
 static void usbdev_hello(void *priv, struct usb_redir_hello_header *h)
 {
     MCXNUsbDevState *s = priv;
 
     s->connected = true;
-    /* If firmware already enabled the controller before the peer connected,
-     * (re)announce the device now that the handshake is complete. */
+    /*
+     * If firmware already enabled the controller before the peer connected,
+     * (re)announce the device now that the handshake is complete.
+     */
     if (s->attached && s->parser) {
         mcxn_usbdev_attach(s, s->speed);
     }
@@ -120,9 +128,11 @@ static void usbdev_reset(void *priv)
     MCXNUsbDevState *s = priv;
 
     memset(s->pending, 0, sizeof(s->pending));
-    /* A USB bus reset reverts the device to the default (addr 0) state.  Signal
-     * it to the backend so guest firmware re-inits its endpoints — required for
-     * a reused server to re-enumerate a fresh client. */
+    /*
+     * A USB bus reset reverts the device to the default (addr 0) state.
+     * Signal it to the backend so guest firmware re-inits its endpoints —
+     * required for a reused server to re-enumerate a fresh client.
+     */
     if (s->be_ops && s->be_ops->bus_reset) {
         s->be_ops->bus_reset(s->be);
     }
@@ -148,18 +158,20 @@ static void usbdev_std_setup(MCXNUsbDevState *s, uint8_t bmreq, uint8_t breq,
 }
 
 static void usbdev_set_configuration(void *priv, uint64_t id,
-                                     struct usb_redir_set_configuration_header *h)
+                        struct usb_redir_set_configuration_header *h)
 {
     MCXNUsbDevState *s = priv;
     MCXNUsbPending *p = usbdev_pending(s, 0x00);
 
-    /* Defer configuration_status until firmware runs the SET_CONFIGURATION
-     * status stage (complete_out): a real importer waits for this reply before
-     * its next request, so deferring serializes the SETUPs and stops the next
-     * one clobbering EP0 before firmware arms its endpoints.  Acking early is
-     * the CDC ttyACM write-EIO / GET_LINE_CODING=0 bug — a multi-interface
-     * gadget pipelines SET_CONFIGURATION -> SET_INTERFACE and the second SETUP
-     * lands before firmware has processed the first. */
+    /*
+     * Defer configuration_status until firmware runs the SET_CONFIGURATION
+     * status stage (complete_out): a real importer waits for this reply
+     * before its next request, so deferring serializes the SETUPs and stops
+     * the next one clobbering EP0 before firmware arms its endpoints.
+     * Acking early is the CDC ttyACM write-EIO / GET_LINE_CODING=0 bug — a
+     * multi-interface gadget pipelines SET_CONFIGURATION -> SET_INTERFACE
+     * and the second SETUP lands before firmware has processed the first.
+     */
     s->cur_config = h->configuration;
     p->active = true;
     p->is_control = true;
@@ -186,8 +198,10 @@ static void usbdev_set_alt_setting(void *priv, uint64_t id,
     MCXNUsbDevState *s = priv;
     MCXNUsbPending *p = usbdev_pending(s, 0x00);
 
-    /* Same deferral as SET_CONFIGURATION: ack only after firmware's status
-     * stage, so the importer's next SETUP can't clobber EP0. */
+    /*
+     * Same deferral as SET_CONFIGURATION: ack only after firmware's status
+     * stage, so the importer's next SETUP can't clobber EP0.
+     */
     p->active = true;
     p->is_control = true;
     p->id = id;
@@ -248,9 +262,11 @@ static void usbdev_control_packet(void *priv, uint64_t id,
         g_autofree uint8_t *buf = g_malloc0(ch->length ? ch->length : 1);
         int out_len = 0;
 
-        /* Register the pending request BEFORE invoking the backend: the engine
-         * may complete synchronously (calling complete_in() inline), which must
-         * find this request already active. */
+        /*
+         * Register the pending request BEFORE invoking the backend: the
+         * engine may complete synchronously (calling complete_in() inline),
+         * which must find this request already active.
+         */
         MCXNUsbPending *p = usbdev_pending(s, 0x80);
         p->active = true;
         p->is_control = true;
@@ -280,7 +296,8 @@ static void usbdev_control_packet(void *priv, uint64_t id,
         p->is_control = true;
         p->id = id;
         p->ep = 0x00;
-        p->reply_kind = MCXN_USB_REPLY_XFER;   /* slot 0 is shared with set_config/alt */
+        /* slot 0 is shared with set_config/alt */
+        p->reply_kind = MCXN_USB_REPLY_XFER;
         if (data_len) {
             s->be_ops->ep_out(s->be, 0, data, data_len);
         }
@@ -380,8 +397,10 @@ static void usbdev_stop_interrupt_receiving(void *priv, uint64_t id,
     usbredirparser_do_write(s->parser);
 }
 
-/* Interrupt OUT (host->device) — our gadgets have no interrupt-OUT endpoint;
- * release the buffer so the parser doesn't leak. */
+/*
+ * Interrupt OUT (host->device) — our gadgets have no interrupt-OUT endpoint;
+ * release the buffer so the parser doesn't leak.
+ */
 static void usbdev_interrupt_packet(void *priv, uint64_t id,
     struct usb_redir_interrupt_packet_header *h, uint8_t *data, int data_len)
 {
@@ -390,9 +409,11 @@ static void usbdev_interrupt_packet(void *priv, uint64_t id,
     usbredirparser_free_packet_data(s->parser, data);
 }
 
-/* The importer cancels an outstanding transfer (e.g. cdc_acm unlinking its read
- * URB on close): drop the matching pending so a late completion can't answer a
- * cancelled request. */
+/*
+ * The importer cancels an outstanding transfer (e.g. cdc_acm unlinking its
+ * read URB on close): drop the matching pending so a late completion can't
+ * answer a cancelled request.
+ */
 static void usbdev_cancel_data_packet(void *priv, uint64_t id)
 {
     MCXNUsbDevState *s = priv;
@@ -410,9 +431,11 @@ static void usbdev_device_disconnect_ack(void *priv)
     /* Ack of our device_disconnect; nothing to do. */
 }
 
-/* ------------------------------------------------------------------------- *
+/*
+ * ------------------------------------------------------------------------- *
  * Parser lifecycle.
- * ------------------------------------------------------------------------- */
+ * ------------------------------------------------------------------------- *
+ */
 
 static void usbdev_create_parser(MCXNUsbDevState *s)
 {
@@ -435,16 +458,22 @@ static void usbdev_create_parser(MCXNUsbDevState *s)
     p->get_alt_setting_func = usbdev_get_alt_setting;
     p->control_packet_func = usbdev_control_packet;
     p->bulk_packet_func = usbdev_bulk_packet;
-    /* Interrupt-IN streaming (CDC notification EP) + cancel/disconnect — MUST be
-     * set: libusbredirparser calls the cb unconditionally (NULL => crash). */
+    /*
+     * Interrupt-IN streaming (CDC notification EP) + cancel/disconnect —
+     * MUST be set: libusbredirparser calls the cb unconditionally
+     * (NULL => crash).
+     */
     p->start_interrupt_receiving_func = usbdev_start_interrupt_receiving;
     p->stop_interrupt_receiving_func = usbdev_stop_interrupt_receiving;
     p->interrupt_packet_func = usbdev_interrupt_packet;
     p->cancel_data_packet_func = usbdev_cancel_data_packet;
     p->device_disconnect_ack_func = usbdev_device_disconnect_ack;
 
-    /* We export a (virtual) device, i.e. we play the usb-host role; the remote
-     * `-device usb-redir` is the client.  Advertise the standard caps. */
+    /*
+     * We export a (virtual) device, i.e. we play the usb-host role; the
+     * remote `-device usb-redir` is the client.  Advertise the standard
+     * caps.
+     */
     usbredirparser_caps_set_cap(caps, usb_redir_cap_connect_device_version);
     usbredirparser_caps_set_cap(caps, usb_redir_cap_ep_info_max_packet_size);
 
@@ -467,9 +496,11 @@ static void usbdev_destroy_parser(MCXNUsbDevState *s)
     s->connected = false;
 }
 
-/* ------------------------------------------------------------------------- *
+/*
+ * ------------------------------------------------------------------------- *
  * chardev event/read handlers.
- * ------------------------------------------------------------------------- */
+ * ------------------------------------------------------------------------- *
+ */
 
 static int usbdev_chr_can_read(void *opaque)
 {
@@ -507,9 +538,11 @@ static void usbdev_chr_event(void *opaque, QEMUChrEvent event)
     }
 }
 
-/* ------------------------------------------------------------------------- *
+/*
+ * ------------------------------------------------------------------------- *
  * Public API.
- * ------------------------------------------------------------------------- */
+ * ------------------------------------------------------------------------- *
+ */
 
 void mcxn_usbdev_set_backend(MCXNUsbDevState *s,
                              const MCXNUsbBackendOps *ops, void *be)
@@ -532,12 +565,13 @@ void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed)
     }
 
     /*
-     * A real usb-redir *importer* (QEMU hw/usb/redirect.c usbredir_check_filter)
-     * hard-requires interface_info to be set when device_connect is processed,
-     * and uses ep_info to set up the endpoints — so both MUST be sent before
-     * device_connect, even though the descriptors themselves still flow from
-     * firmware via the forwarded control transfers.  The layout must match the
-     * gadget firmware's config descriptor; gadget-profile selects it.  (A future
+     * A real usb-redir *importer* (QEMU hw/usb/redirect.c
+     * usbredir_check_filter) hard-requires interface_info to be set when
+     * device_connect is processed, and uses ep_info to set up the
+     * endpoints — so both MUST be sent before device_connect, even though
+     * the descriptors themselves still flow from firmware via the
+     * forwarded control transfers.  The layout must match the gadget
+     * firmware's config descriptor; gadget-profile selects it.  (A future
      * cleanup could derive this from the firmware's config descriptor.)
      */
     for (i = 0; i < 32; i++) {
@@ -545,12 +579,17 @@ void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed)
     }
     /* EP0 is always control/64; bulk max-packet is speed-coherent (HS=512). */
     uint16_t bulk_mps = (speed == usb_redir_speed_high) ? 512 : 64;
-    ei.type[0]  = usb_redir_type_control; ei.max_packet_size[0]  = 64;   /* EP0 OUT */
-    ei.type[16] = usb_redir_type_control; ei.max_packet_size[16] = 64;   /* EP0 IN  */
+    /* EP0 OUT */
+    ei.type[0]  = usb_redir_type_control; ei.max_packet_size[0]  = 64;
+    /* EP0 IN  */
+    ei.type[16] = usb_redir_type_control; ei.max_packet_size[16] = 64;
 
     if (s->gadget_profile && !strcmp(s->gadget_profile, "cdc")) {
-        /* CDC-ACM: interface 0 Communications/ACM + EP2-IN interrupt notify;
-         * interface 1 Data + EP1 bulk in/out.  Binds Linux cdc_acm. */
+        /*
+         * CDC-ACM: interface 0 Communications/ACM + EP2-IN interrupt
+         * notify; interface 1 Data + EP1 bulk in/out.  Binds Linux
+         * cdc_acm.
+         */
         ii.interface_count = 2;
         ii.interface[0] = 0;
         ii.interface_class[0] = 0x02;      /* Communications */
@@ -580,9 +619,11 @@ void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed)
     usbredirparser_send_interface_info(s->parser, &ii);
     usbredirparser_send_ep_info(s->parser, &ei);
 
-    /* Descriptors are sourced from firmware via forwarded control transfers, so
-     * the connect header carries only the speed; the host learns class/ids from
-     * the real GET_DESCRIPTOR responses. */
+    /*
+     * Descriptors are sourced from firmware via forwarded control
+     * transfers, so the connect header carries only the speed; the host
+     * learns class/ids from the real GET_DESCRIPTOR responses.
+     */
     dc.speed = speed;
     usbredirparser_send_device_connect(s->parser, &dc);
     usbredirparser_do_write(s->parser);
@@ -644,7 +685,10 @@ void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status, int len)
         return;
     }
     if (p->reply_kind == MCXN_USB_REPLY_CONFIG) {
-        /* Deferred SET_CONFIGURATION ack — firmware just ran the status stage. */
+        /*
+         * Deferred SET_CONFIGURATION ack — firmware just ran the status
+         * stage.
+         */
         struct usb_redir_configuration_status_header cs = { 0 };
         cs.status = st;
         cs.configuration = p->arg0;
@@ -666,8 +710,11 @@ void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status, int len)
         struct usb_redir_bulk_packet_header bh = { 0 };
         bh.endpoint = ep_addr;
         bh.status = st;
-        /* Report the actual transferred byte count: a real OUT-endpoint driver
-         * (e.g. cdc_acm's tty write) reads this and treats 0 as a short write. */
+        /*
+         * Report the actual transferred byte count: a real OUT-endpoint
+         * driver (e.g. cdc_acm's tty write) reads this and treats 0 as a
+         * short write.
+         */
         bh.length = len & 0xffff;
         bh.length_high = (len >> 16) & 0xffff;
         usbredirparser_send_bulk_packet(s->parser, p->id, &bh, NULL, 0);
@@ -677,9 +724,11 @@ void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status, int len)
     usbredirparser_do_write(s->parser);
 }
 
-/* ------------------------------------------------------------------------- *
+/*
+ * ------------------------------------------------------------------------- *
  * QOM.
- * ------------------------------------------------------------------------- */
+ * ------------------------------------------------------------------------- *
+ */
 
 static void mcxn_usbdev_realize(DeviceState *dev, Error **errp)
 {

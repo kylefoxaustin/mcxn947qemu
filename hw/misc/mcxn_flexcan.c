@@ -1,5 +1,6 @@
 /*
- * NXP MCX N FlexCAN (Flexible Controller Area Network, CAN FD) — bring-up model.
+ * NXP MCX N FlexCAN (Flexible Controller Area Network, CAN FD) — bring-up
+ * model.
  *
  * The bring-up blockers are the FlexCAN mode handshakes in MCR (Module
  * Configuration):
@@ -20,8 +21,8 @@
  * idle/zero.  All other registers (including the message-buffer RAM, individual
  * mask RAM and enhanced RX FIFO filter RAM) are backed permissively by regs[].
  *
- * Offsets/bits from the MCXN947 CMSIS header (CAN_Type); mode semantics from the
- * FlexCAN chapter of the reference manual.
+ * Offsets/bits from the MCXN947 CMSIS header (CAN_Type); mode semantics from
+ * the FlexCAN chapter of the reference manual.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -62,10 +63,12 @@
 #define MB_CODE_MASK   0xFu
 #define CODE_RX_EMPTY  0x4   /* MB configured to receive, currently empty */
 #define CODE_RX_FULL   0x2   /* MB holds a received frame */
-#define CODE_RX_OVERRUN 0x6  /* 0110b: a frame was overwritten into a full MB
-                              * (RM rev 7, message-buffer CODE table).  This is
-                              * how the silicon TELLS the guest it lost one —
-                              * the model used to just drop the frame in silence */
+/*
+ * 0110b: a frame was overwritten into a full MB (RM rev 7,
+ * message-buffer CODE table).  This is how the silicon TELLS the guest it
+ * lost one — the model used to just drop the frame in silence
+ */
+#define CODE_RX_OVERRUN 0x6
 #define CODE_TX_DATA   0xC   /* MB armed to transmit a data frame */
 
 /* CS control bits (classic frame): SRR[22], IDE[21], RTR[20], DLC[19:16]. */
@@ -84,13 +87,16 @@
 #define MCR_FRZ      (1u << 30)
 #define MCR_MDIS     (1u << 31)
 
-/* MAXMB (CAN_MCR_MAXMB) occupies bits [6:0]; reset value is 0x0F.
- * Reset = 0xD890_000F (RM): MDIS|FRZ|HALT|NOTRDY | SUPV | LPMACK | MAXMB=0xF.  At reset the
- * module is DISABLED (MDIS=1), so it acknowledges LOW-POWER (LPMACK), NOT freeze (FRZACK) --
- * FRZACK requires the module ENABLED.  The old constant set FRZACK and dropped SUPV/LPMACK
- * (0xD900_000F), overriding the correct value in the reset table below. */
-#define MCR_RESET    (MCR_MDIS | MCR_FRZ | MCR_HALT | MCR_NOTRDY | MCR_SUPV | MCR_LPMACK | \
-                      0x0000000Fu)
+/*
+ * MAXMB (CAN_MCR_MAXMB) occupies bits [6:0]; reset value is 0x0F. Reset =
+ * 0xD890_000F (RM): MDIS|FRZ|HALT|NOTRDY | SUPV | LPMACK | MAXMB=0xF.  At reset
+ * the module is DISABLED (MDIS=1), so it acknowledges LOW-POWER (LPMACK), NOT
+ * freeze (FRZACK) -- FRZACK requires the module ENABLED.  The old constant set
+ * FRZACK and dropped SUPV/LPMACK (0xD900_000F), overriding the correct value in
+ * the reset table below.
+ */
+#define MCR_RESET    (MCR_MDIS | MCR_FRZ | MCR_HALT | MCR_NOTRDY | MCR_SUPV | \
+                      MCR_LPMACK | 0x0000000Fu)
 
 /*
  * Recompute the MCR acknowledge/ready bits from the freeze/disable request
@@ -103,9 +109,13 @@ static uint32_t flexcan_mcr_settle(uint32_t mcr)
     bool disable = mcr & MCR_MDIS;
 
     mcr &= ~(MCR_FRZACK | MCR_LPMACK | MCR_NOTRDY);
+    /*
+     * low-power takes precedence: a disabled module acks LOW-POWER, never
+     * FREEZE
+     */
     if (disable) {
-        mcr |= MCR_LPMACK | MCR_NOTRDY;   /* low-power takes precedence: a disabled */
-    } else if (freeze) {                   /* module acks LOW-POWER, never FREEZE   */
+        mcr |= MCR_LPMACK | MCR_NOTRDY;
+    } else if (freeze) {
         mcr |= MCR_FRZACK | MCR_NOTRDY;
     }
     return mcr;
@@ -125,8 +135,10 @@ static void flexcan_update_irq(MCXNFlexCanState *s)
  * ID).  The receiving MB is filled (CODE=FULL, ID/DLC/data copied) and its
  * IFLAG1 bit set; the transmitting MB also raises its IFLAG1 (transmit done).
  */
-/* Build a classic qemu_can_frame from TX message buffer "tx" and put it on the
- * emulated CAN bus (a can-host-chardev bridges the bus to a socket peer). */
+/*
+ * Build a classic qemu_can_frame from TX message buffer "tx" and put it on the
+ * emulated CAN bus (a can-host-chardev bridges the bus to a socket peer).
+ */
 static void flexcan_send_to_bus(MCXNFlexCanState *s, unsigned tx)
 {
     uint32_t t = (MB_BASE + tx * MB_STRIDE) >> 2;
@@ -152,16 +164,20 @@ static void flexcan_send_to_bus(MCXNFlexCanState *s, unsigned tx)
     can_bus_client_send(&s->bus_client, &f, 1);
 }
 
-/* Is this controller on the bus at all right now?  A DISABLED or FROZEN
- * FlexCAN neither receives NOR transmits. */
+/*
+ * Is this controller on the bus at all right now?  A DISABLED or FROZEN
+ * FlexCAN neither receives NOR transmits.
+ */
 static bool flexcan_enabled(MCXNFlexCanState *s)
 {
     uint32_t mcr = s->regs[R_MCR >> 2];
 
-    /* A DISABLED or FROZEN FlexCAN is not on the bus at all.  This used to
+    /*
+     * A DISABLED or FROZEN FlexCAN is not on the bus at all.  This used to
      * return true unconditionally, so a controller the guest had switched off
      * still quietly filled its mailboxes with traffic the silicon would never
-     * have delivered. */
+     * have delivered.
+     */
     return !(mcr & MCR_MDIS) && !(mcr & MCR_NOTRDY);
 }
 
@@ -182,12 +198,13 @@ static bool flexcan_enabled(MCXNFlexCanState *s)
  *     a mask, the model ignored both.
  *
  *  2. A FULL MAILBOX MEANT A SILENTLY DROPPED FRAME.  The old code scanned only
- *     for CODE=EMPTY and, finding none, returned success having thrown the frame
- *     away -- the comment even admitted "a real device flags overrun".  Per the
- *     RM the matching process considers MBs whose CODE is EMPTY, FULL *or*
- *     OVERRUN, and when a new frame lands on an unserviced buffer the buffer is
- *     OVERWRITTEN and CODE becomes OVERRUN (0110b).  So the data still moves and
- *     the guest is TOLD it lost one.  Dropping in silence is the worst of both.
+ *     for CODE=EMPTY and, finding none, returned success having thrown the
+ *     frame away -- the comment even admitted "a real device flags overrun".
+ *     Per the RM the matching process considers MBs whose CODE is EMPTY, FULL
+ *     *or* OVERRUN, and when a new frame lands on an unserviced buffer the
+ *     buffer is OVERWRITTEN and CODE becomes OVERRUN (0110b).  So the data
+ *     still moves and the guest is TOLD it lost one.  Dropping in silence is
+ *     the worst of both.
  */
 static ssize_t flexcan_bus_receive(CanBusClientState *client,
                                    const qemu_can_frame *frames,
@@ -226,10 +243,13 @@ static ssize_t flexcan_bus_receive(CanBusClientState *client,
             code != CODE_RX_OVERRUN) {
             continue;
         }
-        /* A 0 mask bit is "don't care", so the reset mask of 0 accepts any ID
-         * — which is what made the missing filter look correct for so long. */
+        /*
+         * A 0 mask bit is "don't care", so the reset mask of 0 accepts any ID
+         * — which is what made the missing filter look correct for so long.
+         */
         if (((rx_id ^ s->regs[r + 1]) & mask) != 0) {
-            continue;              /* this mailbox is not listening for this ID */
+            /* this mailbox is not listening for this ID */
+            continue;
         }
 
         full = (code != CODE_RX_EMPTY);   /* unserviced: this is an overrun */
@@ -237,9 +257,11 @@ static ssize_t flexcan_bus_receive(CanBusClientState *client,
         s->regs[r + 1] = rx_id;
         s->regs[r + 2] = s->regs[r + 3] = 0;
         for (i = 0; i < len; i++) {
-            s->regs[r + 2 + i / 4] |= (uint32_t)f->data[i] << (24 - 8 * (i % 4));
+            s->regs[r + 2 + i / 4] |=
+                    (uint32_t)f->data[i] << (24 - 8 * (i % 4));
         }
-        s->regs[r] = ((full ? CODE_RX_OVERRUN : CODE_RX_FULL) << MB_CODE_SHIFT) |
+        s->regs[r] = ((full ? CODE_RX_OVERRUN : CODE_RX_FULL)
+                      << MB_CODE_SHIFT) |
                      ((uint32_t)len << 16) |
                      (eff ? (MB_IDE | MB_SRR) : 0) | (rtr ? MB_RTR : 0);
         s->regs[R_IFLAG1 >> 2] |= (1u << rx);
@@ -247,8 +269,10 @@ static ssize_t flexcan_bus_receive(CanBusClientState *client,
         return 1;
     }
 
-    /* Nothing was listening for this ID.  That is not an error: on a real bus
-     * every node sees every frame and ignores the ones it did not filter for. */
+    /*
+     * Nothing was listening for this ID.  That is not an error: on a real bus
+     * every node sees every frame and ignores the ones it did not filter for.
+     */
     return 1;
 }
 
@@ -270,10 +294,12 @@ static void flexcan_transmit(MCXNFlexCanState *s, unsigned tx)
     uint32_t tcs = s->regs[t];
     uint32_t tid = s->regs[t + 1];
 
-    /* A disabled or frozen module is not on the bus: it does not transmit, and
+    /*
+     * A disabled or frozen module is not on the bus: it does not transmit, and
      * (in loopback) it does not deliver to itself either.  Gating only the
-     * receive path left a switched-off controller still looping frames back into
-     * its own mailboxes. */
+     * receive path left a switched-off controller still looping frames back
+     * into its own mailboxes.
+     */
     if (!flexcan_enabled(s)) {
         return;
     }
@@ -295,9 +321,11 @@ static void flexcan_transmit(MCXNFlexCanState *s, unsigned tx)
             uint32_t rcode = (rcs >> MB_CODE_SHIFT) & MB_CODE_MASK;
             bool full;
 
-            /* Matching considers EMPTY, FULL and OVERRUN buffers (RM rev 7).
+            /*
+             * Matching considers EMPTY, FULL and OVERRUN buffers (RM rev 7).
              * Only scanning for EMPTY meant a frame arriving on an unserviced
-             * mailbox was DROPPED IN SILENCE. */
+             * mailbox was DROPPED IN SILENCE.
+             */
             if (rcode != CODE_RX_EMPTY && rcode != CODE_RX_FULL &&
                 rcode != CODE_RX_OVERRUN) {
                 continue;
@@ -307,8 +335,10 @@ static void flexcan_transmit(MCXNFlexCanState *s, unsigned tx)
             }
             full = (rcode != CODE_RX_EMPTY);   /* unserviced => overrun */
 
-            /* Deliver the frame: keep DLC/RTR/IDE/SRR; CODE=FULL, or OVERRUN if
-             * we just overwrote a buffer the CPU had not read yet. */
+            /*
+             * Deliver the frame: keep DLC/RTR/IDE/SRR; CODE=FULL, or OVERRUN if
+             * we just overwrote a buffer the CPU had not read yet.
+             */
             s->regs[r]     = ((full ? CODE_RX_OVERRUN : CODE_RX_FULL)
                               << MB_CODE_SHIFT) | (tcs & 0x00FF0000u);
             s->regs[r + 1] = tid;
@@ -351,7 +381,8 @@ static uint64_t flexcan_read(void *opaque, hwaddr off, unsigned size)
     }
 
     /* Support byte/halfword reads by shifting the backing word. */
-    return (v >> shift) & ((size == 4) ? 0xFFFFFFFFu : ((1u << (size * 8)) - 1));
+    return (v >> shift) &
+           ((size == 4) ? 0xFFFFFFFFu : ((1u << (size * 8)) - 1));
 }
 
 static void flexcan_write(void *opaque, hwaddr off, uint64_t value,
@@ -360,7 +391,8 @@ static void flexcan_write(void *opaque, hwaddr off, uint64_t value,
     MCXNFlexCanState *s = MCXN_FLEXCAN(opaque);
     uint32_t idx = off >> 2;
     uint32_t shift = (off & 3) * 8;
-    uint32_t mask = (size == 4) ? 0xFFFFFFFFu : (((1u << (size * 8)) - 1) << shift);
+    uint32_t mask = (size == 4) ? 0xFFFFFFFFu
+                                : (((1u << (size * 8)) - 1) << shift);
     uint32_t val;
 
     if (off >= MCXN_FLEXCAN_SIZE) {

@@ -4,9 +4,9 @@
  * The bring-up blockers are the driver init handshakes:
  *
  *   - Software reset: firmware sets DMA_MODE.SWR (bit 0) and polls until the
- *     hardware clears it.  The RM states SWR "is automatically cleared after the
- *     reset operation is complete".  Here the reset is instantaneous: SWR reads
- *     back 0 and the register file is reset.
+ *     hardware clears it.  The RM states SWR "is automatically cleared after
+ *     the reset operation is complete".  Here the reset is instantaneous: SWR
+ *     reads back 0 and the register file is reset.
  *   - MAC enable: MAC_CONFIGURATION.RE/TE (receive/transmit enable) simply read
  *     back what firmware wrote.
  *   - MDIO (PHY management): firmware programs MAC_MDIO_ADDRESS and sets the GB
@@ -51,7 +51,8 @@
 #define R_DMA_DEBUG_STATUS0    0x100C  /* RO */
 
 /* MAC_MDIO_ADDRESS fields (DWC ENET QoS, Clause 22). */
-#define MDIO_GB          (1u << 0)   /* operation busy (self-clears when done) */
+/* operation busy (self-clears when done) */
+#define MDIO_GB          (1u << 0)
 #define MDIO_GOC_SHIFT   2           /* GOC[1:0]: 0b01 write, 0b11 read */
 #define MDIO_GOC_MASK    0x3u
 #define MDIO_GOC_WRITE   0x1u
@@ -117,8 +118,8 @@
  * auto-negotiation complete so a driver's "wait for link" loop terminates.
  * The PHY identity is the exact Microchip LAN8741 ID so the stock NXP
  * `phylan8741` SDK driver recognises it: devId = (ID1<<16)+ID2 with the low
- * revision nibble masked must equal (OUI<<10)|(model<<4) = (0x1F0<<10)|(0x12<<4)
- * = 0x0007_C120, i.e. ID1=0x0007, ID2=0xC120.
+ * revision nibble masked must equal (OUI<<10)|(model<<4) =
+ * (0x1F0<<10)|(0x12<<4) = 0x0007_C120, i.e. ID1=0x0007, ID2=0xC120.
  */
 #define ENET_PHY_ADDR    2
 #define PHY_BMCR         0x00
@@ -126,7 +127,8 @@
 #define PHY_ID1          0x02
 #define PHY_ID2          0x03
 #define PHY_BMCR_RESET   0x1140u  /* AN enable, 100M, full-duplex */
-#define PHY_BMSR_VALUE   0x782Du  /* 10/100 capable, AN able+complete, link up */
+/* 10/100 capable, AN able+complete, link up */
+#define PHY_BMSR_VALUE   0x782Du
 #define PHY_ID1_VALUE    0x0007u
 #define PHY_ID2_VALUE    0xC120u  /* LAN8741: OUI 0x1F0, model 0x12, rev 0 */
 
@@ -135,20 +137,20 @@
  *
  * ⚠ THIS COMMENT USED TO SAY, IN CAPITALS:
  *
- *     "The RM does not document an explicit MAC_VERSION reset value; 0x51 ... is the
- *      conventional value for this IP generation.  GUESSED -- to be confirmed against
- *      silicon / the SDK if a driver checks it."
+ *     "The RM does not document an explicit MAC_VERSION reset value; 0x51 ...
+ *      is the conventional value for this IP generation.  GUESSED -- to be
+ *      confirmed against silicon / the SDK if a driver checks it."
  *
- * The RM DOES document it.  It is 0x0000_1052 (SNPSVER 0x52, USERVER 0x10), and a
- * machine-readable extractor found it in seconds -- the one now living in
- * tests/mcxn-reset-values.  So the note was WRONG about the manual as well as about
- * the value.
+ * The RM DOES document it.  It is 0x0000_1052 (SNPSVER 0x52, USERVER 0x10), and
+ * a machine-readable extractor found it in seconds -- the one now living in
+ * tests/mcxn-reset-values.  So the note was WRONG about the manual as well as
+ * about the value.
  *
- *     ⭐ AN HONESTLY-DOCUMENTED GUESS IS STILL A GUESS.  THE FLAG DISCHARGED THE
- *        ANXIETY AND THE GAP STAYED.  (rt1180emulator's rule, and here it is in my
- *        own tree: I wrote "GUESSED -- to be confirmed", felt appropriately careful,
- *        and then never confirmed it.  Writing down that you are unsure is not the
- *        same as going and looking.)
+ *     ⭐ AN HONESTLY-DOCUMENTED GUESS IS STILL A GUESS.  THE FLAG DISCHARGED
+ *        THE ANXIETY AND THE GAP STAYED.  (rt1180emulator's rule, and here it
+ *        is in my own tree: I wrote "GUESSED -- to be confirmed", felt
+ *        appropriately careful, and then never confirmed it.  Writing down
+ *        that you are unsure is not the same as going and looking.)
  */
 #define MAC_VERSION_VALUE  0x00001052u   /* RM reset */
 
@@ -220,7 +222,9 @@ static bool mcxn_enet_deliver(MCXNEnetState *s, const uint8_t *buf, size_t len)
                          MEMTXATTRS_UNSPECIFIED);
         off += chunk;
         last = (off >= len);
-        /* Write-back: clear OWN, FD on first / LD on last, cumulative length. */
+        /*
+         * Write-back: clear OWN, FD on first / LD on last, cumulative length.
+         */
         enet_desc_write_word3(s->cur_rx,
                               (first ? RDES3_FD : 0) | (last ? RDES3_LD : 0) |
                               ((uint32_t)off & RDES3_PL_MASK));
@@ -265,9 +269,11 @@ static void mcxn_enet_tx_process(MCXNEnetState *s)
             flen = 0;
             ioc = false;
         }
-        /* TDES2 carries buffer-1 length [13:0] and buffer-2 length [29:16];
+        /*
+         * TDES2 carries buffer-1 length [13:0] and buffer-2 length [29:16];
          * the driver puts the L2 header in buffer 1 and the payload in
-         * buffer 2 (TDES0 / TDES1 addresses). */
+         * buffer 2 (TDES0 / TDES1 addresses).
+         */
         b1len = d[2] & TDES2_B1L_MASK;
         if (b1len && flen + b1len <= sizeof(frame)) {
             dma_memory_read(&address_space_memory, d[0], frame + flen, b1len,
@@ -373,8 +379,10 @@ static uint64_t enet_read(void *opaque, hwaddr off, unsigned size)
         v = MAC_VERSION_VALUE;
         break;
     case R_DMA_INTERRUPT_STATUS:
-        /* DC0IS (bit 0) summarises DMA channel 0's pending interrupt; the
-         * driver's ISR gates on it before reading the channel status. */
+        /*
+         * DC0IS (bit 0) summarises DMA channel 0's pending interrupt; the
+         * driver's ISR gates on it before reading the channel status.
+         */
         v = (s->regs[R_DMA_CH0_STATUS >> 2] & s->regs[R_DMA_CH0_INT_EN >> 2] &
              (DMA_STAT_TI | DMA_STAT_RI | DMA_STAT_RBU)) ? 1u : 0u;
         break;
@@ -391,7 +399,8 @@ static uint64_t enet_read(void *opaque, hwaddr off, unsigned size)
         break;
     }
 
-    return (v >> shift) & ((size == 4) ? 0xFFFFFFFFu : ((1u << (size * 8)) - 1));
+    return (v >> shift) &
+           ((size == 4) ? 0xFFFFFFFFu : ((1u << (size * 8)) - 1));
 }
 
 static void enet_write(void *opaque, hwaddr off, uint64_t value, unsigned size)
@@ -471,8 +480,10 @@ static void enet_write(void *opaque, hwaddr off, uint64_t value, unsigned size)
         s->cur_rx = val & ~0x3u;
         return;
     case R_DMA_CH0_RXDESC_TAIL:
-        /* Publishing Rx buffers makes the receiver ready: unblock the net
-         * queue so any frame held while can_receive was false is delivered. */
+        /*
+         * Publishing Rx buffers makes the receiver ready: unblock the net
+         * queue so any frame held while can_receive was false is delivered.
+         */
         s->regs[idx] = val;
         if (s->nic) {
             qemu_flush_queued_packets(qemu_get_queue(s->nic));
@@ -518,44 +529,47 @@ static const MemoryRegionOps enet_ops = {
 };
 
 /*
- * ⚠ ENET CAME UP AS memset(0), AND 91emulator TOLD ME THIS EXACT CLASS -- IN MY OWN
- *   REGISTERS -- AND I DID NOT RUN THE CENSUS ON MY OWN TREE.
+ * ⚠ ENET CAME UP AS memset(0), AND 91emulator TOLD ME THIS EXACT CLASS -- IN
+ *   MY OWN REGISTERS -- AND I DID NOT RUN THE CENSUS ON MY OWN TREE.
  *
- *   Them, on their dwmac: "MAC_ADDRESS0 has AE SET (the primary); 1..63 reset FFFF with
- *   AE CLEAR = an EMPTY SLOT.  I answered zero for all 128 -- in exactly the registers a
- *   driver walks looking for a free slot."
+ *   Them, on their dwmac: "MAC_ADDRESS0 has AE SET (the primary); 1..63 reset
+ *   FFFF with AE CLEAR = an EMPTY SLOT.  I answered zero for all 128 -- in
+ *   exactly the registers a driver walks looking for a free slot."
  *
- *   ⭐ A BUG CLASS FOUND ONCE IS A CENSUS YOU HAVE NOT RUN -- and I quoted that rule at
- *     them before running it here.
+ *   ⭐ A BUG CLASS FOUND ONCE IS A CENSUS YOU HAVE NOT RUN -- and I quoted
+ *     that rule at them before running it here.
  *
- * ☠ MAC_ADDRESS0_HIGH[AE] (bit 31) IS THE ADDRESS-ENABLE.  Our zero meant the PRIMARY MAC
- *   SLOT READ AS EMPTY.  A driver walking the address table for a free entry finds slot 0
- *   free and may overwrite the primary address -- or conclude the MAC filter is off.
- *   RM: 0x8000_FFFF (enabled, and unprogrammed all-ones until firmware writes the MAC).
+ * ☠ MAC_ADDRESS0_HIGH[AE] (bit 31) IS THE ADDRESS-ENABLE.  Our zero meant
+ *   the PRIMARY MAC SLOT READ AS EMPTY.  A driver walking the address table
+ *   for a free entry finds slot 0 free and may overwrite the primary address
+ *   -- or conclude the MAC filter is off.  RM: 0x8000_FFFF (enabled, and
+ *   unprogrammed all-ones until firmware writes the MAC).
  *
- * ☠ MAC_ONEUS_TIC_COUNTER IS A DIVIDER: the driver writes (csr_clk_hz / 1e6) - 1, and the
- *   MAC uses it to generate a 1 us tick.  RM reset 0x63 = 99 (a 100 MHz CSR clock).
- *   OUR ZERO IS A DIVIDER OF ZERO -- a dangerous zero in the purest sense: legal,
- *   meaningful, and catastrophic to anything that divides by it.
+ * ☠ MAC_ONEUS_TIC_COUNTER IS A DIVIDER: the driver writes (csr_clk_hz / 1e6)
+ *   - 1, and the MAC uses it to generate a 1 us tick.  RM reset 0x63 = 99 (a
+ *   100 MHz CSR clock).  OUR ZERO IS A DIVIDER OF ZERO -- a dangerous zero in
+ *   the purest sense: legal, meaningful, and catastrophic to anything that
+ *   divides by it.
  *
  *   MAC_CONFIGURATION[PS] (bit 15, port select), MAC_LPI_TIMERS_CONTROL and
- *   MAC_TIMESTAMP_CONTROL[TSIPV4ENA] likewise -- all read-modify-written by the stock
- *   driver, so our zeros were laundered into the guest's own configuration.
- *   (RE/TE, the actual receive/transmit enables, stay 0: seeding these does NOT start
- *   the MAC.)
+ *   MAC_TIMESTAMP_CONTROL[TSIPV4ENA] likewise -- all read-modify-written by
+ *   the stock driver, so our zeros were laundered into the guest's own
+ *   configuration.  (RE/TE, the actual receive/transmit enables, stay 0:
+ *   seeding these does NOT start the MAC.)
  *
- * ⚠ STATED GAP: this model implements NO MAC ADDRESS FILTERING -- it accepts every frame
- *   on the wire regardless of destination.  That is MORE PERMISSIVE THAN THE SILICON, and
- *   it is named here rather than left to be discovered.  Seeding AE now at least tells a
- *   guest the truth about the slot; it does not make the filter exist.
+ * ⚠ STATED GAP: this model implements NO MAC ADDRESS FILTERING -- it accepts
+ *   every frame on the wire regardless of destination.  That is MORE
+ *   PERMISSIVE THAN THE SILICON, and it is named here rather than left to be
+ *   discovered.  Seeding AE now at least tells a guest the truth about the
+ *   slot; it does not make the filter exist.
  */
 static const struct { uint16_t off; uint32_t val; } enet_reset[] = {
-    { 0x000, 0x00008000u },   /* MAC_CONFIGURATION      PS: port select        */
-    { 0x0D4, 0x03E80000u },   /* MAC_LPI_TIMERS_CONTROL                        */
-    { 0x0DC, 0x00000063u },   /* MAC_ONEUS_TIC_COUNTER  99 -> a 1 us tick      */
-    { 0x300, 0x8000FFFFu },   /* MAC_ADDRESS0_HIGH      AE=1: the slot is USED */
-    { 0x304, 0xFFFFFFFFu },   /* MAC_ADDRESS0_LOW       unprogrammed           */
-    { 0xB00, 0x00002000u },   /* MAC_TIMESTAMP_CONTROL  TSIPV4ENA              */
+    { 0x000, 0x00008000u },  /* MAC_CONFIGURATION      PS: port select        */
+    { 0x0D4, 0x03E80000u },  /* MAC_LPI_TIMERS_CONTROL                        */
+    { 0x0DC, 0x00000063u },  /* MAC_ONEUS_TIC_COUNTER  99 -> a 1 us tick      */
+    { 0x300, 0x8000FFFFu },  /* MAC_ADDRESS0_HIGH      AE=1: the slot is USED */
+    { 0x304, 0xFFFFFFFFu },  /* MAC_ADDRESS0_LOW       unprogrammed           */
+    { 0xB00, 0x00002000u },  /* MAC_TIMESTAMP_CONTROL  TSIPV4ENA              */
 };
 
 static void mcxn_enet_reset(DeviceState *dev)

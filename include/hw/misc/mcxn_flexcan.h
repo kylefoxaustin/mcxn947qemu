@@ -1,12 +1,14 @@
 /*
- * NXP MCX N FlexCAN (Flexible Controller Area Network, CAN FD) — bring-up model.
+ * NXP MCX N FlexCAN (Flexible Controller Area Network, CAN FD) —
+ * bring-up model.
  *
  * Models the FlexCAN control registers accurately enough that firmware's
  * module-disable / freeze / soft-reset init handshakes settle and the init loop
  * terminates.  The full mapped window (control registers, message-buffer RAM,
  * individual mask RAM, enhanced RX FIFO filter RAM) is backed by a flat regs[]
  * array.  One QOM type serves both CAN0 and CAN1.  Offsets/bits from the
- * MCXN947 CMSIS header (CAN_Type); semantics from the FlexCAN chapter of the RM.
+ * MCXN947 CMSIS header (CAN_Type); semantics from the FlexCAN chapter
+ * of the RM.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -36,9 +38,11 @@ struct MCXNFlexCanState {
     qemu_irq irq;
     uint32_t regs[MCXN_FLEXCAN_SIZE / 4];
 
-    /* Board-to-board CAN: when `canbus` is linked, TX message buffers put
+    /*
+     * Board-to-board CAN: when `canbus` is linked, TX message buffers put
      * frames onto the emulated CAN bus (a can-host-chardev then bridges it to a
-     * socket) and bus frames land in RX message buffers.  NULL = loopback-only. */
+     * socket) and bus frames land in RX message buffers.  NULL = loopback-only.
+     */
     CanBusState       *canbus;
     CanBusClientState  bus_client;
 };

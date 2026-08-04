@@ -27,13 +27,20 @@
 #define SCT_EVFLAG   0xF4    /* Event Flag (W1C) */
 #define SCT_CONFLAG  0xFC    /* Conflict Flag (W1C) */
 #define SCT_MATCHREL0 0x180  /* Match Reload value 0 (the limit) */
-#define SCT_DMAREQ0  0x5C    /* DMA Request 0: DEV_n selects events -> DMA req 0 */
-#define SCT_DMAREQ1  0x60    /* DMA Request 1: DEV_n selects events -> DMA req 1 */
+/* DMA Request 0: DEV_n selects events -> DMA req 0 */
+#define SCT_DMAREQ0  0x5C
+/* DMA Request 1: DEV_n selects events -> DMA req 1 */
+#define SCT_DMAREQ1  0x60
 
-/* DMAREQ0/1[DEV_0]: does event 0 (the modelled match/limit event) drive this request? */
+/*
+ * DMAREQ0/1[DEV_0]: does event 0 (the modelled match/limit event) drive this
+ * request?
+ */
 #define SCT_DMAREQ_DEV0  (1u << 0)
 
-/* CTRL self-clearing counter-clear bits (low and high 16-bit counter halves). */
+/*
+ * CTRL self-clearing counter-clear bits (low and high 16-bit counter halves).
+ */
 #define SCT_CTRL_CLRCTR_L_MASK   0x00000008u
 #define SCT_CTRL_CLRCTR_H_MASK   0x00080000u
 /* CTRL run-gating bits for the low counter. */
@@ -43,14 +50,18 @@
 /* Event 0 (the modelled match/limit event) in EVFLAG/EVEN. */
 #define SCT_EV0   (1u << 0)
 
-/* Input-conditioned events: an SCT input edge fires an event whose IOCOND/IOSEL match. */
+/*
+ * Input-conditioned events: an SCT input edge fires an event whose
+ * IOCOND/IOSEL match.
+ */
 #define SCT_STATE_REG 0x44          /* current state machine value */
 #define SCT_INPUT     0x48          /* Input State (AIN0..7 = bits 0..7, RO) */
 #define SCT_NEV       16
 #define SCT_EV_STATE(n) (0x300 + (n) * 8)   /* event n state mask   */
 #define SCT_EV_CTRL(n)  (0x304 + (n) * 8)   /* event n control      */
 /* EV[n].CTRL fields (CMSIS SCT_EV_CTRL_*). */
-#define EV_CTRL_OUTSEL      (1u << 5)        /* 0 = IOSEL is an input, 1 = an output */
+/* 0 = IOSEL is an input, 1 = an output */
+#define EV_CTRL_OUTSEL      (1u << 5)
 #define EV_CTRL_IOSEL_MASK  0x3C0u
 #define EV_CTRL_IOSEL_SHIFT 6
 #define EV_CTRL_IOCOND_MASK 0xC00u
@@ -61,60 +72,65 @@
 #define IOCOND_RISE 1u
 #define IOCOND_FALL 2u
 #define IOCOND_HIGH 3u
-#define COMBMODE_IO 2u              /* event triggered by the IO condition alone */
+/* event triggered by the IO condition alone */
+#define COMBMODE_IO 2u
 
 /*
  * The SCT counter clock.
  *
- * ⚠ THIS USED TO BE AN INVENTED 10 ns/tick ("nominal ~100 MHz") -- a number that
- * appears NOWHERE in the RM.  It is the IDENTICAL bug already fixed in the eFlexPWM
- * (hw/misc/mcxn_pwm.c), and I fixed it THERE and left it sitting HERE.
+ * ⚠ THIS USED TO BE AN INVENTED 10 ns/tick ("nominal ~100 MHz") -- a number
+ * that appears NOWHERE in the RM.  It is the IDENTICAL bug already fixed in
+ * the eFlexPWM (hw/misc/mcxn_pwm.c), and I fixed it THERE and left it sitting
+ * HERE.
  *
- *     ⭐ A FIX APPLIED IN ONE PLACE IS NOT A FIX.  The PWM's own comment says "THIS
- *        USED TO BE AN INVENTED 10 ns/tick" and the sibling file still had the
- *        constant, verbatim, with the same word ("nominal") standing over it.
+ *     ⭐ A FIX APPLIED IN ONE PLACE IS NOT A FIX.  The PWM's own comment says
+ *        "THIS USED TO BE AN INVENTED 10 ns/tick" and the sibling file still
+ *        had the constant, verbatim, with the same word ("nominal") standing
+ *        over it.
  *
- * And the word is the tell.  "nominal", "plausible", "reasonable", "best-effort",
- * "approximate" -- THESE ARE THE WORDS YOU USE WHEN YOU MEAN FABRICATED.  Grepping
- * the tree for that vocabulary is what found this.
+ * And the word is the tell.  "nominal", "plausible", "reasonable",
+ * "best-effort", "approximate" -- THESE ARE THE WORDS YOU USE WHEN YOU MEAN
+ * FABRICATED.  Grepping the tree for that vocabulary is what found this.
  *
  * WORSE: THE PRESCALER WAS NOT MODELLED AT ALL.  CTRL[PRE_L] (bits 12:5, CMSIS
- * SCT_CTRL_PRE_L_MASK = 0x1FE0) divides the counter clock by PRE_L+1, and this model
- * ignored it completely -- so a driver asking for a 256x slower count got EXACTLY THE
- * SAME RATE, silently.  That is the same collapsed oracle that made the eFlexPWM
- * carrier "verified" while its prescaler did not exist: a test that never sweeps the
- * axis cannot see that the axis is not wired up.
+ * SCT_CTRL_PRE_L_MASK = 0x1FE0) divides the counter clock by PRE_L+1, and this
+ * model ignored it completely -- so a driver asking for a 256x slower count
+ * got EXACTLY THE SAME RATE, silently.  That is the same collapsed oracle that
+ * made the eFlexPWM carrier "verified" while its prescaler did not exist: a
+ * test that never sweeps the axis cannot see that the axis is not wired up.
  *
- * Per the RM the counter is clocked from the SCT clock (SYSCON SCTCLKSEL/SCTCLKDIV)
- * divided by CTRL[PRE_L]+1.  The clock tree is NOT MODELLED, so the input rate is a
- * DOCUMENTED ASSUMPTION tied to the SoC system clock (mcxn_frdm.c drives sysclk at
- * 150 MHz) rather than a free-floating constant.  The PRESCALER RATIO IS EXACT; the
- * absolute frequency is the assumption.  Say so, don't hide it.
+ * Per the RM the counter is clocked from the SCT clock (SYSCON
+ * SCTCLKSEL/SCTCLKDIV) divided by CTRL[PRE_L]+1.  The clock tree is NOT
+ * MODELLED, so the input rate is a DOCUMENTED ASSUMPTION tied to the SoC
+ * system clock (mcxn_frdm.c drives sysclk at 150 MHz) rather than a
+ * free-floating constant.  The PRESCALER RATIO IS EXACT; the absolute
+ * frequency is the assumption.  Say so, don't hide it.
  */
 /*
- * ⚠ THIS USED TO BE:  #define SCT_CLOCK_HZ 150000000  -- "= SoC sysclk, a stated
- * assumption" -- and the comment SIX LINES ABOVE IT said, correctly:
+ * ⚠ THIS USED TO BE:  #define SCT_CLOCK_HZ 150000000  -- "= SoC sysclk, a
+ * stated assumption" -- and the comment SIX LINES ABOVE IT said, correctly:
  *
  *     "Per the RM the counter is clocked from the SCT clock (SYSCON SCTCLKSEL /
  *      SCTCLKDIV) divided by CTRL[PRE_L]."
  *
- * IT NAMED THE REGISTER THAT DECIDES THE RATE AND THEN IGNORED IT.  Every stock NXP
- * example does CLOCK_AttachClk(kFRO_HF_to_SCT) -- selector 3, FRO_HF, 48 MHz -- and we
- * ticked the SCT at 150 MHz.  3.1x TOO FAST, silently.
+ * IT NAMED THE REGISTER THAT DECIDES THE RATE AND THEN IGNORED IT.  Every
+ * stock NXP example does CLOCK_AttachClk(kFRO_HF_to_SCT) -- selector 3,
+ * FRO_HF, 48 MHz -- and we ticked the SCT at 150 MHz.  3.1x TOO FAST,
+ * silently.
  *
- *     ⭐ AND THE TEST COULD NOT SEE IT, BECAUSE THE TEST TOOK THE SAME ASSUMPTION.
- *        tests/mcxn-sct predicts SysTick ticks as (MATCHREL+1)*(PRE_L+1) -- which is
- *        only true if the SCT clock EQUALS the CPU clock.  That is THIS MODEL'S
- *        CONSTANT, not silicon's.  Model and test were wrong together, and the test
- *        passed.
+ *     ⭐ AND THE TEST COULD NOT SEE IT, BECAUSE THE TEST TOOK THE SAME
+ *        ASSUMPTION.  tests/mcxn-sct predicts SysTick ticks as
+ *        (MATCHREL+1)*(PRE_L+1) -- which is only true if the SCT clock EQUALS
+ *        the CPU clock.  That is THIS MODEL'S CONSTANT, not silicon's.  Model
+ *        and test were wrong together, and the test passed.
  *
- *        A MIRROR THAT DECLARES ITSELF IS STILL A MIRROR.  (rt1180emulator shipped the
- *        identical specimen: a PWM golden that said, in its own comment, "if PWM_CLK
- *        were wrong, this golden would be wrong in exactly the same direction AND STILL
- *        PASS."  It was.  It did.)
+ *        A MIRROR THAT DECLARES ITSELF IS STILL A MIRROR.  (rt1180emulator
+ *        shipped the identical specimen: a PWM golden that said, in its own
+ *        comment, "if PWM_CLK were wrong, this golden would be wrong in
+ *        exactly the same direction AND STILL PASS."  It was.  It did.)
  *
- * The rate now comes from SYSCON.  There is NO DEFAULT: 0 Hz means no source selected,
- * and an SCT with no clock DOES NOT COUNT.
+ * The rate now comes from SYSCON.  There is NO DEFAULT: 0 Hz means no source
+ * selected, and an SCT with no clock DOES NOT COUNT.
  */
 #define SCT_CTRL_PRE_L_MASK   0x00001FE0u
 #define SCT_CTRL_PRE_L_SHIFT  5
@@ -142,20 +158,23 @@ static void mcxn_sct_update_irq(MCXNSCTState *s)
 }
 
 /*
- * INPUT-CONDITIONED EVENTS.  An SCT input pin (AIN0..7), routed in by INPUTMUX's SCT0_INMUX
- * mux, drives an event: when the input changes, each event whose EV[n].CTRL selects the IO
- * condition (COMBMODE=IO, OUTSEL=input, IOSEL=this pin) and whose IOCOND matches the
- * transition FIRES -- EVFLAG[n] latches and, gated by EVEN[n], the SCT interrupt asserts.
- * The event must be active in the current state (EV[n].STATE has the STATE-register bit).
+ * INPUT-CONDITIONED EVENTS.  An SCT input pin (AIN0..7), routed in by
+ * INPUTMUX's SCT0_INMUX mux, drives an event: when the input changes, each
+ * event whose EV[n].CTRL selects the IO condition (COMBMODE=IO, OUTSEL=input,
+ * IOSEL=this pin) and whose IOCOND matches the transition FIRES -- EVFLAG[n]
+ * latches and, gated by EVEN[n], the SCT interrupt asserts.  The event must be
+ * active in the current state (EV[n].STATE has the STATE-register bit).
  *
- * This was absent: only the match/limit event 0 (the timer path) existed, so an SCT wired
- * to act on an input pin did nothing.  The pin has no signal source in emulation, so its
- * level is OPERATOR-DRIVEN via the "sct-inputs" QOM property (the CTIMER-capture / CMP seam).
+ * This was absent: only the match/limit event 0 (the timer path) existed, so
+ * an SCT wired to act on an input pin did nothing.  The pin has no signal
+ * source in emulation, so its level is OPERATOR-DRIVEN via the "sct-inputs"
+ * QOM property (the CTIMER-capture / CMP seam).
  *
- * ⚠ Scope, stated: the IO-only combination with the EVFLAG + EVEN interrupt effect is
- * modelled; the OR/AND-with-match combinations, the event->output set/clear actions and the
- * state-machine transitions (STATELD/STATEV) are not (the base model has no output or
- * multi-state machinery).  The flag + interrupt an input-event handler binds to is what runs.
+ * ⚠ Scope, stated: the IO-only combination with the EVFLAG + EVEN interrupt
+ * effect is modelled; the OR/AND-with-match combinations, the event->output
+ * set/clear actions and the state-machine transitions (STATELD/STATEV) are not
+ * (the base model has no output or multi-state machinery).  The flag +
+ * interrupt an input-event handler binds to is what runs.
  */
 static void mcxn_sct_eval_inputs(MCXNSCTState *s, uint8_t oldv, uint8_t newv)
 {
@@ -166,16 +185,19 @@ static void mcxn_sct_eval_inputs(MCXNSCTState *s, uint8_t oldv, uint8_t newv)
 
     for (n = 0; n < SCT_NEV; n++) {
         uint32_t ctrl = sct_ld32(s, SCT_EV_CTRL(n));
-        uint32_t combmode = (ctrl & EV_CTRL_COMBMODE_MASK) >> EV_CTRL_COMBMODE_SHIFT;
+        uint32_t combmode = (ctrl & EV_CTRL_COMBMODE_MASK) >>
+                            EV_CTRL_COMBMODE_SHIFT;
         uint32_t iosel = (ctrl & EV_CTRL_IOSEL_MASK) >> EV_CTRL_IOSEL_SHIFT;
         uint32_t iocond = (ctrl & EV_CTRL_IOCOND_MASK) >> EV_CTRL_IOCOND_SHIFT;
         bool ob, nb, fire = false;
 
         if (combmode != COMBMODE_IO || (ctrl & EV_CTRL_OUTSEL)) {
-            continue;                    /* only input-conditioned (IO-only) events here */
+            /* only input-conditioned (IO-only) events here */
+            continue;
         }
         if (!(sct_ld32(s, SCT_EV_STATE(n)) & (1u << curstate))) {
-            continue;                    /* event not enabled in the current state */
+            /* event not enabled in the current state */
+            continue;
         }
         ob = (oldv >> iosel) & 1;
         nb = (newv >> iosel) & 1;
@@ -223,7 +245,8 @@ static void mcxn_sct_set_inputs(Object *obj, Visitor *v, const char *name,
         return;
     }
     s->in_level = val;
-    sct_st32(s, SCT_INPUT, val);         /* the INPUT register mirrors the pin levels */
+    /* the INPUT register mirrors the pin levels */
+    sct_st32(s, SCT_INPUT, val);
     mcxn_sct_eval_inputs(s, oldv, val);
 }
 
@@ -238,7 +261,8 @@ static int64_t mcxn_sct_period_ns(MCXNSCTState *s)
     int64_t ns;
 
     if (!hz) {
-        return 0;                       /* no clock selected: the SCT does not count */
+        /* no clock selected: the SCT does not count */
+        return 0;
     }
     ns = ticks * 1000000000LL / hz;
     return ns < 1 ? 1 : ns;
@@ -252,19 +276,23 @@ static void mcxn_sct_event_tick(void *opaque)
     sct_st32(s, SCT_EVFLAG, sct_ld32(s, SCT_EVFLAG) | SCT_EV0);
     mcxn_sct_update_irq(s);
     /*
-     * Event 0 can drive either eDMA request line (CMSIS SCT0 DMA0=19, DMA1=20).
-     * DMAREQ0/1[DEV_0] selects whether this event feeds each one; the event itself
-     * is the trigger, as a one-shot PULSE (one event, one minor loop -- serviced by
-     * the eDMA edge path).  INPUTMUX still gates the line downstream. */
+     * Event 0 can drive either eDMA request line (CMSIS SCT0 DMA0=19,
+     * DMA1=20).  DMAREQ0/1[DEV_0] selects whether this event feeds each one;
+     * the event itself is the trigger, as a one-shot PULSE (one event, one
+     * minor loop -- serviced by the eDMA edge path).  INPUTMUX still gates the
+     * line downstream.
+     */
     if (sct_ld32(s, SCT_DMAREQ0) & SCT_DMAREQ_DEV0) {
         qemu_irq_pulse(s->dma_req[0]);
     }
     if (sct_ld32(s, SCT_DMAREQ1) & SCT_DMAREQ_DEV0) {
         qemu_irq_pulse(s->dma_req[1]);
     }
-    /* Re-arm from the previous DEADLINE, never from "now": re-adding the
-     * callback's dispatch latency every period makes the error accumulate, so the
-     * event rate runs systematically slow and drifts without bound. */
+    /*
+     * Re-arm from the previous DEADLINE, never from "now": re-adding the
+     * callback's dispatch latency every period makes the error accumulate, so
+     * the event rate runs systematically slow and drifts without bound.
+     */
     {
         int64_t period = mcxn_sct_period_ns(s);
 
@@ -296,9 +324,11 @@ static void mcxn_sct_write(void *opaque, hwaddr offset, uint64_t value,
     MCXNSCTState *s = MCXN_SCT(opaque);
     unsigned i;
 
-    /* CTRL: STOP/HALT and the rest of the configuration reflect back, but the
+    /*
+     * CTRL: STOP/HALT and the rest of the configuration reflect back, but the
      * CLRCTR_L/CLRCTR_H bits are self-clearing: writing 1 zeroes the matching
-     * COUNT half and the bit itself never reads back set. */
+     * COUNT half and the bit itself never reads back set.
+     */
     if (size == 4 && offset == SCT_CTRL) {
         uint32_t v = value & 0xffffffffu;
         uint32_t count = sct_ld32(s, SCT_COUNT);
@@ -314,12 +344,15 @@ static void mcxn_sct_write(void *opaque, hwaddr offset, uint64_t value,
         sct_st32(s, SCT_CTRL, v);
         /* The low counter runs when neither halted nor stopped. */
         if (!(v & (SCT_CTRL_HALT_L_MASK | SCT_CTRL_STOP_L_MASK))) {
-            /* Anchor the first deadline; the callback derives every later one
-             * from it, so the event rate cannot drift. */
+            /*
+             * Anchor the first deadline; the callback derives every later one
+             * from it, so the event rate cannot drift.
+             */
             int64_t period = mcxn_sct_period_ns(s);
 
             if (period > 0) {
-                s->next_event_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + period;
+                s->next_event_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
+                                   period;
                 timer_mod(&s->event_timer, s->next_event_ns);
             } else {
                 timer_del(&s->event_timer);   /* no clock: it does not count */
@@ -347,7 +380,9 @@ static void mcxn_sct_write(void *opaque, hwaddr offset, uint64_t value,
         }
     }
 
-    /* A write touching EVEN (the interrupt-enable mask) re-evaluates the IRQ. */
+    /*
+     * A write touching EVEN (the interrupt-enable mask) re-evaluates the IRQ.
+     */
     if (offset < SCT_EVEN + 4 && offset + size > SCT_EVEN) {
         mcxn_sct_update_irq(s);
     }
@@ -380,9 +415,12 @@ static void mcxn_sct_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_sct_ops, s,
                           TYPE_MCXN_SCT, MCXN_SCT_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);          /* 0: NVIC event interrupt */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[0]);   /* 1: DMA0 request (src 19) */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);   /* 2: DMA1 request (src 20) */
+    /* 0: NVIC event interrupt */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    /* 1: DMA0 request (src 19) */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[0]);
+    /* 2: DMA1 request (src 20) */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);
     timer_init_ns(&s->event_timer, QEMU_CLOCK_VIRTUAL, mcxn_sct_event_tick, s);
 }
 
@@ -408,11 +446,11 @@ static void mcxn_sct_class_init(ObjectClass *klass, const void *data)
 }
 
 /*
- * ⚠ THE CLOCK INPUT MUST EXIST BEFORE ANYTHING CAN CONNECT TO IT, so it is created in
- * instance_init -- NOT in realize.  Putting it in realize gave:
+ * ⚠ THE CLOCK INPUT MUST EXIST BEFORE ANYTHING CAN CONNECT TO IT, so it is
+ * created in instance_init -- NOT in realize.  Putting it in realize gave:
  *     "Can not find clock-in 'clk' for device type 'mcxn-sct'"
- * because the SoC connects BEFORE realize (qdev_connect_clock_in asserts !realized).
- * Two constraints pointing in opposite directions, one more time.
+ * because the SoC connects BEFORE realize (qdev_connect_clock_in asserts
+ * !realized).  Two constraints pointing in opposite directions, one more time.
  */
 static void mcxn_sct_init(Object *obj)
 {
@@ -420,8 +458,10 @@ static void mcxn_sct_init(Object *obj)
 
     s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
 
-    /* Operator-driven SCT input pin levels (AIN0..7):
-     *   qom-set /machine/soc/sct0 sct-inputs 1   (drive input 0 high) */
+    /*
+     * Operator-driven SCT input pin levels (AIN0..7):
+     *   qom-set /machine/soc/sct0 sct-inputs 1   (drive input 0 high)
+     */
     object_property_add(obj, "sct-inputs", "uint8",
                         mcxn_sct_get_inputs, mcxn_sct_set_inputs, NULL, NULL);
 }

@@ -11,7 +11,7 @@
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
 
-/* --- Top-level register offsets (CMSIS SINC_Type) -------------------------- */
+/* --- Top-level register offsets (CMSIS SINC_Type) ------------------------- */
 #define SINC_VERID      0x00  /* RO */
 #define SINC_PARAMETER  0x04  /* RO */
 #define SINC_MCR        0x08
@@ -23,7 +23,7 @@
 #define SINC_FIFOIS     0x20  /* W1C */
 #define SINC_SR         0x24  /* RO, computed */
 
-/* --- Channel array: 5 channels, base 0x38, step 0x30 ----------------------- */
+/* --- Channel array: 5 channels, base 0x38, step 0x30 ---------------------- */
 #define SINC_CH_BASE    0x38
 #define SINC_CH_STEP    0x30
 #define SINC_CH_LAST    (SINC_CH_BASE + MCXN_SINC_NUM_CH * SINC_CH_STEP)
@@ -38,13 +38,13 @@
 #define SINC_CH_CSR     0x28
 #define SINC_CH_CDBGR   0x2C  /* RO  */
 
-/* --- Identity registers: reset values from RM §47.7.1 / §47.7.3 ------------ */
+/* --- Identity registers: reset values from RM §47.7.1 / §47.7.3 --------- */
 /* MAJOR=2, MINOR=0, FEATURE=0x7D */
 #define SINC_VERID_VALUE      0x0200007Du
 /* PF_ORD_SEL=10b (max order 3), FLT_NUM=5, FIFO_DEPTH=8 */
 #define SINC_PARAMETER_VALUE  0x00700508u
 
-/* --- MCR ------------------------------------------------------------------- */
+/* --- MCR ------------------------------------------------------------------ */
 #define MCR_STRIG(n)    (1u << (n))     /* STRIG0..4: software trigger */
 #define MCR_STRIG_ALL   0x1Fu
 #define MCR_RST         (1u << 13)
@@ -53,23 +53,24 @@
 #define MCR_MCLK1DIS    (1u << 28)
 #define MCR_MCLK2DIS    (1u << 29)
 
-/* --- SR (all computed) ----------------------------------------------------- */
+/* --- SR (all computed) ---------------------------------------------------- */
 #define SR_CIP(n)       (1u << (n))          /* conversion in progress  */
 #define SR_CHRDY(n)     (1u << (8 + (n)))    /* channel ready           */
 #define SR_FIFOEMPTY(n) (1u << (16 + (n)))   /* channel FIFO empty      */
 #define SR_MCLKRDY(n)   (1u << (24 + (n)))   /* modulator clock ready   */
 
-/* --- NIS / NIE ------------------------------------------------------------- */
+/* --- NIS / NIE ------------------------------------------------------------ */
 #define NIS_COC(n)      (1u << (n))          /* conversion complete     */
 #define NIS_CHF(n)      (1u << (8 + (n)))    /* FIFO watermark passed   */
 
-/* --- CCR ------------------------------------------------------------------- */
+/* --- CCR ------------------------------------------------------------------ */
 #define CCR_CHEN        (1u << 0)
 #define CCR_PFEN        (1u << 1)
-#define CCR_DMAEN       (1u << 3)             /* CnCCR[DMAEN]: FIFO-watermark -> eDMA */
+/* CnCCR[DMAEN]: FIFO-watermark -> eDMA */
+#define CCR_DMAEN       (1u << 3)
 #define CCR_FIFOEN      (1u << 14)
 
-/* --- CDR ------------------------------------------------------------------- */
+/* --- CDR ------------------------------------------------------------------ */
 #define CDR_PFOSR(v)    ((v) & 0x7FF)
 #define CDR_PFORD(v)    (((v) >> 11) & 0x3)
 #define CDR_PFCM(v)     (((v) >> 14) & 0x3)
@@ -78,7 +79,7 @@
 #define PFCM_ALWAYS     2
 #define PFCM_FIXEDNUM   3
 
-/* --- CCFR ------------------------------------------------------------------ */
+/* --- CCFR ----------------------------------------------------------------- */
 #define CCFR_PFSFT(v)   ((v) & 0x1F)
 #define CCFR_RDFMT      (1u << 6)             /* 0 = signed, 1 = unsigned */
 #define CCFR_FIFOWMK(v) (((v) >> 10) & 0x7)
@@ -88,11 +89,11 @@
 #define IBFMT_PM        2    /* parallel mode: CnMPDATA low 16 bits */
 #define IBFMT_SM        3    /* serial mode:  CnMPDATA all 32 bits  */
 
-/* --- FIFOIS / FIFOIE (CMSIS: FUNF at 0..4, FOVF at 8..12) ------------------ */
+/* --- FIFOIS / FIFOIE (CMSIS: FUNF at 0..4, FOVF at 8..12) ----------------- */
 #define FIFO_UNDERFLOW(n) (1u << (n))
 #define FIFO_OVERFLOW(n)  (1u << (8 + (n)))
 
-/* --- CSR ------------------------------------------------------------------- */
+/* --- CSR ------------------------------------------------------------------ */
 #define CSR_FIFOAVIL    0x1Fu
 #define CSR_PSRDY       (1u << 7)
 #define CSR_PFSAT       (1u << 8)
@@ -109,8 +110,10 @@ static void sinc_set_ch_reg(MCXNSINCState *s, int n, unsigned rel, uint32_t v)
     s->regs[(SINC_CH_BASE + n * SINC_CH_STEP + rel) / 4] = v;
 }
 
-/* The modulator clocks come up shortly after MCR[MEN]; without them the stock
- * SDK's SINC_Init() spins forever waiting on SR[MCLKRDYn]. */
+/*
+ * The modulator clocks come up shortly after MCR[MEN]; without them the stock
+ * SDK's SINC_Init() spins forever waiting on SR[MCLKRDYn].
+ */
 static bool sinc_mclk_ready(MCXNSINCState *s, int clk)
 {
     static const uint32_t dis[3] = { MCR_MCLK0DIS, MCR_MCLK1DIS, MCR_MCLK2DIS };
@@ -129,11 +132,12 @@ static void sinc_update_irq(MCXNSINCState *s)
 }
 
 /*
- * Drive channel n's eDMA request line.  It follows the SAME FIFO-watermark condition
- * that raises CHF, but gated by CnCCR[DMAEN] and routed to the eDMA rather than the NVIC.
- * The engine drains a minor loop per level above the watermark; when the FIFO falls back
- * to the watermark the request deasserts.  Without this, a SINC driver that arms eDMA at
- * CnRDATA and sets DMAEN waits forever -- the results it computed never move.
+ * Drive channel n's eDMA request line.  It follows the SAME FIFO-watermark
+ * condition that raises CHF, but gated by CnCCR[DMAEN] and routed to the eDMA
+ * rather than the NVIC. The engine drains a minor loop per level above the
+ * watermark; when the FIFO falls back to the watermark the request deasserts.
+ * Without this, a SINC driver that arms eDMA at CnRDATA and sets DMAEN waits
+ * forever -- the results it computed never move.
  */
 static void sinc_update_dma_req(MCXNSINCState *s, int n)
 {
@@ -170,8 +174,10 @@ static void sinc_push_result(MCXNSINCState *s, int n, int64_t v)
     uint32_t wmk  = CCFR_FIFOWMK(ccfr);
     int32_t  res;
 
-    /* Saturate into the 24-bit result field, and say so (CSR[PFSAT]) rather
-     * than silently wrapping. */
+    /*
+     * Saturate into the 24-bit result field, and say so (CSR[PFSAT]) rather
+     * than silently wrapping.
+     */
     if (ccfr & CCFR_RDFMT) {                 /* unsigned */
         if (v < 0) {
             v = 0;
@@ -197,9 +203,11 @@ static void sinc_push_result(MCXNSINCState *s, int n, int64_t v)
         if (c->fifo_count < MCXN_SINC_FIFO_DEPTH) {
             c->fifo[c->fifo_count++] = res;
         } else {
-            /* FIFO full: the sample is lost.  Flag it (FIFOIS[FOVFn]) —
+            /*
+             * FIFO full: the sample is lost.  Flag it (FIFOIS[FOVFn]) —
              * dropping it silently would hide a real-time budget that does not
-             * close. */
+             * close.
+             */
             s->regs[SINC_FIFOIS / 4] |= FIFO_OVERFLOW(n);
         }
     } else {
@@ -212,8 +220,10 @@ static void sinc_push_result(MCXNSINCState *s, int n, int64_t v)
     if ((ccr & CCR_FIFOEN) && c->fifo_count > wmk) {
         s->regs[SINC_NIS / 4] |= NIS_CHF(n);
 
-        /* Fixed-Number mode runs until the watermark is reached (§47.3.2, the
-         * Modes and behaviors table). */
+        /*
+         * Fixed-Number mode runs until the watermark is reached (§47.3.2, the
+         * Modes and behaviors table).
+         */
         if (CDR_PFCM(sinc_ch_reg(s, n, SINC_CH_CDR)) == PFCM_FIXEDNUM) {
             c->running = false;
         }
@@ -224,7 +234,8 @@ static void sinc_push_result(MCXNSINCState *s, int n, int64_t v)
     }
 
     sinc_update_irq(s);
-    sinc_update_dma_req(s, n);   /* the FIFO just grew -- maybe past the watermark */
+    /* the FIFO just grew -- maybe past the watermark */
+    sinc_update_dma_req(s, n);
 }
 
 /*
@@ -245,8 +256,10 @@ static void sinc_feed_bit(MCXNSINCState *s, int n, int bit)
     int32_t  shift = CCFR_PFSFT(ccfr);
     int32_t  bias  = (int32_t)sinc_ch_reg(s, n, SINC_CH_CBIAS);
 
-    /* An unsigned stream is {0,1}; a signed one is {-1,+1} (RM Eq. 22, where
-     * the signed format needs exactly one extra bit of output width). */
+    /*
+     * An unsigned stream is {0,1}; a signed one is {-1,+1} (RM Eq. 22, where
+     * the signed format needs exactly one extra bit of output width).
+     */
     x = (ccfr & CCFR_RDFMT) ? bit : (bit ? 1 : -1);
 
     /* Integrator chain, at the input rate. */
@@ -309,8 +322,10 @@ static void sinc_feed_mpdata(MCXNSINCState *s, int n, uint32_t value)
         nbits = 32;
         break;   /* all 32 bits  (§47.3.2.3.8) */
     default:
-        /* IBFMT selects an external modulator pin; a write to CnMPDATA is not
-         * the bitstream source in that case. */
+        /*
+         * IBFMT selects an external modulator pin; a write to CnMPDATA is not
+         * the bitstream source in that case.
+         */
         return;
     }
 
@@ -332,10 +347,12 @@ static uint64_t mcxn_sinc_read(void *opaque, hwaddr offset, unsigned size)
     case SINC_PARAMETER:
         return SINC_PARAMETER_VALUE;
     case SINC_SR:
-        /* Every SR bit reflects real state.  In particular FIFOEMPTY is 1 when
+        /*
+         * Every SR bit reflects real state.  In particular FIFOEMPTY is 1 when
          * the FIFO really is empty: reporting "not empty" unconditionally (as
          * the bring-up model did) hands firmware an endless run of zeros that
-         * is indistinguishable from real samples. */
+         * is indistinguishable from real samples.
+         */
         v = 0;
         for (n = 0; n < MCXN_SINC_NUM_CH; n++) {
             uint32_t ccr = sinc_ch_reg(s, n, SINC_CH_CCR);
@@ -372,8 +389,10 @@ static uint64_t mcxn_sinc_read(void *opaque, hwaddr offset, unsigned size)
 
             if (ccr & CCR_FIFOEN) {
                 if (c->fifo_count == 0) {
-                    /* Underflow: nothing has been converted.  Flag it
-                     * (FIFOIS[FUNFn]) rather than return a plausible zero. */
+                    /*
+                     * Underflow: nothing has been converted.  Flag it
+                     * (FIFOIS[FUNFn]) rather than return a plausible zero.
+                     */
                     s->regs[SINC_FIFOIS / 4] |= FIFO_UNDERFLOW(n);
                     sinc_update_irq(s);
                     return 0;
@@ -387,7 +406,8 @@ static uint64_t mcxn_sinc_read(void *opaque, hwaddr offset, unsigned size)
                     s->regs[SINC_NIS / 4] &= ~NIS_CHF(n);
                     sinc_update_irq(s);
                 }
-                sinc_update_dma_req(s, n);   /* deassert once drained to the watermark */
+                /* deassert once drained to the watermark */
+                sinc_update_dma_req(s, n);
             } else {
                 if (!c->have_last) {
                     return 0;
@@ -403,12 +423,16 @@ static uint64_t mcxn_sinc_read(void *opaque, hwaddr offset, unsigned size)
 
             csr &= ~CSR_FIFOAVIL;
             csr |= s->ch[n].fifo_count & CSR_FIFOAVIL;
-            /* We consume a PM/SM write immediately, so the filter is always
-             * ready for the next one. */
+            /*
+             * We consume a PM/SM write immediately, so the filter is always
+             * ready for the next one.
+             */
             csr |= CSR_PSRDY;
-            /* SRDS / DBGRS are self-clearing requests: the hardware clears them
+            /*
+             * SRDS / DBGRS are self-clearing requests: the hardware clears them
              * when the (instant) request completes.  Leaving them set is what
-             * hangs SINC_DoSoftwareReadDebugData(). */
+             * hangs SINC_DoSoftwareReadDebugData().
+             */
             csr &= ~(CSR_SRDS | CSR_DBGRS);
             return csr;
         }
@@ -446,8 +470,10 @@ static void mcxn_sinc_write(void *opaque, hwaddr offset, uint64_t value,
             }
             v &= ~MCR_RST;    /* self-clearing */
         }
-        /* STRIGn starts a conversion.  Every PFCM mode needs a trigger; Always
-         * mode ignores further triggers, the others restart. */
+        /*
+         * STRIGn starts a conversion.  Every PFCM mode needs a trigger; Always
+         * mode ignores further triggers, the others restart.
+         */
         for (n = 0; n < MCXN_SINC_NUM_CH; n++) {
             if (v & MCR_STRIG(n)) {
                 MCXNSINCChannel *c = &s->ch[n];
@@ -504,8 +530,11 @@ static void mcxn_sinc_write(void *opaque, hwaddr offset, uint64_t value,
                 sinc_reset_channel_filter(&s->ch[n]);
                 s->ch[n].running = false;
             }
-            /* DMAEN/FIFOEN just changed -- re-evaluate the request even if the FIFO
-             * level did not (arming DMAEN over an already-full FIFO must assert). */
+            /*
+             * DMAEN/FIFOEN just changed -- re-evaluate the request even if the
+             * FIFO level did not (arming DMAEN over an already-full FIFO must
+             * assert).
+             */
             sinc_update_dma_req(s, n);
             return;
         }
@@ -520,7 +549,8 @@ static void mcxn_sinc_write(void *opaque, hwaddr offset, uint64_t value,
                 s->warned_ext_source = true;
                 qemu_log_mask(LOG_UNIMP,
                     "mcxn-sinc: ch%d selected an EXTERNAL modulator bitstream "
-                    "(CnCFR[IBFMT]=%u); there is no analog source in emulation, "
+                    "(CnCFR[IBFMT]=%u); there is no analog source in "
+                    "emulation, "
                     "so no samples will be produced.  Use the register-fed PM "
                     "(IBFMT=2) or SM (IBFMT=3) mode to drive the filter.\n",
                     n, ibfmt);
@@ -533,8 +563,10 @@ static void mcxn_sinc_write(void *opaque, hwaddr offset, uint64_t value,
         }
     }
 
-    /* Merge sub-word writes so a byte/halfword access can't clobber the other
-     * bytes of a config register (see the access-size note on the ops). */
+    /*
+     * Merge sub-word writes so a byte/halfword access can't clobber the other
+     * bytes of a config register (see the access-size note on the ops).
+     */
     {
         uint32_t idx = offset / 4;
         uint32_t shift = (offset & 3) * 8;
@@ -585,8 +617,12 @@ static void mcxn_sinc_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_sinc_ops, s,
                           TYPE_MCXN_SINC, MCXN_SINC_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);   /* sysbus IRQ 0: SINC_FILTER_IRQn */
-    /* sysbus IRQs 1..5: one eDMA request line per channel (SINC0 ipd_req_sinc[0..4]). */
+    /* sysbus IRQ 0: SINC_FILTER_IRQn */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    /*
+     * sysbus IRQs 1..5: one eDMA request line per channel
+     * (SINC0 ipd_req_sinc[0..4]).
+     */
     for (int n = 0; n < MCXN_SINC_NUM_CH; n++) {
         sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[n]);
     }

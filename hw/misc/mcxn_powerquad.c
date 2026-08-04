@@ -33,11 +33,13 @@
 #define CONTROL_INST_BUSY  (1u << 31)  /* reads 0 (idle) in this model */
 #define INTRSTAT_INTR_STAT (1u << 0)   /* completion interrupt status (W1C) */
 #define INTREN_INTR_EN     (1u << 0)   /* completion interrupt enable */
-#define ERRSTAT_MASK       0x1Fu       /* OVERFLOW/NAN/FIXEDOVERFLOW/UFLOW/BERR */
+#define ERRSTAT_MASK       0x1Fu     /* OVERFLOW/NAN/FIXEDOVERFLOW/UFLOW/BERR */
 #define ERRSTAT_BUSERROR   0x10u       /* guest-visible "operation failed" */
 
-/* CONTROL: engine ("machine") in bits[6:4], opcode in bits[3:0]
- * (driver writes (CP_xxx << 4) | opcode). */
+/*
+ * CONTROL: engine ("machine") in bits[6:4], opcode in bits[3:0]
+ * (driver writes (CP_xxx << 4) | opcode).
+ */
 #define CTRL_OPCODE(c)   ((c) & 0xFu)
 #define CTRL_MACHINE(c)  (((c) >> 4) & 0x7u)
 #define CP_MTX  1u    /* matrix/vector engine */
@@ -52,14 +54,19 @@
 #define PQ_VEC_DOTP  9u
 #define PQ_MTX_TRAN  10u
 
-/* Element type: format register bits[5:4] (driver: format = (pre<<8)|(type<<4)|mf). */
+/*
+ * Element type: format register bits[5:4]
+ * (driver: format = (pre<<8)|(type<<4)|mf).
+ */
 #define PQ_TYPE(fmt)  (((fmt) >> 4) & 0x3u)
 #define PQ_T_Q15   0u   /* int16 fixed Q15 */
 #define PQ_T_Q31   1u   /* int32 fixed Q31 */
 #define PQ_T_FLOAT 2u   /* IEEE-754 float32 */
 
-/* Read/write one element at base+i*stride as a double, per element type.
- * (Operands live in guest physical memory pointed to by the BASE registers.) */
+/*
+ * Read/write one element at base+i*stride as a double, per element type.
+ * (Operands live in guest physical memory pointed to by the BASE registers.)
+ */
 static double pq_load(uint32_t base, uint32_t i, uint32_t type)
 {
     switch (type) {
@@ -145,7 +152,8 @@ static void mcxn_powerquad_matrix(MCXNPowerQuadState *s, uint32_t opcode)
     uint32_t at   = PQ_TYPE(s->regs[R_INAFORMAT >> 2]);
     uint32_t bt   = PQ_TYPE(s->regs[R_INBFORMAT >> 2]);
     uint32_t ot   = PQ_TYPE(s->regs[R_OUTFORMAT >> 2]);
-    uint32_t r1 = len & 0xFFu, c1 = (len >> 8) & 0xFFu, c2 = (len >> 16) & 0xFFu;
+    uint32_t r1 = len & 0xFFu, c1 = (len >> 8) & 0xFFu;
+    uint32_t c2 = (len >> 16) & 0xFFu;
     uint32_t i, j, k;
 
     switch (opcode) {
@@ -188,8 +196,10 @@ static void mcxn_powerquad_matrix(MCXNPowerQuadState *s, uint32_t opcode)
         }
         break;
     case PQ_VEC_DOTP: {
-        /* Dot product of two length-N vectors -> scalar at OUTBASE.
-         * Vector ops carry the raw count in LENGTH (cap to guard garbage). */
+        /*
+         * Dot product of two length-N vectors -> scalar at OUTBASE.
+         * Vector ops carry the raw count in LENGTH (cap to guard garbage).
+         */
         uint32_t n = len > 0x10000u ? 0x10000u : len;
         double acc = 0.0;
         for (i = 0; i < n; i++) {
@@ -202,18 +212,20 @@ static void mcxn_powerquad_matrix(MCXNPowerQuadState *s, uint32_t opcode)
         /*
          * INV (Gauss-Jordan) / PROD and the FFT/FIR engines are not computed.
          *
-         * The result would be left STALE in the guest's output buffer, so the
-         * guest must be TOLD — a host-side LOG_UNIMP is not enough, because the
-         * firmware under test cannot see it and will read the stale buffer as its
-         * DSP result.  Raise the engine's own error flag (ERRSTAT[BUSERROR]),
-         * which fsl_powerquad checks, so the operation reports as failed instead
-         * of quietly returning whatever was in memory.
+         * The result would be left STALE in the guest's output buffer, so
+         * the guest must be TOLD — a host-side LOG_UNIMP is not enough,
+         * because the firmware under test cannot see it and will read the
+         * stale buffer as its DSP result.  Raise the engine's own error
+         * flag (ERRSTAT[BUSERROR]), which fsl_powerquad checks, so the
+         * operation reports as failed instead of quietly returning whatever
+         * was in memory.
          */
         s->regs[R_ERRSTAT >> 2] |= ERRSTAT_BUSERROR;
         qemu_log_mask(LOG_UNIMP,
-                      "%s: CP_MTX opcode %u NOT COMPUTED — failing it via "
-                      "ERRSTAT[BUSERROR] rather than leaving a stale result the "
-                      "guest would read as an answer\n", __func__, opcode);
+                      "%s: CP_MTX opcode %u NOT COMPUTED — failing it "
+                      "via ERRSTAT[BUSERROR] rather than leaving a stale "
+                      "result the guest would read as an answer\n",
+                      __func__, opcode);
         break;
     }
 }

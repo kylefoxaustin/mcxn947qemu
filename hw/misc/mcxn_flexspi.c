@@ -45,10 +45,11 @@
 
 /*
  * STS0.  RM reset = 0x2: ARBIDLE (bit 1) set, SEQIDLE (bit 0) CLEAR -- because
- * MCR0[MDIS] is SET at reset and a DISABLED module's sequence engine is not "idle",
- * it is not running at all.  We hardwired 0x3 ("report the controller idle so the
- * pre-command wait passes"), which is a fabricated readiness of exactly the kind SCG
- * and VBAT were caught doing today: TELLING THE GUEST SOMETHING IT HAD NOT EARNED.
+ * MCR0[MDIS] is SET at reset and a DISABLED module's sequence engine is not
+ * "idle", it is not running at all.  We hardwired 0x3 ("report the controller
+ * idle so the pre-command wait passes"), which is a fabricated readiness of
+ * exactly the kind SCG and VBAT were caught doing today: TELLING THE GUEST
+ * SOMETHING IT HAD NOT EARNED.
  * SEQIDLE now follows the module actually being enabled.
  */
 #define STS0_ARBIDLE   0x2u
@@ -133,7 +134,7 @@ static void flexspi_error(MCXNFlexSPIState *s)
     mcxn_flexspi_update_irq(s);
 }
 
-/* --- raw SPI: the controller talks to m25p80 exactly as silicon would ------ */
+/* --- raw SPI: the controller talks to m25p80 exactly as silicon would ---- */
 
 static void spi_select(MCXNFlexSPIState *s, bool on)
 {
@@ -196,8 +197,8 @@ static void nor_program_page(MCXNFlexSPIState *s, uint32_t off,
 /*
  * An image linked into the XIP window is written straight into the mirror by
  * QEMU's ROM loader (address_space_write_rom bypasses our write op), so the NOR
- * itself has never seen it.  Program it in before the flash is first consulted —
- * on hardware the firmware IS in the flash.
+ * itself has never seen it.  Program it in before the flash is first
+ * consulted — on hardware the firmware IS in the flash.
  *
  * Leaving it mirror-only is the trap: the two would disagree, and the first
  * erase would silently resurrect stale content underneath a running image — a
@@ -226,7 +227,7 @@ static void flexspi_flush_loader_image(MCXNFlexSPIState *s)
     }
 }
 
-/* --- LUT ------------------------------------------------------------------- */
+/* --- LUT ----------------------------------------------------------------- */
 
 static void seq_add(FlexSPISeq *q, uint32_t op, uint32_t operand)
 {
@@ -252,7 +253,9 @@ static void seq_add(FlexSPISeq *q, uint32_t op, uint32_t operand)
     }
 }
 
-/* Decode the sequence selected by IPCR1[ISEQID] into the transaction it means. */
+/*
+ * Decode the sequence selected by IPCR1[ISEQID] into the transaction it means.
+ */
 static FlexSPISeq flexspi_decode_lut(MCXNFlexSPIState *s, uint32_t seq)
 {
     FlexSPISeq q = { 0 };
@@ -379,14 +382,16 @@ static void flexspi_ip_command(MCXNFlexSPIState *s)
         /*
          * The SDK triggers the command and only THEN feeds TFDR, so the SPI
          * transaction has to stay open: CS stays asserted while the guest
-         * streams the program data, and the mirror is refreshed on the last byte.
+         * streams the program data, and the mirror is refreshed on the last
+         * byte.
          */
         s->pgm_pending = true;
         s->pgm_addr = addr;
         s->pgm_len = datsz;
         s->regs[FLEXSPI_INTR >> 2] |= INTR_IPTXWE;
         mcxn_flexspi_update_irq(s);
-        flexspi_update_dma_req(s);   /* TX FIFO wants program data -- ask the eDMA */
+        /* TX FIFO wants program data -- ask the eDMA */
+        flexspi_update_dma_req(s);
         return;
     }
 
@@ -395,10 +400,11 @@ static void flexspi_ip_command(MCXNFlexSPIState *s)
 }
 
 /*
- * Drive the RX/TX eDMA request lines.  RX asks while the read FIFO still holds data (and
- * IPRXFCR[RXDMAEN] is set); TX asks while the controller wants program data (INTR[IPTXWE]
- * and IPTXFCR[TXDMAEN]).  In DMA mode RFDR0 auto-pops per read (below), so the engine
- * drains the FIFO word by word until the request drops -- without this the DMA never runs.
+ * Drive the RX/TX eDMA request lines.  RX asks while the read FIFO still
+ * holds data (and IPRXFCR[RXDMAEN] is set); TX asks while the controller
+ * wants program data (INTR[IPTXWE] and IPTXFCR[TXDMAEN]).  In DMA mode RFDR0
+ * auto-pops per read (below), so the engine drains the FIFO word by word
+ * until the request drops -- without this the DMA never runs.
  */
 static void flexspi_update_dma_req(MCXNFlexSPIState *s)
 {
@@ -427,21 +433,26 @@ static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
     case FLEXSPI_MCR0:
         return v & ~MCR0_SWRESET;   /* SWRESET is momentary */
     case FLEXSPI_STS0:
-        /* ARBIDLE always; SEQIDLE only once the module is actually ENABLED (MDIS
-         * clear).  A disabled sequence engine is not "idle" -- it is not running. */
+        /*
+         * ARBIDLE always; SEQIDLE only once the module is actually ENABLED
+         * (MDIS clear).  A disabled sequence engine is not "idle" -- it is not
+         * running.
+         */
         return STS0_ARBIDLE |
                ((s->regs[FLEXSPI_MCR0 / 4] & MCR0_MDIS) ? 0 : STS0_SEQIDLE);
     case FLEXSPI_STS2:
         /*
-         * ⚠ A HARDCODED `return 0` IN A READ PATH IS A CLAIM, AND IT SILENTLY BEAT THE
-         *   RESET TABLE: the value was seeded into regs[] and this line never looked.
+         * ⚠ A HARDCODED `return 0` IN A READ PATH IS A CLAIM, AND IT SILENTLY
+         *   BEAT THE RESET TABLE: the value was seeded into regs[] and this
+         *   line never looked.
          *
-         *   STS2 is the DLL status.  RM reset 0x0100_0100 -- the AREFSEL/BREFSEL delay-
-         *   line taps at their power-on positions.  (⚠ AND I ALMOST CLAIMED THIS MEANT
-         *   "a driver waiting for DLL lock spins forever".  IT DOES NOT: ASLVLOCK and
-         *   AREFLOCK are 0 in the RM's reset TOO.  The bug is real and MUNDANE, and
-         *   reaching for the scariest reading is how you ship a scary story instead of
-         *   a fixed model.  CHECK THE FIELD BEFORE YOU CLAIM THE CONSEQUENCE.)
+         *   STS2 is the DLL status.  RM reset 0x0100_0100 -- the
+         *   AREFSEL/BREFSEL delay-line taps at their power-on positions.  (⚠
+         *   AND I ALMOST CLAIMED THIS MEANT "a driver waiting for DLL lock
+         *   spins forever".  IT DOES NOT: ASLVLOCK and AREFLOCK are 0 in the
+         *   RM's reset TOO.  The bug is real and MUNDANE, and reaching for the
+         *   scariest reading is how you ship a scary story instead of a fixed
+         *   model.  CHECK THE FIELD BEFORE YOU CLAIM THE CONSEQUENCE.)
          */
         return s->regs[FLEXSPI_STS2 / 4];
     case FLEXSPI_STS1:
@@ -453,16 +464,19 @@ static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
          * FILL counts 64-bit FIFO entries and must ROUND UP: a partially filled
          * entry still holds readable bytes.  The stock SDK's small-read path
          * spins on `size > FILL * 8` (fsl_flexspi.c, FLEXSPI_ReadBlocking), so
-         * rounding down reports FILL = 0 for anything under 8 bytes and the real
-         * driver hangs forever on a 3-byte JEDEC ID.  Model what the driver
-         * polls, not just what the RM lists.  (Found by rt1180emulator.)
+         * rounding down reports FILL = 0 for anything under 8 bytes and the
+         * real driver hangs forever on a 3-byte JEDEC ID.  Model what the
+         * driver polls, not just what the RM lists.  (Found by
+         * rt1180emulator.)
          */
         avail = s->rx_len - s->rx_pos;
         return ((avail + 7) / 8) & 0xFF;
     default:
         if (off >= FLEXSPI_RFDR0 && off < FLEXSPI_RFDR0 + 32 * 4) {
-            /* In interrupt mode the guest reads RFDR[0..watermark] and pops the FIFO
-             * by clearing INTR[IPRXWA]; RFDR itself does not advance. */
+            /*
+             * In interrupt mode the guest reads RFDR[0..watermark] and pops
+             * the FIFO by clearing INTR[IPRXWA]; RFDR itself does not advance.
+             */
             uint32_t ret;
 
             i = (off - FLEXSPI_RFDR0) / 4;
@@ -476,12 +490,16 @@ static uint64_t mcxn_flexspi_read(void *opaque, hwaddr off, unsigned size)
                 memcpy(tail, &s->rx_buf[byte], s->rx_len - byte);
                 ret = ldl_le_p(tail);
             } else {
-                ret = 0xFFFFFFFFu;   /* past the data: an erased NOR reads ones */
+                /* past the data: an erased NOR reads ones */
+                ret = 0xFFFFFFFFu;
             }
 
-            /* In DMA mode there is no separate IACK for the eDMA to issue, so RFDR0
-             * pops on each read: advance one word, drop IPRXWA when the FIFO empties,
-             * and re-evaluate the request line so the transfer terminates on its own. */
+            /*
+             * In DMA mode there is no separate IACK for the eDMA to issue, so
+             * RFDR0 pops on each read: advance one word, drop IPRXWA when the
+             * FIFO empties, and re-evaluate the request line so the transfer
+             * terminates on its own.
+             */
             if (i == 0 && (s->regs[FLEXSPI_IPRXFCR >> 2] & FCR_DMAEN) &&
                 s->rx_pos < s->rx_len) {
                 s->rx_pos += 4;
@@ -551,7 +569,8 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
             s->rx_len = s->rx_pos = 0;
             s->regs[FLEXSPI_INTR >> 2] &= ~INTR_IPRXWA;
         }
-        flexspi_update_dma_req(s);   /* RXDMAEN may have just been armed/cleared */
+        /* RXDMAEN may have just been armed/cleared */
+        flexspi_update_dma_req(s);
         return;
 
     case FLEXSPI_IPTXFCR:
@@ -559,7 +578,8 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
         if ((val & FCR_CLRF) && !s->pgm_pending) {
             s->tx_len = 0;
         }
-        flexspi_update_dma_req(s);   /* TXDMAEN may have just been armed/cleared */
+        /* TXDMAEN may have just been armed/cleared */
+        flexspi_update_dma_req(s);
         return;
 
     case FLEXSPI_IPCMD:
@@ -576,8 +596,8 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
             /*
              * TX FIFO: the guest streams program data here while CS is still
              * asserted, so the bytes go straight down the SPI bus to the flash.
-             * Append in write order — the SDK rewrites TFDR[0..watermark] each
-             * round.
+             * Append in write order — the SDK rewrites TFDR[0..watermark]
+             * each round.
              */
             if (s->pgm_pending) {
                 for (int i = 0; i < 4 && s->tx_len < s->pgm_len; i++) {
@@ -586,12 +606,16 @@ static void mcxn_flexspi_write(void *opaque, hwaddr off, uint64_t value,
                 }
                 if (s->tx_len >= s->pgm_len) {
                     flexspi_finish(s, NOR_PP, s->pgm_addr);
-                    s->regs[FLEXSPI_INTR >> 2] &= ~INTR_IPTXWE;   /* program complete */
+                    /* program complete */
+                    s->regs[FLEXSPI_INTR >> 2] &= ~INTR_IPTXWE;
                     mcxn_flexspi_update_irq(s);
                 }
-                /* Re-evaluate the TX request: it stays asserted while the controller
-                 * still wants data, and drops when tx_len fills -- so a DMA feeding
-                 * TFDR terminates on its own instead of overrunning the FIFO. */
+                /*
+                 * Re-evaluate the TX request: it stays asserted while the
+                 * controller still wants data, and drops when tx_len fills --
+                 * so a DMA feeding TFDR terminates on its own instead of
+                 * overrunning the FIFO.
+                 */
                 flexspi_update_dma_req(s);
             }
             return;
@@ -613,9 +637,9 @@ static const MemoryRegionOps mcxn_flexspi_ops = {
 
 /*
  * A CPU store into the AHB NOR window.  On silicon this does not program the
- * flash — a NOR is written only by an erase + page-program sequence through the
- * controller — so it must not land here either.  It must also not touch the
- * mirror, which is derived from the flash and from nothing else.
+ * flash — a NOR is written only by an erase + page-program sequence through
+ * the controller — so it must not land here either.  It must also not touch
+ * the mirror, which is derived from the flash and from nothing else.
  */
 static void mcxn_flexspi_nor_write(void *opaque, hwaddr off, uint64_t val,
                                    unsigned size)
@@ -629,8 +653,10 @@ static void mcxn_flexspi_nor_write(void *opaque, hwaddr off, uint64_t val,
 
 static uint64_t mcxn_flexspi_nor_read(void *opaque, hwaddr off, unsigned size)
 {
-    /* Unreachable in romd mode: reads and instruction fetch go straight to the
-     * mirror.  Present only because a ROM device must supply read ops. */
+    /*
+     * Unreachable in romd mode: reads and instruction fetch go straight to the
+     * mirror.  Present only because a ROM device must supply read ops.
+     */
     return 0;
 }
 
@@ -703,15 +729,21 @@ static void mcxn_flexspi_realize(DeviceState *dev, Error **errp)
 
     /* The real flash lives on our SSI bus; the SoC attaches m25p80 to it. */
     s->spi = ssi_create_bus(dev, "flexspi");
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->cs);       /* sysbus IRQ 0: chip select   */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);      /* sysbus IRQ 1: NVIC line      */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_rx); /* sysbus IRQ 2: eDMA src 1   */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_tx); /* sysbus IRQ 3: eDMA src 2   */
+    /* sysbus IRQ 0: chip select */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->cs);
+    /* sysbus IRQ 1: NVIC line */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    /* sysbus IRQ 2: eDMA src 1 */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_rx);
+    /* sysbus IRQ 3: eDMA src 2 */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_tx);
 }
 
 static const Property mcxn_flexspi_props[] = {
-    /* Size of the AHB-mapped NOR window.  Default = the FRDM-MCXN947's
-     * 8 MiB Winbond W25Q64 (Zephyr DTS: ranges @ 0x9000_0000, DT_SIZE_M(8)). */
+    /*
+     * Size of the AHB-mapped NOR window.  Default = the FRDM-MCXN947's
+     * 8 MiB Winbond W25Q64 (Zephyr DTS: ranges @ 0x9000_0000, DT_SIZE_M(8)).
+     */
     DEFINE_PROP_UINT64("flash-size", MCXNFlexSPIState, flash_size, 8 * MiB),
 };
 

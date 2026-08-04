@@ -19,7 +19,10 @@
 #define TYPE_MCXN_USDHC "mcxn-usdhc"
 OBJECT_DECLARE_SIMPLE_TYPE(MCXNUSDHCState, MCXN_USDHC)
 
-/* CMSIS USDHC_Type spans up to TUNING_CTRL @0xCC; round the window to 0x1000. */
+/*
+ * CMSIS USDHC_Type spans up to TUNING_CTRL @0xCC; round the window to
+ * 0x1000.
+ */
 #define MCXN_USDHC_SIZE 0x1000
 
 struct MCXNUSDHCState {
@@ -31,8 +34,11 @@ struct MCXNUSDHCState {
     qemu_irq irq;
     uint32_t regs[MCXN_USDHC_SIZE / 4];
 
-    /* The SD bus this controller drives.  The card is attached by the board or
-     * the operator (-device sd-card,...) — the model never invents one. */
+    /*
+     * The SD bus this controller drives.  The card is attached by the
+     * board or the operator (-device sd-card,...) — the model never
+     * invents one.
+     */
     SDBus    sdbus;
 
     /* PIO data phase armed by a command with DPSEL set and DMA disabled. */

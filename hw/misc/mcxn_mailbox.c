@@ -11,9 +11,10 @@
  * that observes 1 has taken the lock); any write makes it 1 again (release).
  *
  * Each CPU's IRQ word, when non-zero, asserts that CPU's mailbox interrupt
- * (MAILBOX_IRQn = 54 on its own NVIC): IRQ[0] -> cpu0, IRQ[1] -> cpu1.  One core
- * signals the other by writing the other's IRQSET, so this is a genuine
- * cross-core interrupt — the notification mechanism OpenAMP/rpmsg rides on.
+ * (MAILBOX_IRQn = 54 on its own NVIC): IRQ[0] -> cpu0, IRQ[1] -> cpu1.  One
+ * core signals the other by writing the other's IRQSET, so this is a
+ * genuine cross-core interrupt — the notification mechanism OpenAMP/rpmsg
+ * rides on.
  *
  * Offsets/bits/access-types from the MCXN947 CMSIS header (MAILBOX_Type); reset
  * values from the MCX N Reference Manual (chapter 22): IRQ words 0,

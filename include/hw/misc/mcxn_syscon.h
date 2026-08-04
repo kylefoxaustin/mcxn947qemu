@@ -33,16 +33,17 @@ struct MCXNSysconState {
     /*
      * THE CLOCK TREE, as far as it is modelled.
      *
-     * SYSCON's *CLKSEL registers do not merely record a choice -- THEY DECIDE THE
-     * RATE THE PERIPHERAL ACTUALLY RUNS AT.  Until now nothing consumed them, and the
-     * OSTIMER simply hardcoded 1 MHz:
+     * SYSCON's *CLKSEL registers do not merely record a choice -- THEY
+     * DECIDE THE RATE THE PERIPHERAL ACTUALLY RUNS AT.  Until now nothing
+     * consumed them, and the OSTIMER simply hardcoded 1 MHz:
      *
      *     return hz ? hz : OSTIMER_HZ;     -- and its Clock was NEVER CONNECTED
      *
-     * so `hz` was always 0 and THE FALLBACK WAS THE CAMOUFLAGE.  A guest that selected
-     * the 16 kHz source got a timer running at 1 MHz -- SIXTY-TWO TIMES TOO FAST --
-     * and nothing said a word.  The model had the right structure (a Clock input) and
-     * a default that made the missing wiring invisible.
+     * so `hz` was always 0 and THE FALLBACK WAS THE CAMOUFLAGE.  A guest
+     * that selected the 16 kHz source got a timer running at 1 MHz --
+     * SIXTY-TWO TIMES TOO FAST -- and nothing said a word.  The model had
+     * the right structure (a Clock input) and a default that made the
+     * missing wiring invisible.
      */
     Clock *ostimer_clk;
 
@@ -50,14 +51,17 @@ struct MCXNSysconState {
     Clock *fro12m_in;
     Clock *frohf_in;
     Clock *apll_in;     /* SCG PLL0 output (CTIMERCLKSEL=1 / SCTCLKSEL=1) */
-    Clock *spll_in;     /* SCG PLL1 output (CTIMERCLKSEL=2 / SCTCLKSEL=4, /PLL1CLK0DIV) */
+    /* SCG PLL1 output (CTIMERCLKSEL=2 / SCTCLKSEL=4, /PLL1CLK0DIV) */
+    Clock *spll_in;
     Clock *mainclk_in;  /* SCG main clock (the pre-divider core/bus clock) */
-    Clock *busclk;      /* AHB/bus clock = mainclk / (AHBCLKDIV + 1) -> core, MRT, PWM */
+    /* AHB/bus clock = mainclk / (AHBCLKDIV + 1) -> core, MRT, PWM */
+    Clock *busclk;
     Clock *ctimer_clk[5];
     Clock *sct_clk;
-    Clock *sai_clk[2];   /* SAI0/1 function clock (MCLK) from SAI0/1CLKSEL / CLKDIV */
-    uint32_t cpuctrl;                    /* CPU Control            (off 0x800) */
-    uint32_t cpboot;                     /* Coprocessor Boot Addr  (off 0x804) */
+    /* SAI0/1 function clock (MCLK) from SAI0/1CLKSEL / CLKDIV */
+    Clock *sai_clk[2];
+    uint32_t cpuctrl;   /* CPU Control            (off 0x800) */
+    uint32_t cpboot;    /* Coprocessor Boot Addr  (off 0x804) */
     bool     cpu1_running;
 
     ARMCPU  *cpu1;   /* link: secondary core, released via CPUCTRL/CPBOOT */

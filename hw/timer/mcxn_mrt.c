@@ -30,10 +30,11 @@
 static uint32_t mrt_freq(MCXNMRTState *s)
 {
     /*
-     * The bus clock, DERIVED from the SCG main clock (SoC wires it).  No fallback: a
-     * `?: 150000000` here was the same camouflage the CTIMER/OSTIMER carried -- it hid a
-     * missing clock behind a plausible constant.  A bus clock the SCG reports as 0 (no
-     * main-clock source selected) means the timer genuinely does not run, which is what
+     * The bus clock, DERIVED from the SCG main clock (SoC wires it).  No
+     * fallback: a `?: 150000000` here was the same camouflage the
+     * CTIMER/OSTIMER carried -- it hid a missing clock behind a plausible
+     * constant.  A bus clock the SCG reports as 0 (no main-clock source
+     * selected) means the timer genuinely does not run, which is what
      * silicon does; substituting 150 MHz would be a silent wrong answer.
      */
     return s->clk ? clock_get_hz(s->clk) : 0;

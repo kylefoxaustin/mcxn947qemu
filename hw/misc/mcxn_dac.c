@@ -14,7 +14,7 @@
 #include "qapi/visitor.h"
 #include "qom/object.h"
 
-/* --- Register offsets ------------------------------------------------------ */
+/* --- Register offsets ----------------------------------------------------- */
 #define DAC_VERID   0x00  /* RO */
 #define DAC_PARAM   0x04  /* RO */
 #define DAC_DATA    0x08  /* WO */
@@ -28,14 +28,14 @@
 #define DAC_TCR     0x28  /* WO */
 #define DAC_PCR     0x2C
 
-/* --- GCR ------------------------------------------------------------------- */
+/* --- GCR ------------------------------------------------------------------ */
 #define GCR_DACEN   (1u << 0)
 #define GCR_FIFOEN  (1u << 3)
 #define GCR_SWMD    (1u << 4)
 #define GCR_TRGSEL  (1u << 5)   /* 0 = hardware trigger, 1 = software trigger */
 #define GCR_PTGEN   (1u << 6)
 
-/* --- FSR (CMSIS LPDAC_FSR_*) ----------------------------------------------- */
+/* --- FSR (CMSIS LPDAC_FSR_*) ---------------------------------------------- */
 #define FSR_FULL    (1u << 0)
 #define FSR_EMPTY   (1u << 1)
 #define FSR_WM      (1u << 2)   /* occupancy <= FCR[WML] */
@@ -47,7 +47,7 @@
 /* FULL/EMPTY/WM are computed from occupancy; the rest latch until cleared. */
 #define FSR_W1C_MASK (FSR_SWBK | FSR_OF | FSR_UF | FSR_PTGCOCO)
 
-/* --- RCR / TCR ------------------------------------------------------------- */
+/* --- RCR / TCR ------------------------------------------------------------ */
 #define RCR_SWRST   (1u << 0)
 #define RCR_FIFORST (1u << 1)
 #define TCR_SWTRG   (1u << 0)
@@ -107,8 +107,8 @@ static void dac_update_irq(MCXNDACState *s)
      * more samples when it has drained to the watermark (or gone empty) and the
      * matching DER bit is set — this is how a stock DAC driver streams a
      * waveform.  Without it, ERQ was a dead bit and DMA-driven DAC output could
-     * not run at all.  Level-driven and edge-suppressed: a qemu_irq handler runs
-     * on every qemu_set_irq call, and the eDMA re-enters us as it fills.
+     * not run at all.  Level-driven and edge-suppressed: a qemu_irq handler
+     * runs on every qemu_set_irq call, and the eDMA re-enters us as it fills.
      */
     req = ((fsr & FSR_WM)    && (der & DER_WM_DMAEN)) ||
           ((fsr & FSR_EMPTY) && (der & DER_EMPTY_DMAEN));
@@ -135,9 +135,11 @@ static void dac_push(MCXNDACState *s, uint32_t value)
     }
 
     if (s->count >= dac_depth(s)) {
-        /* Full: the sample is dropped and the write pointer does NOT advance
-         * (RM §42.3.4).  Saying "accepted" here is how a 64-sample burst into a
-         * 16-deep FIFO looks perfect in emulation and clips on the bench. */
+        /*
+         * Full: the sample is dropped and the write pointer does NOT advance
+         * (RM §42.3.4).  Saying "accepted" here is how a 64-sample burst into
+         * a 16-deep FIFO looks perfect in emulation and clips on the bench.
+         */
         s->regs[DAC_FSR / 4] |= FSR_OF;
         dac_update_irq(s);
         return;
@@ -173,15 +175,16 @@ static void dac_trigger(MCXNDACState *s)
 }
 
 /*
- * A HARDWARE trigger routed in by INPUTMUX from DACn_TRIG (e.g. a CTIMER match or an
- * LPTMR compare): pop the next FIFO sample to the output, exactly like TCR[SWTRG] does,
- * so a timer can pace a waveform out of the DAC with zero CPU involvement (the standard
- * fsl_dac use with kDAC_ExternalTriggerMode).
+ * A HARDWARE trigger routed in by INPUTMUX from DACn_TRIG (e.g. a CTIMER match
+ * or an LPTMR compare): pop the next FIFO sample to the output, exactly like
+ * TCR[SWTRG] does, so a timer can pace a waveform out of the DAC with zero CPU
+ * involvement (the standard fsl_dac use with kDAC_ExternalTriggerMode).
  *
- * GCR[TRGSEL] picks which trigger is live: 0 = hardware (this path), 1 = software
- * (TCR[SWTRG]).  A routed hardware trigger while the DAC is in SOFTWARE-trigger mode
- * must NOT advance -- otherwise the model is more permissive than silicon.  (The
- * converse -- SWTRG in hardware mode -- is left ungated, a pre-existing simplification.)
+ * GCR[TRGSEL] picks which trigger is live: 0 = hardware (this path), 1 =
+ * software (TCR[SWTRG]).  A routed hardware trigger while the DAC is in
+ * SOFTWARE-trigger mode must NOT advance -- otherwise the model is more
+ * permissive than silicon.  (The converse -- SWTRG in hardware mode -- is left
+ * ungated, a pre-existing simplification.)
  */
 static void dac_hw_trigger(void *opaque, int n, int level)
 {
@@ -191,7 +194,7 @@ static void dac_hw_trigger(void *opaque, int n, int level)
         return;                  /* a trigger is an edge, not a level */
     }
     if (s->regs[DAC_GCR / 4] & GCR_TRGSEL) {
-        return;                  /* software-trigger mode: ignore the routed HW trigger */
+        return;      /* software-trigger mode: ignore the routed HW trigger */
     }
     dac_trigger(s);
 }
@@ -251,11 +254,13 @@ static void mcxn_dac_write(void *opaque, hwaddr offset, uint64_t value,
 
     case DAC_DER:
     case DAC_FCR:
-        /* Arming a DMA enable, or moving the watermark, changes whether the
+        /*
+         * Arming a DMA enable, or moving the watermark, changes whether the
          * FIFO is asking the eDMA for samples — so the request line has to be
          * re-evaluated here.  These used to fall through to a plain store, and
          * a driver that armed DER last (as a stock driver does) would never
-         * raise a request at all. */
+         * raise a request at all.
+         */
         s->regs[offset / 4] = v;
         dac_update_irq(s);
         return;
@@ -342,10 +347,10 @@ static void mcxn_dac_reset(DeviceState *dev)
 
 /*
  * The analog output pin, exposed to the OPERATOR (QMP qom-get), because that is
- * the only place a DAC's answer is observable — the guest cannot read back what
- * it converted.  This is the seam a bench engineer probes with a scope, and it
- * is how a DAC data path is verified without inventing a peer.  Read-only: the
- * operator observes, the guest drives.
+ * the only place a DAC's answer is observable — the guest cannot read back
+ * what it converted.  This is the seam a bench engineer probes with a scope,
+ * and it is how a DAC data path is verified without inventing a peer.
+ * Read-only: the operator observes, the guest drives.
  */
 static void dac_get_output(Object *obj, Visitor *v, const char *name,
                            void *opaque, Error **errp)
@@ -371,7 +376,10 @@ static void mcxn_dac_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req);   /* -> eDMA src 25+i */
-    /* Hardware trigger routed in by INPUTMUX from DACn_TRIG (timer/PWM -> waveform). */
+    /*
+     * Hardware trigger routed in by INPUTMUX from DACn_TRIG (timer/PWM ->
+     * waveform).
+     */
     qdev_init_gpio_in_named(dev, dac_hw_trigger, "trigger", 1);
 }
 

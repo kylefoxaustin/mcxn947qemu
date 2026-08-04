@@ -6,7 +6,8 @@
  * Neutron NPU compute register set (which is not broken out in CMSIS).  This
  * model is therefore a permissive 0x1000 register array with readback, plus
  * firmware-safe status semantics: any soft-reset request self-clears, any
- * busy/run status reads idle, and the interrupt-status word is write-1-to-clear.
+ * busy/run status reads idle, and the interrupt-status word is
+ * write-1-to-clear.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */

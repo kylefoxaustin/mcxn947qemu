@@ -1,5 +1,6 @@
 /*
- * NXP MCX N CMX_PERFMON (Performance Monitor / SYSPM) — register-accurate model.
+ * NXP MCX N CMX_PERFMON (Performance Monitor / SYSPM) — register-accurate
+ * model.
  *
  * Offsets/bits/access-types from the MCXN947 CMSIS header (SYSPM_Type).
  *

@@ -1,5 +1,6 @@
 /*
- * NXP MCX N uSDHC (Ultra Secured Digital Host Controller) — real SD data path.
+ * NXP MCX N uSDHC (Ultra Secured Digital Host Controller) — real SD data
+ * path.
  *
  * This block used to CONJURE ITS OWN CARD, and the capability table claimed
  * "uSDHC ADMA block data" for it.  Both halves of that were false:
@@ -11,7 +12,8 @@
  *     CMD_RSP0..3, and PRES_STATE[CINST] was hardwired so firmware "detected" a
  *     card that was not there.
  *
- * ⭐ WHY THE MUTATION AUDIT MISSED IT — worth remembering, because it is the one
+ * ⭐ WHY THE MUTATION AUDIT MISSED IT — worth remembering, because it is
+ * the one
  * blind spot the technique has.  The old test DID read data back and compare it
  * to an expected value, so it looked properly guarded: mutate CMD_RSP0 and it
  * duly failed.  But CMD8 only "passed" because the model ECHOED THE TEST'S OWN
@@ -23,7 +25,8 @@
  * golden has to live somewhere the model cannot reach.
  *
  * So this model does what the silicon does and NOTHING MORE: it drives a real
- * SD bus.  It supplies the BUS; it does not invent a card onto it.  The board or
+ * SD bus.  It supplies the BUS; it does not invent a card onto it.  The
+ * board or
  * the operator attaches a genuine QEMU sd-card:
  *
  *     -device sd-card,drive=<id>   (on the "sd-bus" this device creates)
@@ -115,8 +118,10 @@
 #define INT_DTOE (1u << 20)   /* data timeout error     */
 #define INT_DMAE (1u << 28)   /* DMA error              */
 
-/* MIX_CTRL bits (CMSIS USDHC_MIX_CTRL_*) — uSDHC keeps the transfer-type bits
- * here, not in CMD_XFR_TYP as stock SDHCI does. */
+/*
+ * MIX_CTRL bits (CMSIS USDHC_MIX_CTRL_*) — uSDHC keeps the transfer-type bits
+ * here, not in CMD_XFR_TYP as stock SDHCI does.
+ */
 #define MIX_DMAEN   (1u << 0)
 #define MIX_BCEN    (1u << 1)
 #define MIX_DTDSEL  (1u << 4)   /* 1 = read (card -> host) */
@@ -130,8 +135,10 @@
 #define BLK_BLKSIZE_MASK  0x1FFFu
 #define BLK_BLKCNT_SHIFT  16
 
-/* ADMA2 32-bit descriptor attributes (Host Controller spec; same encoding as
- * QEMU's own sdhci.c, from which the layout is taken rather than guessed). */
+/*
+ * ADMA2 32-bit descriptor attributes (Host Controller spec; same encoding as
+ * QEMU's own sdhci.c, from which the layout is taken rather than guessed).
+ */
 #define ADMA_VALID     (1u << 0)
 #define ADMA_END       (1u << 1)
 #define ADMA_ACT_MASK  (3u << 4)
@@ -139,38 +146,57 @@
 #define ADMA_ACT_LINK  (3u << 4)
 
 /*
- * HOST_CTRL_CAP: the part telling software WHAT IT CAN DO.  RM reset 0x07F3_B407.
+ * HOST_CTRL_CAP: the part telling software WHAT IT CAN DO.  RM reset
+ * 0x07F3_B407.
  *
  * ⚠ I HAD THIS EXACTLY BACKWARDS, AND I WROTE THE BACKWARDS REASONING DOWN.
  *
- *   The old comment argued: "we return 0x07F3_0000 with the low half zeroed; those bits
+ *   The old comment argued: "we return 0x07F3_0000 with the low half zeroed;
+ *   those bits
  *   are SDR50/SDR104/DDR50 and the tuning fields.  A CAPABILITY REGISTER THAT
- *   UNDER-REPORTS IS A PART LYING ABOUT WHAT IT IS."  So I "fixed" it TO THE RM VALUE.
+ *   UNDER-REPORTS IS A PART LYING ABOUT WHAT IT IS."  So I "fixed" it
+ *   TO THE RM VALUE.
  *
- *   ⭐ THAT IS THE TRAP, AND IT IS THE ONE 91emulator PAID FOR WITH A BOOT FAILURE.
- *     Their gate said the same thing about the same register; they set it to the RM
- *     value; and QEMU's OWN sdhci_check_capareg() REFUSED TO START -- because the value
- *     advertises hardware the model does not implement.  TWO ORACLES DISAGREED AND THE
- *     ONE THAT REFUSED TO BOOT WAS RIGHT.  My uSDHC is a private model: THERE IS NO SUCH
+ *   ⭐ THAT IS THE TRAP, AND IT IS THE ONE 91emulator PAID FOR WITH
+ *   A BOOT FAILURE.
+ *     Their gate said the same thing about the same register; they set it
+ *     to the RM
+ *     value; and QEMU's OWN sdhci_check_capareg() REFUSED TO START --
+ *     because the value
+ *     advertises hardware the model does not implement.  TWO ORACLES
+ *     DISAGREED AND THE
+ *     ONE THAT REFUSED TO BOOT WAS RIGHT.  My uSDHC is a private model:
+ *     THERE IS NO SUCH
  *     ASSERTION HERE TO CATCH ME.
  *
- *   ⭐ ON A CAPABILITY REGISTER, MATCHING THE REFERENCE MANUAL IS THE BUG -- unless you
- *     also implement the chip behind it.  UNDER-REPORTING is a model that promises less
- *     than the silicon.  OVER-REPORTING IS A PROMISE THE EMULATOR MAKES ON THE CHIP'S
+ *   ⭐ ON A CAPABILITY REGISTER, MATCHING THE REFERENCE MANUAL IS THE BUG --
+ *   unless you
+ *     also implement the chip behind it.  UNDER-REPORTING is a model
+ *     that promises less
+ *     than the silicon.  OVER-REPORTING IS A PROMISE THE EMULATOR MAKES
+ *     ON THE CHIP'S
  *     BEHALF, AND THE GUEST WILL HOLD US TO IT.
  *
- * WHAT WE ACTUALLY IMPLEMENT: ADMA2 against a REAL sd-card, high speed, the standard
- * voltages and bus widths.  THERE IS NO TUNING ENGINE AT ALL -- no CMD19, no sampling
- * window, no SDR104/DDR50 path; `USDHC_TUNING_CTRL` is a storage location and nothing
- * more.  A driver that saw SDR104 would switch the card to it and then run the tuning
+ * WHAT WE ACTUALLY IMPLEMENT: ADMA2 against a REAL sd-card, high speed,
+ * the standard
+ * voltages and bus widths.  THERE IS NO TUNING ENGINE AT ALL -- no CMD19,
+ * no sampling
+ * window, no SDR104/DDR50 path; `USDHC_TUNING_CTRL` is a storage location
+ * and nothing
+ * more.  A driver that saw SDR104 would switch the card to it and then
+ * run the tuning
  * procedure into a model that has none.
  *
- * So we clear EXACTLY the UHS-I capability bits and NOTHING ELSE -- ADMAS/DMAS/HSS/SRS,
- * the voltages (VS33/VS30/VS18) and the max block length stay as the RM gives them,
+ * So we clear EXACTLY the UHS-I capability bits and NOTHING ELSE --
+ * ADMAS/DMAS/HSS/SRS,
+ * the voltages (VS33/VS30/VS18) and the max block length stay as the RM
+ * gives them,
  * because those we DO deliver.
  *
- * ⇒ DECISION, not a gap.  The silicon has these modes; this model does not, yet.  When
- *   the tuning engine lands, these bits come back WITH it -- and not one moment before.
+ * ⇒ DECISION, not a gap.  The silicon has these modes; this model
+ *   does not, yet.  When
+ *   the tuning engine lands, these bits come back WITH it -- and not
+ *   one moment before.
  */
 #define CAP_UHS_I_UNIMPLEMENTED  \
     (0x1u    /* SDR50_SUPPORT    */ | \
@@ -345,17 +371,21 @@ static void mcxn_usdhc_send_command(MCXNUSDHCState *s, uint32_t xfrtyp)
         s->regs[USDHC_CMD_RSP2 >> 2] = 0;
         s->regs[USDHC_CMD_RSP3 >> 2] = 0;
     } else if (rlen == 16) {
-        /* R2: 128-bit CID/CSD.  Layout copied from QEMU's sdhci.c — the shift
-         * by one byte is real and easy to get wrong. */
+        /*
+         * R2: 128-bit CID/CSD.  Layout copied from QEMU's sdhci.c — the
+         * shift by one byte is real and easy to get wrong.
+         */
         s->regs[USDHC_CMD_RSP0 >> 2] = ldl_be_p(&response[11]);
         s->regs[USDHC_CMD_RSP1 >> 2] = ldl_be_p(&response[7]);
         s->regs[USDHC_CMD_RSP2 >> 2] = ldl_be_p(&response[3]);
         s->regs[USDHC_CMD_RSP3 >> 2] = (response[0] << 16) |
                                        (response[1] << 8) | response[2];
     } else {
-        /* No card, or the card refused the command: TIME OUT.  Do not answer
+        /*
+         * No card, or the card refused the command: TIME OUT.  Do not answer
          * on its behalf, and do not hang — CTOE is non-gating and the driver
-         * checks it alongside CC. */
+         * checks it alongside CC.
+         */
         s->regs[USDHC_INT_STATUS >> 2] |= INT_CTOE;
         mcxn_usdhc_update_irq(s);
         return;
@@ -410,9 +440,11 @@ static uint64_t mcxn_usdhc_read(void *opaque, hwaddr off, unsigned size)
     case USDHC_HOST_CTRL_CAP:
         return HOST_CTRL_CAP_VALUE;
     case USDHC_DLL_STATUS:
-        /* A hardcoded `return 0` here silently beat the reset table.  RM reset 0x200:
-         * the DLL's reference-select tap at its power-on position.  (The LOCK bits are
-         * 0 in the RM too -- this is not a "never locks" bug.) */
+        /*
+         * A hardcoded `return 0` here silently beat the reset table.  RM reset
+         * 0x200: the DLL's reference-select tap at its power-on position.  (The
+         * LOCK bits are 0 in the RM too -- this is not a "never locks" bug.)
+         */
         return s->regs[USDHC_DLL_STATUS / 4];
     case USDHC_ADMA_ERR_STATUS:
         return 0;
@@ -471,8 +503,8 @@ static void mcxn_usdhc_write(void *opaque, hwaddr off, uint64_t value,
         uint32_t w = cpu_to_le32(val);
 
         if (s->data_len == 0 || s->data_read) {
-            qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer-port write with no write "
-                          "data phase armed\n", __func__);
+            qemu_log_mask(LOG_GUEST_ERROR, "%s: buffer-port write with no "
+                          "write data phase armed\n", __func__);
             return;
         }
         sdbus_write_data(&s->sdbus, &w, 4);

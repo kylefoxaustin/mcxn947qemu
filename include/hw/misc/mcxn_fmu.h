@@ -2,9 +2,10 @@
  * NXP MCX N FMU (Flash Management Unit) — functional flash controller.
  *
  * Models the real MCX N program/erase protocol, which is NOT a "data in FCCOB"
- * design (RM rev 7 §8.3.2.11 / §8.3.2.12 / §8.3.2.14).  Program Page, Program
- * Phrase and Erase Sector all use a PEWEN/PERDY handshake in which the target
- * address and the data arrive as ordinary CPU stores into the flash address
+ * design (RM rev 7 §8.3.2.11 / §8.3.2.12 / §8.3.2.14).  Program Page,
+ * Program Phrase and Erase Sector all use a PEWEN/PERDY handshake in
+ * which the target address and the data arrive as ordinary CPU stores
+ * into the flash address
  * space, and those stores only take effect while the controller enables them:
  *
  *   1. FCCOB0 = command; launch by writing 1 to FSTAT[CCIF] (W1C -> busy).
@@ -71,8 +72,11 @@ struct MCXNFMUState {
     uint8_t  pe_cmd;                  /* command awaiting its write phase    */
     bool     pe_active;               /* a write window is open              */
 
-    /* Backing flash: a ROM-device region owned by the FMU, so that guest
-     * stores land in the FMU instead of silently succeeding as if it were RAM. */
+    /*
+     * Backing flash: a ROM-device region owned by the FMU, so that guest
+     * stores land in the FMU instead of silently succeeding as if it were
+     * RAM.
+     */
     MemoryRegion *flash;
     uint64_t      flash_size;
 };

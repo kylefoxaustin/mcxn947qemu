@@ -11,8 +11,9 @@
  *   - The status word always reports not-busy / done / ready.
  *   - The interrupt-status word is write-1-to-clear.
  *
- * The two documented NPX offsets that gate firmware (NPXCR control reflect-back,
- * NPXSR status read) are honoured by these conventions.  See header.
+ * The two documented NPX offsets that gate firmware (NPXCR control
+ * reflect-back, NPXSR status read) are honoured by these conventions.
+ * See header.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -53,7 +54,10 @@ static uint64_t mcxn_npu_read(void *opaque, hwaddr off, unsigned size)
 
     switch (off) {
     case R_CR:
-        /* Any soft-reset/start request has already retired: read it back low. */
+        /*
+         * Any soft-reset/start request has already retired: read it back
+         * low.
+         */
         return v & ~CR_SELFCLEAR_MASK;
     case R_SR:
         /* Never busy: clear the busy-class bits and report ready/done. */

@@ -5,10 +5,11 @@
  * firmware arms Buffer Descriptors (BDs) in a RAM-resident BDT (ping-pong banks
  * per endpoint/direction); a remote USB host drives transactions through the
  * shared usbredir core (hw/usb/mcxn_usbdev.c).  We present SETUP/IN/OUT tokens
- * to firmware (STAT + ISTAT.TOKDNE), read/retire the BDs it armed, and relay the
- * descriptor-driven data back to the host.  Host token retries are modelled by a
- * 1 ms SOF tick (and re-checked when firmware acks TOKDNE), so the data stage of
- * a control transfer completes once the firmware ISR has armed the answering BD.
+ * to firmware (STAT + ISTAT.TOKDNE), read/retire the BDs it armed, and relay
+ * the descriptor-driven data back to the host.  Host token retries are modelled
+ * by a 1 ms SOF tick (and re-checked when firmware acks TOKDNE), so the data
+ * stage of a control transfer completes once the firmware ISR has armed the
+ * answering BD.
  *
  * Offsets/bits from the MCXN947 CMSIS header (USB_Type / PERI_USB.h).
  *
@@ -113,10 +114,12 @@ static void usbfs_update_irq(MCXNUSBFSState *s)
     qemu_set_irq(s->irq, active);
 }
 
-/* ------------------------------------------------------------------------- *
+/*
+ * -------------------------------------------------------------------------
  * BDT access.  Base = {BDTPAGE3,BDTPAGE2,BDTPAGE1,0} (512-byte aligned).
  * BD index = (ep*4) + (tx ? 2 : 0) + odd; each BD is 8 bytes (ctrl, buf).
- * ------------------------------------------------------------------------- */
+ * -------------------------------------------------------------------------
+ */
 
 static uint32_t bdt_base(MCXNUSBFSState *s)
 {
@@ -154,7 +157,8 @@ static void usbfs_tokdne(MCXNUSBFSState *s, int ep, bool tx, int odd)
     usbfs_update_irq(s);
 }
 
-/* ------------------------------------------------------------------------- *
+/*
+ * -------------------------------------------------------------------------
  * HOST mode.  With CTL[HOSTMODEEN] the guest IS the USB host: it programs ADDR
  * (target device address) and arms a BD, then writes TOKEN (PID + endpoint) to
  * launch ONE transaction.  We read the armed BD, drive the packet to the device
@@ -163,7 +167,8 @@ static void usbfs_tokdne(MCXNUSBFSState *s, int ep, bool tx, int odd)
  * SETUP/OUT send from the TX BD; IN fills the RX BD.  Synchronous completion is
  * handled inline; async (a NAKing interrupt-IN awaiting data) finishes in the
  * port .complete callback.
- * ------------------------------------------------------------------------- */
+ * -------------------------------------------------------------------------
+ */
 
 static void usbfs_host_retire(MCXNUSBFSState *s, uint32_t ba, int pid_field,
                               bool tx, int ep, int odd, int len)
@@ -177,8 +182,10 @@ static void usbfs_host_retire(MCXNUSBFSState *s, uint32_t ba, int pid_field,
     usbfs_tokdne(s, ep, tx, odd);
 }
 
-/* Report a host-side transaction error on the non-gating ERRSTAT channel so the
- * guest's host stack sees a failed transaction rather than hanging. */
+/*
+ * Report a host-side transaction error on the non-gating ERRSTAT channel so the
+ * guest's host stack sees a failed transaction rather than hanging.
+ */
 static void usbfs_host_error(MCXNUSBFSState *s, uint32_t bit)
 {
     s->regs[R_ERRSTAT / 4] |= bit;
@@ -195,7 +202,7 @@ static void usbfs_host_token(MCXNUSBFSState *s, uint8_t token)
     uint8_t addr = s->regs[R_ADDR / 4] & 0x7F;
     bool is_setup = (pid_field == PID_SETUP);
     bool is_in = (pid_field == PID_IN);
-    bool tx = !is_in;                    /* SETUP/OUT send from TX BD; IN fills RX BD */
+    bool tx = !is_in; /* SETUP/OUT send from TX BD; IN fills RX BD */
     int odd = (tx ? s->odd_tx[ep] : s->odd_rx[ep]) & 1;
     uint32_t base = bdt_base(s);
     uint32_t ba = base + bd_off(ep, tx, odd);
@@ -206,11 +213,13 @@ static void usbfs_host_token(MCXNUSBFSState *s, uint8_t token)
     USBEndpoint *uep;
 
     if (!(ctrl & BD_OWN)) {
-        return;                          /* firmware has not armed a BD for this direction */
+        /* firmware has not armed a BD for this direction */
+        return;
     }
     dev = usb_find_device(&s->host_port, addr);
     if (!dev) {
-        usbfs_host_error(s, 0x01);       /* PIDERR / no device answering: bus timeout */
+        /* PIDERR / no device answering: bus timeout */
+        usbfs_host_error(s, 0x01);
         return;
     }
 
@@ -237,18 +246,20 @@ static void usbfs_host_token(MCXNUSBFSState *s, uint8_t token)
         s->host_pend_tx = tx;
         s->host_pend_in = is_in;
         s->host_pend_busy = true;
-        return;                          /* completes in mcxn_usbfs_host_complete */
+        return; /* completes in mcxn_usbfs_host_complete */
     }
-    if (s->host_pkt.status >= 0) {       /* success: actual_length bytes moved */
+    if (s->host_pkt.status >= 0) { /* success: actual_length bytes moved */
         len = s->host_pkt.actual_length;
         if (is_in) {
             cpu_physical_memory_write(bufaddr, s->host_buf, len);
         }
         usbfs_host_retire(s, ba, pid_field, tx, ep, odd, len);
     } else if (s->host_pkt.status == USB_RET_STALL) {
-        usbfs_host_error(s, 0x80);       /* BTSERR-class: device STALLed the token */
+        usbfs_host_error(s, 0x80); /* BTSERR-class: device STALLed the token */
     }
-    /* NAK/NYET: leave the BD owned; the guest host stack re-issues the token. */
+    /*
+     * NAK/NYET: leave the BD owned; the guest host stack re-issues the token.
+     */
 }
 
 static void mcxn_usbfs_host_attach(USBPort *port)
@@ -266,7 +277,8 @@ static void mcxn_usbfs_host_detach(USBPort *port)
     MCXNUSBFSState *s = port->opaque;
 
     if (s->host_mode) {
-        s->regs[R_ISTAT / 4] |= ISTAT_ATTACH;   /* ATTACH latches the change of state */
+        /* ATTACH latches the change of state */
+        s->regs[R_ISTAT / 4] |= ISTAT_ATTACH;
         usbfs_update_irq(s);
     }
 }
@@ -293,7 +305,8 @@ static void mcxn_usbfs_host_complete(USBPort *port, USBPacket *p)
             cpu_physical_memory_write(s->host_pend_bufaddr, s->host_buf, len);
         }
         usbfs_host_retire(s, s->host_pend_ba, s->host_pend_pid,
-                          s->host_pend_tx, s->host_pend_ep, s->host_pend_odd, len);
+                          s->host_pend_tx, s->host_pend_ep,
+                          s->host_pend_odd, len);
     } else if (p->status == USB_RET_STALL) {
         usbfs_host_error(s, 0x80);
     }
@@ -309,11 +322,13 @@ static USBPortOps mcxn_usbfs_port_ops = {
 
 static USBBusOps mcxn_usbfs_bus_ops = { };
 
-/* ------------------------------------------------------------------------- *
+/*
+ * -------------------------------------------------------------------------
  * Endpoint servicing — runs when a BD might be ready (SOF tick / TOKDNE ack).
  * Only one token is outstanding to firmware at a time (tokdne_busy gate), as
  * with the real STAT/TOKDNE handshake.
- * ------------------------------------------------------------------------- */
+ * -------------------------------------------------------------------------
+ */
 
 static bool usbfs_deliver_setup(MCXNUSBFSState *s)
 {
@@ -399,8 +414,8 @@ static bool usbfs_service_out(MCXNUSBFSState *s, int ep)
  * Consume the firmware's zero-length status-stage IN BD for a no-data (or OUT)
  * control transfer.  usbredir collapses the 3-stage control handshake into one
  * message and the core acks it directly, but real firmware still arms a status
- * BD per stage — draining it here keeps the EP0 TX ping-pong bank in sync with
- * firmware so the next IN reads the right bank.
+ * BD per stage — draining it here keeps the EP0 TX ping-pong bank in sync
+ * with firmware so the next IN reads the right bank.
  */
 static bool usbfs_consume_status_in(MCXNUSBFSState *s)
 {
@@ -415,9 +430,11 @@ static bool usbfs_consume_status_in(MCXNUSBFSState *s)
     s->odd_tx[0] ^= 1;
     s->ep0_status_in = false;
     usbfs_tokdne(s, 0, true, odd);
-    /* The host->device control transfer is now complete (firmware saw the SETUP
+    /*
+     * The host->device control transfer is now complete (firmware saw the SETUP
      * and ran the status stage): ack the host.  No-op if a data stage already
-     * completed it. */
+     * completed it.
+     */
     mcxn_usbdev_complete_out(s->usbdev, 0, MCXN_USB_XFER_OK, 0);
     return true;
 }
@@ -428,7 +445,7 @@ static void usbfs_service(MCXNUSBFSState *s)
     int ep;
 
     if (!s->enabled || s->tokdne_busy) {
-        return;                             /* wait for firmware to ack TOKDNE */
+        return; /* wait for firmware to ack TOKDNE */
     }
     if (s->ep0_status_in && usbfs_consume_status_in(s)) {
         return;
@@ -457,16 +474,20 @@ static void usbfs_sof(void *opaque)
     s->regs[R_ISTAT / 4] |= ISTAT_SOFTOK;
     usbfs_update_irq(s);
     usbfs_service(s);
-    /* Re-arm from the previous DEADLINE, never from "now": re-adding the
+    /*
+     * Re-arm from the previous DEADLINE, never from "now": re-adding the
      * callback's dispatch latency every frame makes the error accumulate, and
-     * the USB frame rate is a timing contract, not a suggestion. */
+     * the USB frame rate is a timing contract, not a suggestion.
+     */
     s->next_sof_ns += SOF_PERIOD_NS;
     timer_mod(s->sof, s->next_sof_ns);
 }
 
-/* ------------------------------------------------------------------------- *
+/*
+ * -------------------------------------------------------------------------
  * usbredir backend ops — host transactions arrive here from the core.
- * ------------------------------------------------------------------------- */
+ * -------------------------------------------------------------------------
+ */
 
 static void usbfs_be_setup(void *be, const uint8_t setup[8])
 {
@@ -474,11 +495,13 @@ static void usbfs_be_setup(void *be, const uint8_t setup[8])
 
     memcpy(s->setup_pkt, setup, 8);
     s->setup_pending = true;
-    /* Host->device control (SETUP bmRequestType bit7=0) has a zero-length IN
+    /*
+     * Host->device control (SETUP bmRequestType bit7=0) has a zero-length IN
      * status stage the firmware will arm; remember to drain it.  Only SET the
      * flag (never clear it for an IN transfer) so a still-pending status from a
-     * prior OUT transfer survives — the tokdne_busy gate drains it before this
-     * SETUP is delivered. */
+     * prior OUT transfer survives — the tokdne_busy gate drains it before
+     * this SETUP is delivered.
+     */
     if (!(setup[0] & 0x80)) {
         s->ep0_status_in = true;
     }
@@ -527,12 +550,16 @@ static int usbfs_be_ep_out(void *be, int ep, const uint8_t *buf, int len)
     return MCXN_USB_XFER_ASYNC;     /* answered later via complete_out() */
 }
 
-static void usbfs_be_set_address(void *be, uint8_t addr) { /* firmware writes ADDR */ }
-static void usbfs_be_set_config(void *be, uint8_t cfg)   { /* firmware handles */ }
+/* firmware writes ADDR */
+static void usbfs_be_set_address(void *be, uint8_t addr) { }
+/* firmware handles */
+static void usbfs_be_set_config(void *be, uint8_t cfg)   { }
 
-/* Host USB bus reset: drop transient transfer state and post ISTAT.USBRST + IRQ
+/*
+ * Host USB bus reset: drop transient transfer state and post ISTAT.USBRST + IRQ
  * so guest firmware re-inits its BDT/endpoints for a fresh enumeration (lets a
- * reused usbredir server re-enumerate a new client). */
+ * reused usbredir server re-enumerate a new client).
+ */
 static void usbfs_be_bus_reset(void *be)
 {
     MCXNUSBFSState *s = be;
@@ -545,10 +572,10 @@ static void usbfs_be_bus_reset(void *be)
         s->ep[ep].out_off = 0;
     }
     s->ep0_status_in = false;
-    memset(s->odd_rx, 0, sizeof(s->odd_rx));  /* ping-pong banks back to even, */
-    memset(s->odd_tx, 0, sizeof(s->odd_tx));  /* matching firmware's re-arm     */
+    memset(s->odd_rx, 0, sizeof(s->odd_rx)); /* ping-pong banks back to even, */
+    memset(s->odd_tx, 0, sizeof(s->odd_tx)); /* matching firmware's re-arm */
     s->regs[R_ISTAT / 4] |= ISTAT_USBRST;   /* USB reset flag */
-    usbfs_update_irq(s);                     /* fires if firmware enabled USBRST */
+    usbfs_update_irq(s); /* fires if firmware enabled USBRST */
 }
 
 static const MCXNUsbBackendOps usbfs_be_ops = {
@@ -560,9 +587,11 @@ static const MCXNUsbBackendOps usbfs_be_ops = {
     .bus_reset   = usbfs_be_bus_reset,
 };
 
-/* ------------------------------------------------------------------------- *
+/*
+ * -------------------------------------------------------------------------
  * MMIO.
- * ------------------------------------------------------------------------- */
+ * -------------------------------------------------------------------------
+ */
 
 static uint64_t mcxn_usbfs_read(void *opaque, hwaddr off, unsigned size)
 {
@@ -628,7 +657,10 @@ static void mcxn_usbfs_write(void *opaque, hwaddr off, uint64_t value,
                              SOF_PERIOD_NS;
             timer_mod(s->sof, s->next_sof_ns);
             if (!s->host_mode) {
-                /* Device mode + pull-up: a device appears on the remote host's bus. */
+                /*
+                 * Device mode + pull-up: a device appears on the remote host's
+                 * bus.
+                 */
                 mcxn_usbdev_attach(s->usbdev, usb_redir_speed_full);
             }
         } else if (!(v & CTL_USBENSOFEN) && s->enabled) {
@@ -638,15 +670,19 @@ static void mcxn_usbfs_write(void *opaque, hwaddr off, uint64_t value,
                 mcxn_usbdev_detach(s->usbdev);
             }
         }
-        /* Host mode enabled while a device is already plugged into our port:
-         * latch the ATTACH the guest's host stack polls for. */
+        /*
+         * Host mode enabled while a device is already plugged into our port:
+         * latch the ATTACH the guest's host stack polls for.
+         */
         if (s->host_mode && s->host_port.dev) {
             s->regs[R_ISTAT / 4] |= ISTAT_ATTACH;
             usbfs_update_irq(s);
         }
-        /* CTL[RESET]: drive a USB bus reset.  The attached device leaves the
+        /*
+         * CTL[RESET]: drive a USB bus reset.  The attached device leaves the
          * ATTACHED state for DEFAULT (address 0) -- the state in which it is
-         * addressable, so enumeration can begin. */
+         * addressable, so enumeration can begin.
+         */
         if (s->host_mode && (v & CTL_RESET) && s->host_port.dev) {
             usb_device_reset(s->host_port.dev);
         }
@@ -654,7 +690,7 @@ static void mcxn_usbfs_write(void *opaque, hwaddr off, uint64_t value,
     case R_TOKEN:
         s->regs[off >> 2] = v;
         if (s->host_mode && s->enabled) {
-            usbfs_host_token(s, v & 0xFF);      /* launch one host transaction */
+            usbfs_host_token(s, v & 0xFF); /* launch one host transaction */
         }
         return;
     case R_USBTRC0:
@@ -695,14 +731,18 @@ static const struct { uint16_t off; uint8_t width; uint32_t val; } rst_tbl[] = {
     { 0x144,  8, 0x00000001u },   /* CLK_RECOVER_IRC_EN */
 };
 
-/* regs[] is a WORD array and not every register is 32 bits: a 16-bit register at an odd
- * halfword offset SHARES ITS WORD with its neighbour, so a plain regs[off/4] = val
- * CLOBBERS THE NEIGHBOUR.  Write into the correct byte lane. */
-static void mcxn_usbfs_set_reset(uint32_t *regs, uint16_t off, uint8_t width, uint32_t val)
+/*
+ * regs[] is a WORD array and not every register is 32 bits: a 16-bit register
+ * at an odd halfword offset SHARES ITS WORD with its neighbour, so a plain
+ * regs[off/4] = val CLOBBERS THE NEIGHBOUR.  Write into the correct byte lane.
+ */
+static void mcxn_usbfs_set_reset(uint32_t *regs, uint16_t off, uint8_t width,
+                                 uint32_t val)
 {
     uint32_t *word = &regs[off / 4];
     int shift = (off & 3) * 8;
-    uint32_t mask = (width == 8) ? 0xFFu : (width == 16) ? 0xFFFFu : 0xFFFFFFFFu;
+    uint32_t mask = (width == 8) ? 0xFFu :
+                    (width == 16) ? 0xFFFFu : 0xFFFFFFFFu;
 
     *word = (*word & ~(mask << shift)) | ((val & mask) << shift);
 }
@@ -714,7 +754,8 @@ static void mcxn_usbfs_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     for (rst_i = 0; rst_i < (int)ARRAY_SIZE(rst_tbl); rst_i++) {
-        mcxn_usbfs_set_reset(s->regs, rst_tbl[rst_i].off, rst_tbl[rst_i].width, rst_tbl[rst_i].val);
+        mcxn_usbfs_set_reset(s->regs, rst_tbl[rst_i].off,
+                             rst_tbl[rst_i].width, rst_tbl[rst_i].val);
     }
     memset(s->odd_rx, 0, sizeof(s->odd_rx));
     memset(s->odd_tx, 0, sizeof(s->odd_tx));
@@ -740,8 +781,11 @@ static void mcxn_usbfs_realize(DeviceState *dev, Error **errp)
         mcxn_usbdev_set_backend(s->usbdev, &usbfs_be_ops, s);
     }
 
-    /* Host mode: our own single-port full-speed usb-bus, so a QEMU USB device
-     * (-device usb-kbd,bus=<id>) can attach and the guest host stack enumerate it. */
+    /*
+     * Host mode: our own single-port full-speed usb-bus, so a QEMU USB device
+     * (-device usb-kbd,bus=<id>) can attach and the guest host stack enumerate
+     * it.
+     */
     usb_bus_new(&s->host_bus, sizeof(s->host_bus), &mcxn_usbfs_bus_ops, dev);
     usb_register_port(&s->host_bus, &s->host_port, s, 0,
                       &mcxn_usbfs_port_ops, USB_SPEED_MASK_FULL);

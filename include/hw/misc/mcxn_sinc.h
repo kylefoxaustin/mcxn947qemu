@@ -3,9 +3,9 @@
  *
  * The SINC decimates a 1-bit sigma-delta modulator bitstream through a
  * cascaded-integrator-comb (CIC) filter into a 24-bit result.  Crucially, the
- * RM specifies a *register-fed* bitstream source (RM rev 7 §47.3.2.3.7 "PM" and
- * §47.3.2.3.8 "SM"), so the whole block can be modelled to full fidelity with
- * no analog source and nothing invented:
+ * RM specifies a *register-fed* bitstream source (RM rev 7 §47.3.2.3.7 "PM"
+ * and §47.3.2.3.8 "SM"), so the whole block can be modelled to full fidelity
+ * with no analog source and nothing invented:
  *
  *   CnCFR[IBFMT] = 10b (PM)  writing CnMPDATA feeds its low 16 bits to the CIC
  *   CnCFR[IBFMT] = 11b (SM)  writing CnMPDATA shifts all 32 bits into the CIC
@@ -28,9 +28,9 @@
  * than manufacturing an endless stream of zeros that firmware cannot tell apart
  * from real data.  (That silent-zero behaviour is what the previous bring-up
  * model did, and it is precisely the top-tier bug this project exists to kill:
- * in the RM's own headline use case — motor-control coil-current sensing — a
- * forever-zero SINC result reads as "0 amps on every phase", and the control
- * loop converges happily on a lie.)
+ * in the RM's own headline use case — motor-control coil-current sensing
+ * — a forever-zero SINC result reads as "0 amps on every phase", and the
+ * control loop converges happily on a lie.)
  *
  * Offsets/bits/reset values from the MCXN947 CMSIS header (SINC_Type) and the
  * RM register tables (§47.7).
@@ -52,8 +52,10 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNSINCState, MCXN_SINC)
 #define MCXN_SINC_MAX_ORD    4     /* CIC order: PFORD 1..3, FastSinc uses 2 */
 
 typedef struct MCXNSINCChannel {
-    /* CIC state.  Integrators run at the bitstream rate, combs at the
-     * decimated (output) rate. */
+    /*
+     * CIC state.  Integrators run at the bitstream rate, combs at the
+     * decimated (output) rate.
+     */
     int64_t  integ[MCXN_SINC_MAX_ORD];
     int64_t  comb[MCXN_SINC_MAX_ORD];
     int64_t  fs_delay[2];      /* FastSinc's (1 + z^-2) at the output rate */
@@ -75,17 +77,22 @@ struct MCXNSINCState {
     MemoryRegion iomem;
     qemu_irq     irq;          /* SINC_FILTER_IRQn = 142 */
 
-    /* One eDMA request line per channel (CMSIS SINC0 ipd_req_sinc[0..4] = 103..107).
-     * A channel drives its line when its FIFO passes the watermark AND CnCCR[DMAEN] is
-     * set -- the same FIFO-watermark condition that raises the CHF interrupt, but routed
-     * to the eDMA instead so a DMA-driven SINC driver's transfer actually runs. */
+    /*
+     * One eDMA request line per channel (CMSIS SINC0 ipd_req_sinc[0..4] =
+     * 103..107).  A channel drives its line when its FIFO passes the
+     * watermark AND CnCCR[DMAEN] is set -- the same FIFO-watermark condition
+     * that raises the CHF interrupt, but routed to the eDMA instead so a
+     * DMA-driven SINC driver's transfer actually runs.
+     */
     qemu_irq     dma_req[MCXN_SINC_NUM_CH];
-    bool         ch_dma_req[MCXN_SINC_NUM_CH];   /* last level driven (dedupe) */
+    /* last level driven (dedupe) */
+    bool         ch_dma_req[MCXN_SINC_NUM_CH];
 
     uint32_t regs[MCXN_SINC_SIZE / 4];
     MCXNSINCChannel ch[MCXN_SINC_NUM_CH];
 
-    bool warned_ext_source;    /* only log the "no bitstream source" note once */
+    /* only log the "no bitstream source" note once */
+    bool warned_ext_source;
 };
 
 #endif /* HW_MISC_MCXN_SINC_H */

@@ -17,9 +17,12 @@
 #include "hw/misc/mcxn_cache64_ctrl.h"
 #include "migration/vmstate.h"
 
-/* POLSEL region-boundary registers (RM §7.5).  REG0_TOP/REG1_TOP carry bits 26:11 of the
- * region boundary (low 10 bits read as 1s); their reset values define the DEFAULT cacheable
- * regions.  memset(0) collapsed both regions to address 0 -- a plausible-but-wrong reset. */
+/*
+ * POLSEL region-boundary registers (RM §7.5).  REG0_TOP/REG1_TOP carry bits
+ * 26:11 of the region boundary (low 10 bits read as 1s); their reset values
+ * define the DEFAULT cacheable regions.  memset(0) collapsed both regions to
+ * address 0 -- a plausible-but-wrong reset.
+ */
 #define CACHE64_REG0_TOP  0x14
 #define CACHE64_REG1_TOP  0x18
 #define CACHE64_REG0_TOP_RESET  0x0AAAA800u
@@ -51,7 +54,9 @@ static uint64_t mcxn_cache64_ctrl_read(void *opaque, hwaddr off, unsigned size)
     uint32_t v = (off < MCXN_CACHE64_CTRL_SIZE) ? s->regs[off >> 2] : 0;
 
     if (off == CACHE64_CCR) {
-        /* Maintenance commands complete instantly; GO/command bits read clear. */
+        /*
+         * Maintenance commands complete instantly; GO/command bits read clear.
+         */
         return v & ~CACHE64_CCR_SELF_CLEAR;
     }
     return v;

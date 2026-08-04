@@ -1,20 +1,24 @@
 /*
  * NXP MCX N USBDCD0 — USB Device Charger Detection (BC1.2 sequence).
  *
- * Firmware runs the standard USB Battery-Charging-1.2 detection: write CONTROL.START,
- * then walk STATUS[SEQ_STAT]/[SEQ_RES] with one interrupt (CONTROL.IF, gated by IE) per
- * phase, acknowledging each with CONTROL.IACK.  The block sequences the phases exactly as
- * the silicon does; the ONE thing it cannot know -- what is physically on the port -- is
- * operator-driven via the `charger` QOM property, never fabricated:
+ * Firmware runs the standard USB Battery-Charging-1.2 detection: write
+ * CONTROL.START, then walk STATUS[SEQ_STAT]/[SEQ_RES] with one interrupt
+ * (CONTROL.IF, gated by IE) per phase, acknowledging each with CONTROL.IACK.
+ * The block sequences the phases exactly as the silicon does; the ONE thing
+ * it cannot know -- what is physically on the port -- is operator-driven via
+ * the `charger` QOM property, never fabricated:
  *
  *   contact detect  -> SEQ_STAT=01
- *   primary detect  -> SEQ_STAT=10, SEQ_RES=01 (SDP, done) or 10 (a charging port)
+ *   primary detect  -> SEQ_STAT=10, SEQ_RES=01 (SDP, done) or 10
+ *                      (a charging port)
  *   secondary detect-> SEQ_STAT=11, SEQ_RES=10 (CDP) or 11 (DCP)
- *   nothing attached-> STATUS[TO] (data-pin contact timed out), no classification
+ *   nothing attached-> STATUS[TO] (data-pin contact timed out),
+ *                      no classification
  *
- * ⚠ THE ATTACHED PORT IS AN OPERATOR INPUT, NOT A MEASUREMENT.  With no charger set, the
- *   honest answer is a contact-detect TIMEOUT (nothing is plugged in) -- not a fabricated
- *   "SDP".  Set `-global mcxn-usbdcd.charger=1|2|3` (SDP/CDP/DCP), the way the analog
+ * ⚠ THE ATTACHED PORT IS AN OPERATOR INPUT, NOT A MEASUREMENT.  With no
+ *   charger set, the honest answer is a contact-detect TIMEOUT (nothing is
+ *   plugged in) -- not a fabricated "SDP".  Set
+ *   `-global mcxn-usbdcd.charger=1|2|3` (SDP/CDP/DCP), the way the analog
  *   inputs are operator-driven, to have the sequence classify a port.
  *
  * Offsets/bits from the MCXN947 CMSIS header (USBDCD_Type).
@@ -55,7 +59,8 @@
 /* SEQ_RES encodings. */
 #define RES_NONE  0
 #define RES_SDP   1
-#define RES_CHG   2    /* a charging port (CDP when SEQ_STAT=11, else undetermined) */
+/* a charging port (CDP when SEQ_STAT=11, else undetermined) */
+#define RES_CHG   2
 #define RES_DCP   3
 /* SEQ_STAT phases. */
 #define STAT_NONE     0
@@ -83,8 +88,10 @@ static void dcd_phase_done(MCXNUSBDCDState *s, uint32_t stat, uint32_t res,
 static void dcd_start(MCXNUSBDCDState *s)
 {
     if (s->charger == MCXN_DCD_NONE) {
-        /* No data-pin contact: the sequence times out.  Honest "nothing plugged
-         * in" -- NOT a fabricated classification. */
+        /*
+         * No data-pin contact: the sequence times out.  Honest "nothing plugged
+         * in" -- NOT a fabricated classification.
+         */
         s->phase = 0;
         dcd_phase_done(s, STAT_NONE, RES_NONE, STATUS_TO);
         return;
@@ -97,12 +104,15 @@ static void dcd_start(MCXNUSBDCDState *s)
 static void dcd_advance(MCXNUSBDCDState *s)
 {
     switch (s->phase) {
-    case STAT_CONTACT:                       /* -> primary: SDP vs charging port */
+    /* -> primary: SDP vs charging port */
+    case STAT_CONTACT:
         if (s->charger == MCXN_DCD_SDP) {
-            s->phase = 0;                    /* SDP fully classified, sequence done */
+            /* SDP fully classified, sequence done */
+            s->phase = 0;
             dcd_phase_done(s, STAT_PRIMARY, RES_SDP, 0);
         } else {
-            s->phase = STAT_PRIMARY;         /* a charging port; type still unknown */
+            /* a charging port; type still unknown */
+            s->phase = STAT_PRIMARY;
             dcd_phase_done(s, STAT_PRIMARY, RES_CHG, STATUS_ACTIVE);
         }
         break;
@@ -122,8 +132,12 @@ static uint64_t mcxn_usbdcd_read(void *opaque, hwaddr off, unsigned size)
 
     switch (off) {
     case R_CONTROL:
-        /* START/SR/IACK are write-only / self-clearing; IF, IE, BC12 read back. */
-        return s->regs[R_CONTROL / 4] & (CONTROL_IF | CONTROL_IE | CONTROL_BC12);
+        /*
+         * START/SR/IACK are write-only / self-clearing; IF, IE, BC12
+         * read back.
+         */
+        return s->regs[R_CONTROL / 4] &
+               (CONTROL_IF | CONTROL_IE | CONTROL_BC12);
     case R_STATUS:
         return s->regs[R_STATUS / 4];
     default:
@@ -147,15 +161,20 @@ static void mcxn_usbdcd_write(void *opaque, hwaddr off, uint64_t value,
     case R_STATUS:
         return;                              /* read-only */
     case R_CONTROL:
-        /* Persist only IE/BC12 (and the current IF); the action bits are edges. */
+        /*
+         * Persist only IE/BC12 (and the current IF); the action bits are
+         * edges.
+         */
         s->regs[R_CONTROL / 4] = (s->regs[R_CONTROL / 4] & CONTROL_IF) |
                                  (v & (CONTROL_IE | CONTROL_BC12));
-        if (v & CONTROL_SR) {                /* soft reset: abandon the sequence */
+        /* soft reset: abandon the sequence */
+        if (v & CONTROL_SR) {
             s->phase = 0;
             s->regs[R_STATUS / 4] = 0;
             s->regs[R_CONTROL / 4] &= ~CONTROL_IF;
         }
-        if (v & CONTROL_IACK) {              /* ack this phase, then the HW advances */
+        /* ack this phase, then the HW advances */
+        if (v & CONTROL_IACK) {
             s->regs[R_CONTROL / 4] &= ~CONTROL_IF;
             if (s->regs[R_STATUS / 4] & STATUS_ACTIVE) {
                 dcd_advance(s);
@@ -202,8 +221,11 @@ static void mcxn_usbdcd_realize(DeviceState *dev, Error **errp)
 }
 
 static const Property mcxn_usbdcd_props[] = {
-    /* What is attached to the port: 0 none, 1 SDP, 2 CDP, 3 DCP.  Operator input,
-     * the way the analog blocks are driven -- default NONE (nothing plugged in). */
+    /*
+     * What is attached to the port: 0 none, 1 SDP, 2 CDP, 3 DCP.  Operator
+     * input, the way the analog blocks are driven -- default NONE (nothing
+     * plugged in).
+     */
     DEFINE_PROP_UINT8("charger", MCXNUSBDCDState, charger, MCXN_DCD_NONE),
 };
 

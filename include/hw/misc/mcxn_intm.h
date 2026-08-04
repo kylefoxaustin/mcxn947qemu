@@ -3,8 +3,8 @@
  *
  * The INTM monitors interrupt-request-to-acknowledge latency for up to four
  * monitors.  This is a pure config/status block with no externally-observable
- * behavior in emulation, so a register-accurate model is correct.  Offsets/bits/
- * access-types from the MCXN947 CMSIS header (INTM_Type).
+ * behavior in emulation, so a register-accurate model is correct.
+ * Offsets/bits/access-types from the MCXN947 CMSIS header (INTM_Type).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */

@@ -31,9 +31,10 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNUsbDevState, MCXN_USBDEV)
  * core can drive endpoint transactions without knowing BDT vs dQH/dTD.
  *
  * All calls run on the main loop (chardev callback context).  A backend that
- * cannot complete a transaction synchronously (the usual case — guest firmware
- * must service an IRQ first) returns MCXN_USB_XFER_ASYNC and later calls
- * mcxn_usbdev_complete_in()/_out() when the descriptor it owns is retired.
+ * cannot complete a transaction synchronously (the usual case — guest
+ * firmware must service an IRQ first) returns MCXN_USB_XFER_ASYNC and later
+ * calls mcxn_usbdev_complete_in()/_out() when the descriptor it owns is
+ * retired.
  */
 enum {
     MCXN_USB_XFER_OK    = 0,    /* completed synchronously                  */
@@ -45,41 +46,50 @@ enum {
 typedef struct MCXNUsbBackendOps {
     /* Host issued an 8-byte SETUP to EP0.  Backend latches it for firmware. */
     void (*setup)(void *be, const uint8_t setup[8]);
-    /* Host wants up to @len bytes IN from @ep.  Backend fills @buf, sets
-     * *@out_len, returns an MCXN_USB_XFER_* code. */
+    /*
+     * Host wants up to @len bytes IN from @ep.  Backend fills @buf, sets
+     * *@out_len, returns an MCXN_USB_XFER_* code.
+     */
     int  (*ep_in)(void *be, int ep, uint8_t *buf, int len, int *out_len);
     /* Host sent @len OUT bytes to @ep.  Backend consumes, returns a code. */
     int  (*ep_out)(void *be, int ep, const uint8_t *buf, int len);
     /* Host set the device address / configuration (post-enumeration). */
     void (*set_address)(void *be, uint8_t addr);
     void (*set_config)(void *be, uint8_t config);
-    /* Optional: the host issued a USB bus reset (usbredir reset — a new client
-     * connecting re-enumerates).  Drop transient transfer state AND signal the
-     * reset to guest firmware (e.g. ChipIdea USBSTS.URI + IRQ) so it re-inits
-     * its endpoints for a fresh enumeration; without this a reused server can't
-     * re-enumerate (stale endpoint state answers the new session's requests). */
+    /*
+     * Optional: the host issued a USB bus reset (usbredir reset — a new
+     * client connecting re-enumerates).  Drop transient transfer state AND
+     * signal the reset to guest firmware (e.g. ChipIdea USBSTS.URI + IRQ) so
+     * it re-inits its endpoints for a fresh enumeration; without this a
+     * reused server can't re-enumerate (stale endpoint state answers the new
+     * session's requests).
+     */
     void (*bus_reset)(void *be);
 } MCXNUsbBackendOps;
 
-/* What kind of usbredir reply a pending EP0 request completes into.  Dedicated
+/*
+ * What kind of usbredir reply a pending EP0 request completes into.  Dedicated
  * SET_CONFIGURATION / SET_INTERFACE messages must NOT be acked until firmware
  * has run their status stage — acking early lets a real importer pipeline the
- * next SETUP, which clobbers EP0 before firmware processes the previous one. */
+ * next SETUP, which clobbers EP0 before firmware processes the previous one.
+ */
 enum {
     MCXN_USB_REPLY_XFER   = 0,  /* control_packet / bulk_packet (default)     */
     MCXN_USB_REPLY_CONFIG = 1,  /* configuration_status (arg0 = configuration)*/
     MCXN_USB_REPLY_ALT    = 2,  /* alt_setting_status (arg0=iface, arg1=alt)  */
 };
 
-/* An in-flight host request awaiting an async backend completion.  Indexed by
- * endpoint slot = (ep & 0xf) | (IN ? 0x10 : 0); EP0 control uses slot 0/16. */
+/*
+ * An in-flight host request awaiting an async backend completion.  Indexed by
+ * endpoint slot = (ep & 0xf) | (IN ? 0x10 : 0); EP0 control uses slot 0/16.
+ */
 typedef struct MCXNUsbPending {
     bool     active;
     bool     is_control;
     uint64_t id;                    /* usbredir transaction id               */
     uint16_t length;                /* host-requested length                 */
     uint8_t  ep;                    /* usbredir endpoint address             */
-    uint8_t  reply_kind;            /* MCXN_USB_REPLY_* — how to ack          */
+    uint8_t  reply_kind;            /* MCXN_USB_REPLY_* — how to ack        */
     uint8_t  arg0;                  /* configuration / interface             */
     uint8_t  arg1;                  /* alt setting                           */
 } MCXNUsbPending;
@@ -103,7 +113,7 @@ struct MCXNUsbDevState {
     bool    attached;               /* device_connect sent (firmware enabled)*/
     uint8_t speed;                  /* usb_redir_speed_*                     */
     uint8_t cur_config;             /* current SET_CONFIGURATION value       */
-    char   *gadget_profile;         /* "vendor" (default) | "cdc" — selects  */
+    char   *gadget_profile;         /* "vendor" (default) | "cdc" — selects */
                                     /* the interface_info/ep_info advertised */
 
     MCXNUsbPending pending[MCXN_USB_NSLOTS];
@@ -117,22 +127,31 @@ struct MCXNUsbDevState {
 void mcxn_usbdev_set_backend(MCXNUsbDevState *s,
                              const MCXNUsbBackendOps *ops, void *be);
 
-/* The controller engine calls this when guest firmware enables the controller
- * and asserts the pull-up — i.e. when a device would appear on the bus.  Sends
- * usbredir device_connect so the remote host begins enumeration.  @speed is a
- * usb_redir_speed_* value (full/high). */
+/*
+ * The controller engine calls this when guest firmware enables the controller
+ * and asserts the pull-up — i.e. when a device would appear on the bus.
+ * Sends usbredir device_connect so the remote host begins enumeration.
+ * @speed is a usb_redir_speed_* value (full/high).
+ */
 void mcxn_usbdev_attach(MCXNUsbDevState *s, uint8_t speed);
 
-/* The controller engine calls this when firmware disables the controller /
- * drops the pull-up. */
+/*
+ * The controller engine calls this when firmware disables the controller /
+ * drops the pull-up.
+ */
 void mcxn_usbdev_detach(MCXNUsbDevState *s);
 
-/* Async completion hooks — backend calls these when a primed descriptor that
- * answered a previously-ASYNC host request is retired by guest firmware. */
+/*
+ * Async completion hooks — backend calls these when a primed descriptor that
+ * answered a previously-ASYNC host request is retired by guest firmware.
+ */
 void mcxn_usbdev_complete_in(MCXNUsbDevState *s, int ep,
                              const uint8_t *buf, int len);
-/* @len is the number of bytes actually transferred (reported as the usbredir
- * actual_length — a real host driver reads it, e.g. a tty write's byte count). */
+/*
+ * @len is the number of bytes actually transferred (reported as the usbredir
+ * actual_length — a real host driver reads it, e.g. a tty write's byte
+ * count).
+ */
 void mcxn_usbdev_complete_out(MCXNUsbDevState *s, int ep, int status, int len);
 
 #endif /* HW_USB_MCXN_USBDEV_H */

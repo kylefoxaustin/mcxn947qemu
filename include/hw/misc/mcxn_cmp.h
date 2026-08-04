@@ -28,17 +28,22 @@ struct MCXNCMPState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq irq;
-    qemu_irq dma_req;   /* CMP DMA request: an IER-enabled edge, redirected by CCR1[DMA_EN] */
+    /* CMP DMA request: an IER-enabled edge, redirected by CCR1[DMA_EN] */
+    qemu_irq dma_req;
     uint32_t regs[MCXN_CMP_SIZE / 4];
 
-    /* Operator-driven analog: the comparator output level (CSR[COUT]) the
+    /*
+     * Operator-driven analog: the comparator output level (CSR[COUT]) the
      * +/- inputs would resolve to.  Settable via the "comparator-output" QOM
-     * property; a transition latches CSR[CFR] (rising) / CSR[CFF] (falling). */
+     * property; a transition latches CSR[CFR] (rising) / CSR[CFF] (falling).
+     */
     bool cout;
 
-    /* Round-robin baseline: the channel-0 output captured when RR_EN was set
+    /*
+     * Round-robin baseline: the channel-0 output captured when RR_EN was set
      * (the RR_INITMOD "expected" state).  A triggered round-robin sample that
-     * deviates from it sets CSR[RRF]. */
+     * deviates from it sets CSR[RRF].
+     */
     bool rr_baseline;
 };
 

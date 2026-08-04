@@ -6,7 +6,8 @@
  *        CTRL_W   (__O)  config: REF_SCALE, *_INT_EN, CONTINUOUS_MODE_EN,
  *                        MEASURE_IN_PROGRESS[31] (write 1 to start)
  *   0x4  CTRLSTAT (__IO) config mirror of CTRL_W plus W1C status bits
- *                        RESULT_READY_STAT[26], GT_MAX_STAT[25], LT_MIN_STAT[24]
+ *                        RESULT_READY_STAT[26], GT_MAX_STAT[25],
+ *                        LT_MIN_STAT[24]
  *   0x8  MIN      (__IO)
  *   0xC  MAX      (__IO)
  *
@@ -78,12 +79,19 @@ static void mcxn_freqme_write(void *opaque, hwaddr offset, uint64_t value,
 
     switch (offset) {
     case FREQME_CTRL:
-        /* CTRL_W: latch configuration into both CTRL and the CTRLSTAT mirror. */
+        /*
+         * CTRL_W: latch configuration into both CTRL and the CTRLSTAT
+         * mirror.
+         */
         s->ctrl = val & (FREQME_CFG_MASK | FREQME_MEASURE_IN_PROGRESS);
-        s->ctrlstat = (s->ctrlstat & FREQME_STAT_MASK) | (val & FREQME_CFG_MASK);
+        s->ctrlstat = (s->ctrlstat & FREQME_STAT_MASK) |
+                      (val & FREQME_CFG_MASK);
 
         if (val & FREQME_MEASURE_IN_PROGRESS) {
-            /* Start: completes instantly -> flag result ready, keep RESULT 0. */
+            /*
+             * Start: completes instantly -> flag result ready, keep
+             * RESULT 0.
+             */
             s->result = 0;
             s->ctrlstat |= FREQME_RESULT_READY_STAT;
         } else {
@@ -95,7 +103,8 @@ static void mcxn_freqme_write(void *opaque, hwaddr offset, uint64_t value,
         /* Config bits writable; status bits [26:24] are write-1-to-clear. */
         s->ctrlstat = (s->ctrlstat & ~FREQME_STAT_MASK & ~FREQME_CFG_MASK)
                       | (val & FREQME_CFG_MASK)
-                      | (s->ctrlstat & FREQME_STAT_MASK & ~(val & FREQME_STAT_MASK));
+                      | (s->ctrlstat & FREQME_STAT_MASK
+                         & ~(val & FREQME_STAT_MASK));
         break;
     case FREQME_MIN:
         s->min = val;
@@ -127,10 +136,11 @@ static void mcxn_freqme_reset(DeviceState *dev)
     s->result = 0;
     s->min = 0;
     /*
-     * ⚠ MAX IS THE MEASUREMENT CEILING, AND OURS RESET TO ZERO.  RM: 0x7FFF_FFFF.
-     *   A ceiling of zero is exceeded by ANY measurement -- so a guest reading MAX to
-     *   size its window, or comparing a result against it, is comparing against a
-     *   boundary the silicon never has.  A dangerous zero: legal, meaningful, wrong.
+     * ⚠ MAX IS THE MEASUREMENT CEILING, AND OURS RESET TO ZERO.  RM:
+     *   0x7FFF_FFFF.  A ceiling of zero is exceeded by ANY measurement --
+     *   so a guest reading MAX to size its window, or comparing a result
+     *   against it, is comparing against a boundary the silicon never has.
+     *   A dangerous zero: legal, meaningful, wrong.
      */
     s->max = 0x7FFFFFFFu;
 }

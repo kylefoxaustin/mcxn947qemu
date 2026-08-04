@@ -16,7 +16,7 @@
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
 
-/* --- GPIO register offsets (CMSIS) ----------------------------------------- */
+/* --- GPIO register offsets (CMSIS) ---------------------------------------- */
 #define GPIO_VERID  0x00  /* RO */
 #define GPIO_PARAM  0x04  /* RO */
 #define GPIO_LOCK   0x0C
@@ -43,8 +43,10 @@ static void mcxn_gpio_update_outputs(MCXNGPIOState *s)
     }
 }
 
-/* Input data: output pins read back their driven level, input pins the
- * externally driven level. */
+/*
+ * Input data: output pins read back their driven level, input pins the
+ * externally driven level.
+ */
 static uint32_t mcxn_gpio_pdir(MCXNGPIOState *s)
 {
     return (s->pdor & s->pddr) | (s->in_level & ~s->pddr);

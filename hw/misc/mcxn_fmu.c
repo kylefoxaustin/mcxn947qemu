@@ -64,7 +64,8 @@ static uint64_t fmu_flash_off(MCXNFMUState *s, uint64_t addr)
 static void fmu_update_irq(MCXNFMUState *s)
 {
     /* The interrupt asserts when the command completes and CCIE is set. */
-    qemu_set_irq(s->irq, !!(s->fstat & FSTAT_CCIF) && !!(s->fcnfg & FCNFG_CCIE));
+    qemu_set_irq(s->irq,
+                 !!(s->fstat & FSTAT_CCIF) && !!(s->fcnfg & FCNFG_CCIE));
 }
 
 /* Finish the current command: close any write window and re-assert CCIF. */
@@ -145,9 +146,11 @@ static void fmu_commit(MCXNFMUState *s)
 
             flash[off + i] = merged;
             if (merged != s->pe_buf[i]) {
-                /* A bit we were asked to leave at 1 read back 0: verify fails.
+                /*
+                 * A bit we were asked to leave at 1 read back 0: verify fails.
                  * This is precisely the back-to-back-program-without-erase case
-                 * the RM forbids (§8.3.2.11 CAUTION). */
+                 * the RM forbids (§8.3.2.11 CAUTION).
+                 */
                 s->fstat |= FSTAT_FAIL;
             }
         }
@@ -155,7 +158,10 @@ static void fmu_commit(MCXNFMUState *s)
         break;
 
     case FCMD_ERSSCR: {
-        /* The sector is selected by the phrase the guest wrote, not by FCCOB. */
+        /*
+         * The sector is selected by the phrase the guest wrote, not by
+         * FCCOB.
+         */
         uint64_t sec = off & ~(uint64_t)(MCXN_FLASH_SECTOR - 1);
 
         if (sec + MCXN_FLASH_SECTOR > s->flash_size) {
@@ -179,9 +185,11 @@ static void fmu_commit(MCXNFMUState *s)
 static void fmu_launch(MCXNFMUState *s)
 {
     uint8_t cmd = s->fccob[0] & 0xFF;
-    /* The address parameter, where a command takes one, is FCCOB2. FCCOB1 is
+    /*
+     * The address parameter, where a command takes one, is FCCOB2. FCCOB1 is
      * command options (§8.3.1.1.1) — reading the address from FCCOB1 would
-     * silently target the wrong sector. */
+     * silently target the wrong sector.
+     */
     uint64_t addr = fmu_flash_off(s, s->fccob[2]);
     uint8_t *flash = fmu_flash_ptr(s);
 
@@ -237,8 +245,10 @@ static void fmu_launch(MCXNFMUState *s)
         fmu_complete(s);
         return;
 
-    /* These three do not complete here: they open a write window and stall
-     * until the guest has supplied the address+data as stores to flash. */
+    /*
+     * These three do not complete here: they open a write window and stall
+     * until the guest has supplied the address+data as stores to flash.
+     */
     case FCMD_PGMPG:
         fmu_open_write_window(s, cmd, MCXN_FLASH_PAGE / 4, PEWEN_PAGE);
         return;
@@ -266,8 +276,10 @@ static void mcxn_fmu_flash_write(void *opaque, hwaddr off, uint64_t val,
     uint32_t align;
 
     if (!s->pe_active || !(s->fstat & FSTAT_PEWEN_MASK)) {
-        /* Not a bug in QEMU — a bug in the guest.  Real flash would ignore
-         * this, so we ignore it too, loudly. */
+        /*
+         * Not a bug in QEMU — a bug in the guest.  Real flash would ignore
+         * this, so we ignore it too, loudly.
+         */
         qemu_log_mask(LOG_GUEST_ERROR,
                       "mcxn-fmu: store to flash 0x%" HWADDR_PRIx " outside a "
                       "program/erase window is ignored (flash is not RAM; use "
@@ -307,9 +319,11 @@ static void mcxn_fmu_flash_write(void *opaque, hwaddr off, uint64_t val,
     s->pe_words++;
 
     if (s->pe_words == s->pe_expect) {
-        /* Window closes; stall until the guest clears PERDY.  Note the staged
+        /*
+         * Window closes; stall until the guest clears PERDY.  Note the staged
          * data is deliberately NOT in the array yet — the RM says it is not
-         * readable until the operation completes. */
+         * readable until the operation completes.
+         */
         s->fstat &= ~FSTAT_PEWEN_MASK;
         s->fstat |= FSTAT_PERDY;
     }
@@ -317,8 +331,10 @@ static void mcxn_fmu_flash_write(void *opaque, hwaddr off, uint64_t val,
 
 static uint64_t mcxn_fmu_flash_read(void *opaque, hwaddr off, unsigned size)
 {
-    /* Unreachable in romd mode: reads and fetches go straight to the backing
-     * RAM.  Present only because a ROM device must supply read ops. */
+    /*
+     * Unreachable in romd mode: reads and fetches go straight to the backing
+     * RAM.  Present only because a ROM device must supply read ops.
+     */
     return 0;
 }
 
@@ -361,7 +377,8 @@ static uint64_t mcxn_fmu_read(void *opaque, hwaddr off, unsigned size)
     }
 }
 
-static void mcxn_fmu_write(void *opaque, hwaddr off, uint64_t val, unsigned size)
+static void mcxn_fmu_write(void *opaque, hwaddr off, uint64_t val,
+                           unsigned size)
 {
     MCXNFMUState *s = MCXN_FMU(opaque);
     uint32_t v = val;

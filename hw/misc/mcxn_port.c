@@ -42,10 +42,11 @@ static const MemoryRegionOps mcxn_port_ops = {
     .write = mcxn_port_write,
     .endianness = DEVICE_LITTLE_ENDIAN,
     /*
-     * The NXP SDK PORT driver writes PCR as a 16-bit halfword (PORT_SetPinConfig
-     * does `*(volatile uint16_t*)&base->PCR[pin] = ...`).  Accept byte/halfword
-     * accesses from the guest; keep the handler word-only (impl=4) so QEMU
-     * adapts sub-word writes into a word read-modify-write over regs[].
+     * The NXP SDK PORT driver writes PCR as a 16-bit halfword
+     * (PORT_SetPinConfig does `*(volatile uint16_t*)&base->PCR[pin] = ...`).
+     * Accept byte/halfword accesses from the guest; keep the handler
+     * word-only (impl=4) so QEMU adapts sub-word writes into a word
+     * read-modify-write over regs[].
      */
     .valid.min_access_size = 1,
     .valid.max_access_size = 4,
@@ -56,33 +57,39 @@ static const MemoryRegionOps mcxn_port_ops = {
 /*
  * PAD RESET VALUES -- AND THEY ARE PER-PORT, WHICH IS WHY THE RM DEFERS THEM.
  *
- * PCR's row in the register-summary table says "See section" in the reset column, and
- * the section explains why:
+ * PCR's row in the register-summary table says "See section" in the reset
+ * column, and the section explains why:
  *
  *     Register reset values
  *     Register    Reset value
  *     PCR0        PORT0:        0000_1143h
  *                 PORT1-PORT5:  0000_0000h
  *
- * ⭐ THE RESET VALUE DEPENDS ON THE INSTANCE.  Our reset-value gate stores ONE reset per
- * (name, offset) and SHARES IT ACROSS INSTANCES, so it CANNOT REPRESENT THIS -- and the
- * extractor, correctly, refused the row rather than pick one.  A missing register is a
- * gap; a wrong one is a false witness.  So this is hand-read from the RM, and named in
- * known-deviations.txt as a structural limit of the golden rather than a bug in it.
+ * ⭐ THE RESET VALUE DEPENDS ON THE INSTANCE.  Our reset-value gate
+ * stores ONE reset per (name, offset) and SHARES IT ACROSS INSTANCES,
+ * so it CANNOT REPRESENT THIS -- and the extractor, correctly, refused
+ * the row rather than pick one.  A missing register is a gap; a wrong
+ * one is a false witness.  So this is hand-read from the RM, and named
+ * in known-deviations.txt as a structural limit of the golden rather
+ * than a bug in it.
  *
- * WHAT IT COSTS.  These four pads are non-zero out of reset -- PORT0's PCR0/PCR3/PCR6
- * carry MUX=1 with pulls enabled, i.e. THE SWD DEBUG PINS -- and we reset them to ZERO.
+ * WHAT IT COSTS.  These four pads are non-zero out of reset -- PORT0's
+ * PCR0/PCR3/PCR6 carry MUX=1 with pulls enabled, i.e. THE SWD DEBUG
+ * PINS -- and we reset them to ZERO.
  * The SDK's PORT_SetPinConfig does a READ-MODIFY-WRITE on the pad:
  *
  *     *(volatile uint16_t *)&base->PCR[pin] = ...
  *
- * so firmware that touches a neighbouring field reads a value THE SILICON WOULD NEVER
- * PRODUCE and writes back a pad configuration that never existed -- silently clobbering
- * the debug pin's mux and pull.  (91emulator found the identical class on their pinmux:
- * "any driver doing a read-modify-write on a pad reads a value the silicon would never
- * produce.")
+ * so firmware that touches a neighbouring field reads a value THE
+ * SILICON WOULD NEVER PRODUCE and writes back a pad configuration that
+ * never existed -- silently clobbering the debug pin's mux and pull.
+ * (91emulator found the identical class on their pinmux: "any driver
+ * doing a read-modify-write on a pad reads a value the silicon would
+ * never produce.")
  */
-static const struct { uint8_t port; uint8_t pcr; uint32_t val; } port_pad_reset[] = {
+static const struct {
+    uint8_t port; uint8_t pcr; uint32_t val;
+} port_pad_reset[] = {
     { 0,  0, 0x00001143u },   /* RM 75.6.1.11: PORT0 PCR0  (SWD) */
     { 0,  3, 0x00001103u },   /* RM: PORT0 PCR3            (SWD) */
     { 0,  6, 0x00001103u },   /* RM: PORT0 PCR6            (SWD) */

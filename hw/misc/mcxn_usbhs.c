@@ -125,7 +125,8 @@ static void usbhs_phydcd_class_init(ObjectClass *klass, const void *data)
     dc->vmsd = &vmstate_usbhs_phydcd;
 }
 
-/* ---- USBHS1 core: ChipIdea/EHCI controller (USBHS_Type), device mode ---- *
+/*
+ * ---- USBHS1 core: ChipIdea/EHCI controller (USBHS_Type), device mode ----
  *
  * Device-mode endpoint engine: guest firmware programs device Queue Heads (dQH,
  * 64 B each at ENDPTLISTADDR, indexed ep*2 + (IN?1:0)) and device Transfer
@@ -163,10 +164,11 @@ static void usbhs_phydcd_class_init(ObjectClass *klass, const void *data)
 /*
  * ENDPTCTRL0 reset = 0x0080_0080: RXE (bit 7) and TXE (bit 23) are SET.
  *
- * ⭐ ENDPOINT 0 IS THE CONTROL ENDPOINT AND IT IS ALWAYS ENABLED ON SILICON -- that is
- * what those bits mean, and it is why they are set out of reset.  We reset the register
- * to ZERO, so a driver asking "is the control endpoint enabled?" was told NO, BY THE ONE
- * ENDPOINT THAT CANNOT BE DISABLED.
+ * ⭐ ENDPOINT 0 IS THE CONTROL ENDPOINT AND IT IS ALWAYS ENABLED ON
+ * SILICON -- that is what those bits mean, and it is why they are set out
+ * of reset.  We reset the register to ZERO, so a driver asking "is the
+ * control endpoint enabled?" was told NO, BY THE ONE ENDPOINT THAT CANNOT
+ * BE DISABLED.
  */
 #define HS_ENDPTCTRL0_RESET  0x00800080u
 
@@ -193,25 +195,27 @@ static void usbhs_phydcd_class_init(ObjectClass *klass, const void *data)
  * registers begin 0x40 past CAPLENGTH, i.e. at 0x140) with HCIVERSION 0x0100 in
  * the upper half-word.
  *
- * ⚠ THESE WERE FABRICATED, AND THE COMMENT ABOVE THEM SAID SO IN A WORD I DID NOT
- * HEAR MYSELF USE: "mark as APPROXIMATE where the RM reset was not machine-readable".
+ * ⚠ THESE WERE FABRICATED, AND THE COMMENT ABOVE THEM SAID SO IN A WORD I
+ * DID NOT HEAR MYSELF USE: "mark as APPROXIMATE where the RM reset was not
+ * machine-readable".
  *
- *     ⭐ "APPROXIMATE", "NOMINAL", "PLAUSIBLE", "REASONABLE", "BEST-EFFORT" ARE THE
- *        WORDS YOU USE WHEN YOU MEAN FABRICATED.  Grepping the tree for that
- *        vocabulary is what found these -- the register file was lying about WHAT
- *        THE PART IS, and it had annotated its own lie.
+ *     ⭐ "APPROXIMATE", "NOMINAL", "PLAUSIBLE", "REASONABLE", "BEST-EFFORT"
+ *        ARE THE WORDS YOU USE WHEN YOU MEAN FABRICATED.  Grepping the tree
+ *        for that vocabulary is what found these -- the register file was
+ *        lying about WHAT THE PART IS, and it had annotated its own lie.
  *
- * And they were not even self-consistent: DCCPARAMS said "8 EP" while HWDEVICE
- * reported DEVEP = 2.  TWO REGISTERS DESCRIBING THE SAME SILICON, DISAGREEING WITH
- * EACH OTHER -- which is what invention looks like from the inside.
+ * And they were not even self-consistent: DCCPARAMS said "8 EP" while
+ * HWDEVICE reported DEVEP = 2.  TWO REGISTERS DESCRIBING THE SAME SILICON,
+ * DISAGREEING WITH EACH OTHER -- which is what invention looks like from
+ * the inside.
  *
  * The real values, from the RM's reset column (read back and diffed by
  * tests/mcxn-reset-values, whose golden IS the reference manual):
  *
  *   ID       0xE4A1FA05   (we said 0x0022FA05 -- not even the right part)
- *   HWDEVICE 0x00000011   DC=1, DEVEP=8.  WE SAID 0x05: DEVEP = 2.  A driver that
- *                         sizes its endpoint arrays from this saw A QUARTER of the
- *                         endpoints the silicon has.
+ *   HWDEVICE 0x00000011   DC=1, DEVEP=8.  WE SAID 0x05: DEVEP = 2.  A
+ *                         driver that sizes its endpoint arrays from this
+ *                         saw A QUARTER of the endpoints the silicon has.
  *   HWTXBUF  0x80050808   TX burst/buffer geometry (we said 0x80040020)
  *   HWRXBUF  0x00000808   RX burst/buffer geometry (we said 0x00000020)
  *   HWGENERAL 0x00000015  (we returned 0)
@@ -222,11 +226,14 @@ static void usbhs_phydcd_class_init(ObjectClass *klass, const void *data)
 #define HS_HWDEVICE_VALUE    0x00000011u   /* RM reset: DC=1, DEVEP=8 */
 #define HS_HWTXBUF_VALUE     0x80050808u   /* RM reset */
 #define HS_HWRXBUF_VALUE     0x00000808u   /* RM reset */
-#define HS_CAPLENGTH_VALUE   0x01000040u   /* HCIVERSION:0x0100, CAPLENGTH:0x40 */
+/* HCIVERSION:0x0100, CAPLENGTH:0x40 */
+#define HS_CAPLENGTH_VALUE   0x01000040u
 #define HS_HCSPARAMS_VALUE   0x00010011u   /* RM reset (this one WAS right) */
-#define HS_HCCPARAMS_VALUE   0x00000006u   /* async sched park + prog frame list */
+/* async sched park + prog frame list */
+#define HS_HCCPARAMS_VALUE   0x00000006u
 #define HS_DCIVERSION_VALUE  0x00000001u
-#define HS_DCCPARAMS_VALUE   0x00000188u   /* device capable, host capable, 8 EP */
+/* device capable, host capable, 8 EP */
+#define HS_DCCPARAMS_VALUE   0x00000188u
 
 /* USBSTS interrupt-status bits are W1C; HCH is status-only (not W1C). */
 #define USBSTS_W1C_MASK      0x000003FFu
@@ -249,7 +256,8 @@ static void hs_st(uint32_t addr, uint32_t w)
 /* dQH base for (ep, dir): list base (2 KiB aligned) + index*64. */
 static uint32_t hs_dqh(MCXNUSBHSCoreState *s, int ep, bool in)
 {
-    return (s->regs[HS_ENDPTLISTADDR / 4] & ~0x7FFu) + (ep * 2 + (in ? 1 : 0)) * 64;
+    return (s->regs[HS_ENDPTLISTADDR / 4] & ~0x7FFu) +
+           (ep * 2 + (in ? 1 : 0)) * 64;
 }
 
 static void usbhs_core_update_irq(MCXNUSBHSCoreState *s)
@@ -288,12 +296,12 @@ static void hs_retire_dtd(MCXNUSBHSCoreState *s, int ep, bool in,
     uint32_t qh = hs_dqh(s, ep, in);
     uint32_t token = hs_ld(dtd + 4);
 
-    token &= ~0xFFu;                                  /* clear status (ACTIVE) */
+    token &= ~0xFFu;                               /* clear status (ACTIVE) */
     token = (token & ~(DTD_TOTBYTES_MASK << DTD_TOTBYTES_SHIFT)) |
             ((remaining & DTD_TOTBYTES_MASK) << DTD_TOTBYTES_SHIFT);
     hs_st(dtd + 4, token);
-    hs_st(qh + 4, dtd);                               /* currentDtdPointer */
-    hs_st(qh + 8, hs_ld(dtd));                        /* nextDtdPointer = dtd.next */
+    hs_st(qh + 4, dtd);                            /* currentDtdPointer */
+    hs_st(qh + 8, hs_ld(dtd));                  /* nextDtdPointer = dtd.next */
 }
 
 /* IN data stage: copy the primed dTD's bytes to the host. */
@@ -401,9 +409,11 @@ static void usbhs_sof(void *opaque)
         return;
     }
     usbhs_service(s);
-    /* Re-arm from the previous DEADLINE, never from "now": re-adding the
+    /*
+     * Re-arm from the previous DEADLINE, never from "now": re-adding the
      * callback's dispatch latency every frame makes the error accumulate, and
-     * the USB frame rate is a timing contract, not a suggestion. */
+     * the USB frame rate is a timing contract, not a suggestion.
+     */
     s->next_sof_ns += SOF_PERIOD_NS;
     timer_mod(s->sof, s->next_sof_ns);
 }
@@ -413,7 +423,7 @@ static void usbhs_sof(void *opaque)
 static void usbhs_be_setup(void *be, const uint8_t setup[8])
 {
     MCXNUSBHSCoreState *s = be;
-    uint32_t qh0 = hs_dqh(s, 0, false);     /* EP0 OUT dQH holds the setup buf */
+    uint32_t qh0 = hs_dqh(s, 0, false);    /* EP0 OUT dQH holds the setup buf */
 
     hs_st(qh0 + DQH_SETUP0,     setup[0] | (setup[1] << 8) |
                                 (setup[2] << 16) | (setup[3] << 24));
@@ -454,12 +464,16 @@ static int usbhs_be_ep_out(void *be, int ep, const uint8_t *buf, int len)
     return MCXN_USB_XFER_ASYNC;
 }
 
-static void usbhs_be_set_address(void *be, uint8_t addr) { /* firmware writes DEVICEADDR */ }
-static void usbhs_be_set_config(void *be, uint8_t cfg)   { /* firmware handles */ }
+/* firmware writes DEVICEADDR */
+static void usbhs_be_set_address(void *be, uint8_t addr) { }
+/* firmware handles */
+static void usbhs_be_set_config(void *be, uint8_t cfg) { }
 
-/* Host USB bus reset: drop transient transfer state and post USBSTS.URI + IRQ
+/*
+ * Host USB bus reset: drop transient transfer state and post USBSTS.URI + IRQ
  * so guest firmware re-inits its endpoints for a fresh enumeration (a reused
- * usbredir server can then re-enumerate a new client). */
+ * usbredir server can then re-enumerate a new client).
+ */
 static void usbhs_be_bus_reset(void *be)
 {
     MCXNUSBHSCoreState *s = be;
@@ -503,21 +517,22 @@ static uint64_t usbhs_core_read(void *opaque, hwaddr off, unsigned size)
     switch (off) {
     case 0x184: {
         /*
-         * ⭐ PSPD IS A STATUS FIELD, SO IT MUST FOLLOW THE PORT -- NOT SIT AT A CONSTANT.
+         * ⭐ PSPD IS A STATUS FIELD, SO IT MUST FOLLOW THE PORT -- NOT SIT
+         *   AT A CONSTANT.
          *
-         *   Its reset value (Undefined) is honest: at power-on nothing has enumerated and
-         *   the speed genuinely is not known.  But leaving it there forever would be the
-         *   mirror of the bug we just fixed -- a driver polling for a definite speed
-         *   would never get one.
+         *   Its reset value (Undefined) is honest: at power-on nothing has
+         *   enumerated and the speed genuinely is not known.  But leaving it
+         *   there forever would be the mirror of the bug we just fixed -- a
+         *   driver polling for a definite speed would never get one.
          *
-         *   This is a HIGH-SPEED controller and the model links at high speed, so once
-         *   the guest starts the controller (USBCMD[RS]) the port is operating and PSPD
-         *   reports the speed we ACTUALLY run at.  Before that it says UNDEFINED, which
-         *   is the truth.
+         *   This is a HIGH-SPEED controller and the model links at high
+         *   speed, so once the guest starts the controller (USBCMD[RS]) the
+         *   port is operating and PSPD reports the speed we ACTUALLY run at.
+         *   Before that it says UNDEFINED, which is the truth.
          *
-         *   (We used to return 0 here, which on this field is not "no answer" -- it is
-         *   FULL SPEED.  A driver would have sized its endpoints for 64-byte packets on
-         *   a controller that does 512.)
+         *   (We used to return 0 here, which on this field is not "no
+         *   answer" -- it is FULL SPEED.  A driver would have sized its
+         *   endpoints for 64-byte packets on a controller that does 512.)
          */
         uint32_t portsc = s->regs[0x184 / 4];
 
@@ -534,11 +549,12 @@ static uint64_t usbhs_core_read(void *opaque, hwaddr off, unsigned size)
     case HS_HWRXBUF:    return HS_HWRXBUF_VALUE;
     case HS_CAPLENGTH:  return HS_CAPLENGTH_VALUE;
     /*
-     * HCIVERSION is the UPPER HALFWORD of CAPLENGTH, and the RM lists it as its own
-     * 16-BIT register at 0x102.  We answered only the 32-bit read at 0x100, so a HALFWORD
-     * read of HCIVERSION -- which is exactly how EHCI says to read it -- fell through to
-     * the default and RETURNED ZERO.  The gate could not see that until it learned to
-     * read registers AT THEIR TRUE WIDTH.
+     * HCIVERSION is the UPPER HALFWORD of CAPLENGTH, and the RM lists it as
+     * its own 16-BIT register at 0x102.  We answered only the 32-bit read at
+     * 0x100, so a HALFWORD read of HCIVERSION -- which is exactly how EHCI
+     * says to read it -- fell through to the default and RETURNED ZERO.  The
+     * gate could not see that until it learned to read registers AT THEIR
+     * TRUE WIDTH.
      */
     case HS_CAPLENGTH + 2: return HS_CAPLENGTH_VALUE >> 16;
     case HS_HCSPARAMS:  return HS_HCSPARAMS_VALUE;
@@ -601,12 +617,14 @@ static void usbhs_core_write(void *opaque, hwaddr off, uint64_t value,
         if ((v & USBCMD_RS) &&
             (s->regs[HS_USBMODE / 4] & USBMODE_CM_MASK) == USBMODE_CM_DEVICE &&
             !s->enabled) {
-            /* Run + device mode: a device appears on the bus.  High-speed: the
-             * ChipIdea is HS silicon and a real EHCI host (ci_hdrc) is HS-only
-             * (no companion/TT), so it rejects a full-speed device at attach.
-             * The gadget is a coherent HS device — 512-byte bulk + a valid
-             * device_qualifier (see tests/mcxn-usb-hs) — so HS attaches cleanly
-             * and the kernel finalizes enumeration. */
+            /*
+             * Run + device mode: a device appears on the bus.  High-speed:
+             * the ChipIdea is HS silicon and a real EHCI host (ci_hdrc) is
+             * HS-only (no companion/TT), so it rejects a full-speed device
+             * at attach.  The gadget is a coherent HS device — 512-byte bulk
+             * + a valid device_qualifier (see tests/mcxn-usb-hs) — so HS
+             * attaches cleanly and the kernel finalizes enumeration.
+             */
             s->enabled = true;
             s->next_sof_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) +
                              SOF_PERIOD_NS;
@@ -657,48 +675,54 @@ static const MemoryRegionOps usbhs_core_ops = {
 };
 
 /*
- * ⚠ THE CORE CAME UP AS memset(0), AND ZERO IS A LEGAL, MEANINGFUL, WRONG VALUE ON
- *   HALF OF THESE.  RM reset values, derived -- never invented.
+ * ⚠ THE CORE CAME UP AS memset(0), AND ZERO IS A LEGAL, MEANINGFUL, WRONG
+ *   VALUE ON HALF OF THESE.  RM reset values, derived -- never invented.
  *
  * ☠ PORTSC1 IS THE ONE THAT MATTERS.  RM reset = 0x1C00_0004:
  *
- *      PE   (bit 2)      = 1   "In Device mode: the device port is always enabled"
- *      PSPD (bits 27:26) = 3   UNDEFINED   (00=Full  01=Low  10=High  11=Undefined)
+ *      PE   (bit 2)      = 1   "In Device mode: the device port is always
+ *      enabled"
+ *      PSPD (bits 27:26) = 3   UNDEFINED
+ *      (00=Full  01=Low  10=High  11=Undefined)
  *      PTW  (bit 28)     = 1   16-bit UTMI
  *
- *   We returned ZERO.  On PSPD, zero does not mean "no answer" -- IT MEANS FULL SPEED.
+ *   We returned ZERO.  On PSPD, zero does not mean "no answer" -- IT MEANS
+ *   FULL SPEED.
  *
- *     ⭐ A DRIVER ASKING A HIGH-SPEED CONTROLLER "WHAT SPEED DID I ENUMERATE AT?" GOT
- *       BACK A CONFIDENT "FULL SPEED", AND WOULD HAVE SIZED ITS ENDPOINTS FOR 64-BYTE
- *       PACKETS INSTEAD OF 512.
+ *     ⭐ A DRIVER ASKING A HIGH-SPEED CONTROLLER "WHAT SPEED DID I ENUMERATE
+ *       AT?" GOT BACK A CONFIDENT "FULL SPEED", AND WOULD HAVE SIZED ITS
+ *       ENDPOINTS FOR 64-BYTE PACKETS INSTEAD OF 512.
  *
- *   ⭐ AND THE RM'S RESET VALUE IS *MORE HONEST THAN OUR ZERO*: it says UNDEFINED --
- *     "the speed is not known yet" -- where we said "Full Speed", which is an answer.
- *     A ZERO IS NOT THE ABSENCE OF A CLAIM.  ON AN ENCODED FIELD IT IS WHICHEVER CLAIM
- *     HAPPENS TO BE ENCODED AS ZERO.
+ *   ⭐ AND THE RM'S RESET VALUE IS *MORE HONEST THAN OUR ZERO*: it says
+ *     UNDEFINED -- "the speed is not known yet" -- where we said "Full
+ *     Speed", which is an answer.  A ZERO IS NOT THE ABSENCE OF A CLAIM.  ON
+ *     AN ENCODED FIELD IT IS WHICHEVER CLAIM HAPPENS TO BE ENCODED AS ZERO.
  *
- *   PSPD is a STATUS field, so it does not stay at its reset value: it FOLLOWS the port.
- *   See the read handler -- undefined until the controller runs, then the speed we
- *   actually operate at.  (A config register's reset value is a FACT; a status
- *   register's is a DESCRIPTION OF A STATE, and copying it into a model that is not in
- *   that state is a fabrication.)
+ *   PSPD is a STATUS field, so it does not stay at its reset value: it
+ *   FOLLOWS the port.  See the read handler -- undefined until the
+ *   controller runs, then the speed we actually operate at.  (A config
+ *   register's reset value is a FACT; a status register's is a DESCRIPTION
+ *   OF A STATE, and copying it into a model that is not in that state is a
+ *   fabrication.)
  *
- * The rest are CONFIG registers the vendor driver READ-MODIFY-WRITES, so our zeros were
- * being laundered into the guest's own state (93emulator's class):
+ * The rest are CONFIG registers the vendor driver READ-MODIFY-WRITES, so
+ * our zeros were being laundered into the guest's own state (93emulator's
+ * class):
  *
- *      USBCMD  ITC = 8      -- interrupt threshold; our 0 = "interrupt immediately"
+ *      USBCMD  ITC = 8      -- interrupt threshold; our 0 = "interrupt
+ *      immediately"
  *      BURSTSIZE   = 0x0808 -- TX/RX burst of 8; our 0 = a zero-length burst
  *      SBUSCFG     = 2      -- AHB burst config
  *      CONFIGFLAG  CF = 1   -- port routed to this controller
  *      USBMODE     = 0x5000
  */
 static const struct { uint16_t off; uint32_t val; } usbhs_core_reset_vals[] = {
-    { 0x090, 0x00000002u },   /* SBUSCFG                                        */
-    { 0x140, 0x00080000u },   /* USBCMD      ITC = 8                            */
-    { 0x160, 0x00000808u },   /* BURSTSIZE   TX/RX burst = 8                    */
-    { 0x180, 0x00000001u },   /* CONFIGFLAG  CF = 1                             */
-    { 0x184, 0x1C000004u },   /* PORTSC1     PE=1, PSPD=Undefined, PTW=16-bit   */
-    { 0x1A8, 0x00005000u },   /* USBMODE                                        */
+    { 0x090, 0x00000002u },   /* SBUSCFG */
+    { 0x140, 0x00080000u },   /* USBCMD      ITC = 8 */
+    { 0x160, 0x00000808u },   /* BURSTSIZE   TX/RX burst = 8 */
+    { 0x180, 0x00000001u },   /* CONFIGFLAG  CF = 1 */
+    { 0x184, 0x1C000004u },   /* PORTSC1     PE=1, PSPD=Undefined, PTW=16-bit */
+    { 0x1A8, 0x00005000u },   /* USBMODE */
 };
 
 static void usbhs_core_reset(DeviceState *dev)
@@ -709,7 +733,8 @@ static void usbhs_core_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     for (rv = 0; rv < (int)ARRAY_SIZE(usbhs_core_reset_vals); rv++) {
-        s->regs[usbhs_core_reset_vals[rv].off / 4] = usbhs_core_reset_vals[rv].val;
+        s->regs[usbhs_core_reset_vals[rv].off / 4] =
+            usbhs_core_reset_vals[rv].val;
     }
     s->regs[HS_ENDPTCTRL0 / 4] = HS_ENDPTCTRL0_RESET;
     memset(s->ep, 0, sizeof(s->ep));
@@ -796,13 +821,15 @@ static void usbhs_nc_reset(DeviceState *dev)
     MCXNUSBHSNcState *s = MCXN_USBHS_NC(dev);
 
     /*
-     * USBNC (the non-core wrapper) RM reset values.  Derived from the manual, never
-     * invented.  These are mostly reserved/undocumented bits -- but a zero is still a
-     * CLAIM, and the vendor driver read-modify-writes CTRL1 (wakeup enables), so our
-     * zeros were being laundered into the guest's own state.  Nothing in this model
-     * READS them, which is precisely what made them safe to get wrong for so long:
+     * USBNC (the non-core wrapper) RM reset values.  Derived from the
+     * manual, never invented.  These are mostly reserved/undocumented bits
+     * -- but a zero is still a CLAIM, and the vendor driver read-modify-writes
+     * CTRL1 (wakeup enables), so our zeros were being laundered into the
+     * guest's own state.  Nothing in this model READS them, which is
+     * precisely what made them safe to get wrong for so long:
      *
-     *   ⭐ A DEAD REGISTER HAS NO BUGS -- UNTIL YOU FIX SOMETHING DOWNSTREAM OF IT.
+     *   ⭐ A DEAD REGISTER HAS NO BUGS -- UNTIL YOU FIX SOMETHING DOWNSTREAM
+     *      OF IT.
      *     (91emulator, who watched exactly this detonate two blocks over.)
      */
     memset(s->regs, 0, sizeof(s->regs));

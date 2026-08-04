@@ -19,7 +19,7 @@
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
 
-/* --- Register offsets ------------------------------------------------------ */
+/* --- Register offsets ----------------------------------------------------- */
 #define EMVSIM_VER_ID      0x00  /* RO */
 #define EMVSIM_PARAM       0x04  /* RO */
 #define EMVSIM_CLKCFG      0x08
@@ -40,20 +40,20 @@
 #define EMVSIM_GPCNT0_VAL  0x44
 #define EMVSIM_GPCNT1_VAL  0x48
 
-/* --- TX_STATUS bit masks (CMSIS) ------------------------------------------- */
+/* --- TX_STATUS bit masks (CMSIS) ------------------------------------------ */
 #define TX_STATUS_TFE   0x00000008u  /* TX FIFO empty */
 #define TX_STATUS_ETCF  0x00000010u  /* early transmit complete flag, W1C */
 #define TX_STATUS_TCF   0x00000020u  /* transmit complete flag, W1C */
 #define TX_STATUS_TFF   0x00000040u  /* TX FIFO full */
-#define TX_STATUS_TDTF  0x00000080u  /* TX data transfer flag (threshold), W1C */
+#define TX_STATUS_TDTF  0x00000080u /* TX data transfer flag (threshold), W1C */
 #define TX_STATUS_W1C   0x000003FFu  /* TNTE..GPCNT1_TO are all W1C */
 
-/* --- RX_STATUS bit masks (CMSIS) ------------------------------------------- */
+/* --- RX_STATUS bit masks (CMSIS) ------------------------------------------ */
 #define RX_STATUS_RX_DATA  0x00000010u  /* receiver has data */
 #define RX_STATUS_RDTF     0x00000020u  /* rx data threshold, W1C */
 #define RX_STATUS_W1C      0x00003FE1u  /* RFO + RDTF..FEF are W1C */
 
-/* --- INT_MASK bit masks (CMSIS); per RM, 0 = enabled, 1 = masked ----------- */
+/* --- INT_MASK bit masks (CMSIS); per RM, 0 = enabled, 1 = masked ---------- */
 #define INT_MASK_RDT_IM     0x00000001u  /* gates RX_STATUS.RDTF      */
 #define INT_MASK_TC_IM      0x00000002u  /* gates TX_STATUS.TCF       */
 #define INT_MASK_ETC_IM     0x00000008u  /* gates TX_STATUS.ETCF      */
@@ -67,12 +67,14 @@
  * word I use when I mean FABRICATED.  Firmware can size buffers off PARAM, so a
  * made-up depth is a silent-wrong-answer generator, not a cosmetic detail.
  *
- * PARAM: from the RM rev 7 reset value (§69.7.1.3) — bit 12 and bit 4 set, and
- * the fields are TX_FIFO_DEPTH[15:8] / RX_FIFO_DEPTH[7:0], so both depths read
- * 16 bytes.  It was 0x0404 (4/4) here, a number that appears NOWHERE in the RM.
+ * PARAM: from the RM rev 7 reset value (§69.7.1.3) — bit 12 and bit 4 set,
+ * and the fields are TX_FIFO_DEPTH[15:8] / RX_FIFO_DEPTH[7:0], so both depths
+ * read 16 bytes.  It was 0x0404 (4/4) here, a number that appears NOWHERE in
+ * the RM.
  *
- * ⚠ The RM contradicts ITSELF: the EMVSIM feature list says "transmit FIFO of 8
- * words ... receive FIFO of 8 words", while this register's reset value says 16.
+ * ⚠ The RM contradicts ITSELF: the EMVSIM feature list says "transmit FIFO
+ * of 8 words ... receive FIFO of 8 words", while this register's reset value
+ * says 16.
  * We report what the REGISTER says, because that is the value silicon hands
  * firmware and the one a driver would size against — and we disclose the
  * conflict here rather than silently picking a side.  If anyone gets real MCX N
@@ -82,8 +84,8 @@
 
 /*
  * VER_ID: the RM does NOT publish this.  Its reset row is all zeros and the
- * field text offers only "example: 01.00" — so there is no authoritative value
- * to model, and 0x00000100 was pure invention on my part.  We return the
+ * field text offers only "example: 01.00" — so there is no authoritative
+ * value to model, and 0x00000100 was pure invention on my part.  We return the
  * documented reset (0) and TELL THE OPERATOR when firmware consumes it, rather
  * than shipping a version number that looks real enough to be gated on.  A
  * stated gap beats a plausible lie.
@@ -131,10 +133,12 @@ static uint64_t mcxn_emvsim_read(void *opaque, hwaddr offset, unsigned size)
 
     switch (offset) {
     case EMVSIM_VER_ID:
-        /* Not published by the RM (see above).  If firmware gates on it, the
+        /*
+         * Not published by the RM (see above).  If firmware gates on it, the
          * operator needs to know the value it is gating on is not authoritative
-         * — we cannot fault the guest through an identity register, but we can
-         * refuse to let this pass silently. */
+         * — we cannot fault the guest through an identity register, but we
+         * can refuse to let this pass silently.
+         */
         qemu_log_mask(LOG_UNIMP, "mcxn-emvsim: firmware read VER_ID, which the "
                       "MCX N RM does not publish; returning 0. Any version gate "
                       "on this value is NOT trustworthy.\n");
@@ -220,19 +224,22 @@ static void mcxn_emvsim_reset(DeviceState *dev)
     memset(s->regs, 0, sizeof(s->regs));
 
     /*
-     * RM reset values (register-summary column, §69.7).  memset(0) was wrong for
-     * nine registers -- and INT_MASK is FUNCTIONAL, not cosmetic: the IRQ update
-     * reads it (0 = enabled, 1 = masked), so 0-at-reset had every EMVSIM interrupt
-     * ENABLED out of reset while silicon masks them all -- a status bit set at
-     * reset would fire an IRQ the silicon never would.  PCSR[SPDIM] and the wait/
-     * threshold/divisor defaults are the values firmware reads before it configures
-     * the block; zero is a plausible-but-wrong answer for each.
+     * RM reset values (register-summary column, §69.7).  memset(0) was wrong
+     * for nine registers -- and INT_MASK is FUNCTIONAL, not cosmetic: the IRQ
+     * update reads it (0 = enabled, 1 = masked), so 0-at-reset had every
+     * EMVSIM interrupt ENABLED out of reset while silicon masks them all -- a
+     * status bit set at reset would fire an IRQ the silicon never would.
+     * PCSR[SPDIM] and the wait/threshold/divisor defaults are the values
+     * firmware reads before it configures the block; zero is a
+     * plausible-but-wrong answer for each.
      */
     s->regs[EMVSIM_DIVISOR / 4]    = 0x00000174u;
-    s->regs[EMVSIM_INT_MASK / 4]   = 0x0000FFFFu;   /* all interrupts MASKED (0 = enabled) */
+    /* all interrupts MASKED (0 = enabled) */
+    s->regs[EMVSIM_INT_MASK / 4]   = 0x0000FFFFu;
     s->regs[EMVSIM_RX_THD / 4]     = 0x00000001u;
     s->regs[EMVSIM_TX_THD / 4]     = 0x0000000Fu;
-    s->regs[EMVSIM_PCSR / 4]       = 0x01000000u;   /* SPDIM: presence-detect IRQ masked */
+    /* SPDIM: presence-detect IRQ masked */
+    s->regs[EMVSIM_PCSR / 4]       = 0x01000000u;
     s->regs[EMVSIM_CWT_VAL / 4]    = 0x0000FFFFu;
     s->regs[EMVSIM_BWT_VAL / 4]    = 0xFFFFFFFFu;
     s->regs[EMVSIM_GPCNT0_VAL / 4] = 0x0000FFFFu;

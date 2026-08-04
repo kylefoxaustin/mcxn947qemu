@@ -28,19 +28,20 @@
  *         switch (SYSCON->OSTIMERCLKSEL) {
  *             case 0U: freq = CLOCK_GetClk16KFreq(...);  break;   -- 16 000 Hz
  *             case 1U: freq = CLOCK_GetOsc32KFreq(...);  break;   -- 32 768 Hz
- *             case 2U: freq = CLOCK_GetClk1MFreq();      break;   --  1 000 000 Hz
+ *             case 2U: freq = CLOCK_GetClk1MFreq();  break;   --  1 000 000 Hz
  *             default: freq = 0U;                        break;   -- NO CLOCK
  *         }
  *     }
  *
- * OSTIMERCLKSEL RESETS TO 3, i.e. DEFAULT, i.e. NO CLOCK SELECTED.  A timer with no
- * clock DOES NOT RUN, and saying so is the whole point: the model used to hardcode
- * 1 MHz and ignore this register completely, so a guest selecting the 16 kHz source
- * got a timer 62x too fast and nothing said a word.
+ * OSTIMERCLKSEL RESETS TO 3, i.e. DEFAULT, i.e. NO CLOCK SELECTED.  A timer
+ * with no clock DOES NOT RUN, and saying so is the whole point: the model
+ * used to hardcode 1 MHz and ignore this register completely, so a guest
+ * selecting the 16 kHz source got a timer 62x too fast and nothing said a
+ * word.
  *
- * 16000 and 1000000 are the SDK's own constants, not ours.  32768 is the FRDM board's
- * crystal.  Sources we do not model resolve to 0 Hz -- HONESTLY STOPPED, never
- * silently defaulted.
+ * 16000 and 1000000 are the SDK's own constants, not ours.  32768 is the
+ * FRDM board's crystal.  Sources we do not model resolve to 0 Hz -- HONESTLY
+ * STOPPED, never silently defaulted.
  */
 #define SYSCON_OSTIMERCLKSEL  0x5E0
 #define CLK16K_HZ    16000u      /* fsl_clock.c: CLOCK_GetClk16KFreq() */
@@ -48,19 +49,22 @@
 #define CLK1M_HZ     1000000u    /* fsl_clock.c: CLOCK_GetClk1MFreq() */
 
 /*
- * CTIMERCLKSEL[5] @0x26C (step 4) and CTIMERCLKDIV[5] @0x3D0 (step 4), from CMSIS.
+ * CTIMERCLKSEL[5] @0x26C (step 4) and CTIMERCLKDIV[5] @0x3D0 (step 4), from
+ * CMSIS.
  *
- * ⚠ THESE ADDRESSES WERE READ OUT OF THE HEADER, NOT REMEMBERED.  Probing this bug I
- * first typed 0x40000570 and 0x40004000 from memory -- both WRONG -- and got a
- * confident, plausible, completely bogus measurement out of it.  A number you cannot
- * explain is not evidence.  GO AND READ THE ADDRESS.
+ * ⚠ THESE ADDRESSES WERE READ OUT OF THE HEADER, NOT REMEMBERED.  Probing
+ * this bug I first typed 0x40000570 and 0x40004000 from memory -- both WRONG
+ * -- and got a confident, plausible, completely bogus measurement out of it.
+ * A number you cannot explain is not evidence.  GO AND READ THE ADDRESS.
  */
 #define SYSCON_SCTCLKSEL      0x2F0   /* CMSIS SYSCON_Type */
 #define SYSCON_SCTCLKDIV      0x3B4
 #define SYSCON_CTIMERCLKSEL0  0x26C
 #define SYSCON_CTIMERCLKDIV0  0x3D0
-#define SYSCON_PLL1CLK0DIV    0x3E4   /* PLL1 clock-0 divider (CTIMER sel 2 / SCT sel 4) */
-#define SYSCON_AHBCLKDIV      0x380   /* System (AHB/bus) clock divider: busclk = main/(N+1) */
+/* PLL1 clock-0 divider (CTIMER sel 2 / SCT sel 4) */
+#define SYSCON_PLL1CLK0DIV    0x3E4
+/* System (AHB/bus) clock divider: busclk = main/(N+1) */
+#define SYSCON_AHBCLKDIV      0x380
 #define SYSCON_SAI0CLKSEL     0x880
 #define SYSCON_SAI1CLKSEL     0x884
 #define SYSCON_SAI0CLKDIV     0x888
@@ -70,7 +74,10 @@
 #define CLKDIV_DIV_MASK       0xFFu
 #define CLKDIV_HALT           (1u << 30)
 
-/* PLL1 output after its PLL1CLK0DIV divider (the divided PLL1 the CTIMER/SCT muxes see). */
+/*
+ * PLL1 output after its PLL1CLK0DIV divider (the divided PLL1 the CTIMER/SCT
+ * muxes see).
+ */
 static uint32_t mcxn_syscon_pll1_div(MCXNSysconState *s)
 {
     uint32_t div = (s->regs[SYSCON_PLL1CLK0DIV / 4] & CLKDIV_DIV_MASK) + 1;
@@ -81,17 +88,19 @@ static uint32_t mcxn_syscon_pll1_div(MCXNSysconState *s)
 /*
  * The CTIMER clock mux, mirroring the SDK's CLOCK_GetCTimerClkFreq() EXACTLY.
  *
- * IT MUST MIRROR IT EXACTLY, AND THAT IS THE WHOLE POINT.  The GUEST computes its
- * clock rate from these same registers and programs its match values from the answer.
- * If our timer ticks at a rate the driver did not compute, EVERY DELAY IT DERIVES IS
- * WRONG BY THAT RATIO, silently.  And it was: CTIMER ignored this selector entirely
- * and ran at sysclk, so firmware told "you are on FRO_HF at 48 MHz" got a timer
- * running at 150 MHz -- measured, with SysTick: 12011 ticks where the SDK's own
- * arithmetic expects 150000.
+ * IT MUST MIRROR IT EXACTLY, AND THAT IS THE WHOLE POINT.  The GUEST
+ * computes its clock rate from these same registers and programs its match
+ * values from the answer.  If our timer ticks at a rate the driver did not
+ * compute, EVERY DELAY IT DERIVES IS WRONG BY THAT RATIO, silently.  And it
+ * was: CTIMER ignored this selector entirely and ran at sysclk, so firmware
+ * told "you are on FRO_HF at 48 MHz" got a timer running at 150 MHz --
+ * measured, with SysTick: 12011 ticks where the SDK's own arithmetic expects
+ * 150000.
  *
- * Sources we can derive EXACTLY are derived.  The rest (PLL0/PLL1/SAI/...) are NOT
- * GUESSED: they resolve to 0 Hz and say so, loudly, once.  A stopped timer is a bug
- * you find in an hour; a timer running at a plausible wrong rate ships.
+ * Sources we can derive EXACTLY are derived.  The rest (PLL0/PLL1/SAI/...)
+ * are NOT GUESSED: they resolve to 0 Hz and say so, loudly, once.  A stopped
+ * timer is a bug you find in an hour; a timer running at a plausible wrong
+ * rate ships.
  */
 static uint32_t mcxn_syscon_ctimer_src(MCXNSysconState *s, int n)
 {
@@ -99,15 +108,17 @@ static uint32_t mcxn_syscon_ctimer_src(MCXNSysconState *s, int n)
 
     switch (sel) {
     case 0:  return CLK1M_HZ;                       /* CLOCK_GetClk1MFreq()  */
-    case 1:  return clock_get_hz(s->apll_in);       /* CLOCK_GetPll0OutFreq()          */
-    case 2:  return mcxn_syscon_pll1_div(s);        /* CLOCK_GetPll1OutFreq()/PLL1CLK0DIV */
+    case 1:  return clock_get_hz(s->apll_in);       /* CLOCK_GetPll0OutFreq() */
+    /* CLOCK_GetPll1OutFreq()/PLL1CLK0DIV */
+    case 2:  return mcxn_syscon_pll1_div(s);
     case 3:  return clock_get_hz(s->frohf_in);      /* CLOCK_GetFroHfFreq()  */
     case 4:  return clock_get_hz(s->fro12m_in);     /* CLOCK_GetFro12MFreq() */
     case 7:  return 0;                              /* none selected (reset) */
     default:
         qemu_log_mask(LOG_UNIMP,
             "mcxn-syscon: CTIMER%d clock source %u (SAI/LPOSC) is not "
-            "modelled.  Reporting 0 Hz -- THE TIMER WILL NOT RUN -- rather than "
+            "modelled.  Reporting 0 Hz -- THE TIMER WILL NOT RUN -- "
+            "rather than "
             "substituting a plausible rate, which would make every delay this "
             "driver computes silently wrong.\n", n, sel);
         return 0;
@@ -115,37 +126,42 @@ static uint32_t mcxn_syscon_ctimer_src(MCXNSysconState *s, int n)
 }
 
 /*
- * The SCT clock mux, mirroring CLOCK_GetSctClkFreq() (fsl_clock.c).  Every stock
- * example does CLOCK_AttachClk(kFRO_HF_to_SCT) -- selector 3, FRO_HF, 48 MHz -- and we
- * ticked the SCT at 150 MHz: 3.1x TOO FAST.
+ * The SCT clock mux, mirroring CLOCK_GetSctClkFreq() (fsl_clock.c).  Every
+ * stock example does CLOCK_AttachClk(kFRO_HF_to_SCT) -- selector 3, FRO_HF,
+ * 48 MHz -- and we ticked the SCT at 150 MHz: 3.1x TOO FAST.
  */
 static uint32_t mcxn_syscon_sct_src(MCXNSysconState *s)
 {
     uint32_t sel = s->regs[SYSCON_SCTCLKSEL / 4] & 0x7u;
 
     switch (sel) {
-    case 1:  return clock_get_hz(s->apll_in);       /* CLOCK_GetPll0OutFreq()          */
+    case 1:  return clock_get_hz(s->apll_in);       /* CLOCK_GetPll0OutFreq() */
     case 3:  return clock_get_hz(s->frohf_in);      /* CLOCK_GetFroHfFreq() */
-    case 4:  return mcxn_syscon_pll1_div(s);        /* CLOCK_GetPll1OutFreq()/PLL1CLK0DIV */
+    /* CLOCK_GetPll1OutFreq()/PLL1CLK0DIV */
+    case 4:  return mcxn_syscon_pll1_div(s);
     case 0:
     case 7:  return 0;                              /* no source selected */
     default:
         qemu_log_mask(LOG_UNIMP,
             "mcxn-syscon: SCT clock source %u (ExtClk/SAI) is not modelled. "
-            "Reporting 0 Hz -- THE SCT WILL NOT RUN -- rather than substituting a "
-            "plausible rate, which would make every period it produces silently "
+            "Reporting 0 Hz -- THE SCT WILL NOT RUN -- rather than "
+            "substituting a "
+            "plausible rate, which would make every period it produces "
+            "silently "
             "wrong.\n", sel);
         return 0;
     }
 }
 
 /*
- * The SAI function-clock (MCLK) mux, mirroring CLOCK_GetSaiClkFreq() (fsl_clock.c):
+ * The SAI function-clock (MCLK) mux, mirroring CLOCK_GetSaiClkFreq()
+ * (fsl_clock.c):
  *   1 = PLL0, 2 = ExtClk, 3 = FRO_HF, 4 = PLL1 / (PLL1CLK0DIV + 1).
- * The audio-friendly 12.288 MHz MCLK the old model hardcoded is one CONFIGURATION of this
- * (firmware sets PLL1 to an audio multiple and points SAI0CLKSEL at it); the model now
- * DERIVES whatever the guest selects.  ExtClk (an off-chip codec crystal) is a real source
- * but its rate is a board seam -- reported only if SOSC is enabled.  Unmodelled sources
+ * The audio-friendly 12.288 MHz MCLK the old model hardcoded is one
+ * CONFIGURATION of this (firmware sets PLL1 to an audio multiple and points
+ * SAI0CLKSEL at it); the model now DERIVES whatever the guest selects.
+ * ExtClk (an off-chip codec crystal) is a real source but its rate is a
+ * board seam -- reported only if SOSC is enabled.  Unmodelled sources
  * (SAI MCLK-in loopbacks) report 0 loudly rather than a plausible wrong rate.
  */
 static uint32_t mcxn_syscon_sai_src(MCXNSysconState *s, int n)
@@ -154,15 +170,18 @@ static uint32_t mcxn_syscon_sai_src(MCXNSysconState *s, int n)
     uint32_t sel = s->regs[off / 4] & 0x7u;
 
     switch (sel) {
-    case 1:  return clock_get_hz(s->apll_in);       /* CLOCK_GetPll0OutFreq()          */
-    case 3:  return clock_get_hz(s->frohf_in);      /* CLOCK_GetFroHfFreq()            */
-    case 4:  return mcxn_syscon_pll1_div(s);        /* CLOCK_GetPll1OutFreq()/PLL1CLK0DIV */
+    case 1:  return clock_get_hz(s->apll_in);       /* CLOCK_GetPll0OutFreq() */
+    case 3:  return clock_get_hz(s->frohf_in);      /* CLOCK_GetFroHfFreq() */
+    /* CLOCK_GetPll1OutFreq()/PLL1CLK0DIV */
+    case 4:  return mcxn_syscon_pll1_div(s);
     case 0:
-    case 7:  return 0;                              /* no source selected              */
+    case 7:  return 0;                              /* no source selected */
     default:
         qemu_log_mask(LOG_UNIMP,
-            "mcxn-syscon: SAI%d clock source %u (ExtClk/other) is not modelled. "
-            "Reporting 0 Hz -- THE SAI HAS NO MCLK -- rather than a plausible wrong rate.\n",
+            "mcxn-syscon: SAI%d clock source %u (ExtClk/other) is not "
+            "modelled. "
+            "Reporting 0 Hz -- THE SAI HAS NO MCLK -- rather than a "
+            "plausible wrong rate.\n",
             n, sel);
         return 0;
     }
@@ -229,10 +248,11 @@ static void mcxn_syscon_update_clocks(MCXNSysconState *s)
     }
 
     /*
-     * The AHB/bus clock = main clock / (AHBCLKDIV + 1).  This feeds the M33 core (cpuclk/
-     * refclk), the MRT and the FlexPWM -- the blocks that run on the raw bus clock.  It
-     * FOLLOWS both the main clock (PLL reconfigure) and an AHBCLKDIV write.  AHBCLKDIV resets
-     * to 0 (divide-by-1), so out of reset busclk == mainclk.
+     * The AHB/bus clock = main clock / (AHBCLKDIV + 1).  This feeds the M33
+     * core (cpuclk/refclk), the MRT and the FlexPWM -- the blocks that run on
+     * the raw bus clock.  It FOLLOWS both the main clock (PLL reconfigure) and
+     * an AHBCLKDIV write.  AHBCLKDIV resets to 0 (divide-by-1), so out of
+     * reset busclk == mainclk.
      */
     {
         uint32_t ahbdiv = (s->regs[SYSCON_AHBCLKDIV / 4] & CLKDIV_DIV_MASK) + 1;
@@ -243,7 +263,7 @@ static void mcxn_syscon_update_clocks(MCXNSysconState *s)
 #include "hw/core/cpu.h"
 #include "target/arm/cpu.h"
 
-/* --- SYSCON register offsets (CMSIS) --------------------------------------- */
+/* --- SYSCON register offsets (CMSIS) ------------------------------------- */
 #define SYSCON_CPUCTRL  0x800   /* CPU Control for Multiple Processors */
 #define SYSCON_CPBOOT   0x804   /* Coprocessor (CPU1) Boot Address     */
 #define SYSCON_CPSTAT   0x808   /* CPU Status                          */
@@ -268,7 +288,7 @@ static inline bool in_range(hwaddr off, uint32_t base, uint32_t count)
     return off >= base && off < base + 4 * count;
 }
 
-/* --- CPUCTRL fields (CMSIS) ------------------------------------------------ */
+/* --- CPUCTRL fields (CMSIS) ---------------------------------------------- */
 #define CPUCTRL_CPU1CLKEN  (1u << 3)   /* SYSCON_CPUCTRL_CPU1CLKEN_MASK 0x8  */
 #define CPUCTRL_CPU1RSTEN  (1u << 5)   /* SYSCON_CPUCTRL_CPU1RSTEN_MASK 0x20 */
 
@@ -356,19 +376,23 @@ static void mcxn_syscon_write(void *opaque, hwaddr offset, uint64_t value,
 
     /* SET/CLR alias registers reflect into their value register. */
     if (in_range(offset, SYSCON_PRESETCTRLSET, SYSCON_CTRL_COUNT)) {
-        s->regs[(SYSCON_PRESETCTRL0 / 4) + (offset - SYSCON_PRESETCTRLSET) / 4] |= v;
+        s->regs[(SYSCON_PRESETCTRL0 / 4) +
+                (offset - SYSCON_PRESETCTRLSET) / 4] |= v;
         return;
     }
     if (in_range(offset, SYSCON_PRESETCTRLCLR, SYSCON_CTRL_COUNT)) {
-        s->regs[(SYSCON_PRESETCTRL0 / 4) + (offset - SYSCON_PRESETCTRLCLR) / 4] &= ~v;
+        s->regs[(SYSCON_PRESETCTRL0 / 4) +
+                (offset - SYSCON_PRESETCTRLCLR) / 4] &= ~v;
         return;
     }
     if (in_range(offset, SYSCON_AHBCLKCTRLSET, SYSCON_CTRL_COUNT)) {
-        s->regs[(SYSCON_AHBCLKCTRL0 / 4) + (offset - SYSCON_AHBCLKCTRLSET) / 4] |= v;
+        s->regs[(SYSCON_AHBCLKCTRL0 / 4) +
+                (offset - SYSCON_AHBCLKCTRLSET) / 4] |= v;
         return;
     }
     if (in_range(offset, SYSCON_AHBCLKCTRLCLR, SYSCON_CTRL_COUNT)) {
-        s->regs[(SYSCON_AHBCLKCTRL0 / 4) + (offset - SYSCON_AHBCLKCTRLCLR) / 4] &= ~v;
+        s->regs[(SYSCON_AHBCLKCTRL0 / 4) +
+                (offset - SYSCON_AHBCLKCTRLCLR) / 4] &= ~v;
         return;
     }
 
@@ -413,11 +437,12 @@ static const MemoryRegionOps mcxn_syscon_ops = {
 /*
  * SYSCON reset values, TAKEN FROM THE RM'S REGISTER MAP.
  *
- * ⚠ A CLOCK SELECTOR THAT RESETS TO 0 IS NOT "UNCONFIGURED" -- IT NAMES A REAL
- * SOURCE, AND THE SDK WILL HAND OUT ITS FREQUENCY.
+ * ⚠ A CLOCK SELECTOR THAT RESETS TO 0 IS NOT "UNCONFIGURED" -- IT NAMES A
+ * REAL SOURCE, AND THE SDK WILL HAND OUT ITS FREQUENCY.
  *
- * Every *CLKSEL resets to 7, which means NO SOURCE SELECTED, and every *CLKDIV
- * resets with bit 30 (HALT) SET.  We reset them all to zero, and the SDK reads them:
+ * Every *CLKSEL resets to 7, which means NO SOURCE SELECTED, and every
+ * *CLKDIV resets with bit 30 (HALT) SET.  We reset them all to zero, and the
+ * SDK reads them:
  *
  *     uint32_t CLOCK_GetCTimerClkFreq(uint32_t id) {
  *         switch (SYSCON->CTIMERCLKSEL[id]) {
@@ -429,17 +454,18 @@ static const MemoryRegionOps mcxn_syscon_ops = {
  *     }
  *
  * So a guest that asks for the clock of a CTimer/WDT/OSTIMER/MICFIL it never
- * configured gets, on silicon, 0 Hz -- and its driver asserts or bails, AND THE
- * DEVELOPER FINDS OUT.  On this model it got a PLAUSIBLE, WRONG, NON-ZERO frequency
- * (1 MHz, 16 kHz, 12 MHz), computed a bogus divider from it, and RAN THE TIMER AT
- * THE WRONG RATE, SILENTLY.
+ * configured gets, on silicon, 0 Hz -- and its driver asserts or bails, AND
+ * THE DEVELOPER FINDS OUT.  On this model it got a PLAUSIBLE, WRONG, NON-ZERO
+ * frequency (1 MHz, 16 kHz, 12 MHz), computed a bogus divider from it, and
+ * RAN THE TIMER AT THE WRONG RATE, SILENTLY.
  *
- * That is worse than the SIRCCSR bug that started this audit.  THAT one hard-faulted,
- * which is loud.  THIS one returns a confident wrong number.
+ * That is worse than the SIRCCSR bug that started this audit.  THAT one
+ * hard-faulted, which is loud.  THIS one returns a confident wrong number.
  *
- * CPUCTRL (reset 0x28 = CPU1CLKEN | CPU1RSTEN: clocked, but held in reset) also
- * mattered: firmware that only does `CPUCTRL &= ~CPU1RSTEN`, relying on CLKEN being
- * SET OUT OF RESET as it is on silicon, WOULD NEVER HAVE STARTED CPU1 here.
+ * CPUCTRL (reset 0x28 = CPU1CLKEN | CPU1RSTEN: clocked, but held in reset)
+ * also mattered: firmware that only does `CPUCTRL &= ~CPU1RSTEN`, relying on
+ * CLKEN being SET OUT OF RESET as it is on silicon, WOULD NEVER HAVE STARTED
+ * CPU1 here.
  *
  * Generated from the reference manual by the same extractor that backs
  * tests/mcxn-reset-values, so it cannot drift into invention.
@@ -528,26 +554,28 @@ static void mcxn_syscon_reset(DeviceState *dev)
     }
 
     /*
-     * CTIMERCLKSEL's RESET VALUE IS "u" -- UNDEFINED -- IN THE RM.  (Its reset column
-     * literally says "See section", and the section's diagram shows u bits.  The
-     * extractor behind tests/mcxn-reset-values SKIPPED this register rather than
-     * invent a value for it, which is exactly what it should have done.)
+     * CTIMERCLKSEL's RESET VALUE IS "u" -- UNDEFINED -- IN THE RM.  (Its
+     * reset column literally says "See section", and the section's diagram
+     * shows u bits.  The extractor behind tests/mcxn-reset-values SKIPPED
+     * this register rather than invent a value for it, which is exactly what
+     * it should have done.)
      *
      * So this is a CHOICE, not a lookup, and the guardrail decides it:
      *
      *   reset to 0 (= clk1M)  -> firmware that FORGETS CLOCK_AttachClk() gets a
      *                            working timer HERE and undefined behaviour on
-     *                            SILICON.  MORE PERMISSIVE THAN THE PART: the bug
-     *                            passes here and ships.
+     *                            SILICON.  MORE PERMISSIVE THAN THE PART:
+     *                            the bug passes here and ships.
      *   reset to 7 (= "No clock", the RM's own encoding: "111b - No clock")
-     *                         -> that firmware gets a STOPPED TIMER, immediately,
-     *                            loudly, and fixes it in an hour.
+     *                         -> that firmware gets a STOPPED TIMER,
+     *                            immediately, loudly, and fixes it in an hour.
      *
-     *     ⭐ WHERE SILICON IS UNDEFINED, PICK THE VALUE THAT EXPOSES THE GUEST'S
-     *        MISTAKE, NOT THE ONE THAT HIDES IT.
+     *     ⭐ WHERE SILICON IS UNDEFINED, PICK THE VALUE THAT EXPOSES THE
+     *        GUEST'S MISTAKE, NOT THE ONE THAT HIDES IT.
      *
-     * Every stock example calls CLOCK_AttachClk(kFRO_HF_to_CTIMERn) before using a
-     * CTIMER.  Firmware that does not is relying on a value the RM does not promise.
+     * Every stock example calls CLOCK_AttachClk(kFRO_HF_to_CTIMERn) before
+     * using a CTIMER.  Firmware that does not is relying on a value the RM
+     * does not promise.
      */
     for (i = 0; i < CTIMER_COUNT; i++) {
         s->regs[(SYSCON_CTIMERCLKSEL0 / 4) + i] = 7;   /* "No clock" */
@@ -555,9 +583,12 @@ static void mcxn_syscon_reset(DeviceState *dev)
 
     mcxn_syscon_update_clocks(s);   /* OSTIMERCLKSEL resets to 3 = NO CLOCK */
 
-    /* CPUCTRL lives in its own field (the CPU1 release path reads it), so the table
-     * above cannot reach it.  CPU1CLKEN|CPU1RSTEN = clocked but held in reset, which
-     * still evaluates to want_run == false.  See the comment above. */
+    /*
+     * CPUCTRL lives in its own field (the CPU1 release path reads it), so the
+     * table above cannot reach it.  CPU1CLKEN|CPU1RSTEN = clocked but held in
+     * reset, which still evaluates to want_run == false.  See the comment
+     * above.
+     */
     s->cpuctrl = 0x28;
     s->cpboot = 0;
     s->cpu1_running = false;
@@ -605,9 +636,11 @@ static const VMStateDescription vmstate_mcxn_syscon = {
     },
 };
 
-/* cpu1 is added as a settable link in instance_init (see there), not a DEFINE_PROP_LINK,
- * so the SoC can set it AFTER SYSCON realizes -- required to break the busclk<->cpu1
- * ordering cycle. */
+/*
+ * cpu1 is added as a settable link in instance_init (see there), not a
+ * DEFINE_PROP_LINK, so the SoC can set it AFTER SYSCON realizes -- required
+ * to break the busclk<->cpu1 ordering cycle.
+ */
 
 static void mcxn_syscon_class_init(ObjectClass *klass, const void *data)
 {
@@ -618,7 +651,10 @@ static void mcxn_syscon_class_init(ObjectClass *klass, const void *data)
     dc->vmsd = &vmstate_mcxn_syscon;
 }
 
-/* A source clock's rate changed upstream in SCG -- re-derive every peripheral's. */
+/*
+ * A source clock's rate changed upstream in SCG -- re-derive every
+ * peripheral's.
+ */
 static void mcxn_syscon_src_changed(void *opaque, ClockEvent event)
 {
     mcxn_syscon_update_clocks(MCXN_SYSCON(opaque));
@@ -630,9 +666,10 @@ static void mcxn_syscon_init(Object *obj)
 
     /*
      * Clock INPUTS must exist before anything can connect to them, so they are
-     * created here in instance_init -- not in realize.  (And the connect itself must
-     * happen BEFORE the target is realized: qdev_connect_clock_in() asserts
-     * !dev->realized, the MIRROR IMAGE of the GPIO rule.)
+     * created here in instance_init -- not in realize.  (And the connect
+     * itself must happen BEFORE the target is realized:
+     * qdev_connect_clock_in() asserts !dev->realized, the MIRROR IMAGE of the
+     * GPIO rule.)
      */
     s->fro12m_in = qdev_init_clock_in(DEVICE(obj), "fro12m",
                                       mcxn_syscon_src_changed, s, ClockUpdate);
@@ -642,8 +679,11 @@ static void mcxn_syscon_init(Object *obj)
                                       mcxn_syscon_src_changed, s, ClockUpdate);
     s->spll_in   = qdev_init_clock_in(DEVICE(obj), "spll",
                                       mcxn_syscon_src_changed, s, ClockUpdate);
-    /* The SCG main clock -- divided by AHBCLKDIV into busclk.  A main-clock change (PLL
-     * reconfigure) must re-derive busclk, so it carries the same update callback. */
+    /*
+     * The SCG main clock -- divided by AHBCLKDIV into busclk.  A main-clock
+     * change (PLL reconfigure) must re-derive busclk, so it carries the same
+     * update callback.
+     */
     s->mainclk_in = qdev_init_clock_in(DEVICE(obj), "mainclk",
                                        mcxn_syscon_src_changed, s, ClockUpdate);
 }

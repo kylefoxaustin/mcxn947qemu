@@ -5,11 +5,13 @@
  *   - mcxn-usbhs-phydcd  @ 0x4010A800, window 0x800: the USBHS1 PHY/DCD region
  *     (CMSIS USBHSDCD_Type, charger-detect-like; modelled as a permissive
  *     readback array sized to the full window).
- *   - mcxn-usbhs-core    @ 0x4010B000, window 0x200: the EHCI-style controller
- *     (CMSIS USBHS_Type).  USBCMD.RST self-clears, USBSTS reflects HCHalted,
+ *   - mcxn-usbhs-core    @ 0x4010B000, window 0x200: the EHCI-style
+ *     controller (CMSIS USBHS_Type).  USBCMD.RST self-clears, USBSTS
+ *     reflects HCHalted,
  *     and the ID/HCSPARAMS/HCCPARAMS/CAPLENGTH capability registers are RO.
- *   - mcxn-usbhs-nc      @ 0x4010B200, window 0xE00: the non-core control region
- *     (CMSIS USBNC_Type; permissive readback array sized to the full window).
+ *   - mcxn-usbhs-nc      @ 0x4010B200, window 0xE00: the non-core control
+ *     region (CMSIS USBNC_Type; permissive readback array sized to the
+ *     full window).
  *
  * Offsets/bits from the MCXN947 CMSIS header.
  *
@@ -66,7 +68,8 @@ struct MCXNUSBHSCoreState {
 
     MCXNUsbDevState *usbdev;        /* shared usbredir device core (link)    */
     QEMUTimer   *sof;               /* token-retry backstop tick             */
-    int64_t     next_sof_ns;        /* deadline: the frame rate must not drift */
+    /* deadline: the frame rate must not drift */
+    int64_t     next_sof_ns;
     bool         enabled;           /* RS + device mode seen                 */
     bool         ep0_status_in;     /* drain a zero-length status-IN dTD     */
     MCXNUSBHSXfer ep[MCXN_USBHS_NEP];

@@ -17,8 +17,10 @@
 #include "hw/core/irq.h"
 #include "migration/vmstate.h"
 
-/* Register offsets (CMSIS RTC_Type).  16-bit registers except the 32-bit
- * subsecond and wake-timer registers above 0x800. */
+/*
+ * Register offsets (CMSIS RTC_Type).  16-bit registers except the 32-bit
+ * subsecond and wake-timer registers above 0x800.
+ */
 #define R_YEARMON      0x00   /* 16-bit */
 #define R_DAYS         0x02   /* 16-bit */
 #define R_HOURMIN      0x04   /* 16-bit */
@@ -76,8 +78,10 @@ static bool mcxn_rtc_is_16bit(hwaddr offset)
 
 static void mcxn_rtc_update_irq(MCXNRTCState *s)
 {
-    /* ISR (0x14) and IER (0x16) are two 16-bit registers sharing one 32-bit
-     * backing word: ISR is the low half, IER the high half. */
+    /*
+     * ISR (0x14) and IER (0x16) are two 16-bit registers sharing one 32-bit
+     * backing word: ISR is the low half, IER the high half.
+     */
     uint32_t word = s->regs[R_ISR / 4];
     uint16_t isr = word & 0xFFFF;
     uint16_t ier = (word >> 16) & 0xFFFF;
@@ -135,17 +139,23 @@ static void mcxn_rtc_tick(void *opaque)
 
     s->regs[R_ISR / 4] |= ISR_IS_1HZ;
 
-    if ((rtc_get16(s, R_SECONDS) & SEC_MASK) == (rtc_get16(s, R_ALM_SECONDS) & SEC_MASK) &&
-        (rtc_get16(s, R_HOURMIN) & HM_MASK)  == (rtc_get16(s, R_ALM_HOURMIN) & HM_MASK) &&
-        (rtc_get16(s, R_DAYS) & DAY_MASK)    == (rtc_get16(s, R_ALM_DAYS) & DAY_MASK) &&
-        (rtc_get16(s, R_YEARMON) & MON_MASK) == (rtc_get16(s, R_ALM_YEARMON) & MON_MASK)) {
+    if ((rtc_get16(s, R_SECONDS) & SEC_MASK) ==
+            (rtc_get16(s, R_ALM_SECONDS) & SEC_MASK) &&
+        (rtc_get16(s, R_HOURMIN) & HM_MASK) ==
+            (rtc_get16(s, R_ALM_HOURMIN) & HM_MASK) &&
+        (rtc_get16(s, R_DAYS) & DAY_MASK) ==
+            (rtc_get16(s, R_ALM_DAYS) & DAY_MASK) &&
+        (rtc_get16(s, R_YEARMON) & MON_MASK) ==
+            (rtc_get16(s, R_ALM_YEARMON) & MON_MASK)) {
         s->regs[R_ISR / 4] |= ISR_ALM_IS;
     }
 
     mcxn_rtc_update_irq(s);
-    /* Re-arm from the previous DEADLINE, never from "now".  Re-adding the
+    /*
+     * Re-arm from the previous DEADLINE, never from "now".  Re-adding the
      * callback's dispatch latency every second makes the error accumulate: a
-     * real-time clock that drifts is the one thing an RTC must never be. */
+     * real-time clock that drifts is the one thing an RTC must never be.
+     */
     s->next_tick_ns += NANOSECONDS_PER_SECOND;
     timer_mod(&s->tick, s->next_tick_ns);
 }
@@ -155,9 +165,11 @@ static uint64_t mcxn_rtc_read(void *opaque, hwaddr offset, unsigned size)
     MCXNRTCState *s = MCXN_RTC(opaque);
     uint32_t word = s->regs[offset / 4];
 
-    /* Two adjacent 16-bit registers share one 32-bit backing word.  Return
+    /*
+     * Two adjacent 16-bit registers share one 32-bit backing word.  Return
      * the correct half for a 16-bit access; a 32-bit access returns the
-     * whole word. */
+     * whole word.
+     */
     if (mcxn_rtc_is_16bit(offset) && size <= 2) {
         if (offset & 2) {
             return (word >> 16) & 0xFFFF;
@@ -187,8 +199,10 @@ static void mcxn_rtc_write(void *opaque, hwaddr offset, uint64_t value,
             }
             break;
         case R_STATUS:
-            /* WE (write-enable) is modelled permissively: keep what software
-             * sets so the lock/unlock dance reads back as expected. */
+            /*
+             * WE (write-enable) is modelled permissively: keep what software
+             * sets so the lock/unlock dance reads back as expected.
+             */
             break;
         case R_ISR:
             /* Write-1-to-clear flag bits. */
@@ -242,14 +256,18 @@ static const struct { uint16_t off; uint8_t width; uint32_t val; } rst_tbl[] = {
     { 0x002, 16, 0x00000001u },   /* DAYS */
 };
 
-/* regs[] is a WORD array and not every register is 32 bits: a 16-bit register at an odd
- * halfword offset SHARES ITS WORD with its neighbour, so a plain regs[off/4] = val
- * CLOBBERS THE NEIGHBOUR.  Write into the correct byte lane. */
-static void mcxn_rtc_set_reset(uint32_t *regs, uint16_t off, uint8_t width, uint32_t val)
+/*
+ * regs[] is a WORD array and not every register is 32 bits: a 16-bit register
+ * at an odd halfword offset SHARES ITS WORD with its neighbour, so a plain
+ * regs[off/4] = val CLOBBERS THE NEIGHBOUR.  Write into the correct byte lane.
+ */
+static void mcxn_rtc_set_reset(uint32_t *regs, uint16_t off, uint8_t width,
+                               uint32_t val)
 {
     uint32_t *word = &regs[off / 4];
     int shift = (off & 3) * 8;
-    uint32_t mask = (width == 8) ? 0xFFu : (width == 16) ? 0xFFFFu : 0xFFFFFFFFu;
+    uint32_t mask = (width == 8) ? 0xFFu :
+                    (width == 16) ? 0xFFFFu : 0xFFFFFFFFu;
 
     *word = (*word & ~(mask << shift)) | ((val & mask) << shift);
 }
@@ -261,7 +279,8 @@ static void mcxn_rtc_reset(DeviceState *dev)
 
     memset(s->regs, 0, sizeof(s->regs));
     for (rst_i = 0; rst_i < (int)ARRAY_SIZE(rst_tbl); rst_i++) {
-        mcxn_rtc_set_reset(s->regs, rst_tbl[rst_i].off, rst_tbl[rst_i].width, rst_tbl[rst_i].val);
+        mcxn_rtc_set_reset(s->regs, rst_tbl[rst_i].off,
+                           rst_tbl[rst_i].width, rst_tbl[rst_i].val);
     }
     qemu_set_irq(s->irq, 0);
 }

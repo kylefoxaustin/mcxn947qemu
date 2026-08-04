@@ -35,11 +35,17 @@
 #define MCR_STOP(n)  (1u << (3 * (n) + 2))
 #define MCR_ANY(n)   (MCR_INT(n) | MCR_RST(n) | MCR_STOP(n))
 
-/* CCR packs 3 bits per capture channel: RE (capture on rising), FE (falling), I (interrupt). */
+/*
+ * CCR packs 3 bits per capture channel: RE (capture on rising), FE
+ * (falling), I (interrupt).
+ */
 #define CCR_CAP0RE   (1u << 0)
 #define CCR_CAP0FE   (1u << 1)
 #define CCR_CAP0I    (1u << 2)
-/* IR capture flags: CR0INT..CR3INT at bits 4..7 (match flags MR0..3 are 0..3). */
+/*
+ * IR capture flags: CR0INT..CR3INT at bits 4..7 (match flags MR0..3 are
+ * 0..3).
+ */
 #define IR_CR0INT    (1u << 4)
 
 static bool ctimer_running(MCXNCTimerState *s)
@@ -53,17 +59,18 @@ static uint32_t ctimer_freq(MCXNCTimerState *s)
      * ⚠ THIS USED TO BE:  return hz ? hz : 150000000;
      *                     -- "fallback if the clock tree isn't driven"
      *
-     * The clock tree WAS not driven, so the fallback fired always and the CTIMER ran
-     * at sysclk regardless of SYSCON[CTIMERCLKSEL].  Real firmware does
-     * CLOCK_AttachClk(kFRO_HF_to_CTIMER0), computes its match values from
-     * CLOCK_GetCTimerClkFreq() = 48 MHz, and we ticked it at 150 MHz -- EVERY CTIMER
-     * DELAY 3.1x TOO SHORT, silently.  Measured with SysTick before the fix: 12011
-     * ticks where the SDK's own arithmetic expects 150000.
+     * The clock tree WAS not driven, so the fallback fired always and the
+     * CTIMER ran at sysclk regardless of SYSCON[CTIMERCLKSEL].  Real firmware
+     * does CLOCK_AttachClk(kFRO_HF_to_CTIMER0), computes its match values from
+     * CLOCK_GetCTimerClkFreq() = 48 MHz, and we ticked it at 150 MHz -- EVERY
+     * CTIMER DELAY 3.1x TOO SHORT, silently.  Measured with SysTick before the
+     * fix: 12011 ticks where the SDK's own arithmetic expects 150000.
      *
-     * THE FALLBACK WAS THE CAMOUFLAGE, and it even said so in its own comment: it
-     * announced that the clock tree might not be driven, and then quietly made that
-     * fact invisible.  There is no default now.  0 Hz means NO CLOCK SELECTED (which
-     * is CTIMERCLKSEL's reset state) and a timer with no clock DOES NOT RUN.
+     * THE FALLBACK WAS THE CAMOUFLAGE, and it even said so in its own comment:
+     * it announced that the clock tree might not be driven, and then quietly
+     * made that fact invisible.  There is no default now.  0 Hz means NO CLOCK
+     * SELECTED (which is CTIMERCLKSEL's reset state) and a timer with no clock
+     * DOES NOT RUN.
      */
     return s->clk ? clock_get_hz(s->clk) : 0;
 }
@@ -140,8 +147,10 @@ static void ctimer_tick(void *opaque)
 
     ctimer_sync(s, now);
 
-    /* The soonest active match is the one firing now; snap TC to it exactly to
-     * avoid sub-tick rounding error. */
+    /*
+     * The soonest active match is the one firing now; snap TC to it exactly to
+     * avoid sub-tick rounding error.
+     */
     for (n = 0; n < 4; n++) {
         uint64_t dtc;
 
@@ -173,23 +182,26 @@ static void ctimer_tick(void *opaque)
                 }
                 /*
                  * Match 0 and match 1 each drive an eDMA request line (CMSIS
-                 * CTIMER{k} M0/M1).  The match event itself raises the request --
-                 * the CTIMER has no DMA-enable bit of its own; INPUTMUX gates it
-                 * (modelled in the eDMA as req_enabled[]).  It is a one-shot PULSE:
-                 * one match, one minor loop.  (A match that ONLY drives DMA with no
-                 * MCR action is not scheduled by this model -- but a DMA-pacing timer
-                 * is periodic, i.e. sets MCR_RST, so it lands here.) */
+                 * CTIMER{k} M0/M1).  The match event itself raises the request
+                 * -- the CTIMER has no DMA-enable bit of its own; INPUTMUX
+                 * gates it (modelled in the eDMA as req_enabled[]).  It is a
+                 * one-shot PULSE: one match, one minor loop.  (A match that
+                 * ONLY drives DMA with no MCR action is not scheduled by this
+                 * model -- but a DMA-pacing timer is periodic, i.e. sets
+                 * MCR_RST, so it lands here.)
+                 */
                 if (n < 2) {
                     qemu_irq_pulse(s->dma_req[n]);
                 }
                 /*
-                 * Every match also emits a one-shot trigger EVENT that INPUTMUX can
-                 * route to an ADCn_TRIG selector (kINPUTMUX_Ctimer{k}M3ToAdc0Trigger
-                 * = selector 5+k in NXP's driver).  This is the "sample the ADC on a
-                 * timer match" path: a periodic match (MCR[MRnR] set) paces conversions
-                 * with zero CPU involvement -- exactly like the DMA request above, but
-                 * feeding the ADC's HTEN-gated trigger input instead of the eDMA.  It is
-                 * an EDGE, so a pulse: one match, one conversion.
+                 * Every match also emits a one-shot trigger EVENT that INPUTMUX
+                 * can route to an ADCn_TRIG selector
+                 * (kINPUTMUX_Ctimer{k}M3ToAdc0Trigger = selector 5+k in NXP's
+                 * driver).  This is the "sample the ADC on a timer match" path:
+                 * a periodic match (MCR[MRnR] set) paces conversions with zero
+                 * CPU involvement -- exactly like the DMA request above, but
+                 * feeding the ADC's HTEN-gated trigger input instead of the
+                 * eDMA.  It is an EDGE, so a pulse: one match, one conversion.
                  */
                 qemu_irq_pulse(s->match_trig[n]);
             }
@@ -205,19 +217,22 @@ static void ctimer_tick(void *opaque)
 }
 
 /*
- * INPUT CAPTURE on channel 0.  A capture input (a pin, routed via INPUTMUX's CTIMERnCAPm
- * selector) with a CCR-selected edge LATCHES the live timer counter into CR0 -- the
- * "timestamp an external event / measure a pulse width" path.  It was dead: CR0..3 were
- * read-only storage that nothing ever loaded, so a capture driver read a frozen zero.
+ * INPUT CAPTURE on channel 0.  A capture input (a pin, routed via INPUTMUX's
+ * CTIMERnCAPm selector) with a CCR-selected edge LATCHES the live timer counter
+ * into CR0 -- the "timestamp an external event / measure a pulse width" path.
+ * It was dead: CR0..3 were read-only storage that nothing ever loaded, so a
+ * capture driver read a frozen zero.
  *
- * The pin has no signal source in emulation, so its level is OPERATOR-DRIVEN via the
- * "capture-input" QOM property (the same seam as FlexPWM's capture-a-input / the CMP output).
- * CCR[CAP0RE]/[CAP0FE] select which edge captures; CCR[CAP0I] gates the capture interrupt
- * (IR[CR0INT]).  The CR0 load itself happens on the selected edge regardless of CAP0I -- the
- * interrupt is separate from the capture, exactly as on silicon.
+ * The pin has no signal source in emulation, so its level is OPERATOR-DRIVEN
+ * via the "capture-input" QOM property (the same seam as FlexPWM's
+ * capture-a-input / the CMP output).  CCR[CAP0RE]/[CAP0FE] select which edge
+ * captures; CCR[CAP0I] gates the capture interrupt (IR[CR0INT]).  The CR0 load
+ * itself happens on the selected edge regardless of CAP0I -- the interrupt is
+ * separate from the capture, exactly as on silicon.
  *
- * ⚠ Scope, stated: capture channel 0 only (channels 1..3 share the identical per-channel CCR
- * logic but have no injection seam); the counter-input / CTCR edge-count modes are unmodelled.
+ * ⚠ Scope, stated: capture channel 0 only (channels 1..3 share the identical
+ * per-channel CCR logic but have no injection seam); the counter-input / CTCR
+ * edge-count modes are unmodelled.
  */
 static void ctimer_capture0(MCXNCTimerState *s, bool level)
 {
@@ -228,9 +243,10 @@ static void ctimer_capture0(MCXNCTimerState *s, bool level)
 
     s->cap0_level = level;
 
-    if ((rising && (s->ccr & CCR_CAP0RE)) || (falling && (s->ccr & CCR_CAP0FE))) {
+    if ((rising && (s->ccr & CCR_CAP0RE)) ||
+        (falling && (s->ccr & CCR_CAP0FE))) {
         ctimer_peek(s, now, &tc, &pc);       /* the counter value AT the edge */
-        s->cr[0] = tc;                       /* latch it into CR0 (RO to the guest) */
+        s->cr[0] = tc; /* latch it into CR0 (RO to the guest) */
         if (s->ccr & CCR_CAP0I) {
             s->ir |= IR_CR0INT;
             ctimer_update_irq(s);
@@ -377,8 +393,10 @@ static void mcxn_ctimer_init(Object *obj)
     MCXNCTimerState *s = MCXN_CTIMER(obj);
 
     s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
-    /* Operator-driven capture-0 input pin:
-     *   qom-set /machine/soc/ctimer0 capture-input true   */
+    /*
+     * Operator-driven capture-0 input pin:
+     *   qom-set /machine/soc/ctimer0 capture-input true
+     */
     object_property_add_bool(obj, "capture-input",
                              ctimer_get_capture, ctimer_set_capture);
 }
@@ -390,10 +408,16 @@ static void mcxn_ctimer_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &ctimer_ops, s,
                           TYPE_MCXN_CTIMER, 0x1000);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);          /* 0: NVIC match interrupt */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[0]);   /* 1: match-0 eDMA request */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);   /* 2: match-1 eDMA request */
-    /* Per-match trigger EVENT outputs, routed by INPUTMUX to the ADC trigger inputs. */
+    /* 0: NVIC match interrupt */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    /* 1: match-0 eDMA request */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[0]);
+    /* 2: match-1 eDMA request */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);
+    /*
+     * Per-match trigger EVENT outputs, routed by INPUTMUX to the ADC trigger
+     * inputs.
+     */
     qdev_init_gpio_out_named(dev, s->match_trig, "match-trig", 4);
     timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, ctimer_tick, s);
 }

@@ -4,12 +4,12 @@
  * FlexIO is a configurable engine built from shifters, timers and pins.  This
  * model backs the whole register window, returns the read-only VERID/PARAM
  * identification constants from the reference manual, and keeps the status
- * registers (SHIFTSTAT, SHIFTERR, TIMSTAT, TRGSTAT, PINSTAT) at their idle reset
- * value so firmware bring-up never blocks.  The status registers are
+ * registers (SHIFTSTAT, SHIFTERR, TIMSTAT, TRGSTAT, PINSTAT) at their idle
+ * reset value so firmware bring-up never blocks.  The status registers are
  * write-1-to-clear in hardware; writes here clear the addressed bits.
  *
- * CTRL[SWRST] (bit 1) is honoured: writing it re-applies the reset state, and it
- * reads back as 0 (self-clearing) so a software-reset poll completes.
+ * CTRL[SWRST] (bit 1) is honoured: writing it re-applies the reset state, and
+ * it reads back as 0 (self-clearing) so a software-reset poll completes.
  *
  * Offsets from the MCXN947 CMSIS header (FLEXIO_Type); reset values from RM
  * chapter 71 (FlexIO register descriptions).
@@ -78,28 +78,30 @@
 /*
  * FlexIO-as-SPI-master (functional model).
  *
- * FlexIO has no upstream device to drive -- it is a bare shifter/timer/pin fabric whose
- * job is to EMULATE a serial peripheral in software.  Configured as an SPI master (a
- * transmit shifter feeding MOSI, a receive shifter capturing MISO, a timer clocking SCK),
- * it is here made to drive a REAL m25p80 SPI-NOR on an SSI bus: a byte written to a
- * transmit shifter's buffer is shifted onto the bus (ssi_transfer) and the byte shifted in
- * lands in the receive shifter's buffer.  The oracle is the flash's own JEDEC ID / stored
+ * FlexIO has no upstream device to drive -- it is a bare shifter/timer/pin
+ * fabric whose job is to EMULATE a serial peripheral in software.  Configured
+ * as an SPI master (a transmit shifter feeding MOSI, a receive shifter
+ * capturing MISO, a timer clocking SCK), it is here made to drive a REAL
+ * m25p80 SPI-NOR on an SSI bus: a byte written to a transmit shifter's buffer
+ * is shifted onto the bus (ssi_transfer) and the byte shifted in lands in the
+ * receive shifter's buffer.  The oracle is the flash's own JEDEC ID / stored
  * data -- not a loopback echo.
  *
- * ⚠ Scope, stated: the SHIFTER DATAPATH is modelled functionally (one byte per buffer
- * write, MSB/LSB order per the SHIFTBUF vs SHIFTBUFBIS alias), NOT bit-by-bit on the
- * timer's SCK edges -- the timer (TIMCTL/TIMCFG/TIMCMP) configures the transfer but its
- * cycle-level clocking is abstracted, exactly as every serial TX in this tree abstracts
- * the baud generator.  The chip-select is a FlexIO OUTPUT PIN (a board seam: the board
- * wires FlexIO pin FLEXIO_SPI_CS_PIN to the NOR's CS); the guest drives it via the PINOUT
- * registers.  Only the SPI (transmit+receive shifter) configuration is modelled; the
- * UART/I2S/PWM/motor shifter+timer modes are not.
+ * ⚠ Scope, stated: the SHIFTER DATAPATH is modelled functionally (one byte
+ * per buffer write, MSB/LSB order per the SHIFTBUF vs SHIFTBUFBIS alias), NOT
+ * bit-by-bit on the timer's SCK edges -- the timer (TIMCTL/TIMCFG/TIMCMP)
+ * configures the transfer but its cycle-level clocking is abstracted, exactly
+ * as every serial TX in this tree abstracts the baud generator.  The
+ * chip-select is a FlexIO OUTPUT PIN (a board seam: the board wires FlexIO pin
+ * FLEXIO_SPI_CS_PIN to the NOR's CS); the guest drives it via the PINOUT
+ * registers.  Only the SPI (transmit+receive shifter) configuration is
+ * modelled; the UART/I2S/PWM/motor shifter+timer modes are not.
  */
 #define FLEXIO_NSHIFTER      8
 #define SHIFTCTL_SMOD_MASK   0x7u
-#define SHIFTCTL_SMOD_RX     1u   /* receive: capture the shifter into SHIFTBUF   */
-#define SHIFTCTL_SMOD_TX     2u   /* transmit: load SHIFTBUF into the shifter     */
-#define FLEXIO_SPI_CS_PIN    4    /* board seam: FlexIO pin 4 -> NOR chip-select  */
+#define SHIFTCTL_SMOD_RX     1u /* receive: capture the shifter into SHIFTBUF */
+#define SHIFTCTL_SMOD_TX     2u /* transmit: load SHIFTBUF into the shifter */
+#define FLEXIO_SPI_CS_PIN    4 /* board seam: FlexIO pin 4 -> NOR chip-select */
 
 static uint8_t flexio_bitrev8(uint8_t b)
 {
@@ -135,11 +137,13 @@ static int flexio_rx_shifter(MCXNFlexIOState *s)
 }
 
 /*
- * A transmit-shifter buffer write shifts one byte out the SSI bus and captures the byte
- * shifted in.  `bis` = the SHIFTBUFBIS (bit-swapped) alias, the MSB-first form SPI uses;
- * the plain SHIFTBUF alias is LSB-first, so the on-wire byte is bit-reversed.
+ * A transmit-shifter buffer write shifts one byte out the SSI bus and
+ * captures the byte shifted in.  `bis` = the SHIFTBUFBIS (bit-swapped) alias,
+ * the MSB-first form SPI uses; the plain SHIFTBUF alias is LSB-first, so the
+ * on-wire byte is bit-reversed.
  */
-static void mcxn_flexio_spi_tx(MCXNFlexIOState *s, int tx_i, uint32_t value, bool bis)
+static void mcxn_flexio_spi_tx(MCXNFlexIOState *s, int tx_i, uint32_t value,
+                               bool bis)
 {
     uint8_t tx = value & 0xFF;
     int rx_i;
@@ -158,7 +162,10 @@ static void mcxn_flexio_spi_tx(MCXNFlexIOState *s, int tx_i, uint32_t value, boo
     }
     rx_i = flexio_rx_shifter(s);
     if (rx_i >= 0) {
-        /* Deposit in both aliases so a read of either returns the byte in its order. */
+        /*
+         * Deposit in both aliases so a read of either returns the byte in its
+         * order.
+         */
         s->regs[(R_SHIFTBUF + rx_i * 4) / 4] = flexio_bitrev8(rx);
         s->regs[(R_SHIFTBUFBIS + rx_i * 4) / 4] = rx;
         s->regs[R_SHIFTSTAT / 4] |= (1u << rx_i);   /* RX buffer full */
@@ -221,8 +228,11 @@ static uint64_t mcxn_flexio_read(void *opaque, hwaddr off, unsigned size)
     }
     reg = s->regs[idx >> 2];
 
-    /* SHIFTSTAT: a transmit shifter always reports "buffer empty" (room) -- the SDK polls
-     * this before loading the next byte; receive bits are the stored flags set on a byte. */
+    /*
+     * SHIFTSTAT: a transmit shifter always reports "buffer empty" (room) --
+     * the SDK polls this before loading the next byte; receive bits are the
+     * stored flags set on a byte.
+     */
     if (idx == R_SHIFTSTAT) {
         int i;
 
@@ -234,7 +244,10 @@ static uint64_t mcxn_flexio_read(void *opaque, hwaddr off, unsigned size)
         }
     }
 
-    /* Reading a receive shifter's buffer consumes the byte: clear its SHIFTSTAT flag. */
+    /*
+     * Reading a receive shifter's buffer consumes the byte: clear its
+     * SHIFTSTAT flag.
+     */
     if ((idx >= R_SHIFTBUF && idx < R_SHIFTBUF + FLEXIO_NSHIFTER * 4) ||
         (idx >= R_SHIFTBUFBIS && idx < R_SHIFTBUFBIS + FLEXIO_NSHIFTER * 4)) {
         int base = (idx >= R_SHIFTBUFBIS) ? R_SHIFTBUFBIS : R_SHIFTBUF;
@@ -282,8 +295,10 @@ static void mcxn_flexio_write(void *opaque, hwaddr off, uint64_t value,
 
     if (idx == R_CTRL) {
         if (v & FLEXIO_CTRL_SWRST) {
-            /* Software reset: re-apply reset state, then leave SWRST cleared so
-             * a poll on the bit completes. */
+            /*
+             * Software reset: re-apply reset state, then leave SWRST cleared
+             * so a poll on the bit completes.
+             */
             mcxn_flexio_reset(DEVICE(s));
             return;
         }
@@ -291,7 +306,10 @@ static void mcxn_flexio_write(void *opaque, hwaddr off, uint64_t value,
         return;
     }
 
-    /* Pin-output SET/CLR/TOG aliases modify PINOUTD; then re-drive the chip-select. */
+    /*
+     * Pin-output SET/CLR/TOG aliases modify PINOUTD; then re-drive the
+     * chip-select.
+     */
     {
         uint32_t written = (uint32_t)(value << shift) & mask;
 
@@ -318,11 +336,17 @@ static void mcxn_flexio_write(void *opaque, hwaddr off, uint64_t value,
         mcxn_flexio_update_cs(s);
         return;
     }
-    /* A write to a transmit shifter's buffer shifts a byte over the SSI bus (SPI). */
+    /*
+     * A write to a transmit shifter's buffer shifts a byte over the SSI bus
+     * (SPI).
+     */
     if (idx >= R_SHIFTBUF && idx < R_SHIFTBUF + FLEXIO_NSHIFTER * 4) {
-        mcxn_flexio_spi_tx(s, (idx - R_SHIFTBUF) / 4, v, false);   /* LSB-first alias */
-    } else if (idx >= R_SHIFTBUFBIS && idx < R_SHIFTBUFBIS + FLEXIO_NSHIFTER * 4) {
-        mcxn_flexio_spi_tx(s, (idx - R_SHIFTBUFBIS) / 4, v, true); /* MSB-first alias */
+        /* LSB-first alias */
+        mcxn_flexio_spi_tx(s, (idx - R_SHIFTBUF) / 4, v, false);
+    } else if (idx >= R_SHIFTBUFBIS &&
+               idx < R_SHIFTBUFBIS + FLEXIO_NSHIFTER * 4) {
+        /* MSB-first alias */
+        mcxn_flexio_spi_tx(s, (idx - R_SHIFTBUFBIS) / 4, v, true);
     }
 }
 
@@ -343,8 +367,10 @@ static void mcxn_flexio_realize(DeviceState *dev, Error **errp)
     memory_region_init_io(&s->iomem, OBJECT(s), &mcxn_flexio_ops, s,
                           TYPE_MCXN_FLEXIO, MCXN_FLEXIO_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);       /* 0: NVIC interrupt        */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->spi_cs);    /* 1: SPI chip-select (pin) */
+    /* 0: NVIC interrupt */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
+    /* 1: SPI chip-select (pin) */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->spi_cs);
     /* FlexIO-as-SPI: a real SSI bus the SoC attaches an m25p80 NOR to. */
     s->spi_bus = ssi_create_bus(dev, "flexio-spi");
 }

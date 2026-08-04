@@ -3,14 +3,16 @@
  *
  * Models both I3C0 and I3C1 with a single type.  The block has a controller
  * register bank (M-prefixed) and a target register bank (S-prefixed).  Firmware
- * polls FIFO fullness/emptiness and various status bits before transferring; the
- * model seeds every register with the reset value documented in the MCXN947
- * reference manual and pins the FIFO/idle status bits so those polls always
- * complete.  Write-1-to-clear is applied to the error/warning status registers.
+ * polls FIFO fullness/emptiness and various status bits before
+ * transferring; the model seeds every register with the reset value
+ * documented in the MCXN947 reference manual and pins the FIFO/idle
+ * status bits so those polls always complete.  Write-1-to-clear is
+ * applied to the error/warning status registers.
  *
- * Read-only identification registers (SCAPABILITIES, SCAPABILITIES2, SID) return
- * the RM reset constants.  Offsets come from the MCXN947 CMSIS header (I3C_Type);
- * reset values come from RM chapter 72 (I3C register descriptions).
+ * Read-only identification registers (SCAPABILITIES, SCAPABILITIES2,
+ * SID) return the RM reset constants.  Offsets come from the MCXN947
+ * CMSIS header (I3C_Type); reset values come from RM chapter 72 (I3C
+ * register descriptions).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -77,8 +79,9 @@
 /*
  * Reset values from RM chapter 72.  The FIFO-control registers reset with
  * RXEMPTY=1 (bit 31) and TXFULL=0 (bit 30), i.e. receive empty and transmit not
- * full, which is exactly the idle state firmware waits for before it reads or
- * writes data, so they need no special handling beyond keeping those bits stuck.
+ * full, which is exactly the idle state firmware waits for before it
+ * reads or writes data, so they need no special handling beyond
+ * keeping those bits stuck.
  */
 #define I3C_SCONFIG_RST        0x00010000u
 #define I3C_SSTATUS_RST        0x00001400u
@@ -252,17 +255,21 @@ static void mcxn_i3c_write(void *opaque, hwaddr off, uint64_t value,
     cur = s->regs[idx >> 2];
     v = (cur & ~mask) | ((uint32_t)(value << shift) & mask);
 
-    /* Error/warning status registers are write-1-to-clear: only the bits
-     * written as 1 are cleared, the rest are preserved. */
+    /*
+     * Error/warning status registers are write-1-to-clear: only the bits
+     * written as 1 are cleared, the rest are preserved.
+     */
     if (idx == R_SERRWARN || idx == R_MERRWARN) {
         uint32_t w1c = (uint32_t)(value << shift) & mask;
         s->regs[idx >> 2] = cur & ~w1c;
         return;
     }
 
-    /* SSTATUS / MSTATUS carry a mix of W1C flags and live status.  Treat the
+    /*
+     * SSTATUS / MSTATUS carry a mix of W1C flags and live status.  Treat the
      * bits being written as 1 as clears; preserve everything else (including
-     * the idle/state field reset constants). */
+     * the idle/state field reset constants).
+     */
     if (idx == R_SSTATUS || idx == R_MSTATUS) {
         uint32_t w1c = (uint32_t)(value << shift) & mask;
         s->regs[idx >> 2] = cur & ~w1c;
@@ -272,8 +279,10 @@ static void mcxn_i3c_write(void *opaque, hwaddr off, uint64_t value,
         return;
     }
 
-    /* MINTSET is write-1-to-set, MINTCLR write-1-to-clear, of the controller
-     * interrupt-enable mask (held in MINTSET). */
+    /*
+     * MINTSET is write-1-to-set, MINTCLR write-1-to-clear, of the controller
+     * interrupt-enable mask (held in MINTSET).
+     */
     if (idx == R_MINTSET) {
         s->regs[R_MINTSET / 4] |= (uint32_t)(value << shift) & mask;
         mcxn_i3c_update_irq(s);
@@ -305,9 +314,11 @@ static void mcxn_i3c_write(void *opaque, hwaddr off, uint64_t value,
             s->rx_count = s->rx_pos = 0;
 
             if (i2c_start_transfer(s->bus, addr, is_read)) {
-                /* Nobody there: the address was NOT acknowledged.  Saying
+                /*
+                 * Nobody there: the address was NOT acknowledged.  Saying
                  * "complete" here is how a model reports a successful transfer
-                 * to a device that does not exist. */
+                 * to a device that does not exist.
+                 */
                 s->regs[R_MERRWARN / 4] |= I3C_MERRWARN_NACK;
                 s->xfer_active = false;
                 s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE;
@@ -328,7 +339,8 @@ static void mcxn_i3c_write(void *opaque, hwaddr off, uint64_t value,
                     s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_RXPEND;
                 }
             }
-            s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE | I3C_MSTATUS_COMPLETE;
+            s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE |
+                                      I3C_MSTATUS_COMPLETE;
             mcxn_i3c_update_irq(s);
             return;
         }
@@ -338,7 +350,8 @@ static void mcxn_i3c_write(void *opaque, hwaddr off, uint64_t value,
                 i2c_end_transfer(s->bus);
                 s->xfer_active = false;
             }
-            s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE | I3C_MSTATUS_COMPLETE;
+            s->regs[R_MSTATUS / 4] |= I3C_MSTATUS_MCTRLDONE |
+                                      I3C_MSTATUS_COMPLETE;
             mcxn_i3c_update_irq(s);
             return;
 
@@ -402,12 +415,16 @@ static void mcxn_i3c_realize(DeviceState *dev, Error **errp)
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 
-    /* Expose the bus the controller drives.  I3C is I2C-compatible in legacy
+    /*
+     * Expose the bus the controller drives.  I3C is I2C-compatible in legacy
      * mode; the board (or the operator, with -device ...,bus=...) attaches
      * whatever is actually wired to these pins.  The model supplies the BUS, as
-     * the silicon does — it does not invent a device onto it. */
-    /* NULL: QEMU auto-names the bus uniquely per instance (i2c-bus.0, .1), so a
-     * device can be attached to a specific I3C with -device ...,bus=i2c-bus.N */
+     * the silicon does — it does not invent a device onto it.
+     */
+    /*
+     * NULL: QEMU auto-names the bus uniquely per instance (i2c-bus.0, .1), so a
+     * device can be attached to a specific I3C with -device ...,bus=i2c-bus.N
+     */
     s->bus = i2c_init_bus(dev, NULL);
 }
 

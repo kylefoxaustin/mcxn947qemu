@@ -1,13 +1,13 @@
 /*
  * NXP MCX N CTIMER (Standard counter/timer) — functional core.
  *
- * Models the timer counter (TC) with prescale (PR/PC), the four match
- * registers (MR0..3) and their per-match interrupt / reset / stop actions
- * (MCR), and the interrupt flags (IR) driving the NVIC line.  INPUT CAPTURE on
- * channel 0 is functional: an operator-driven capture-input edge (CCR-selected)
- * latches the live counter into CR0 and raises IR[CR0INT].  External match (EMR)
- * and PWM (PWMC/MSR) registers are stored but not yet functional.  Register layout
- * from the MCXN947 CMSIS header (CTIMER_Type).
+ * Models the timer counter (TC) with prescale (PR/PC), the four match registers
+ * (MR0..3) and their per-match interrupt / reset / stop actions (MCR), and the
+ * interrupt flags (IR) driving the NVIC line.  INPUT CAPTURE on channel 0 is
+ * functional: an operator-driven capture-input edge (CCR-selected) latches the
+ * live counter into CR0 and raises IR[CR0INT].  External match (EMR) and PWM
+ * (PWMC/MSR) registers are stored but not yet functional.  Register layout from
+ * the MCXN947 CMSIS header (CTIMER_Type).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -29,8 +29,10 @@ struct MCXNCTimerState {
     /*< public >*/
     MemoryRegion iomem;
     qemu_irq     irq;
-    qemu_irq     dma_req[2];   /* match-0 / match-1 eDMA request (pulse per match) */
-    qemu_irq     match_trig[4]; /* per-match trigger output (INPUTMUX -> ADCn_TRIG) */
+    /* match-0 / match-1 eDMA request (pulse per match) */
+    qemu_irq     dma_req[2];
+    /* per-match trigger output (INPUTMUX -> ADCn_TRIG) */
+    qemu_irq     match_trig[4];
     QEMUTimer    timer;
     Clock       *clk;
 
@@ -47,9 +49,12 @@ struct MCXNCTimerState {
     uint32_t pc;          /* prescale counter   */
     int64_t  base_ns;     /* when tc/pc were last synced */
 
-    /* Operator-driven capture input 0 (the CAP0 pin level), for input capture:
+    /*
+     * Operator-driven capture input 0 (the CAP0 pin level), for input capture:
      * a CCR-selected edge latches the live TC into CR0.  The pin has no signal
-     * source in emulation, so it is driven via the "capture-input" QOM property. */
+     * source in emulation, so it is driven via the "capture-input" QOM
+     * property.
+     */
     bool cap0_level;
 };
 

@@ -6,8 +6,8 @@
  * "instruction" commands to keep an internal counter in range.  A mismatch
  * or timeout would normally raise a fault/reset.  For bring-up we model the
  * register file faithfully but never run the timer, so:
- *   - command registers (START, STOP, RESTART, ADDx, SUBx, ASSERT16, all __O) are
- *     accepted and have no side effect (no fault is ever raised);
+ *   - command registers (START, STOP, RESTART, ADDx, SUBx, ASSERT16, all
+ *     __O) are accepted and have no side effect (no fault is ever raised);
  *   - INSTRUCTION_TIMER / STATUS / STATUS2 are read-only and read back the
  *     benign "idle, no faults" value;
  *   - FLAGS is write-1-to-clear;

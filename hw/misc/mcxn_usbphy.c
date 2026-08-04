@@ -25,10 +25,15 @@
 #define CTRL_CLKGATE    (1u << 30)  /* USBPHY_CTRL_CLKGATE */
 #define CTRL_SFTRST     (1u << 31)  /* USBPHY_CTRL_SFTRST  */
 
-/* VERSION: major 2, minor 0, step 0 — typical for this Sigmatel/NXP PHY IP. */
-/* ⚠ THIS WAS 0x0200_0000 -- A FABRICATED VERSION.  RM: 0x0500_0000.
- *   A made-up ID register is a real bug class: a driver that branches on the IP version
- *   takes a path built for hardware that is not this hardware. */
+/*
+ * VERSION: major 2, minor 0, step 0 — typical for this Sigmatel/NXP PHY IP.
+ */
+/*
+ * ⚠ THIS WAS 0x0200_0000 -- A FABRICATED VERSION.  RM: 0x0500_0000.
+ *   A made-up ID register is a real bug class: a driver that branches on
+ *   the IP version takes a path built for hardware that is not this
+ *   hardware.
+ */
 #define VERSION_VALUE   0x05000000u
 
 /* Registers that carry SET/CLR/TOG aliases (the +4/+8/+C words after base). */
@@ -68,18 +73,20 @@ static uint64_t mcxn_usbphy_read(void *opaque, hwaddr off, unsigned size)
     }
 
     /*
-     * ⚠ THE SET/CLR/TOG ALIASES ARE FOUR VIEWS OF ONE REGISTER, NOT FOUR REGISTERS.
+     * ⚠ THE SET/CLR/TOG ALIASES ARE FOUR VIEWS OF ONE REGISTER, NOT FOUR
+     * REGISTERS.
      *
-     * The WRITE path already knew that (it folds every strobe onto `off & ~0xF`).
-     * The READ path did NOT -- it returned `s->regs[off >> 2]`, so each alias had
-     * its OWN backing word, seeded at reset and then NEVER UPDATED AGAIN.  Write
-     * through CTRL_SET and CTRL moves; read CTRL_SET back and you get the reset
-     * value, frozen, forever.
+     * The WRITE path already knew that (it folds every strobe onto `off &
+     * ~0xF`).  The READ path did NOT -- it returned `s->regs[off >> 2]`, so
+     * each alias had its OWN backing word, seeded at reset and then NEVER
+     * UPDATED AGAIN.  Write through CTRL_SET and CTRL moves; read CTRL_SET
+     * back and you get the reset value, frozen, forever.
      *
-     * Four words of storage for one register, and three of them lie.  91emulator's
-     * ANATOP bug is the mirror image of this one -- theirs swallowed the alias
-     * WRITE, mine froze the alias READ -- and it is the same root cause: the model
-     * disagreed with itself about whether an alias is a view or a register.
+     * Four words of storage for one register, and three of them lie.
+     * 91emulator's ANATOP bug is the mirror image of this one -- theirs
+     * swallowed the alias WRITE, mine froze the alias READ -- and it is the
+     * same root cause: the model disagreed with itself about whether an alias
+     * is a view or a register.
      *
      *     ⭐ AN ALIAS IS A VIEW.  IF ANY ONE PATH TREATS IT AS STORAGE, IT IS
      *        STORAGE -- AND THE OTHER PATHS ARE NOW WRONG ABOUT IT.

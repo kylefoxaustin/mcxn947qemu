@@ -27,10 +27,12 @@ OBJECT_DECLARE_SIMPLE_TYPE(MCXNUSBFSState, MCXN_USBFS)
 #define MCXN_USBFS_NEP  16          /* ENDPT0..15                            */
 #define MCXN_USBFS_MPS  64          /* full-speed max packet size            */
 
-/* Per-endpoint in-flight host request awaiting firmware-armed BD(s).  A single
+/*
+ * Per-endpoint in-flight host request awaiting firmware-armed BD(s).  A single
  * host transfer may span several max-packet BDs, so IN data is accumulated and
  * OUT data is drained across ping-pong banks until the transfer completes (a
- * short/zero packet or the host-requested length is reached). */
+ * short/zero packet or the host-requested length is reached).
+ */
 #define MCXN_USBFS_XFERMAX 1024
 typedef struct MCXNUSBFSXfer {
     bool    in_pending;             /* host wants IN data from this ep       */
@@ -54,18 +56,23 @@ struct MCXNUSBFSState {
 
     MCXNUsbDevState *usbdev;        /* shared usbredir device core (link)    */
     QEMUTimer   *sof;               /* 1 ms SOF / token-retry tick           */
-    int64_t     next_sof_ns;        /* deadline: the frame rate must not drift */
+    /* deadline: the frame rate must not drift */
+    int64_t     next_sof_ns;
 
-    /* HOST mode (CTL[HOSTMODEEN]): the controller drives transactions to a
+    /*
+     * HOST mode (CTL[HOSTMODEEN]): the controller drives transactions to a
      * device ATTACHED on its own usb-bus, instead of being a device on a remote
      * host's bus.  The guest writes TOKEN to launch one transaction; we execute
-     * it against the attached USBDevice via the QEMU USB core. */
+     * it against the attached USBDevice via the QEMU USB core.
+     */
     USBBus      host_bus;
     USBPort     host_port;
     USBPacket   host_pkt;
     bool        host_mode;          /* CTL.HOSTMODEEN seen                   */
     uint8_t     host_buf[MCXN_USBFS_MPS];  /* packet staging buffer          */
-    /* Context of a transaction awaiting async completion (interrupt-IN etc.). */
+    /*
+     * Context of a transaction awaiting async completion (interrupt-IN etc.).
+     */
     uint32_t    host_pend_ba;
     uint32_t    host_pend_bufaddr;
     int         host_pend_ep;

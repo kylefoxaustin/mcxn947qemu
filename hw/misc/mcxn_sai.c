@@ -18,9 +18,9 @@
  *
  * The transmit/receive data and FIFO words are otherwise permissively backed.
  * Offsets and bit masks come from the MCXN947 CMSIS header (I2S_Type).  VERID
- * and PARAM are read-only constants; PARAM's FIFO field is DERIVED from the modelled
- * depth so it cannot drift.  VERID is UNVERIFIED (the RM does not document it) for this
- * SAI revision (firmware does not gate on it).
+ * and PARAM are read-only constants; PARAM's FIFO field is DERIVED from the
+ * modelled depth so it cannot drift.  VERID is UNVERIFIED (the RM does not
+ * document it) for this SAI revision (firmware does not gate on it).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -88,37 +88,48 @@
 #define CSR_STICKY_FLAGS  (CSR_FEF | CSR_SEF | CSR_WSF)
 
 /*
- * ⚠ THESE WERE LABELLED "best-effort".  That word, and its friends "plausible" and
- *   "nominal", are in this tree's guardrails as THE WORDS YOU USE WHEN YOU MEAN
- *   FABRICATED -- and I had written all three, in three different files.
+ * ⚠ THESE WERE LABELLED "best-effort".  That word, and its friends
+ *   "plausible" and "nominal", are in this tree's guardrails as THE WORDS YOU
+ *   USE WHEN YOU MEAN FABRICATED -- and I had written all three, in three
+ *   different files.
  *
- * PARAM's FIFO field turned out to be CORRECT (bits 11:8 = 3 -> 2^3 = 8 words, which is
- * exactly MCXN_SAI_FIFO_DEPTH).  The value was right; the LABEL was the lie, and the fact
- * that it was right was LUCK -- a hand-typed constant sitting next to the real depth,
- * free to drift the moment either changed.
+ * PARAM's FIFO field turned out to be CORRECT (bits 11:8 = 3 -> 2^3 = 8 words,
+ * which is exactly MCXN_SAI_FIFO_DEPTH).  The value was right; the LABEL was
+ * the lie, and the fact that it was right was LUCK -- a hand-typed constant
+ * sitting next to the real depth, free to drift the moment either changed.
  *
- *   ⭐ A CAPABILITY REGISTER THAT IS A CONSTANT CAN DRIFT FROM THE THING IT DESCRIBES.
- *     ONE COMPUTED FROM IT CANNOT.  (The old comment even said "FIFO=32" while encoding 8.
- *     The comment had ALREADY drifted from the value it was describing.)
+ *   ⭐ A CAPABILITY REGISTER THAT IS A CONSTANT CAN DRIFT FROM THE THING IT
+ *     DESCRIBES.  ONE COMPUTED FROM IT CANNOT.  (The old comment even said
+ *     "FIFO=32" while encoding 8.  The comment had ALREADY drifted from the
+ *     value it was describing.)
  *
- * VERID is a different problem and it is NOT fixed here: the RM does not give it, and a
- * version register is exactly where 91emulator found themselves "reaching into the driver
- * to switch off a branch I did not want to implement".  Ours is not doing that -- nothing
- * in the SAI path branches on it -- but it remains UNVERIFIED and is named as such rather
- * than dressed up.
+ * VERID is a different problem and it is NOT fixed here: the RM does not give
+ * it, and a version register is exactly where 91emulator found themselves
+ * "reaching into the driver to switch off a branch I did not want to
+ * implement".  Ours is not doing that -- nothing in the SAI path branches on
+ * it -- but it remains UNVERIFIED and is named as such rather than dressed up.
  */
-#define SAI_FIFO_EXP     3u            /* 2^3 = 8 = MCXN_SAI_FIFO_DEPTH; asserted below */
-#define SAI_VERID_VALUE  0x03010000u   /* ⚠ UNVERIFIED: the RM does not document VERID */
-#define SAI_PARAM_VALUE  ((5u << 16) | (SAI_FIFO_EXP << 8) | 2u)  /* frame=5, FIFO=2^3, 2 chans */
+/* 2^3 = 8 = MCXN_SAI_FIFO_DEPTH; asserted below */
+#define SAI_FIFO_EXP     3u
+/* ⚠ UNVERIFIED: the RM does not document VERID */
+#define SAI_VERID_VALUE  0x03010000u
+/* frame=5, FIFO=2^3, 2 chans */
+#define SAI_PARAM_VALUE  ((5u << 16) | (SAI_FIFO_EXP << 8) | 2u)
 
-/* Assert against the ARRAY, not against another name for its size -- see the long note
- * in hw/char/mcxn_lpuart.c.  `>` because holding more than you advertise is SAFE. */
+/*
+ * Assert against the ARRAY, not against another name for its size -- see the
+ * long note in hw/char/mcxn_lpuart.c.  `>` because holding more than you
+ * advertise is SAFE.
+ */
 QEMU_BUILD_BUG_ON((1u << SAI_FIFO_EXP) >
                   ARRAY_SIZE(((MCXNSAIState *)0)->tx_fifo));
 
-/* TCR2[BCD] (bit 24): 0 = bit clock generated EXTERNALLY (Target mode)
+/*
+ * TCR2[BCD] (bit 24): 0 = bit clock generated EXTERNALLY (Target mode)
  *                     1 = generated INTERNALLY from MCLK (Controller mode)
- * TCR2[BYP] (bit 23): 1 = BYPASS the divider; the bit clock is divide-by-one of MCLK. */
+ * TCR2[BYP] (bit 23): 1 = BYPASS the divider; the bit clock is
+ *                     divide-by-one of MCLK.
+ */
 #define TCR2_BCD     (1u << 24)
 #define TCR2_BYP     (1u << 23)
 
@@ -128,37 +139,40 @@ QEMU_BUILD_BUG_ON((1u << SAI_FIFO_EXP) >
  *
  * ⚠ THE DIVIDER USED TO BE APPLIED UNCONDITIONALLY, AND THAT IS TWO BUGS.
  *
- * ① TCR2[BCD] = 0 IS *TARGET* MODE: THE BIT CLOCK COMES FROM OUTSIDE THE CHIP.
- *    The RM: "0b - Generate externally in Target mode."  On a codec board the wm8962
- *    drives BCLK/LRCLK and the rate is set in the CODEC over I2C -- it is NOT DERIVABLE
- *    FROM ANY SAI REGISTER.  We were dividing MCLK anyway and producing a word rate the
- *    hardware would never have generated.
+ * ① TCR2[BCD] = 0 IS *TARGET* MODE: THE BIT CLOCK COMES FROM OUTSIDE
+ *    THE CHIP.
+ *    The RM: "0b - Generate externally in Target mode."  On a codec board the
+ *    wm8962 drives BCLK/LRCLK and the rate is set in the CODEC over I2C -- it
+ *    is NOT DERIVABLE FROM ANY SAI REGISTER.  We were dividing MCLK anyway and
+ *    producing a word rate the hardware would never have generated.
  *
- *      ⭐ CHECK BCD BEFORE YOU WRITE ONE LINE OF DIVIDER MATH.  IF IT IS 0, THE ANSWER
- *        IS NOT IN THIS DEVICE.                                       (93emulator)
+ *      ⭐ CHECK BCD BEFORE YOU WRITE ONE LINE OF DIVIDER MATH.  IF IT IS 0,
+ *        THE ANSWER IS NOT IN THIS DEVICE.               (93emulator)
  *
- *    93 nearly shipped that exact divider formula as a fix -- correct, RM-cited, and a
- *    FABRICATION on their board, because it agrees with itself at the one rate anyone
- *    tests.  ⭐ A FORMULA THAT IS CORRECT AT THE POINT YOU TESTED IT IS NOT A FORMULA
- *    YOU HAVE TESTED.
+ *    93 nearly shipped that exact divider formula as a fix -- correct,
+ *    RM-cited, and a FABRICATION on their board, because it agrees with itself
+ *    at the one rate anyone tests.  ⭐ A FORMULA THAT IS CORRECT AT THE POINT
+ *    YOU TESTED IT IS NOT A FORMULA YOU HAVE TESTED.
  *
- *    ⚠ AND OUR OWN TEST HAD THE SAME MISUNDERSTANDING: it wrote TCR2 WITHOUT BCD -- i.e.
- *      configured the SAI as a TARGET -- and then asserted the CONTROLLER's divider math.
- *      Both halves of the loop shared the same wrong belief, which is exactly why it was
- *      green.  (95emulator's "my self-test booted three copies of my own tool.")
+ *    ⚠ AND OUR OWN TEST HAD THE SAME MISUNDERSTANDING: it wrote TCR2 WITHOUT
+ *      BCD -- i.e. configured the SAI as a TARGET -- and then asserted the
+ *      CONTROLLER's divider math.  Both halves of the loop shared the same
+ *      wrong belief, which is exactly why it was green.  (95emulator's "my
+ *      self-test booted three copies of my own tool.")
  *
- *    ⇒ STATED GAP: there is no codec model on this board, so in Target mode there is NO
- *      BIT CLOCK AT ALL.  We return 0 -- no transfer -- and say so on the guest-visible
- *      error channel, rather than inventing a clock the board does not have.
- *      NEVER INVENT A PEER.
+ *    ⇒ STATED GAP: there is no codec model on this board, so in Target mode
+ *      there is NO BIT CLOCK AT ALL.  We return 0 -- no transfer -- and say so
+ *      on the guest-visible error channel, rather than inventing a clock the
+ *      board does not have.  NEVER INVENT A PEER.
  *
- * ② TCR2[BYP] = 1 BYPASSES THE DIVIDER ("the internal bit clock is divide-by-one").
+ * ② TCR2[BYP] = 1 BYPASSES THE DIVIDER ("the internal bit clock is
+ *    divide-by-one").
  *    We divided anyway.
  *
  * And the two fallbacks that used to live here -- `if (!bclk) bclk = 1;` and
- * `ns < 100 ? 100 : ns` -- are GONE.  A `?:` is not a safety net; it is a place for a bug
- * to live where no test will ever look.  A clock that is not running must be VISIBLY not
- * running, not floored to a plausible tick.
+ * `ns < 100 ? 100 : ns` -- are GONE.  A `?:` is not a safety net; it is a
+ * place for a bug to live where no test will ever look.  A clock that is not
+ * running must be VISIBLY not running, not floored to a plausible tick.
  */
 static int64_t sai_word_period_ns(MCXNSAIState *s)
 {
@@ -168,10 +182,12 @@ static int64_t sai_word_period_ns(MCXNSAIState *s)
 
     if (!(tcr2 & TCR2_BCD)) {
         qemu_log_mask(LOG_GUEST_ERROR,
-                      "mcxn_sai: TCR2[BCD]=0 (Target mode): the bit clock is generated "
-                      "EXTERNALLY and this board has no codec model -- there is no bit "
-                      "clock, so no data is clocked. Set BCD=1 for Controller mode.\n");
-        return 0;                      /* no clock: the transmitter does not run */
+                      "mcxn_sai: TCR2[BCD]=0 (Target mode): the bit "
+                      "clock is generated EXTERNALLY and this board has "
+                      "no codec model -- there is no bit clock, so no "
+                      "data is clocked. Set BCD=1 for Controller "
+                      "mode.\n");
+        return 0;   /* no clock: the transmitter does not run */
     }
 
     {
@@ -258,9 +274,9 @@ static void mcxn_sai_update_irq(MCXNSAIState *s)
 
 /*
  * One word leaves the transmit FIFO.  If the transmit FIFO is empty while the
- * transmitter is enabled, that is an UNDERRUN — real firmware must keep up, and a
- * model that silently invents a word to send would hide a real-time budget that
- * does not close on hardware.
+ * transmitter is enabled, that is an UNDERRUN — real firmware must keep up,
+ * and a model that silently invents a word to send would hide a real-time
+ * budget that does not close on hardware.
  */
 static void mcxn_sai_word_tick(void *opaque)
 {
@@ -296,26 +312,29 @@ static void mcxn_sai_word_tick(void *opaque)
     }
 
     /*
-     * Re-arm from the DEADLINE: a word clock that re-adds its dispatch latency every
-     * word drifts, and the sample rate is a contract.
+     * Re-arm from the DEADLINE: a word clock that re-adds its dispatch latency
+     * every word drifts, and the sample rate is a contract.
      *
-     * ⚠ AND A PERIOD OF ZERO MUST NOT BE ARMED.  sai_word_period_ns() returns 0 when
-     *   there is NO BIT CLOCK (Target mode, no codec).  `next_word_ns += 0` does not
-     *   advance, so timer_mod() would schedule a deadline already in the past, fire
-     *   immediately, and do it again -- forever.
+     * ⚠ AND A PERIOD OF ZERO MUST NOT BE ARMED.  sai_word_period_ns() returns
+     *   0 when there is NO BIT CLOCK (Target mode, no codec).
+     *   `next_word_ns += 0` does not advance, so timer_mod() would schedule a
+     *   deadline already in the past, fire immediately, and do it again --
+     *   forever.
      *
-     *     ⭐ RETURNING 0 FOR "NO CLOCK" TURNS A DEAD CLOCK INTO AN INFINITE ONE.
+     *     ⭐ RETURNING 0 FOR "NO CLOCK" TURNS A DEAD CLOCK INTO AN INFINITE
+     *       ONE.
      *
-     *   I introduced exactly that while removing a `?:` floor that had been hiding the
-     *   degenerate case.  A clock that is not running must not be running -- not running
-     *   INFINITELY FAST.
+     *   I introduced exactly that while removing a `?:` floor that had been
+     *   hiding the degenerate case.  A clock that is not running must not be
+     *   running -- not running INFINITELY FAST.
      */
     period = sai_word_period_ns(s);
     if (period > 0) {
         s->next_word_ns += period;
         timer_mod(&s->word_timer, s->next_word_ns);
     } else {
-        timer_del(&s->word_timer);      /* no clock: the transmitter does not run */
+        /* no clock: the transmitter does not run */
+        timer_del(&s->word_timer);
     }
     mcxn_sai_update_irq(s);
 }
@@ -365,9 +384,11 @@ static uint64_t mcxn_sai_read(void *opaque, hwaddr off, unsigned size)
         uint32_t word;
 
         if (s->rx_count == 0) {
-            /* Reading an empty receive FIFO is an UNDERRUN.  Flagging it beats
+            /*
+             * Reading an empty receive FIFO is an UNDERRUN.  Flagging it beats
              * handing back a plausible zero the firmware cannot tell from a
-             * genuine sample of silence. */
+             * genuine sample of silence.
+             */
             s->regs[SAI_RCSR >> 2] |= CSR_FEF;
             mcxn_sai_update_irq(s);
             return 0;
@@ -416,7 +437,9 @@ static void mcxn_sai_write(void *opaque, hwaddr off, uint64_t value,
         cur &= ~(val & CSR_FLAGS_W1C);
         /* Control bits (including TE/RE) latch from the write. */
         cur = (cur & CSR_FLAGS_W1C) | (val & ~CSR_FLAGS_W1C);
-        /* Soft-reset bits self-clear immediately, but they DO reset the FIFO. */
+        /*
+         * Soft-reset bits self-clear immediately, but they DO reset the FIFO.
+         */
         if (val & (CSR_SR | CSR_FR)) {
             sai_fifo_reset(s, is_tx, !is_tx);
         }
@@ -428,19 +451,21 @@ static void mcxn_sai_write(void *opaque, hwaddr off, uint64_t value,
 
             if (te && !was_te) {
                 /*
-                 * The bit clock starts: words now leave the FIFO at the rate firmware
-                 * configured.  Anchor the first deadline.
+                 * The bit clock starts: words now leave the FIFO at the rate
+                 * firmware configured.  Anchor the first deadline.
                  *
-                 * ⚠ UNLESS THERE IS NO BIT CLOCK.  In Target mode (TCR2[BCD]=0) the
-                 *   clock comes from an external codec this board does not have, so
-                 *   ENABLING the transmitter starts NOTHING -- exactly as on silicon,
-                 *   where TE with no BCLK clocks no data.  Arming a zero-period timer
-                 *   here would fire it immediately and forever.
+                 * ⚠ UNLESS THERE IS NO BIT CLOCK.  In Target mode
+                 *   (TCR2[BCD]=0) the clock comes from an external codec this
+                 *   board does not have, so ENABLING the transmitter starts
+                 *   NOTHING -- exactly as on silicon, where TE with no BCLK
+                 *   clocks no data.  Arming a zero-period timer here would
+                 *   fire it immediately and forever.
                  */
                 int64_t period = sai_word_period_ns(s);
 
                 if (period > 0) {
-                    s->next_word_ns = qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + period;
+                    s->next_word_ns =
+                        qemu_clock_get_ns(QEMU_CLOCK_VIRTUAL) + period;
                     timer_mod(&s->word_timer, s->next_word_ns);
                 } else {
                     timer_del(&s->word_timer);
@@ -455,9 +480,11 @@ static void mcxn_sai_write(void *opaque, hwaddr off, uint64_t value,
     case SAI_TDR0:
     case SAI_TDR0 + 4:
         if (s->tx_count >= MCXN_SAI_FIFO_DEPTH) {
-            /* Writing a full FIFO OVERRUNS: the word is lost.  Accepting it
+            /*
+             * Writing a full FIFO OVERRUNS: the word is lost.  Accepting it
              * silently is how a model lets firmware push more audio than the
-             * hardware could ever have carried. */
+             * hardware could ever have carried.
+             */
             s->regs[SAI_TCSR >> 2] |= CSR_FEF;
         } else {
             s->tx_fifo[s->tx_count++] = val;
@@ -494,7 +521,10 @@ static void mcxn_sai_init(Object *obj)
 {
     MCXNSAIState *s = MCXN_SAI(obj);
 
-    /* SAI function clock (MCLK) input — the SoC connects it to SYSCON's SAIn-clk. */
+    /*
+     * SAI function clock (MCLK) input — the SoC connects it to SYSCON's
+     * SAIn-clk.
+     */
     s->clk = qdev_init_clock_in(DEVICE(obj), "clk", NULL, NULL, 0);
 }
 
@@ -506,19 +536,20 @@ static void mcxn_sai_realize(DeviceState *dev, Error **errp)
                           TYPE_MCXN_SAI, MCXN_SAI_SIZE);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_tx);   /* -> eDMA src 100 */
-    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_rx);   /* -> eDMA src 99  */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_tx); /* -> eDMA src 100 */
+    sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req_rx); /* -> eDMA src 99  */
 
     timer_init_ns(&s->word_timer, QEMU_CLOCK_VIRTUAL, mcxn_sai_word_tick, s);
 }
 
 static const Property mcxn_sai_props[] = {
     /*
-     * Wire SAI_TXD back to SAI_RXD — the digital equivalent of jumpering the two
-     * pins on the bench, which is how a SAI is exercised on a board with no codec
-     * attached.  This is a BOARD-LEVEL option, not a register: the MCX N SAI has
-     * no loopback bit (the RM gives one to LPUART and to FlexCAN, and none to the
-     * SAI), and inventing one would be fabricating silicon.  Default off.
+     * Wire SAI_TXD back to SAI_RXD — the digital equivalent of jumpering the
+     * two pins on the bench, which is how a SAI is exercised on a board with
+     * no codec attached.  This is a BOARD-LEVEL option, not a register: the
+     * MCX N SAI has no loopback bit (the RM gives one to LPUART and to
+     * FlexCAN, and none to the SAI), and inventing one would be fabricating
+     * silicon.  Default off.
      */
     DEFINE_PROP_BOOL("loopback", MCXNSAIState, loopback, false),
 };
