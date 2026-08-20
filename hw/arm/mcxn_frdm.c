@@ -16,6 +16,7 @@
 #include "hw/core/qdev-clock.h"
 #include "hw/arm/boot.h"
 #include "hw/arm/mcxn_soc.h"
+#include "target/arm/cpu-qom.h"    /* ARM_CPU_TYPE_NAME */
 /* arm_machine_interfaces: target/machine sep */
 #include "hw/arm/machines-qom.h"
 /* rom_ptr (read the loaded image content) */
@@ -163,12 +164,24 @@ static void frdm_mcxn947_init(MachineState *machine)
     }
 }
 
+/*
+ * A fixed dual-Cortex-M33 part: the SoC builds the cores itself, so `-cpu`
+ * is not a knob.  Advertise the one valid type so a stray `-cpu <A-core>`
+ * is rejected with a clean machine-specific error instead of being silently
+ * ignored (and so QEMU never pipes an incompatible core into the cluster).
+ */
+static const char * const frdm_mcxn947_valid_cpu_types[] = {
+    ARM_CPU_TYPE_NAME("cortex-m33"),
+    NULL
+};
+
 static void frdm_mcxn947_machine_class_init(ObjectClass *oc, const void *data)
 {
     MachineClass *mc = MACHINE_CLASS(oc);
 
     mc->desc        = "NXP FRDM-MCXN947 (MCX N947, dual Cortex-M33)";
     mc->init        = frdm_mcxn947_init;
+    mc->valid_cpu_types = frdm_mcxn947_valid_cpu_types;
     /*
      * Fixed dual-M33 part: lock the count so TCG provisions both contexts and
      * -smp can't under/over-provision (cpu0 boots, cpu1 SYSCON-released).

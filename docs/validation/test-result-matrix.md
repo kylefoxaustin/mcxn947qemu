@@ -41,7 +41,7 @@ register-only≈registration/Tier-C.
 | Block | Present | Driver-binds | Class | Tested-by | Result |
 |-------|:---:|:---:|-------|-----------|:---:|
 | cortex-m33-cpu0 | ✓ | ✓ | functional | mcxn-zephyr, mcxn-ztest, mcxn-mcuxpresso | SKIP |
-| cortex-m33-cpu1 | ✓ | ✓ | functional | mcxn-dualcore, mcxn-mailbox | SKIP |
+| cortex-m33-cpu1 | ✓ | ✓ | functional | mcxn-dualcore, mcxn-mailbox, mcxn-reboot | SKIP |
 | wfi-idle | ✓ | ✓ | functional | mcxn-idle | SKIP |
 
 ## Connectivity & data-path peripherals

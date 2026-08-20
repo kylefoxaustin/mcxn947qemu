@@ -22,7 +22,7 @@ meta:
 
 cores:
   - {block: cortex-m33-cpu0, present: true,  driver_binds: true, class: functional, tested_by: [mcxn-zephyr, mcxn-ztest, mcxn-mcuxpresso], result: pass}
-  - {block: cortex-m33-cpu1, present: true,  driver_binds: true, class: functional, tested_by: [mcxn-dualcore, mcxn-mailbox], result: pass}
+  - {block: cortex-m33-cpu1, present: true,  driver_binds: true, class: functional, tested_by: [mcxn-dualcore, mcxn-mailbox, mcxn-reboot], result: pass, note: "cpu1 is SYSCON-released by cpu0 firmware, and the release re-runs on system_reset (mcxn_syscon_reset clears cpu1_running + restores CPUCTRL held-in-reset), so a guest reboot brings BOTH cores back -- proven boot->QMP system_reset->both banners again, mutation-checked (tests/mcxn-reboot). Guards the secondary-core reboot-hang send-blocker class"}
   - {block: wfi-idle,        present: true,  driver_binds: true, class: functional, tested_by: [mcxn-idle], result: pass}
 
 connectivity:
