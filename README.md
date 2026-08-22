@@ -41,8 +41,8 @@ This fork **builds and runs as-is** — a plain clone lands on `mcxn947`.
 
 **1. Clone and build** (host packages under [Building](#building)):
 
-    git clone https://github.com/kylefoxaustin/mcxn947qemu.git
-    cd mcxn947qemu
+    git clone https://github.com/kylefoxaustin/qemu-mcxn947.git
+    cd qemu-mcxn947
     ./configure --target-list=arm-softmmu
     make -j"$(nproc)"                                  # or: ninja -C build qemu-system-arm
     ./build/qemu-system-arm -M help | grep frdm-mcxn947   # -> frdm-mcxn947
