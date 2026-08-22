@@ -758,10 +758,22 @@ static void usbhs_core_realize(DeviceState *dev, Error **errp)
     }
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with an enabled+pending
+ * USBSTS/USBINTR would otherwise land with the line low and the guest's level
+ * IRQ lost.  (Only the core has an interrupt; the phydcd/nc windows have no
+ * output line.) */
+static int usbhs_core_post_load(void *opaque, int version_id)
+{
+    usbhs_core_update_irq(MCXN_USBHS_CORE(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_usbhs_core = {
     .name = TYPE_MCXN_USBHS_CORE,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = usbhs_core_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNUSBHSCoreState,
                              MCXN_USBHS_CORE_SIZE / 4),

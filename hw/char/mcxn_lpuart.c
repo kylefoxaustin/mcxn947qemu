@@ -1353,10 +1353,19 @@ static void mcxn_lpuart_realize(DeviceState *dev, Error **errp)
     }
 }
 
+/* The IRQ/DMA output lines are not part of vmstate; re-drive them from the
+ * restored register state so a migrated device lands with the correct level. */
+static int mcxn_lpuart_post_load(void *opaque, int version_id)
+{
+    mcxn_flexcomm_update_irq(MCXN_LPUART(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_lpuart = {
     .name = TYPE_MCXN_LPUART,
     .version_id = 4,
     .minimum_version_id = 4,
+    .post_load = mcxn_lpuart_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(global, MCXNLPUARTState),
         VMSTATE_UINT32(pincfg, MCXNLPUARTState),

@@ -554,10 +554,20 @@ static const Property mcxn_sai_props[] = {
     DEFINE_PROP_BOOL("loopback", MCXNSAIState, loopback, false),
 };
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with an enabled TCSR/RCSR
+ * flag asserted would otherwise land with the line low. */
+static int mcxn_sai_post_load(void *opaque, int version_id)
+{
+    mcxn_sai_update_irq(MCXN_SAI(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_sai = {
     .name = TYPE_MCXN_SAI,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_sai_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNSAIState, MCXN_SAI_SIZE / 4),
         VMSTATE_END_OF_LIST()

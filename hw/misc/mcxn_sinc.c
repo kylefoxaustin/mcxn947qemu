@@ -646,10 +646,21 @@ static const VMStateDescription vmstate_mcxn_sinc_channel = {
     },
 };
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with an enabled+pending
+ * status would otherwise land with the line low and the guest's level IRQ
+ * lost. */
+static int mcxn_sinc_post_load(void *opaque, int version_id)
+{
+    sinc_update_irq(MCXN_SINC(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_sinc = {
     .name = TYPE_MCXN_SINC,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_sinc_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNSINCState, MCXN_SINC_SIZE / 4),
         VMSTATE_STRUCT_ARRAY(ch, MCXNSINCState, MCXN_SINC_NUM_CH, 1,

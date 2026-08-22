@@ -169,10 +169,20 @@ static void mcxn_gpio_realize(DeviceState *dev, Error **errp)
     qdev_init_gpio_out(dev, s->output, MCXN_GPIO_PINS);
 }
 
+/* Re-drive the output pins from restored register state after migration: the
+ * output lines are not part of vmstate, so a VM migrated with driven outputs
+ * would otherwise land with them low until the guest next wrote PDOR. */
+static int mcxn_gpio_post_load(void *opaque, int version_id)
+{
+    mcxn_gpio_update_outputs(MCXN_GPIO(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_gpio = {
     .name = TYPE_MCXN_GPIO,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_gpio_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(pdor, MCXNGPIOState),
         VMSTATE_UINT32(pddr, MCXNGPIOState),

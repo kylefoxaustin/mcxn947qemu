@@ -349,10 +349,20 @@ static void mcxn_pdm_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with a watermark/error
+ * condition asserted would otherwise land with the line low. */
+static int mcxn_pdm_post_load(void *opaque, int version_id)
+{
+    pdm_update_irq(MCXN_PDM(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_pdm = {
     .name = TYPE_MCXN_PDM,
     .version_id = 3,
     .minimum_version_id = 3,
+    .post_load = mcxn_pdm_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNPDMState, MCXN_PDM_SIZE / 4),
         VMSTATE_UINT32_2DARRAY(fifo, MCXNPDMState, MCXN_PDM_NUM_CH,

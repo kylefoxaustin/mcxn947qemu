@@ -792,10 +792,21 @@ static void mcxn_usbfs_realize(DeviceState *dev, Error **errp)
     usb_packet_init(&s->host_pkt);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with an enabled+pending
+ * ISTAT/ERRSTAT/OTGISTAT would otherwise land with the line low and the guest's
+ * level IRQ lost. */
+static int mcxn_usbfs_post_load(void *opaque, int version_id)
+{
+    usbfs_update_irq(MCXN_USBFS(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_usbfs = {
     .name = TYPE_MCXN_USBFS,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_usbfs_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNUSBFSState, MCXN_USBFS_SIZE / 4),
         VMSTATE_END_OF_LIST()

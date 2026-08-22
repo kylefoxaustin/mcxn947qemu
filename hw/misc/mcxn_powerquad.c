@@ -321,10 +321,20 @@ static void mcxn_powerquad_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with INTRSTAT & INTREN
+ * asserted would otherwise land with the line low. */
+static int mcxn_powerquad_post_load(void *opaque, int version_id)
+{
+    mcxn_powerquad_update_irq(MCXN_POWERQUAD(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_powerquad = {
     .name = TYPE_MCXN_POWERQUAD,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_powerquad_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNPowerQuadState, MCXN_POWERQUAD_SIZE / 4),
         VMSTATE_END_OF_LIST()

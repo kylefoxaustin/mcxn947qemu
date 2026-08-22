@@ -303,10 +303,19 @@ static void mcxn_cmp_realize(DeviceState *dev, Error **errp)
     qdev_init_gpio_in_named(dev, cmp_hw_trigger, "trigger", 1);
 }
 
+/* The IRQ output line is not part of vmstate; re-drive it from the restored
+ * register state so a migrated device lands with the correct level. */
+static int mcxn_cmp_post_load(void *opaque, int version_id)
+{
+    mcxn_cmp_update_irq(MCXN_CMP(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_cmp = {
     .name = TYPE_MCXN_CMP,
     .version_id = 3,
     .minimum_version_id = 3,
+    .post_load = mcxn_cmp_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNCMPState, MCXN_CMP_SIZE / 4),
         VMSTATE_BOOL(cout, MCXNCMPState),

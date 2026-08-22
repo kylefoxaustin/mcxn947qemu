@@ -375,10 +375,19 @@ static void mcxn_flexio_realize(DeviceState *dev, Error **errp)
     s->spi_bus = ssi_create_bus(dev, "flexio-spi");
 }
 
+/* The IRQ output line is not part of vmstate; re-drive it from the restored
+ * register state so a migrated device lands with the correct level. */
+static int mcxn_flexio_post_load(void *opaque, int version_id)
+{
+    mcxn_flexio_update_irq(MCXN_FLEXIO(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_flexio = {
     .name = TYPE_MCXN_FLEXIO,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_flexio_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNFlexIOState, MCXN_FLEXIO_SIZE / 4),
         VMSTATE_END_OF_LIST()

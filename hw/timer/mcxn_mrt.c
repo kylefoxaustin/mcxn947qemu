@@ -235,10 +235,20 @@ static void mcxn_mrt_realize(DeviceState *dev, Error **errp)
     timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, mrt_tick, s);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with an asserted IRQ
+ * would otherwise land with the line low and the guest's level IRQ lost. */
+static int mcxn_mrt_post_load(void *opaque, int version_id)
+{
+    mrt_update_irq(MCXN_MRT(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_mrt = {
     .name = TYPE_MCXN_MRT,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_mrt_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_TIMER(timer, MCXNMRTState),
         VMSTATE_UINT32_ARRAY(intval, MCXNMRTState, MCXN_MRT_CHANNELS),

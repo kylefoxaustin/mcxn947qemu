@@ -574,10 +574,20 @@ static void mcxn_adc_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->dma_req[1]);  /* -> eDMA 22/24 */
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with STAT & IE asserted
+ * would otherwise land with the line low and the guest's level IRQ lost. */
+static int mcxn_adc_post_load(void *opaque, int version_id)
+{
+    mcxn_adc_update_irq(MCXN_ADC(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_adc = {
     .name = TYPE_MCXN_ADC,
     .version_id = 3,
     .minimum_version_id = 3,
+    .post_load = mcxn_adc_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNADCState, MCXN_ADC_SIZE / 4),
         VMSTATE_UINT16_ARRAY(adc_ch, MCXNADCState, MCXN_ADC_CHANNELS),

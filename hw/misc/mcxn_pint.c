@@ -225,10 +225,20 @@ static void mcxn_pint_realize(DeviceState *dev, Error **errp)
     }
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with a pending IST bit
+ * would otherwise land with the line low. */
+static int mcxn_pint_post_load(void *opaque, int version_id)
+{
+    mcxn_pint_update_irq(MCXN_PINT(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_pint = {
     .name = TYPE_MCXN_PINT,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_pint_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNPINTState, MCXN_PINT_SIZE / 4),
         VMSTATE_UINT8(pin_level, MCXNPINTState),

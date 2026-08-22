@@ -608,10 +608,19 @@ static void mcxn_enet_realize(DeviceState *dev, Error **errp)
     qemu_format_nic_info_str(qemu_get_queue(s->nic), s->conf.macaddr.a);
 }
 
+/* The IRQ output line is not part of vmstate; re-drive it from the restored
+ * register state so a migrated device lands with the correct level. */
+static int mcxn_enet_post_load(void *opaque, int version_id)
+{
+    mcxn_enet_update_irq(MCXN_ENET(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_enet = {
     .name = TYPE_MCXN_ENET,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_enet_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNEnetState, MCXN_ENET_SIZE / 4),
         VMSTATE_UINT16_ARRAY(phy, MCXNEnetState, 32),

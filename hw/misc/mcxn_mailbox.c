@@ -142,10 +142,21 @@ static void mcxn_mailbox_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->out[1]);  /* -> cpu1 NVIC[54] */
 }
 
+/* Re-drive the output IRQ lines from restored register state after migration:
+ * the output lines are not part of vmstate, so a VM migrated with a pending
+ * mailbox IRQ would otherwise land with the lines low and the guest's level
+ * IRQ lost. */
+static int mcxn_mailbox_post_load(void *opaque, int version_id)
+{
+    mcxn_mailbox_update_irq(MCXN_MAILBOX(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_mailbox = {
     .name = TYPE_MCXN_MAILBOX,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_mailbox_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(irq, MCXNMailboxState, 2),
         VMSTATE_UINT32(mutex, MCXNMailboxState),

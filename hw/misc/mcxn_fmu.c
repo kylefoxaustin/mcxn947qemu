@@ -472,10 +472,20 @@ static void mcxn_fmu_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with an asserted IRQ
+ * would otherwise land with the line low and the guest's level IRQ lost. */
+static int mcxn_fmu_post_load(void *opaque, int version_id)
+{
+    fmu_update_irq(MCXN_FMU(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_fmu = {
     .name = TYPE_MCXN_FMU,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_fmu_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(fstat, MCXNFMUState),
         VMSTATE_UINT32(fcnfg, MCXNFMUState),

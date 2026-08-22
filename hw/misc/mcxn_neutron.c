@@ -190,10 +190,20 @@ static void mcxn_neutron_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with the error trap
+ * asserted would otherwise land with the line low. */
+static int mcxn_neutron_post_load(void *opaque, int version_id)
+{
+    mcxn_neutron_update_irq(MCXN_NEUTRON(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_neutron = {
     .name = TYPE_MCXN_NEUTRON,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_neutron_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNNeutronState, MCXN_NEUTRON_SIZE / 4),
         VMSTATE_UINT32(jobs_started, MCXNNeutronState),

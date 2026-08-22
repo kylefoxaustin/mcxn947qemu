@@ -1079,10 +1079,23 @@ static void mcxn_pwm_realize(DeviceState *dev, Error **errp)
     timer_init_ns(&s->trig_timer, QEMU_CLOCK_VIRTUAL, mcxn_pwm_trig_tick, s);
 }
 
+/* Re-drive both IRQ lines from restored register state after migration: the
+ * output lines are not part of vmstate, so a VM migrated with STS & INTEN or a
+ * fault flag asserted would otherwise land with the lines low. */
+static int mcxn_pwm_post_load(void *opaque, int version_id)
+{
+    MCXNPWMState *s = MCXN_PWM(opaque);
+
+    mcxn_pwm_update_irq(s);
+    mcxn_pwm_update_fault_irq(s);
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_pwm = {
     .name = TYPE_MCXN_PWM,
     .version_id = 5,
     .minimum_version_id = 5,
+    .post_load = mcxn_pwm_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNPWMState, MCXN_PWM_SIZE),
         VMSTATE_TIMER(reload_timer, MCXNPWMState),

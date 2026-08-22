@@ -221,10 +221,20 @@ static void mcxn_ostimer_realize(DeviceState *dev, Error **errp)
     timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, ostimer_tick, s);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with an asserted IRQ
+ * would otherwise land with the line low and the guest's level IRQ lost. */
+static int mcxn_ostimer_post_load(void *opaque, int version_id)
+{
+    ostimer_update_irq(MCXN_OSTIMER(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_ostimer = {
     .name = TYPE_MCXN_OSTIMER,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_ostimer_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_TIMER(timer, MCXNOSTimerState),
         VMSTATE_UINT64(base_count, MCXNOSTimerState),

@@ -747,10 +747,19 @@ static const Property mcxn_flexspi_props[] = {
     DEFINE_PROP_UINT64("flash-size", MCXNFlexSPIState, flash_size, 8 * MiB),
 };
 
+/* The IRQ output line is not part of vmstate; re-drive it from the restored
+ * register state so a migrated device lands with the correct level. */
+static int mcxn_flexspi_post_load(void *opaque, int version_id)
+{
+    mcxn_flexspi_update_irq(MCXN_FLEXSPI(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_flexspi = {
     .name = TYPE_MCXN_FLEXSPI,
     .version_id = 3,
     .minimum_version_id = 3,
+    .post_load = mcxn_flexspi_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNFlexSPIState, MCXN_FLEXSPI_SIZE / 4),
         VMSTATE_BOOL(loader_flushed, MCXNFlexSPIState),

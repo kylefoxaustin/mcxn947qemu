@@ -256,10 +256,19 @@ static void mcxn_emvsim_realize(DeviceState *dev, Error **errp)
     sysbus_init_irq(SYS_BUS_DEVICE(dev), &s->irq);
 }
 
+/* The IRQ output line is not part of vmstate; re-drive it from the restored
+ * register state so a migrated device lands with the correct level. */
+static int mcxn_emvsim_post_load(void *opaque, int version_id)
+{
+    mcxn_emvsim_update_irq(MCXN_EMVSIM(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_emvsim = {
     .name = TYPE_MCXN_EMVSIM,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_emvsim_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNEMVSIMState, MCXN_EMVSIM_SIZE / 4),
         VMSTATE_END_OF_LIST()

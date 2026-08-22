@@ -301,10 +301,20 @@ static void mcxn_rtc_realize(DeviceState *dev, Error **errp)
     timer_mod(&s->tick, s->next_tick_ns);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with ISR & IER asserted
+ * would otherwise land with the line low. */
+static int mcxn_rtc_post_load(void *opaque, int version_id)
+{
+    mcxn_rtc_update_irq(MCXN_RTC(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_rtc = {
     .name = TYPE_MCXN_RTC,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_rtc_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNRTCState, MCXN_RTC_SIZE / 4),
         VMSTATE_TIMER(tick, MCXNRTCState),

@@ -905,10 +905,26 @@ static const VMStateDescription vmstate_edma_chan = {
     },
 };
 
+/* Re-drive every channel's IRQ line from restored register state after
+ * migration: the output lines are not part of vmstate, so a VM migrated with a
+ * channel interrupt asserted would otherwise land with the line low and the
+ * guest's level IRQ lost.  The IRQ is per-channel, so re-drive them all. */
+static int mcxn_edma_post_load(void *opaque, int version_id)
+{
+    MCXNEDMAState *s = MCXN_EDMA(opaque);
+    int n;
+
+    for (n = 0; n < MCXN_EDMA_CHANNELS; n++) {
+        edma_update_irq(s, n);
+    }
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_edma = {
     .name = TYPE_MCXN_EDMA,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_edma_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(mp_csr, MCXNEDMAState),
         VMSTATE_UINT32(mp_es, MCXNEDMAState),

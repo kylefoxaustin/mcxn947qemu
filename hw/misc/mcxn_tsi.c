@@ -250,10 +250,20 @@ static void mcxn_tsi_realize(DeviceState *dev, Error **errp)
     qdev_init_gpio_in_named(dev, mcxn_tsi_hw_trigger, "trigger", 1);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with TSIEN + EOSF set
+ * would otherwise land with the line low and the guest's level IRQ lost. */
+static int mcxn_tsi_post_load(void *opaque, int version_id)
+{
+    mcxn_tsi_update_irq(MCXN_TSI(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_tsi = {
     .name = TYPE_MCXN_TSI,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_tsi_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNTSIState, MCXN_TSI_SIZE / 4),
         VMSTATE_UINT16_ARRAY(tsi_count, MCXNTSIState, MCXN_TSI_CHANNELS),

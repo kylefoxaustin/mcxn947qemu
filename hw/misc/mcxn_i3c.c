@@ -428,10 +428,19 @@ static void mcxn_i3c_realize(DeviceState *dev, Error **errp)
     s->bus = i2c_init_bus(dev, NULL);
 }
 
+/* The IRQ output line is not part of vmstate; re-drive it from the restored
+ * register state so a migrated device lands with the correct level. */
+static int mcxn_i3c_post_load(void *opaque, int version_id)
+{
+    mcxn_i3c_update_irq(MCXN_I3C(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_i3c = {
     .name = TYPE_MCXN_I3C,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_i3c_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNI3CState, MCXN_I3C_SIZE / 4),
         VMSTATE_BOOL(xfer_active, MCXNI3CState),

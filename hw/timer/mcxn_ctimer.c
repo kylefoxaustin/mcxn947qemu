@@ -422,10 +422,22 @@ static void mcxn_ctimer_realize(DeviceState *dev, Error **errp)
     timer_init_ns(&s->timer, QEMU_CLOCK_VIRTUAL, ctimer_tick, s);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with a pending IR would
+ * otherwise land with the line low and the guest's level IRQ lost.  (The DMA
+ * request / match-trigger outputs are one-shot pulses, not persistent levels,
+ * so they are not re-driven.) */
+static int mcxn_ctimer_post_load(void *opaque, int version_id)
+{
+    ctimer_update_irq(MCXN_CTIMER(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_ctimer = {
     .name = TYPE_MCXN_CTIMER,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_ctimer_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_TIMER(timer, MCXNCTimerState),
         VMSTATE_UINT32(ir, MCXNCTimerState),

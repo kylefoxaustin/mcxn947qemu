@@ -494,10 +494,19 @@ static void mcxn_flexcan_realize(DeviceState *dev, Error **errp)
     }
 }
 
+/* The IRQ output line is not part of vmstate; re-drive it from the restored
+ * register state so a migrated device lands with the correct level. */
+static int mcxn_flexcan_post_load(void *opaque, int version_id)
+{
+    flexcan_update_irq(MCXN_FLEXCAN(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_flexcan = {
     .name = TYPE_MCXN_FLEXCAN,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_flexcan_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNFlexCanState, MCXN_FLEXCAN_SIZE / 4),
         VMSTATE_END_OF_LIST()

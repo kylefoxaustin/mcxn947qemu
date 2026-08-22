@@ -424,10 +424,20 @@ static void mcxn_sct_realize(DeviceState *dev, Error **errp)
     timer_init_ns(&s->event_timer, QEMU_CLOCK_VIRTUAL, mcxn_sct_event_tick, s);
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with EVFLAG & EVEN
+ * asserted would otherwise land with the line low. */
+static int mcxn_sct_post_load(void *opaque, int version_id)
+{
+    mcxn_sct_update_irq(MCXN_SCT(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_sct = {
     .name = TYPE_MCXN_SCT,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_sct_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(regs, MCXNSCTState, MCXN_SCT_SIZE),
         VMSTATE_TIMER(event_timer, MCXNSCTState),

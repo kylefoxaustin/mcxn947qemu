@@ -586,10 +586,21 @@ static void mcxn_usdhc_realize(DeviceState *dev, Error **errp)
     qbus_init(&s->sdbus, sizeof(s->sdbus), TYPE_SD_BUS, dev, "sd-bus");
 }
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with an enabled+pending
+ * INT_STATUS/INT_SIGNAL_EN would otherwise land with the line low and the
+ * guest's level IRQ lost. */
+static int mcxn_usdhc_post_load(void *opaque, int version_id)
+{
+    mcxn_usdhc_update_irq(MCXN_USDHC(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_usdhc = {
     .name = TYPE_MCXN_USDHC,
     .version_id = 1,
     .minimum_version_id = 1,
+    .post_load = mcxn_usdhc_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNUSDHCState, MCXN_USDHC_SIZE / 4),
         VMSTATE_UINT32(data_len, MCXNUSDHCState),

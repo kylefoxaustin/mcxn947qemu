@@ -229,10 +229,21 @@ static const Property mcxn_usbdcd_props[] = {
     DEFINE_PROP_UINT8("charger", MCXNUSBDCDState, charger, MCXN_DCD_NONE),
 };
 
+/* Re-drive the IRQ line from restored register state after migration: the
+ * output line is not part of vmstate, so a VM migrated with CONTROL[IF] and
+ * CONTROL[IE] set would otherwise land with the line low and the guest's level
+ * IRQ lost. */
+static int mcxn_usbdcd_post_load(void *opaque, int version_id)
+{
+    dcd_update_irq(MCXN_USBDCD(opaque));
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_usbdcd = {
     .name = TYPE_MCXN_USBDCD,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_usbdcd_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNUSBDCDState, MCXN_USBDCD_SIZE / 4),
         VMSTATE_UINT8(phase, MCXNUSBDCDState),

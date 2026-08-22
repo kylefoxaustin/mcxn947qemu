@@ -388,10 +388,20 @@ static const Property mcxn_dac_properties[] = {
     DEFINE_PROP_BOOL("hpdac", MCXNDACState, hpdac, false),
 };
 
+/* Re-drive the IRQ line from restored register state after migration (the
+ * output line is not migrated); without this a VM migrated with FSR & IER
+ * asserted lands with the line low and the guest's level IRQ lost. */
+static int mcxn_dac_post_load(void *opaque, int version_id)
+{
+    dac_update_irq(opaque);
+    return 0;
+}
+
 static const VMStateDescription vmstate_mcxn_dac = {
     .name = TYPE_MCXN_DAC,
     .version_id = 2,
     .minimum_version_id = 2,
+    .post_load = mcxn_dac_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32_ARRAY(regs, MCXNDACState, MCXN_DAC_SIZE / 4),
         VMSTATE_UINT16_ARRAY(fifo, MCXNDACState, MCXN_DAC_FIFO_MAX),
