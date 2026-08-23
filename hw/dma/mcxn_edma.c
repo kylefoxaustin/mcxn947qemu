@@ -917,13 +917,28 @@ static int mcxn_edma_post_load(void *opaque, int version_id)
     for (n = 0; n < MCXN_EDMA_CHANNELS; n++) {
         edma_update_irq(s, n);
     }
+    /*
+     * The peripheral->eDMA request lines are device-to-device signals with no
+     * other saver, so they are migrated in this device's own vmstate (the
+     * req_level/req_enabled/req_edge arrays below).  If a level request was
+     * still asserted and gated at save time, re-kick the service bottom-half so
+     * the transfer resumes on the destination rather than stalling until the
+     * next request event (streaming sources would re-assert, but a finite
+     * mid-transfer would otherwise hang).
+     */
+    for (n = 0; n < MCXN_EDMA_REQ_SOURCES; n++) {
+        if (s->req_level[n] && s->req_enabled[n]) {
+            qemu_bh_schedule(s->bh);
+            break;
+        }
+    }
     return 0;
 }
 
 static const VMStateDescription vmstate_mcxn_edma = {
     .name = TYPE_MCXN_EDMA,
-    .version_id = 1,
-    .minimum_version_id = 1,
+    .version_id = 2,
+    .minimum_version_id = 2,
     .post_load = mcxn_edma_post_load,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT32(mp_csr, MCXNEDMAState),
@@ -931,6 +946,11 @@ static const VMStateDescription vmstate_mcxn_edma = {
         VMSTATE_UINT32_ARRAY(ch_grpri, MCXNEDMAState, MCXN_EDMA_CHANNELS),
         VMSTATE_STRUCT_ARRAY(ch, MCXNEDMAState, MCXN_EDMA_CHANNELS, 1,
                              vmstate_edma_chan, MCXNEDMAChan),
+        /* Device-to-device request lines have no other saver -- migrate the
+         * latch so a request asserted mid-transfer survives (v2). */
+        VMSTATE_BOOL_ARRAY(req_level, MCXNEDMAState, MCXN_EDMA_REQ_SOURCES),
+        VMSTATE_BOOL_ARRAY(req_enabled, MCXNEDMAState, MCXN_EDMA_REQ_SOURCES),
+        VMSTATE_BOOL_ARRAY(req_edge, MCXNEDMAState, MCXN_EDMA_REQ_SOURCES),
         VMSTATE_END_OF_LIST()
     },
 };
